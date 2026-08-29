@@ -20,7 +20,7 @@ generation — with no external AI APIs and no data leaving the machine or netwo
 ## Layout
 
 ```
-├── backend/          FastAPI backend (Phase 1: local Ollama connection)
+├── backend/          FastAPI backend (Phase 2: job manager, multi-user queue)
 ├── frontend/         Frontend application (planned)
 ├── config/           Model routing / system configuration (planned)
 ├── data/
@@ -35,12 +35,14 @@ See [CONTEXT.md](CONTEXT.md) for the authoritative project state and phase plan.
 
 ## Backend
 
-The backend is a minimal FastAPI service that communicates **only** with a local
-Ollama server (`GET /health`, `POST /api/chat`). See
-[`backend/README.md`](backend/README.md) for setup, configuration, and usage.
+The backend is a FastAPI service that communicates **only** with a local Ollama
+server. Requests become **jobs** processed asynchronously by a background worker
+(`POST /api/chat` returns a `job_id` immediately). Multi-user safe via an
+`X-User-ID` header. See [`backend/README.md`](backend/README.md) for setup,
+configuration, and usage.
 
 ## Status
 
-**Current phase: Phase 1 — Local Backend & Model Connection.** The FastAPI backend
-can talk to a local Ollama server and a local model. Phases are built incrementally,
-one at a time.
+**Current phase: Phase 2 — Job Manager & Multi-User Queue.** Requests are queued as
+persistent jobs and processed FIFO by a single worker against local Ollama. Phases
+are built incrementally, one at a time.

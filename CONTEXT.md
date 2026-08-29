@@ -77,12 +77,26 @@ models, and provides an agentic pipeline that:
   "all major actions logged" requirement still to be defined.
 - **App structure**: `create_app()` factory + `app.state` service injection; the
   `ollama_transport` seam lets tests mock Ollama via `httpx.MockTransport`.
+- **Job architecture (Phase 2)**: every request becomes a persistent job
+  (`job_id` + typed state machine) processed by a single background worker.
+  Flow: `HTTP → JobManager → FIFO queue → Worker → OllamaService → local model`.
+- **JobManager / store (Phase 2)**: a `JobStore` interface (in-memory impl, guarded
+  by an `asyncio.Lock`) is the seam for swapping in Redis/Postgres later. All
+  ownership checks live in the JobManager so API routes can never leak another
+  user's job.
+- **Worker (Phase 2)**: one `asyncio` task dequeues jobs serially (one active
+  Ollama request at a time, FIFO). Reuses the Phase 1 `OllamaService` unchanged;
+  Ollama failures surface as job `failed` state with a useful `error`, not HTTP errors.
+- **User identity (Phase 2)**: `X-User-ID` header dependency with `user-001` dev
+  fallback; no authentication yet — the dependency is the future auth seam.
+- **Job states**: `queued`, `running`, `completed`, `failed`, `cancelled`.
+  Priority is stored on the job model but priority scheduling is not implemented.
 
 ---
 
 ## Current Phase
 
-**Phase 1 — Local Backend & Model Connection** (completed)
+**Phase 2 — Job Manager & Multi-User Queue** (completed)
 
 ---
 
@@ -128,6 +142,47 @@ models, and provides an agentic pipeline that:
   tool calling, multi-model routing, OCR, vision, RAG, vector DB, Docker sandbox,
   authentication, file upload.
 
+### Phase 2 — Job Manager & Multi-User Queue
+- **Job model** (`app/schemas/job.py`): typed `Job` with `job_id`, `user_id`,
+  `message`, `task_type`, `status`, `priority`, `created_at`, `started_at`,
+  `completed_at`, `model`, `response`, `error`. States: `queued`, `running`,
+  `completed`, `failed`, `cancelled`.
+- **JobStore abstraction** (`app/services/job_store.py`): `JobStore` ABC +
+  `InMemoryJobStore` (asyncio.Lock-guarded dict) — the swap-in seam for Redis/
+  Postgres later.
+- **JobManager** (`app/services/job_manager.py`): create/get/list/update/cancel/
+  stats. All ownership checks live here (`JobNotFoundError`, `JobPermissionError`,
+  `JobStateError`). Listings are always filtered to the caller's `user_id`.
+- **JobQueue** (`app/services/job_queue.py`): async FIFO queue of job ids.
+- **Worker** (`app/services/worker.py`): single asyncio task; dequeues a job, marks
+  it RUNNING, calls the unchanged Phase 1 `OllamaService`, stores the result, and
+  marks COMPLETED or FAILED (with a useful `error`). Graceful on Ollama down /
+  timeout / model missing / unexpected exceptions. Skips jobs cancelled while queued.
+- **API changes**: `POST /api/chat` now enqueues and returns `{job_id, status:
+  queued}` with 202 (never blocks on the model). New `GET /api/jobs`,
+  `GET /api/jobs/{job_id}`, `DELETE /api/jobs/{job_id}` (cancel queued; 409 if
+  running/terminal). `GET /health` extended with `queue_size`, `jobs` counts, and
+  `worker` state/active job. `X-User-ID` header dependency with `user-001` fallback.
+- **HTTP errors now**: `422` validation, `404 job_not_found`, `403 forbidden`
+  (cross-user access), `409 invalid_state`. Ollama failures are job `failed` state,
+  not HTTP errors.
+- **Logging**: structured `job_created`, `job_started`, `job_completed`,
+  `job_failed`, `job_cancelled` events with `job_id`, `user_id`, `status`. No
+  prompts or responses logged.
+- **Tests (34, all passing)**: direct `OllamaService` unit tests (service stays
+  independently testable), chat submission/validation/non-blocking, job ownership
+  + listing + cancellation, worker failure states, five-user concurrency scenario
+  (distinct ids, correct per-user results, FIFO ordering, no mixing).
+- **Live smoke test**: ran against real local Ollama (`DEFAULT_MODEL=llama3.1:latest`);
+  verified submit→queued→completed lifecycle, 403 cross-user access, per-user
+  listing, and health job stats.
+- **Repository**: initialized as a git repo (branch `main`) and pushed to
+  `https://github.com/Chirag-agg/AstraSovereign` (git identity: Chirag-agg /
+  ca.aggarwal2006@gmail.com).
+- **Deliberately NOT implemented** (out of scope for Phase 2): GPU scheduler, VRAM
+  management, model auto-routing, agent loop, tool calling, RAG, OCR, vision, code
+  sandbox, frontend, authentication, Redis/Celery/Kafka/Postgres.
+
 ---
 
 ## Files and Directories
@@ -144,18 +199,30 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │   ├── pytest.ini                 pythonpath=tests config
 │   ├── .env.example               template for local config (copy to .env)
 │   ├── app/
-│   │   ├── main.py                create_app() factory, lifespan, JSON logging setup
+│   │   ├── main.py                create_app() factory, lifespan, JSON logging
 │   │   ├── config.py              pydantic-settings Settings (env-driven)
 │   │   ├── schemas/
-│   │   │   └── chat.py            ChatRequest / ChatResponse
+│   │   │   ├── chat.py            ChatRequest (message, task_type, priority)
+│   │   │   └── job.py             Job, JobStatus, JobSubmitResponse, JobSummary
 │   │   ├── services/
-│   │   │   └── ollama_service.py  OllamaService async client + typed errors
+│   │   │   ├── ollama_service.py  OllamaService async client + typed errors
+│   │   │   ├── job_store.py       JobStore ABC + InMemoryJobStore
+│   │   │   ├── job_manager.py     JobManager (lifecycle + ownership)
+│   │   │   ├── job_queue.py       FIFO async job queue
+│   │   │   └── worker.py          background worker (dequeue → Ollama → result)
 │   │   └── api/
-│   │       └── chat.py            GET /health, POST /api/chat
+│   │       ├── deps.py            get_user_id (X-User-ID header dependency)
+│   │       ├── chat.py            POST /api/chat (enqueue job)
+│   │       ├── jobs.py            GET/DELETE /api/jobs, GET /api/jobs/{job_id}
+│   │       └── health.py          GET /health (Ollama + queue + worker status)
 │   └── tests/
-│       ├── conftest.py            fixtures + httpx.MockTransport mocks
-│       ├── test_health.py         2 tests
-│       └── test_chat.py           8 tests
+│       ├── conftest.py            fixtures, mock handlers, wait_for_job helper
+│       ├── test_ollama_service.py 8 tests (direct service unit tests)
+│       ├── test_chat.py           7 tests
+│       ├── test_health.py         3 tests
+│       ├── test_jobs.py           8 tests
+│       ├── test_worker.py         5 tests
+│       └── test_concurrency.py    2 tests (5-user + FIFO ordering)
 ├── frontend/                      (empty — reserved for frontend)
 ├── config/                        (empty — reserved for model routing / system config)
 ├── data/
@@ -171,32 +238,33 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 ## Known Issues
 
 - `backend/.env` is not present (only `.env.example`); the backend needs a real
-  `.env` (or exported env vars) with `DEFAULT_MODEL` set before `POST /api/chat`
-  can run against a live Ollama.
-- Default `DEFAULT_MODEL` is empty; app logs a startup warning until it is configured.
+  `.env` (or exported env vars) with `DEFAULT_MODEL` set before jobs can run
+  against a live Ollama.
+- Default `DEFAULT_MODEL` is empty; app logs a startup warning until configured.
+- The in-memory job store/queue are process-local: jobs are lost on restart and
+  do not survive multiple processes. `JobStore` is the seam for a durable store.
+- One worker only; no concurrency or priority scheduling yet (by design).
 - `logs/backend.log` is generated at import time (module-level `app = create_app()`);
   it is gitignored so this is harmless.
-- No `.gitkeep` files yet; empty scaffold dirs would be dropped by a future
-  `git init` + commit unless added.
-- Repository is still not a git repo.
+- Repository is a git repo (branch `main`) tracking `origin` at
+  `https://github.com/Chirag-agg/AstraSovereign.git`.
 
 ---
 
 ## Next Steps
 
-1. **Initialize the repository** (`git init`) if version control is desired. If so,
-   decide whether to track empty scaffold dirs via `.gitkeep`.
-2. **Recommended next phase — Phase 2: Model Router & Config-Driven Selection.**
+1. **Recommended next phase — Phase 3: Model Router & Config-Driven Selection.**
    Define the `config/` model-routing schema (JSON/YAML) mapping task types
-   (reasoning, summarization, code, vision, embeddings) to local models, and implement
-   a `model_router` service that resolves a model per request from configuration.
-   Extend the `/api/chat` request to accept an optional task type. **Do not start until
-   explicitly requested.**
-3. Other candidate phases after Phase 2 (do not start early): agent loop / tool
+   (reasoning, summarization, code, vision, embeddings) to local models, and
+   implement a `model_router` service that resolves a model per job from
+   configuration. Extend the `ChatRequest` (already has `task_type`) so the router
+   picks the model before the worker runs. **Do not start until explicitly requested.**
+2. Other candidate phases after Phase 3 (do not start early): agent loop / tool
    calling; document & image processing (OCR, vision); local knowledge base (RAG +
    vector store); Docker code sandbox; Office deliverable generation (.docx/.xlsx/.pptx);
-   audit-log schema for "all major actions logged"; frontend.
-4. Keep updating this file after every significant change.
+   durable job store (Redis/Postgres behind `JobStore`); audit-log schema for
+   "all major actions logged"; frontend.
+3. Keep updating this file after every significant change.
 
 ---
 
@@ -208,3 +276,9 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   the local Ollama server — `GET /health`, `POST /api/chat`, env-driven config,
   structured JSON logging, typed Ollama error handling, 10 passing tests, live smoke
   test against real Ollama. See Architecture Decisions for the stack and runtime chosen.
+- **Phase 2 (2026-08-29)**: Reworked the backend to a job queue architecture —
+  `HTTP → JobManager → FIFO queue → Worker → Ollama`. `POST /api/chat` enqueues and
+  returns a `job_id` immediately; new `GET /api/jobs`, `GET /api/jobs/{job_id}`,
+  `DELETE /api/jobs/{job_id}` enforce per-user ownership via `X-User-ID`. 34 tests
+  incl. a five-user concurrency scenario; live smoke test against real Ollama.
+  Also initialized the git repo (`main`) and pushed to GitHub.
