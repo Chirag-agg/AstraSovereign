@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import shutil
+import subprocess
 import time
 
 import httpx
@@ -15,6 +17,29 @@ from app.services.model_registry import ModelConfig, ModelRegistry
 from app.services.sandbox_runner import ExecutionResult, SandboxRunnerError
 
 DEFAULT_HEADERS = {"X-User-ID": "user-001"}
+
+SANDBOX_IMAGE = "python:3.12-alpine"
+
+
+def docker_ready() -> bool:
+    """True when the Docker daemon is reachable AND the sandbox image exists."""
+    if shutil.which("docker") is None:
+        return False
+    try:
+        info = subprocess.run(
+            ["docker", "info"], capture_output=True, timeout=10, text=True
+        )
+        if info.returncode != 0:
+            return False
+        inspect = subprocess.run(
+            ["docker", "image", "inspect", SANDBOX_IMAGE],
+            capture_output=True,
+            timeout=10,
+            text=True,
+        )
+        return inspect.returncode == 0
+    except Exception:
+        return False
 
 
 class FakeSandboxRunner:
