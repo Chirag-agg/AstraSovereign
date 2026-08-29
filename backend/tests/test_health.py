@@ -1,5 +1,7 @@
 import httpx
 
+from tests.conftest import wait_for_job
+
 
 def test_health_ok(client):
     resp = client.get("/health")
@@ -9,6 +11,16 @@ def test_health_ok(client):
     assert body["ollama"]["reachable"] is True
     assert body["ollama"]["url"] == "http://ollama.test"
     assert body["default_model"] == "test-model"
+    assert body["queue_size"] == 0
+    assert body["jobs"] == {
+        "total": 0,
+        "queued": 0,
+        "running": 0,
+        "completed": 0,
+        "failed": 0,
+        "cancelled": 0,
+    }
+    assert body["worker"]["state"] in ("idle", "running")
 
 
 def test_health_reports_ollama_down(client_factory):
@@ -22,3 +34,14 @@ def test_health_reports_ollama_down(client_factory):
     assert body["status"] == "ok"
     assert body["ollama"]["reachable"] is False
     assert "error" in body["ollama"]
+
+
+def test_health_reports_job_stats(client):
+    resp = client.post("/api/chat", json={"message": "Hello"}, headers={"X-User-ID": "user-001"})
+    job_id = resp.json()["job_id"]
+    wait_for_job(client, job_id)
+
+    body = client.get("/health").json()
+    assert body["jobs"]["total"] == 1
+    assert body["jobs"]["completed"] == 1
+    assert body["queue_size"] == 0

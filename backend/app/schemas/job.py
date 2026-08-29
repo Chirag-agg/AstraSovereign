@@ -31,7 +31,7 @@ class JobCreate(BaseModel):
 class Job(BaseModel):
     """Persistent representation of a single user request."""
 
-    job_id: str
+    job_id: str = Field(default="", description="Assigned by the JobStore on creation.")
     user_id: str
     message: str
     task_type: str = "general"
