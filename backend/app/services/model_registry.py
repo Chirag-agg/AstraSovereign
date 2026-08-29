@@ -11,6 +11,8 @@ from typing import Optional, Union
 import yaml
 from pydantic import BaseModel, ValidationError
 
+from app.schemas.resources import ResourceRequirements
+
 logger = logging.getLogger("app.model_registry")
 
 SUPPORTED_PROVIDERS = ("ollama",)
@@ -23,6 +25,7 @@ class ModelConfig(BaseModel):
     model: str
     enabled: bool = True
     capabilities: list[str] = []
+    resources: ResourceRequirements = ResourceRequirements()
 
 
 class ModelConfigError(Exception):

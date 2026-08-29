@@ -4,6 +4,7 @@ import logging
 
 from pydantic import BaseModel
 
+from app.schemas.resources import ResourceRequirements
 from app.services.model_registry import ModelRegistry
 
 logger = logging.getLogger("app.model_router")
@@ -16,6 +17,7 @@ class RoutingResult(BaseModel):
     provider: str
     model: str
     reason: str
+    requirements: ResourceRequirements = ResourceRequirements()
 
 
 class ModelRoutingError(Exception):
@@ -43,4 +45,5 @@ class ModelRouter:
             provider=config.provider,
             model=config.model,
             reason=reason,
+            requirements=config.resources,
         )
