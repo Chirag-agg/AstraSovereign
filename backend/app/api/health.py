@@ -49,6 +49,7 @@ async def health(request: Request) -> dict:
         ollama["error"] = str(exc)
 
     job_stats = await manager.stats()
+    scheduler = request.app.state.scheduler
 
     return {
         "status": "ok",
@@ -58,5 +59,6 @@ async def health(request: Request) -> dict:
         "default_model": settings.default_model,
         "queue_size": queue.qsize(),
         "jobs": job_stats,
+        "scheduler": scheduler.stats(),
         "worker": {"state": worker.state, "active_job_id": worker.active_job_id},
     }

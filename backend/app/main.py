@@ -21,6 +21,7 @@ from app.api.chat import router as chat_router
 from app.api.health import router as health_router
 from app.api.jobs import router as jobs_router
 from app.config import Settings, get_settings
+from app.schemas.resources import GpuInfo, ResourceCapacity
 from app.services.agent import Agent
 from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
@@ -28,6 +29,8 @@ from app.services.job_store import InMemoryJobStore
 from app.services.model_registry import ModelRegistry
 from app.services.model_router import ModelRouter
 from app.services.ollama_service import OllamaService
+from app.services.resource_provider import InMemoryResourceProvider, LocalResourceProvider
+from app.services.resource_scheduler import InMemoryResourceScheduler
 from app.services.sandbox_runner import DockerSandboxRunner, SandboxRunner
 from app.services.task_router import TaskRouter
 from app.services.tool_registry import ToolRegistry
@@ -168,15 +171,34 @@ async def lifespan(app: FastAPI):
         await service.aclose()
 
 
+def build_resource_capacity(settings: Settings) -> ResourceCapacity:
+    """Build the scheduler capacity from config (or local discovery in auto mode)."""
+    if settings.resource_capacity_mode == "auto":
+        try:
+            return LocalResourceProvider().capacity()
+        except Exception:
+            pass  # fall through to configured values
+    return ResourceCapacity(
+        cpu_cores=settings.resource_cpu_cores,
+        memory_mb=settings.resource_memory_mb,
+        gpus=[
+            GpuInfo(gpu_id=f"GPU-{i}", vram_mb=settings.resource_gpu_vram_mb)
+            for i in range(settings.resource_gpu_count)
+        ],
+    )
+
+
 def create_app(
     settings: Optional[Settings] = None,
     ollama_transport: Optional[httpx.AsyncBaseTransport] = None,
     model_registry: Optional[ModelRegistry] = None,
     sandbox_runner: Optional[SandboxRunner] = None,
+    resource_capacity: Optional[ResourceCapacity] = None,
 ) -> FastAPI:
     """Build the FastAPI application.
 
-    ``ollama_transport`` / ``model_registry`` / ``sandbox_runner`` are test seams.
+    ``ollama_transport`` / ``model_registry`` / ``sandbox_runner`` /
+    ``resource_capacity`` are test seams.
     """
     settings = settings or get_settings()
     setup_logging(settings)
@@ -218,6 +240,10 @@ def create_app(
     tool_registry = ToolRegistry(tools)
     workspace_manager = WorkspaceManager(root=settings.workspaces_root)
 
+    capacity = resource_capacity or build_resource_capacity(settings)
+    resource_provider = InMemoryResourceProvider(capacity)
+    scheduler = InMemoryResourceScheduler(resource_provider)
+
     store = InMemoryJobStore()
     job_manager = JobManager(store=store, default_model=settings.default_model)
     job_queue = JobQueue()
@@ -236,18 +262,19 @@ def create_app(
         model_router=model_router,
         agent=agent,
         workspace_manager=workspace_manager,
+        scheduler=scheduler,
     )
 
     app = FastAPI(
         title="Sovereign On-Premise Agentic AI Workbench",
         description=(
-            "Local-only backend. Communicates exclusively with the local Ollama server. "
+            "Local-only backend. Communicates exclusively with local services. "
             "Requests become jobs classified by task type, routed to a configured "
-            "local model, and executed by a local agent that may call workspace-scoped "
-            "tools (list_files, read_file, write_file) and, when enabled, an isolated "
-            "Docker code-execution sandbox."
+            "local model, scheduled against declared resource capacity, and executed "
+            "by a local agent with workspace-scoped tools, an optional isolated "
+            "Docker code-execution sandbox, and an execution trace."
         ),
-        version="0.5.0",
+        version="0.6.0",
         lifespan=lifespan,
     )
     app.state.settings = settings
@@ -261,6 +288,7 @@ def create_app(
     app.state.tool_registry = tool_registry
     app.state.workspace_manager = workspace_manager
     app.state.agent = agent
+    app.state.scheduler = scheduler
     app.include_router(chat_router)
     app.include_router(jobs_router)
     app.include_router(health_router)

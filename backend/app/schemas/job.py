@@ -50,6 +50,10 @@ class Job(BaseModel):
     tool_call_count: int = 0
     execution_trace: list[dict] = Field(default_factory=list)
 
+    # Resource scheduling status (Phase 6): not_required | waiting | allocated |
+    # released | rejected.
+    resource_status: str = "not_required"
+
 
 class JobSubmitResponse(BaseModel):
     """Returned immediately when a job is accepted into the queue."""

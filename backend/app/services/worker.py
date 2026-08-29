@@ -1,9 +1,9 @@
 """Background worker.
 
-Pulls the next queued job, classifies its task, selects a model via the model
-router, runs the local Agent (which may call workspace-scoped tools), and records
-the result. One worker instance processes jobs serially, so there is never more
-than one active model request at a time.
+Pulls the next queued job, classifies its task, selects a model, requests the
+model's declared resources from the scheduler (grant / wait / reject), runs the
+local Agent, and records the result. One worker instance processes jobs serially,
+so there is never more than one active model request at a time.
 """
 
 import asyncio
@@ -17,6 +17,7 @@ from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
 from app.services.model_router import ModelRouter, ModelRoutingError
 from app.services.ollama_service import OllamaService, OllamaServiceError
+from app.services.resource_scheduler import ResourceScheduler
 from app.services.task_router import TaskRouter
 from app.services.workspace import WorkspaceManager
 
@@ -33,6 +34,7 @@ class Worker:
         model_router: ModelRouter,
         agent: Agent,
         workspace_manager: WorkspaceManager,
+        scheduler: ResourceScheduler,
     ) -> None:
         self._queue = queue
         self._manager = manager
@@ -41,6 +43,7 @@ class Worker:
         self._model_router = model_router
         self._agent = agent
         self._workspace_manager = workspace_manager
+        self._scheduler = scheduler
         self._task: Optional[asyncio.Task] = None
         self._state = "stopped"  # stopped | idle | running
         self._active_job_id: Optional[str] = None
@@ -94,24 +97,6 @@ class Worker:
         self._active_job_id = job_id
         agent_result = None
         try:
-            await self._manager.update_job(
-                job_id,
-                status=JobStatus.RUNNING,
-                started_at=datetime.now(timezone.utc),
-            )
-            current = await self._manager.get_job_for_worker(job_id)
-            if current is not None and current.status == JobStatus.CANCELLED:
-                logger.info(
-                    "job_cancelled",
-                    extra={
-                        "event": "job_cancelled",
-                        "job_id": job_id,
-                        "user_id": job.user_id,
-                        "status": JobStatus.CANCELLED.value,
-                    },
-                )
-                return
-
             classification = self._task_router.classify(job.message)
             logger.info(
                 "task_classified",
@@ -145,6 +130,31 @@ class Worker:
                 job_id,
                 model=routing.model,
             )
+
+            decision = await self._request_resources(job, routing)
+            if decision is None:
+                return  # rejected or cancelled while waiting for resources
+
+            resource_status = "allocated" if decision.allocation else "not_required"
+            await self._manager.update_job(
+                job_id,
+                status=JobStatus.RUNNING,
+                started_at=datetime.now(timezone.utc),
+                resource_status=resource_status,
+            )
+            current = await self._manager.get_job_for_worker(job_id)
+            if current is not None and current.status == JobStatus.CANCELLED:
+                logger.info(
+                    "job_cancelled",
+                    extra={
+                        "event": "job_cancelled",
+                        "job_id": job_id,
+                        "user_id": job.user_id,
+                        "status": JobStatus.CANCELLED.value,
+                    },
+                )
+                return
+
             logger.info(
                 "job_started",
                 extra={
@@ -186,8 +196,53 @@ class Worker:
         else:
             await self._finish_agent_job(job, agent_result)
         finally:
+            await self._release_resources(job_id)
             self._active_job_id = None
             self._state = "idle"
+
+    async def _request_resources(self, job: Job, routing) -> Optional[object]:
+        """Request resources until granted, rejected, or the job is cancelled.
+
+        Returns the scheduler decision on grant, or ``None`` when the job was
+        rejected (impossible request) or cancelled while waiting.
+        """
+        while True:
+            decision = await self._scheduler.request(
+                job.job_id, job.user_id, routing.model, routing.requirements
+            )
+            if decision.decision == "grant":
+                return decision
+            if decision.decision == "reject":
+                await self._manager.update_job(job.job_id, resource_status="rejected")
+                await self._fail(job, error=f"resource_rejected: {decision.reason}")
+                return None
+
+            await self._manager.update_job(job.job_id, resource_status="waiting")
+            await self._scheduler.wait_until_available(timeout=1.0)
+            current = await self._manager.get_job_for_worker(job.job_id)
+            if current is None or current.status == JobStatus.CANCELLED:
+                await self._scheduler.cancel(job.job_id)
+                logger.info(
+                    "job_cancelled",
+                    extra={
+                        "event": "job_cancelled",
+                        "job_id": job.job_id,
+                        "user_id": job.user_id,
+                        "status": JobStatus.CANCELLED.value,
+                    },
+                )
+                return None
+
+    async def _release_resources(self, job_id: str) -> None:
+        try:
+            allocation = await self._scheduler.release(job_id)
+            if allocation is not None:
+                await self._manager.update_job(job_id, resource_status="released")
+        except Exception:
+            logger.exception(
+                "worker_resource_release_error",
+                extra={"event": "resource_released", "job_id": job_id},
+            )
 
     async def _finish_agent_job(self, job: Job, agent_result: Optional[AgentStatus]) -> None:
         """Apply the agent outcome to the job. Job lifecycle stays in the worker."""
