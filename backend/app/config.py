@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     sandbox_max_stdout_chars: int = 4096
     sandbox_max_stderr_chars: int = 4096
 
+    # Resource scheduler capacity (Phase 6). Mode "configured" uses the values
+    # below; mode "auto" discovers local CPU/memory/GPU (informational).
+    resource_capacity_mode: str = "configured"
+    resource_cpu_cores: float = 8.0
+    resource_memory_mb: int = 16384
+    resource_gpu_vram_mb: int = 16384
+    resource_gpu_count: int = 1
+
     # Structured (JSON) logging.
     log_level: str = "INFO"
     log_file: str = str(REPO_ROOT / "logs" / "backend.log")
