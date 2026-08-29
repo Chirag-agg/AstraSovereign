@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from app.schemas.job import Job, JobStatus
 from app.services.job_manager import JobManager
+from app.services.log_context import set_job_context
 from app.services.ollama_service import OllamaService, OllamaServiceError
 from app.services.tool_registry import ToolRegistry
 from app.services.tools import ToolError, ToolResult
@@ -77,6 +78,7 @@ class Agent:
 
         self._append(trace, "agent_started", task_type=job.task_type, model=model)
         await self._sync(job_id, trace, stage, iterations, tool_calls)
+        set_job_context(job_id=job_id, user_id=user_id, task_type=job.task_type, model=model)
         logger.info(
             "agent_started",
             extra={

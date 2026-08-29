@@ -28,9 +28,15 @@ from app.services.job_store import InMemoryJobStore
 from app.services.model_registry import ModelRegistry
 from app.services.model_router import ModelRouter
 from app.services.ollama_service import OllamaService
+from app.services.sandbox_runner import DockerSandboxRunner, SandboxRunner
 from app.services.task_router import TaskRouter
 from app.services.tool_registry import ToolRegistry
-from app.services.tools import ListFilesTool, ReadFileTool, WriteFileTool
+from app.services.tools import (
+    CodeExecutionTool,
+    ListFilesTool,
+    ReadFileTool,
+    WriteFileTool,
+)
 from app.services.worker import Worker
 from app.services.workspace import WorkspaceManager
 
@@ -166,11 +172,11 @@ def create_app(
     settings: Optional[Settings] = None,
     ollama_transport: Optional[httpx.AsyncBaseTransport] = None,
     model_registry: Optional[ModelRegistry] = None,
+    sandbox_runner: Optional[SandboxRunner] = None,
 ) -> FastAPI:
     """Build the FastAPI application.
 
-    ``ollama_transport`` is a test seam for mocking the Ollama server.
-    ``model_registry`` is a test seam for injecting model configuration.
+    ``ollama_transport`` / ``model_registry`` / ``sandbox_runner`` are test seams.
     """
     settings = settings or get_settings()
     setup_logging(settings)
@@ -194,7 +200,22 @@ def create_app(
     task_router = TaskRouter()
     model_router = ModelRouter(registry=model_registry)
 
-    tool_registry = ToolRegistry([ListFilesTool(), ReadFileTool(), WriteFileTool()])
+    tools = [ListFilesTool(), ReadFileTool(), WriteFileTool()]
+    if settings.sandbox_enabled:
+        runner = sandbox_runner or DockerSandboxRunner(
+            image=settings.sandbox_python_image,
+            timeout_seconds=settings.sandbox_timeout_seconds,
+            cpu_limit=settings.sandbox_cpu_limit,
+            memory_limit=settings.sandbox_memory_limit,
+        )
+        tools.append(
+            CodeExecutionTool(
+                runner=runner,
+                max_stdout_chars=settings.sandbox_max_stdout_chars,
+                max_stderr_chars=settings.sandbox_max_stderr_chars,
+            )
+        )
+    tool_registry = ToolRegistry(tools)
     workspace_manager = WorkspaceManager(root=settings.workspaces_root)
 
     store = InMemoryJobStore()
@@ -223,9 +244,10 @@ def create_app(
             "Local-only backend. Communicates exclusively with the local Ollama server. "
             "Requests become jobs classified by task type, routed to a configured "
             "local model, and executed by a local agent that may call workspace-scoped "
-            "tools (list_files, read_file, write_file)."
+            "tools (list_files, read_file, write_file) and, when enabled, an isolated "
+            "Docker code-execution sandbox."
         ),
-        version="0.4.0",
+        version="0.5.0",
         lifespan=lifespan,
     )
     app.state.settings = settings
