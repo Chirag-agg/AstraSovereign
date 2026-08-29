@@ -104,6 +104,10 @@ class Worker:
                     "reason": classification.reason,
                 },
             )
+            await self._manager.update_job(
+                job_id,
+                task_type=classification.task_type,
+            )
 
             routing = self._model_router.resolve(
                 classification.task_type, classification.reason
@@ -118,10 +122,8 @@ class Worker:
                     "model": routing.model,
                 },
             )
-
             await self._manager.update_job(
                 job_id,
-                task_type=routing.task_type,
                 model=routing.model,
             )
             logger.info(

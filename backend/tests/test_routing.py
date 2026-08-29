@@ -59,6 +59,7 @@ def test_disabled_model_fails_job_cleanly(client_factory, test_models, available
         job_id = _submit(c, "summarize this document")
         job = wait_for_job(c, job_id)
     assert job["status"] == "failed"
+    assert job["task_type"] == "document"
     assert "model_routing_error" in job["error"]
     assert "disabled" in job["error"]
 
@@ -70,6 +71,7 @@ def test_missing_model_config_fails_job_cleanly(client_factory, test_models):
         job_id = _submit(c, "describe what is in this image")
         job = wait_for_job(c, job_id)
     assert job["status"] == "failed"
+    assert job["task_type"] == "vision"
     assert "model_routing_error" in job["error"]
     assert "No model configured for task type 'vision'" in job["error"]
 
