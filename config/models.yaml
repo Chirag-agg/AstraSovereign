@@ -1,0 +1,44 @@
+# Local model registry for the Sovereign AI Workbench.
+#
+# Maps each task type to the local model that handles it. Model names must refer
+# to models already pulled into the local Ollama server (`ollama pull <model>`);
+# the backend never downloads models.
+#
+# To add a model: add a new entry (or edit an existing one) here. No code changes
+# are required. `enabled: false` entries are never selected.
+
+models:
+  general:
+    provider: ollama
+    model: qwen2.5:7b
+    enabled: true
+    capabilities:
+      - general
+      - reasoning
+      - summarization
+
+  coding:
+    provider: ollama
+    model: qwen2.5-coder:7b
+    enabled: true
+    capabilities:
+      - coding
+      - debugging
+      - code_review
+
+  document:
+    provider: ollama
+    model: <placeholder>
+    enabled: false
+    capabilities:
+      - document
+      - summarization
+
+  vision:
+    provider: ollama
+    model: <placeholder>
+    enabled: false
+    capabilities:
+      - vision
+      - image
+      - document

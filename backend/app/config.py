@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Per-request timeout for calls to Ollama (seconds).
     ollama_timeout_seconds: float = 120.0
 
+    # Path to the models configuration file (task type -> model mapping).
+    models_config: str = str(REPO_ROOT / "config" / "models.yaml")
+
     # Structured (JSON) logging.
     log_level: str = "INFO"
     log_file: str = str(REPO_ROOT / "logs" / "backend.log")
