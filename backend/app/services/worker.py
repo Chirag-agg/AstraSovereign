@@ -99,6 +99,18 @@ class Worker:
                 status=JobStatus.RUNNING,
                 started_at=datetime.now(timezone.utc),
             )
+            current = await self._manager.get_job_for_worker(job_id)
+            if current is not None and current.status == JobStatus.CANCELLED:
+                logger.info(
+                    "job_cancelled",
+                    extra={
+                        "event": "job_cancelled",
+                        "job_id": job_id,
+                        "user_id": job.user_id,
+                        "status": JobStatus.CANCELLED.value,
+                    },
+                )
+                return
 
             classification = self._task_router.classify(job.message)
             logger.info(
