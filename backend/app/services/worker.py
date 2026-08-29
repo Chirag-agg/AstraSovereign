@@ -1,8 +1,9 @@
 """Background worker.
 
-Pulls the next queued job, marks it RUNNING, calls the (existing) Ollama
-service, and records the result. One worker instance processes jobs serially,
-so there is never more than one active Ollama request at a time.
+Pulls the next queued job, classifies its task, selects a model via the model
+router, calls the (existing) Ollama service, and records the result. One worker
+instance processes jobs serially, so there is never more than one active Ollama
+request at a time.
 """
 
 import asyncio
@@ -13,16 +14,27 @@ from typing import Optional
 from app.schemas.job import Job, JobStatus
 from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
+from app.services.model_router import ModelRouter, ModelRoutingError
 from app.services.ollama_service import OllamaService, OllamaServiceError
+from app.services.task_router import TaskRouter
 
 logger = logging.getLogger("app.worker")
 
 
 class Worker:
-    def __init__(self, queue: JobQueue, manager: JobManager, ollama: OllamaService) -> None:
+    def __init__(
+        self,
+        queue: JobQueue,
+        manager: JobManager,
+        ollama: OllamaService,
+        task_router: TaskRouter,
+        model_router: ModelRouter,
+    ) -> None:
         self._queue = queue
         self._manager = manager
         self._ollama = ollama
+        self._task_router = task_router
+        self._model_router = model_router
         self._task: Optional[asyncio.Task] = None
         self._state = "stopped"  # stopped | idle | running
         self._active_job_id: Optional[str] = None
@@ -80,6 +92,38 @@ class Worker:
                 status=JobStatus.RUNNING,
                 started_at=datetime.now(timezone.utc),
             )
+
+            classification = self._task_router.classify(job.message)
+            logger.info(
+                "task_classified",
+                extra={
+                    "event": "task_classified",
+                    "job_id": job_id,
+                    "user_id": job.user_id,
+                    "task_type": classification.task_type,
+                    "reason": classification.reason,
+                },
+            )
+
+            routing = self._model_router.resolve(
+                classification.task_type, classification.reason
+            )
+            logger.info(
+                "model_selected",
+                extra={
+                    "event": "model_selected",
+                    "job_id": job_id,
+                    "user_id": job.user_id,
+                    "task_type": routing.task_type,
+                    "model": routing.model,
+                },
+            )
+
+            await self._manager.update_job(
+                job_id,
+                task_type=routing.task_type,
+                model=routing.model,
+            )
             logger.info(
                 "job_started",
                 extra={
@@ -87,10 +131,26 @@ class Worker:
                     "job_id": job_id,
                     "user_id": job.user_id,
                     "status": JobStatus.RUNNING.value,
-                    "model": self._ollama.default_model,
+                    "task_type": routing.task_type,
+                    "model": routing.model,
                 },
             )
-            response_text, model_used = await self._ollama.generate(job.message)
+
+            response_text, model_used = await self._ollama.generate(
+                job.message, model=routing.model
+            )
+        except ModelRoutingError as exc:
+            logger.error(
+                "routing_failure",
+                extra={
+                    "event": "routing_failure",
+                    "job_id": job_id,
+                    "user_id": job.user_id,
+                    "status": JobStatus.FAILED.value,
+                    "error": str(exc),
+                },
+            )
+            await self._fail(job, error=f"model_routing_error: {exc}")
         except OllamaServiceError as exc:
             await self._fail(job, error=f"{exc.__class__.__name__}: {exc}")
         except Exception as exc:  # catch-all: unexpected worker/backend failure

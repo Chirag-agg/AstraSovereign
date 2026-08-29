@@ -17,20 +17,24 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 async def health(request: Request) -> dict:
-    """Report backend liveness plus local runtime status (Ollama, queue, worker)."""
+    """Report backend liveness plus local runtime status (Ollama, models, queue, worker)."""
     settings = request.app.state.settings
     ollama_service = request.app.state.ollama_service
     manager = request.app.state.job_manager
     queue = request.app.state.job_queue
     worker = request.app.state.worker
+    registry = request.app.state.model_registry
 
     ollama = {
         "reachable": False,
         "url": settings.ollama_base_url,
     }
+    available_models: set[str] = set()
     try:
-        ollama["models"] = await ollama_service.list_models()
+        model_list = await ollama_service.list_models()
+        ollama["models"] = model_list
         ollama["reachable"] = True
+        available_models = set(model_list)
     except (OllamaUnavailableError, OllamaTimeoutError) as exc:
         logger.warning(
             "health_ollama_unreachable",
@@ -50,6 +54,7 @@ async def health(request: Request) -> dict:
         "status": "ok",
         "service": "sovereign-backend",
         "ollama": ollama,
+        "models": registry.availability(available_models),
         "default_model": settings.default_model,
         "queue_size": queue.qsize(),
         "jobs": job_stats,

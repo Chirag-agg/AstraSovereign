@@ -3,7 +3,8 @@
 The backend talks only to the locally configured Ollama endpoint
 (``OLLAMA_BASE_URL``). No external AI services, no telemetry.
 
-Architecture: HTTP request -> Job Manager -> Queue -> Worker -> Ollama.
+Architecture: HTTP -> Job Manager -> Queue -> Worker -> Task Router ->
+Model Registry -> OllamaService -> local model.
 """
 
 import json
@@ -23,7 +24,10 @@ from app.config import Settings, get_settings
 from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
 from app.services.job_store import InMemoryJobStore
+from app.services.model_registry import ModelRegistry
+from app.services.model_router import ModelRouter
 from app.services.ollama_service import OllamaService
+from app.services.task_router import TaskRouter
 from app.services.worker import Worker
 
 logger = logging.getLogger("app")
@@ -108,8 +112,33 @@ async def lifespan(app: FastAPI):
     settings = app.state.settings
     service = app.state.ollama_service
     worker = app.state.worker
+    registry = app.state.model_registry
 
     worker.start()
+    try:
+        available = set(await service.list_models())
+        reachable = True
+    except Exception as exc:  # Ollama down at startup: report availability as unknown
+        available = set()
+        reachable = False
+        logger.warning(
+            "model_availability_unreachable",
+            extra={
+                "event": "model_availability",
+                "reachable": False,
+                "reason": f"{exc.__class__.__name__}: {exc}",
+            },
+        )
+    if reachable:
+        logger.info(
+            "model_availability",
+            extra={
+                "event": "model_availability",
+                "reachable": True,
+                "availability": registry.availability(available),
+            },
+        )
+
     logger.info(
         "application_startup",
         extra={
@@ -119,6 +148,7 @@ async def lifespan(app: FastAPI):
             "host": settings.host,
             "port": settings.port,
             "worker": worker.state,
+            "models_config": settings.models_config,
         },
     )
     try:
@@ -131,10 +161,12 @@ async def lifespan(app: FastAPI):
 def create_app(
     settings: Optional[Settings] = None,
     ollama_transport: Optional[httpx.AsyncBaseTransport] = None,
+    model_registry: Optional[ModelRegistry] = None,
 ) -> FastAPI:
     """Build the FastAPI application.
 
     ``ollama_transport`` is a test seam for mocking the Ollama server.
+    ``model_registry`` is a test seam for injecting model configuration.
     """
     settings = settings or get_settings()
     setup_logging(settings)
@@ -152,18 +184,31 @@ def create_app(
         transport=ollama_transport,
     )
 
+    if model_registry is None:
+        model_registry = ModelRegistry.from_file(settings.models_config)
+
+    task_router = TaskRouter()
+    model_router = ModelRouter(registry=model_registry)
+
     store = InMemoryJobStore()
     job_manager = JobManager(store=store, default_model=settings.default_model)
     job_queue = JobQueue()
-    worker = Worker(queue=job_queue, manager=job_manager, ollama=ollama_service)
+    worker = Worker(
+        queue=job_queue,
+        manager=job_manager,
+        ollama=ollama_service,
+        task_router=task_router,
+        model_router=model_router,
+    )
 
     app = FastAPI(
         title="Sovereign On-Premise Agentic AI Workbench",
         description=(
             "Local-only backend. Communicates exclusively with the local Ollama server. "
-            "Requests become jobs processed by a single background worker."
+            "Requests become jobs classified by task type and routed to a configured "
+            "local model by a single background worker."
         ),
-        version="0.2.0",
+        version="0.3.0",
         lifespan=lifespan,
     )
     app.state.settings = settings
@@ -171,6 +216,9 @@ def create_app(
     app.state.job_manager = job_manager
     app.state.job_queue = job_queue
     app.state.worker = worker
+    app.state.model_registry = model_registry
+    app.state.task_router = task_router
+    app.state.model_router = model_router
     app.include_router(chat_router)
     app.include_router(jobs_router)
     app.include_router(health_router)
