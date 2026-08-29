@@ -126,12 +126,26 @@ models, and provides an agentic pipeline that:
   or arbitrary filesystem paths.
 - **Cancellation (Phase 4)**: `cancel_job` now accepts QUEUED **and** RUNNING jobs;
   the worker/agent observe the state change and stop as soon as practical.
+- **Code-execution sandbox (Phase 5)**: `code_execution` tool runs generated Python
+  ONLY inside a short-lived Docker container (`docker run --network none --read-only
+  --cap-drop ALL --security-opt no-new-privileges --cpus/--memory limits`), a strict
+  timeout, and only a temp code dir mounted `:ro` — never the host fs, app workspace,
+  or Docker socket. Container removed via `--rm` + awaited `docker rm -f` on timeout
+  (no orphans). Registered only when `SANDBOX_ENABLED=true` (deny-by-default).
+- **SandboxRunner abstraction (Phase 5)**: injectable `SandboxRunner` (Docker CLI
+  impl + fake in tests); `build_args()` is unit-tested for the exact secure invocation.
+- **Sandbox config (Phase 5)**: enabled/image/timeout/cpu/memory/stdout/stderr limits
+  from env; the image must already exist locally and is never auto-pulled; Docker or
+  image unavailability fails the job cleanly (`SandboxRunnerError` → `ToolError`).
+- **Tool logging context (Phase 5)**: `log_context` (contextvars) lets tools log
+  `code_execution_started/completed/failed/timeout/cleanup` with job_id/user_id;
+  generated source and full output are never logged.
 
 ---
 
 ## Current Phase
 
-**Phase 4 — Agentic Pipeline & Local Tool Calling** (completed)
+**Phase 5 — Secure Docker Code Execution Sandbox** (completed)
 
 ---
 
@@ -300,6 +314,44 @@ models, and provides an agentic pipeline that:
   code execution, OCR, vision, RAG, vector DB, Word/PPT/Excel generation, GPU/VRAM
   scheduling, frontend, authentication, Redis/Celery/Kafka, external services.
 
+### Phase 5 — Secure Docker Code Execution Sandbox
+- **Sandbox runner** (`app/services/sandbox_runner.py`): `SandboxRunner` ABC +
+  `DockerSandboxRunner` (docker CLI, no new dependency). Runs generated code ONLY
+  in a short-lived container: `--network none`, `--read-only`, `--cap-drop ALL`,
+  `--security-opt no-new-privileges`, `--cpus`/`--memory`, strict timeout, only a
+  temp code dir mounted `:ro` (never host fs / app workspace / Docker socket).
+  `--rm` plus an awaited `docker rm -f` on timeout (no orphaned containers).
+  Structured `ExecutionResult` (success/exit_code/stdout/stderr/timed_out/
+  duration_ms); clean `SandboxRunnerError` for Docker/image/container failures
+  (never auto-pulls images).
+- **CodeExecutionTool** (`app/services/tools.py`): registered only when
+  `SANDBOX_ENABLED=true`; `language`/`code`/`stdin` args; rejects non-python;
+  truncates stdout/stderr to `SANDBOX_MAX_STDOUT/STDERR_CHARS`; returns a
+  `ToolResult` whose content lets the agent reason over exit code/duration/output.
+- **Logging**: `code_execution_started/completed/failed/timeout/cleanup` with
+  job_id/user_id/language/duration/exit_code via a contextvars `log_context` set by
+  the agent. Generated source and full output never logged (only short summaries).
+- **Config**: `SANDBOX_ENABLED`, `SANDBOX_PYTHON_IMAGE`, `SANDBOX_TIMEOUT_SECONDS`,
+  `SANDBOX_CPU_LIMIT`, `SANDBOX_MEMORY_LIMIT`, `SANDBOX_MAX_STDOUT_CHARS`,
+  `SANDBOX_MAX_STDERR_CHARS` (env-driven; see `.env.example`).
+- **Tests (135, all passing)**: 31 new — `test_sandbox.py` (tool via a scriptable
+  fake runner: success/syntax/non-zero/timeout/output limits/stdin/unsupported
+  language/malformed args + an exact Docker-invocation security test),
+  `test_sandbox_demo.py` (agent calls code_execution; deterministic factorial demo;
+  bug-fix loop demo), and `test_sandbox_docker.py` (14 real-sandbox integration
+  tests — network blocked, no host fs, no socket, no privileges, timeout/cleanup,
+  missing-image clean failure — skipped explicitly via a `docker` marker when the
+  daemon/image is unavailable). All 104 Phase 1–4 tests preserved.
+- **Live killer test**: ran the real agent + real Ollama + real Docker — the model
+  generated Python for factorial(10), `code_execution` ran it (`Exit code 0`),
+  the agent observed the result and reported `The factorial of 10 is 3628800.`;
+  a second run demonstrated the agent observing failed executions and reasoning
+  about the errors. No orphaned containers after any run.
+- **Deliberately NOT implemented** (out of scope for Phase 5): multi-language
+  execution, GPU/VRAM scheduling, RAG, OCR, vision, Word/PPT/Excel generation,
+  frontend, authentication, Redis/Celery/Kafka, cloud execution, model changes
+  unrelated to sandbox support.
+
 ---
 
 ## Files and Directories
@@ -331,7 +383,9 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │   │   │   ├── task_router.py     TaskRouter (deterministic classification)
 │   │   │   ├── model_router.py    ModelRouter (task_type → enabled model)
 │   │   │   ├── workspace.py       WorkspaceManager + safe path resolution
-│   │   │   ├── tools.py           Tool ABC + list_files/read_file/write_file
+│   │   │   ├── log_context.py     contextvars job context for tool logging
+│   │   │   ├── sandbox_runner.py  SandboxRunner ABC + DockerSandboxRunner (Phase 5)
+│   │   │   ├── tools.py           Tool ABC + list/read/write + code_execution
 │   │   │   ├── tool_registry.py   ToolRegistry (deny-by-default validation)
 │   │   │   └── agent.py           Agent (bounded loop, trace, cancellation)
 │   │   └── api/
@@ -353,7 +407,10 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │       ├── test_workspace.py      12 tests (isolation + traversal)
 │       ├── test_tools.py          14 tests (tool behavior + validation)
 │       ├── test_agent.py          12 tests (agent loop + cancellation)
-│       └── test_agent_demo.py     2 tests (demo + running-job cancellation)
+│       ├── test_agent_demo.py     2 tests (demo + running-job cancellation)
+│       ├── test_sandbox.py        14 tests (code_execution + docker invocation)
+│       ├── test_sandbox_demo.py   3 tests (factorial + bug-fix-loop demos)
+│       └── test_sandbox_docker.py 14 tests (docker-marked integration tests)
 ├── frontend/                      (empty — reserved for frontend)
 ├── config/
 │   └── models.yaml                task type → local model registry (Phase 3)
@@ -387,6 +444,11 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 - Agent tool-calling depends on the local model emitting the strict JSON protocol
   (prompted via `format: json`); models that ignore the format degrade to a
   plain-text final response (no tool use) rather than failing.
+- `code_execution` supports only `python` and requires `SANDBOX_ENABLED=true`
+  plus a locally available Docker image; sandbox failures (Docker down, missing
+  image) fail jobs cleanly but a job's success still depends on the model emitting
+  valid code inside the JSON protocol (llama3.1 sometimes produced syntax errors —
+  the agent observed and handled them).
 - Tool results feed the model prompt; a `read_file` observation is capped at
   ~4000 chars to bound prompt growth. Workspaces accumulate under
   `data/workspaces/` (gitignored); no cleanup/retention policy yet.
@@ -399,15 +461,15 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 
 ## Next Steps
 
-1. **Recommended next phase — Phase 5: Code Execution Sandbox (Docker).**
-   Add an isolated, containerized code-execution tool (per-job container with
-   network disabled) registered in the `ToolRegistry` so the agent can run
-   untrusted/generated code safely. Reuses the agent loop, routing, and workspace
-   isolation from Phase 4. **Do not start until explicitly requested.**
-2. Other candidate phases (do not start early): document & image processing (OCR,
-   vision); local knowledge base (RAG + vector store); Office deliverable
-   generation (.docx/.xlsx/.pptx); durable job store (Redis/Postgres behind
-   `JobStore`); audit-log schema for "all major actions logged"; frontend.
+1. **Recommended next phase — Phase 6: Document & Image Processing (OCR/Vision).**
+   Add local OCR and vision-model support (e.g., Ollama vision models) with tools
+   to process uploaded documents/images inside the existing agent loop, plus an
+   explicit file-passing mechanism to the code sandbox for generated source/input
+   files. **Do not start until explicitly requested.**
+2. Other candidate phases (do not start early): local knowledge base (RAG + vector
+   store); Office deliverable generation (.docx/.xlsx/.pptx); durable job store
+   (Redis/Postgres behind `JobStore`); audit-log schema for "all major actions
+   logged"; frontend.
 3. Keep updating this file after every significant change.
 
 ---
@@ -440,3 +502,11 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   trace exposed through the job API. Worker runs the agent after routing; cancel now
   stops running jobs. 104 tests incl. the end-to-end demo; live smoke test verified a
   real `list_files` tool call against real Ollama.
+- **Phase 5 (2026-08-29)**: Added the secure Docker code-execution sandbox — a
+  `code_execution` tool (registered only when `SANDBOX_ENABLED=true`) that runs
+  generated Python ONLY inside an isolated container (`--network none`, no
+  privileges, read-only root, resource limits, strict timeout, temp code dir only,
+  guaranteed cleanup). Structured `code_execution_*` logging; 135 tests incl. 14
+  real-Docker integration tests and deterministic factorial + bug-fix demos. Live
+  killer test: real agent + Ollama + Docker ran factorial(10) (exit 0) and reported
+  3628800; network-blocked and no-host-fs confirmed.

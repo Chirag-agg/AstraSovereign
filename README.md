@@ -20,7 +20,7 @@ generation — with no external AI APIs and no data leaving the machine or netwo
 ## Layout
 
 ```
-├── backend/          FastAPI backend (Phase 4: agentic pipeline, local tools)
+├── backend/          FastAPI backend (Phase 5: Docker code-execution sandbox)
 ├── frontend/         Frontend application (planned)
 ├── config/           models.yaml — task type → local model registry
 ├── data/
@@ -29,24 +29,28 @@ generation — with no external AI APIs and no data leaving the machine or netwo
 │   ├── knowledge/    Local knowledge base (not committed)
 │   └── workspaces/   Per-job agent workspaces (not committed)
 ├── logs/             Audit logs (not committed)
-└── docker/           Sandbox / container images (planned)
+└── docker/           Sandbox images / config (planned)
 ```
 
 See [CONTEXT.md](CONTEXT.md) for the authoritative project state and phase plan.
 
 ## Backend
 
-The backend is a FastAPI service that communicates **only** with a local Ollama
-server. Requests become **jobs** processed asynchronously by a background worker
-(`POST /api/chat` returns a `job_id` immediately). Each job is classified by task
-type, routed to a config-driven model (`config/models.yaml`), and executed by a
-**local agent** that can call workspace-scoped tools (`list_files`, `read_file`,
-`write_file`). Multi-user safe via an `X-User-ID` header. See
+The backend is a FastAPI service that communicates **only** with local services
+(a local Ollama server and, when enabled, a local Docker daemon). Requests become
+**jobs** processed asynchronously by a background worker (`POST /api/chat`
+returns a `job_id` immediately). Each job is classified by task type, routed to a
+config-driven model (`config/models.yaml`), and executed by a **local agent** that
+can call workspace-scoped tools (`list_files`, `read_file`, `write_file`) and, when
+enabled, run generated code in an **isolated Docker sandbox** (`code_execution`)
+with networking disabled, resource limits, a timeout, and no host filesystem
+access. Multi-user safe via an `X-User-ID` header. See
 [`backend/README.md`](backend/README.md) for setup, configuration, and usage.
 
 ## Status
 
-**Current phase: Phase 4 — Agentic Pipeline & Local Tool Calling.** Jobs are queued
+**Current phase: Phase 5 — Secure Docker Code Execution Sandbox.** Jobs are queued
 FIFO, classified, routed to a configured local model, and executed by a bounded,
-cancellation-aware agent with an isolated per-job workspace and an execution trace.
-Phases are built incrementally, one at a time.
+cancellation-aware agent with an isolated per-job workspace, an execution trace,
+and an optional `code_execution` tool that runs generated Python only inside an
+isolated Docker container. Phases are built incrementally, one at a time.

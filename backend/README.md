@@ -1,12 +1,13 @@
-# Backend — Phase 4: Agentic Pipeline & Local Tool Calling
+# Backend — Phase 5: Secure Docker Code Execution Sandbox
 
-FastAPI backend that talks **only** to a locally running Ollama server. No
-external AI services, no telemetry, no data leaves the machine.
+FastAPI backend that talks **only** to locally running services (Ollama, Docker).
+No external AI APIs, no telemetry, no data leaves the machine.
 
 Every request becomes a **job** with its own id and state, processed
 asynchronously by a single background worker. Each job is classified by task
 type, routed to the configured local model, and executed by a **local agent**
-that may call workspace-scoped tools:
+that may call workspace-scoped tools and, when enabled, run generated code in an
+isolated Docker sandbox:
 
 ```
 Client ──HTTP──▶ FastAPI ──▶ Job Manager ──▶ Queue ──▶ Worker ──▶ Task Router
@@ -16,15 +17,15 @@ Client ──HTTP──▶ FastAPI ──▶ Job Manager ──▶ Queue ──�
                                                                     │
                                                                     ▼
                                                                   Agent
-                                                          ┌───────┼───────┐
-                                                          ▼       ▼       ▼
-                                                     ToolRegistry (list_files / read_file / write_file)
-                                                          │
-                                                          ▼
-                                                     Job Workspace (data/workspaces/<user>/<job>/)
-                                                                    │
-                                                                    ▼
-                                                          OllamaService ──▶ Local Model
+                                                          ┌───────┼──────────┐
+                                                          ▼       ▼          ▼
+                                                     ToolRegistry   code_execution
+                                                          │            │
+                                                          ▼            ▼
+                                                     Job Workspace   Docker Sandbox
+                                                          │       (network=none,
+                                                          ▼        limits, timeout)
+                                                     OllamaService ──▶ Local Model
 ```
 
 - `POST /api/chat` returns a `job_id` immediately (202); it never blocks on the model.
@@ -34,6 +35,7 @@ Client ──HTTP──▶ FastAPI ──▶ Job Manager ──▶ Queue ──�
 - The **agent loop** is bounded (max iterations / max tool calls), cancellation-aware,
   and records a serializable **execution trace** on the job.
 - **Tools** are deny-by-default and operate only inside the job's isolated workspace.
+- Generated code runs **only** inside an isolated Docker container — never on the host.
 - All state is in-memory (single process). A `JobStore` abstraction is the seam for
   swapping in Redis/Postgres/etc. later.
 
@@ -41,6 +43,8 @@ Client ──HTTP──▶ FastAPI ──▶ Job Manager ──▶ Queue ──�
 
 - Python 3.10+ (developed on 3.13)
 - [Ollama](https://ollama.com) running locally with at least one model pulled.
+- **Docker** (daemon running) with a local Python image **only if** you enable the
+  sandbox (`SANDBOX_ENABLED=true`). The backend never pulls images.
 
 ## 1. Install dependencies
 
@@ -82,6 +86,12 @@ Key variables (all optional; defaults shown):
 | `MAX_AGENT_ITERATIONS`   | `10`                  | Max model decisions per job (hard stop)       |
 | `MAX_AGENT_TOOL_CALLS`   | `20`                  | Max tool executions per job (hard stop)       |
 | `WORKSPACES_ROOT`        | `../data/workspaces`  | Per-job workspace root                       |
+| `SANDBOX_ENABLED`        | `false`               | Register the `code_execution` tool           |
+| `SANDBOX_PYTHON_IMAGE`   | `python:3.12-alpine`  | Local image used for executions              |
+| `SANDBOX_TIMEOUT_SECONDS`| `10`                  | Max execution time (runaway code is killed)  |
+| `SANDBOX_CPU_LIMIT`      | `0.5`                 | Docker `--cpus` limit                        |
+| `SANDBOX_MEMORY_LIMIT`   | `128m`                | Docker `--memory` limit                      |
+| `SANDBOX_MAX_STDOUT_CHARS` / `SANDBOX_MAX_STDERR_CHARS` | `4096` | Output caps per execution    |
 | `HOST` / `PORT`          | `127.0.0.1` / `8000`  | FastAPI bind address (localhost only)         |
 | `OLLAMA_TIMEOUT_SECONDS` | `120`                 | Per-request timeout for Ollama calls          |
 | `LOG_LEVEL` / `LOG_FILE` | `INFO` / `../logs/backend.log` | Structured JSON logging            |
@@ -152,13 +162,45 @@ respond with strict JSON — either `{"type":"final","response":"..."}` or
 plain (non-JSON) text, it is treated as a final response. Tool name, argument
 schema, and workspace path are all validated before anything runs.
 
-**Available tools (Phase 4):**
+**Available tools (Phase 5):**
 
-| Tool         | Description                                    |
-| ------------ | ---------------------------------------------- |
-| `list_files` | List files in the current job workspace.       |
-| `read_file`  | Read a text file from the job workspace.       |
-| `write_file` | Write text content to a file in the workspace. |
+| Tool            | Description                                              |
+| --------------- | -------------------------------------------------------- |
+| `list_files`    | List files in the current job workspace.                 |
+| `read_file`     | Read a text file from the job workspace.                 |
+| `write_file`    | Write text content to a file in the workspace.           |
+| `code_execution`| Run generated code in an isolated Docker sandbox (python).|
+
+`code_execution` arguments: `{"language": "python", "code": "...", "stdin": "..."}`.
+Only `python` is supported; anything else is rejected. The result surfaces in the
+execution trace as `tool_result` (exit code, duration, and stdout/stderr summary),
+so the agent can observe and react to it.
+
+## 3d. Docker code-execution sandbox
+
+Generated code runs **only** inside a short-lived Docker container, never on the
+host. Enable it with `SANDBOX_ENABLED=true`; the configured image must already be
+pulled locally (`docker pull python:3.12-alpine`) — the backend never pulls.
+
+**Security controls (verified by integration tests):**
+
+- `--network none` — no outbound network access
+- no `--privileged`; `--cap-drop ALL`; `--security-opt no-new-privileges`
+- `--read-only` root filesystem with a writable `tmpfs` for temporary files
+- only a temporary directory (containing the generated source) is mounted,
+  read-only — never the app workspace, host filesystem, or Docker socket
+- CPU (`--cpus`) and memory (`--memory`) limits
+- strict execution timeout — runaway loops are killed
+- container is removed after every run (`--rm`, plus an explicit `docker rm -f`
+  on timeout) — no orphaned containers
+
+**Result:** a structured `ExecutionResult` (`success`, `exit_code`, `stdout`,
+`stderr`, `timed_out`, `duration_ms`) with stdout/stderr capped at
+`SANDBOX_MAX_STDOUT_CHARS` / `SANDBOX_MAX_STDERR_CHARS`.
+
+**Failure handling:** Docker unavailable, image missing, container-creation
+failure, and timeouts all fail cleanly through the existing job lifecycle —
+nothing hangs, nothing is auto-downloaded.
 
 **Workspace isolation:** each job gets `data/workspaces/<user>/<job>/`. Tools
 reject `..` traversal, absolute paths, and symlink escapes — they can never read
@@ -293,22 +335,30 @@ terminal state.
 Structured JSON to console and `logs/backend.log` (see `LOG_FILE`). Lifecycle
 events (`job_created`, `job_started`, `job_completed`, `job_failed`,
 `job_cancelled`), routing events (`registry_loaded`, `model_availability`,
-`task_classified`, `model_selected`, `routing_failure`), and agent events
+`task_classified`, `model_selected`, `routing_failure`), agent events
 (`agent_started`, `agent_completed`, `agent_failed`, `agent_cancelled`,
-`tool_call_started`, `tool_call_completed`, `tool_call_failed`) include
-`job_id`, `user_id`, `task_type`, `model`, `tool`, and iteration counts where
-applicable. Confidential prompts, generated responses, and file contents are
-never logged.
+`tool_call_started`, `tool_call_completed`, `tool_call_failed`), and sandbox
+events (`code_execution_started`, `code_execution_completed`,
+`code_execution_failed`, `code_execution_timeout`, `code_execution_cleanup`)
+include `job_id`, `user_id`, `task_type`, `model`, `tool`, `language`, duration,
+and exit code where applicable. Confidential prompts, generated responses,
+generated source code, full stdout/stderr, and file contents are never logged —
+only short summaries are.
 
 ## Tests
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest
+.\.venv\Scripts\python.exe -m pytest                 # unit + demo tests
+.\.venv\Scripts\python.exe -m pytest -m docker       # Docker integration tests
 ```
 
 Ollama is mocked via `httpx.MockTransport` — no live Ollama needed. Coverage
 includes the low-level Ollama client, task classification, model routing and
 registry validation, job API/ownership, worker failure states, routing through
 the API, workspace isolation and path traversal, the tool system, the agent loop
-(limits, cancellation, trace order), an end-to-end agent demo, and a five-user
-concurrency scenario.
+(limits, cancellation, trace order), end-to-end agent demos (including the
+factorial "killer test" and a bug-fix loop), the `code_execution` tool with a
+fake runner, a Docker-invocation security test, a five-user concurrency scenario,
+and **Docker integration tests** (network-blocked, no host fs, no socket, no
+privileged, timeout/cleanup) that are skipped explicitly when Docker is
+unavailable.
