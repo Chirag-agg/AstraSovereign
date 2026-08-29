@@ -1,31 +1,22 @@
-# Backend — Phase 5: Secure Docker Code Execution Sandbox
+# Backend — Phase 6: Resource Scheduler & GPU/VRAM Awareness
 
 FastAPI backend that talks **only** to locally running services (Ollama, Docker).
 No external AI APIs, no telemetry, no data leaves the machine.
 
 Every request becomes a **job** with its own id and state, processed
 asynchronously by a single background worker. Each job is classified by task
-type, routed to the configured local model, and executed by a **local agent**
-that may call workspace-scoped tools and, when enabled, run generated code in an
-isolated Docker sandbox:
+type, routed to the configured local model, scheduled against declared resource
+capacity, and executed by a **local agent** that may call workspace-scoped tools
+and, when enabled, run generated code in an isolated Docker sandbox:
 
 ```
-Client ──HTTP──▶ FastAPI ──▶ Job Manager ──▶ Queue ──▶ Worker ──▶ Task Router
-                                                                    │
-                                                                    ▼
-                                                               Model Router
-                                                                    │
-                                                                    ▼
-                                                                  Agent
-                                                          ┌───────┼──────────┐
-                                                          ▼       ▼          ▼
-                                                     ToolRegistry   code_execution
-                                                          │            │
-                                                          ▼            ▼
-                                                     Job Workspace   Docker Sandbox
-                                                          │       (network=none,
-                                                          ▼        limits, timeout)
-                                                     OllamaService ──▶ Local Model
+Client ──HTTP──▶ FastAPI ──▶ Job Manager ──▶ Queue ──▶ Worker
+                                                       │
+                                           classify → select model → requirements
+                                                       │
+                                            Resource Scheduler (grant/wait/reject)
+                                                       │
+                                            Agent ──▶ Tools / Sandbox / Ollama
 ```
 
 - `POST /api/chat` returns a `job_id` immediately (202); it never blocks on the model.
@@ -92,6 +83,11 @@ Key variables (all optional; defaults shown):
 | `SANDBOX_CPU_LIMIT`      | `0.5`                 | Docker `--cpus` limit                        |
 | `SANDBOX_MEMORY_LIMIT`   | `128m`                | Docker `--memory` limit                      |
 | `SANDBOX_MAX_STDOUT_CHARS` / `SANDBOX_MAX_STDERR_CHARS` | `4096` | Output caps per execution    |
+| `RESOURCE_CAPACITY_MODE`| `configured`           | `configured` (values below) or `auto` (local discovery) |
+| `RESOURCE_CPU_CORES`    | `8`                    | Scheduler CPU capacity                       |
+| `RESOURCE_MEMORY_MB`    | `16384`                | Scheduler memory capacity                    |
+| `RESOURCE_GPU_VRAM_MB`  | `16384`                | VRAM per GPU (`GPU-0`, `GPU-1`, ...)         |
+| `RESOURCE_GPU_COUNT`    | `1`                    | Number of GPUs in capacity                   |
 | `HOST` / `PORT`          | `127.0.0.1` / `8000`  | FastAPI bind address (localhost only)         |
 | `OLLAMA_TIMEOUT_SECONDS` | `120`                 | Per-request timeout for Ollama calls          |
 | `LOG_LEVEL` / `LOG_FILE` | `INFO` / `../logs/backend.log` | Structured JSON logging            |
@@ -108,12 +104,20 @@ models:
     model: qwen2.5:7b
     enabled: true
     capabilities: [general, reasoning, summarization]
+    resources:
+      gpu_vram_mb: 8000
+      cpu_cores: 2
+      memory_mb: 4096
 
   coding:
     provider: ollama
     model: qwen2.5-coder:7b
     enabled: true
     capabilities: [coding, debugging, code_review]
+    resources:
+      gpu_vram_mb: 8000
+      cpu_cores: 2
+      memory_mb: 4096
 
   document:
     provider: ollama
@@ -214,6 +218,47 @@ cannot escape the root. Deny-by-default: only registered tools may be executed.
 `agent_stage`, `iteration_count`, and `tool_call_count` are also exposed via
 `GET /api/jobs/{job_id}`.
 
+## 3e. Resource scheduler (Phase 6)
+
+Between routing and execution, a **resource scheduler** decides whether a job can
+run based on the selected model's **declared resource requirements** and currently
+allocated capacity:
+
+```
+queued job → classify → select model → determine requirements → scheduler
+           → grant or wait (FIFO) or reject → agent execution → release
+```
+
+**Resource model:** a job's requirements come from the model's `resources` block
+in `config/models.yaml` (`cpu_cores`, `memory_mb`, `gpu_id`, `gpu_vram_mb`). The
+scheduler tracks an allocation per running job and **never exceeds configured
+capacity**.
+
+**Capacity** is configured via `RESOURCE_*` env vars (default: 8 cores, 16 GB
+RAM, one `GPU-0` with 16 GB VRAM). Set `RESOURCE_CAPACITY_MODE=auto` to use
+read-only **local hardware discovery** (CPU count, system memory, and
+`nvidia-smi` GPUs when present — no NVIDIA tooling required for tests).
+
+**Behavior:**
+- **Grant** — requirements fit; the job runs and records `resource_status:
+  allocated`.
+- **Wait** — capacity is busy; the job waits **in FIFO order** (no starvation: the
+  oldest waiter is granted first when capacity frees).
+- **Reject** — a request can never fit (e.g. `Requested 32768 MB VRAM, system
+  capacity is 16384 MB`) or references an unknown GPU; the job **fails cleanly**
+  instead of waiting forever.
+- **Release** — resources are returned on completion, failure, cancellation, or
+  timeout; after all jobs finish, allocated resources return to zero (verified by
+  tests). A waiting job that is cancelled never receives resources.
+
+The job exposes `resource_status` (`not_required`, `waiting`, `allocated`,
+`released`, `rejected`), and `/health` reports a `scheduler` section with queued/
+running jobs and allocated CPU/memory/VRAM per GPU. Note: with the current single
+worker, jobs execute one at a time, so the scheduler's multi-job concurrency is
+primarily enforced at the accounting layer and is exercised deterministically by
+the scheduler unit tests (e.g. the five-user scenario: two 8 GB jobs share a
+16 GB GPU, the rest wait in FIFO order).
+
 ## 4. Run FastAPI
 
 ```powershell
@@ -302,8 +347,9 @@ as soon as practical. Terminal jobs cannot be cancelled (409).
 curl http://127.0.0.1:8000/health
 ```
 
-Includes queue size, job counts by state, worker state/active job, and per-task-type
-model availability:
+Includes queue size, job counts by state, worker state/active job, per-task-type
+model availability, and a **scheduler** section with queued/running jobs and
+allocated CPU/memory/VRAM per GPU:
 
 ```json
 {
@@ -312,6 +358,15 @@ model availability:
     "general": { "configured": "qwen2.5:7b", "available": true, "enabled": true },
     "coding":  { "configured": "qwen2.5-coder:7b", "available": true, "enabled": true },
     "document": { "configured": "<placeholder>", "available": false, "enabled": false }
+  },
+  "scheduler": {
+    "queued_jobs": 1,
+    "running_jobs": 1,
+    "allocated": {
+      "cpu_cores": 2,
+      "memory_mb": 4096,
+      "gpu": { "GPU-0": { "allocated_vram_mb": 8192, "capacity_vram_mb": 16384 } }
+    }
   }
 }
 ```
@@ -337,13 +392,15 @@ events (`job_created`, `job_started`, `job_completed`, `job_failed`,
 `job_cancelled`), routing events (`registry_loaded`, `model_availability`,
 `task_classified`, `model_selected`, `routing_failure`), agent events
 (`agent_started`, `agent_completed`, `agent_failed`, `agent_cancelled`,
-`tool_call_started`, `tool_call_completed`, `tool_call_failed`), and sandbox
-events (`code_execution_started`, `code_execution_completed`,
-`code_execution_failed`, `code_execution_timeout`, `code_execution_cleanup`)
-include `job_id`, `user_id`, `task_type`, `model`, `tool`, `language`, duration,
-and exit code where applicable. Confidential prompts, generated responses,
-generated source code, full stdout/stderr, and file contents are never logged —
-only short summaries are.
+`tool_call_started`, `tool_call_completed`, `tool_call_failed`), sandbox events
+(`code_execution_started`, `code_execution_completed`, `code_execution_failed`,
+`code_execution_timeout`, `code_execution_cleanup`), and scheduler events
+(`resource_requested`, `resource_waiting`, `resource_allocated`,
+`resource_released`, `resource_rejected`) include `job_id`, `user_id`, `model`,
+`task_type`, `tool`, `language`, duration, exit code, and resource amounts where
+applicable. Confidential prompts, generated responses, generated source code,
+full stdout/stderr, and file contents are never logged — only short summaries
+are.
 
 ## Tests
 
@@ -358,7 +415,8 @@ registry validation, job API/ownership, worker failure states, routing through
 the API, workspace isolation and path traversal, the tool system, the agent loop
 (limits, cancellation, trace order), end-to-end agent demos (including the
 factorial "killer test" and a bug-fix loop), the `code_execution` tool with a
-fake runner, a Docker-invocation security test, a five-user concurrency scenario,
-and **Docker integration tests** (network-blocked, no host fs, no socket, no
-privileged, timeout/cleanup) that are skipped explicitly when Docker is
-unavailable.
+fake runner, a Docker-invocation security test, the resource scheduler (grant/
+wait/reject, five-user scenario, release/cleanup, no leaks), scheduler worker
+integration, a five-user concurrency scenario, and **Docker integration tests**
+(network-blocked, no host fs, no socket, no privileged, timeout/cleanup) that are
+skipped explicitly when Docker is unavailable.

@@ -140,12 +140,28 @@ models, and provides an agentic pipeline that:
 - **Tool logging context (Phase 5)**: `log_context` (contextvars) lets tools log
   `code_execution_started/completed/failed/timeout/cleanup` with job_id/user_id;
   generated source and full output are never logged.
+- **Resource scheduler (Phase 6)**: between routing and execution, a
+  `ResourceScheduler` decides grant/wait/reject based on the selected model's
+  declared `resources` and the in-memory `ResourceProvider` capacity. FIFO waiters
+  (no starvation); impossible requests (oversized vs capacity, unknown GPU) fail
+  jobs cleanly; resources released on completion/failure/cancellation/timeout.
+  Single worker → one active allocation, so multi-job concurrency is enforced at
+  the accounting layer and exercised by scheduler unit tests (five-user scenario).
+- **Resource provider (Phase 6)**: `ResourceProvider` abstraction (in-memory impl
+  for deterministic tests; read-only `LocalResourceProvider` for informational
+  CPU/memory/GPU discovery via `RESOURCE_CAPACITY_MODE=auto` — never requires
+  NVIDIA tooling, never loads/unloads models).
+- **Capacity config (Phase 6)**: `RESOURCE_CPU_CORES`, `RESOURCE_MEMORY_MB`,
+  `RESOURCE_GPU_VRAM_MB`, `RESOURCE_GPU_COUNT`; models declare `resources`
+  (`gpu_vram_mb`/`cpu_cores`/`memory_mb`/`gpu_id`) in `config/models.yaml`.
+  Priority remains on the job model but priority scheduling is not implemented;
+  FIFO is the default.
 
 ---
 
 ## Current Phase
 
-**Phase 5 — Secure Docker Code Execution Sandbox** (completed)
+**Phase 6 — Resource Scheduler & GPU/VRAM Awareness** (completed)
 
 ---
 
@@ -352,6 +368,52 @@ models, and provides an agentic pipeline that:
   frontend, authentication, Redis/Celery/Kafka, cloud execution, model changes
   unrelated to sandbox support.
 
+### Phase 6 — Resource Scheduler & GPU/VRAM Awareness
+- **Resource model** (`app/schemas/resources.py`): `ResourceRequirements`
+  (cpu_cores/memory_mb/gpu_id/gpu_vram_mb), `ResourceAllocation` (with
+  allocated_at), `GpuInfo`, `ResourceCapacity`.
+- **ResourceProvider** (`app/services/resource_provider.py`): `ResourceProvider`
+  ABC; `InMemoryResourceProvider` (lock-guarded, idempotent, never exceeds
+  capacity) for deterministic tests; read-only `LocalResourceProvider` for local
+  discovery (CPU count, system memory, optional nvidia-smi GPUs — no NVIDIA
+  tooling required for tests).
+- **Model requirements**: `ModelConfig.resources` (optional) parsed from
+  `config/models.yaml`; `RoutingResult.requirements` carries the selected model's
+  declared resources to the scheduler.
+- **ResourceScheduler** (`app/services/resource_scheduler.py`):
+  `request()` → grant/wait/reject; FIFO waiters (ordered dict) preserve ordering
+  (no starvation); `release()` returns capacity and wakes waiters; `cancel()`
+  removes a waiting job (never allocates to it); impossible requests (oversized
+  vs capacity, unknown GPU, VRAM with no GPU) fail jobs cleanly with a useful
+  reason (`Requested 32768 MB VRAM, system capacity is 16384 MB`). Structured
+  `resource_requested/waiting/allocated/released/rejected` events.
+- **Worker integration**: flow is now queued job → classify → select model →
+  determine requirements → scheduler → grant or wait → agent execution; resources
+  are released in a `finally` on completion/failure/cancellation/timeout. Job
+  gains `resource_status` (`not_required`/`waiting`/`allocated`/`released`/
+  `rejected`).
+- **Config/capacity**: `RESOURCE_CAPACITY_MODE` (`configured`/`auto`),
+  `RESOURCE_CPU_CORES`, `RESOURCE_MEMORY_MB`, `RESOURCE_GPU_VRAM_MB`,
+  `RESOURCE_GPU_COUNT`; `main.py` builds capacity, provider, scheduler and exposes
+  `scheduler` on app.state + `/health`.
+- **Tests (158, all passing)**: 23 new — `test_resources.py` (grant/wait/reject,
+  five-user scenario, FIFO, release on completion/failure/cancellation, no
+  allocation leaks, zero accounting after finish, model requirements from config,
+  unknown-GPU/oversized rejection, local discovery, stats) and
+  `test_scheduler_worker.py` (end-to-end allocate→run→release, impossible and
+  unknown-GPU jobs fail cleanly, cancelled running job frees resources, health
+  scheduler section, models without resources unaffected). All 135 Phase 1–5
+  tests preserved.
+- **Live smoke test**: ran the real server + Ollama with a temp registry — a
+  general job was allocated, ran, completed, and released (`resource_status:
+  released`; scheduler allocated VRAM back to 0); a 32 GB document job was
+  rejected cleanly with the exact capacity message; `/health` scheduler section
+  correct.
+- **Deliberately NOT implemented** (out of scope for Phase 6): dynamic GPU model
+  loading/unloading, model eviction, batching, speculative decoding, multi-GPU
+  execution, distributed inference, Kubernetes, Redis/Celery/Kafka, frontend, RAG,
+  OCR, vision, document generation, authentication.
+
 ---
 
 ## Files and Directories
@@ -372,13 +434,14 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │   │   ├── config.py              pydantic-settings Settings (env-driven)
 │   │   ├── schemas/
 │   │   │   ├── chat.py            ChatRequest (message, task_type, priority)
-│   │   │   └── job.py             Job, JobStatus, JobSubmitResponse, JobSummary
+│   │   │   ├── job.py             Job, JobStatus, JobSubmitResponse, JobSummary
+│   │   │   └── resources.py       ResourceRequirements/Allocation, GpuInfo, Capacity
 │   │   ├── services/
 │   │   │   ├── ollama_service.py  OllamaService async client + typed errors
 │   │   │   ├── job_store.py       JobStore ABC + InMemoryJobStore
 │   │   │   ├── job_manager.py     JobManager (lifecycle + ownership)
 │   │   │   ├── job_queue.py       FIFO async job queue
-│   │   │   ├── worker.py          background worker (dequeue → classify → route → agent)
+│   │   │   ├── worker.py          background worker (dequeue → classify → route → schedule → agent)
 │   │   │   ├── model_registry.py  ModelRegistry (validates config/models.yaml)
 │   │   │   ├── task_router.py     TaskRouter (deterministic classification)
 │   │   │   ├── model_router.py    ModelRouter (task_type → enabled model)
@@ -387,12 +450,14 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │   │   │   ├── sandbox_runner.py  SandboxRunner ABC + DockerSandboxRunner (Phase 5)
 │   │   │   ├── tools.py           Tool ABC + list/read/write + code_execution
 │   │   │   ├── tool_registry.py   ToolRegistry (deny-by-default validation)
-│   │   │   └── agent.py           Agent (bounded loop, trace, cancellation)
+│   │   │   ├── agent.py           Agent (bounded loop, trace, cancellation)
+│   │   │   ├── resource_provider.py  ResourceProvider ABC + in-memory + local discovery
+│   │   │   └── resource_scheduler.py ResourceScheduler (grant/wait/reject, FIFO)
 │   │   └── api/
 │   │       ├── deps.py            get_user_id (X-User-ID header dependency)
 │   │       ├── chat.py            POST /api/chat (enqueue job)
 │   │       ├── jobs.py            GET/DELETE /api/jobs, GET /api/jobs/{job_id}
-│   │       └── health.py          GET /health (Ollama + models + queue + worker)
+│   │       └── health.py          GET /health (Ollama + models + queue + scheduler + worker)
 │   └── tests/
 │       ├── conftest.py            fixtures, model-aware/scripted Ollama mocks, wait_for_job
 │       ├── test_ollama_service.py 8 tests (direct service unit tests)
@@ -410,7 +475,9 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │       ├── test_agent_demo.py     2 tests (demo + running-job cancellation)
 │       ├── test_sandbox.py        14 tests (code_execution + docker invocation)
 │       ├── test_sandbox_demo.py   3 tests (factorial + bug-fix-loop demos)
-│       └── test_sandbox_docker.py 14 tests (docker-marked integration tests)
+│       ├── test_sandbox_docker.py 14 tests (docker-marked integration tests)
+│       ├── test_resources.py      19 tests (scheduler + provider + five-user scenario)
+│       └── test_scheduler_worker.py 6 tests (worker + scheduler integration)
 ├── frontend/                      (empty — reserved for frontend)
 ├── config/
 │   └── models.yaml                task type → local model registry (Phase 3)
@@ -449,6 +516,15 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   image) fail jobs cleanly but a job's success still depends on the model emitting
   valid code inside the JSON protocol (llama3.1 sometimes produced syntax errors —
   the agent observed and handled them).
+- Resource capacity is **config-declared** (the model's declared requirements are
+  authoritative — no automatic VRAM estimation); `RESOURCE_CAPACITY_MODE=auto`
+  discovery is informational only. With the single worker, one allocation is
+  active at a time, so multi-job concurrency is enforced at the scheduler's
+  accounting layer and verified via scheduler unit tests, not concurrent worker
+  execution.
+- Priority is stored on the job model but **priority scheduling is not
+  implemented** — the scheduler is FIFO by default (structured for future
+  priority/creation-time/resource ordering).
 - Tool results feed the model prompt; a `read_file` observation is capped at
   ~4000 chars to bound prompt growth. Workspaces accumulate under
   `data/workspaces/` (gitignored); no cleanup/retention policy yet.
@@ -461,7 +537,7 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 
 ## Next Steps
 
-1. **Recommended next phase — Phase 6: Document & Image Processing (OCR/Vision).**
+1. **Recommended next phase — Phase 7: Document & Image Processing (OCR/Vision).**
    Add local OCR and vision-model support (e.g., Ollama vision models) with tools
    to process uploaded documents/images inside the existing agent loop, plus an
    explicit file-passing mechanism to the code sandbox for generated source/input
@@ -510,3 +586,11 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   real-Docker integration tests and deterministic factorial + bug-fix demos. Live
   killer test: real agent + Ollama + Docker ran factorial(10) (exit 0) and reported
   3628800; network-blocked and no-host-fs confirmed.
+- **Phase 6 (2026-08-29)**: Added the resource scheduler — typed resource models,
+  a `ResourceProvider` (in-memory + read-only local discovery), model-declared
+  `resources` in `config/models.yaml`, and a FIFO `ResourceScheduler`
+  (grant/wait/reject, clean release on completion/failure/cancellation/timeout,
+  impossible/unknown-GPU jobs fail cleanly). Worker flow is now queue → classify →
+  select model → schedule → agent. `/health` reports scheduler state; jobs expose
+  `resource_status`. 158 tests incl. the five-user scheduling scenario; live smoke
+  test verified allocate→run→release and the exact 32 GB reject message.
