@@ -63,11 +63,13 @@ class InMemoryResourceProvider(ResourceProvider):
 
     async def try_allocate(self, job_id: str, req: ResourceRequirements) -> Optional[ResourceAllocation]:
         async with self._lock:
-            used_cpu = sum(a.cpu_cores for a in self._allocations.values())
-            used_mem = sum(a.memory_mb for a in self._allocations.values())
+            # Exclude this job's own existing allocation so re-requests are idempotent.
+            others = {k: v for k, v in self._allocations.items() if k != job_id}
+            used_cpu = sum(a.cpu_cores for a in others.values())
+            used_mem = sum(a.memory_mb for a in others.values())
             used_vram = sum(
                 a.gpu_vram_mb
-                for a in self._allocations.values()
+                for a in others.values()
                 if req.gpu_id is not None and a.gpu_id == req.gpu_id
             )
 
