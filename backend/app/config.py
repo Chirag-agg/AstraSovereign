@@ -43,6 +43,17 @@ class Settings(BaseSettings):
     # Per-job workspace root (data/workspaces/<user>/<job>/).
     workspaces_root: str = str(REPO_ROOT / "data" / "workspaces")
 
+    # Docker code-execution sandbox (Phase 5). Disabled by default; enabling it
+    # registers the code_execution tool. The image must already exist locally —
+    # the backend never pulls images.
+    sandbox_enabled: bool = False
+    sandbox_python_image: str = "python:3.12-alpine"
+    sandbox_timeout_seconds: float = 10.0
+    sandbox_cpu_limit: str = "0.5"
+    sandbox_memory_limit: str = "128m"
+    sandbox_max_stdout_chars: int = 4096
+    sandbox_max_stderr_chars: int = 4096
+
     # Structured (JSON) logging.
     log_level: str = "INFO"
     log_file: str = str(REPO_ROOT / "logs" / "backend.log")
