@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
+from app.schemas.resources import GpuInfo, ResourceCapacity
 from app.services.agent import TASK_MARKER
 from app.services.model_registry import ModelConfig, ModelRegistry
 from app.services.sandbox_runner import ExecutionResult, SandboxRunnerError
@@ -19,6 +20,15 @@ from app.services.sandbox_runner import ExecutionResult, SandboxRunnerError
 DEFAULT_HEADERS = {"X-User-ID": "user-001"}
 
 SANDBOX_IMAGE = "python:3.12-alpine"
+
+
+def default_capacity() -> ResourceCapacity:
+    """Default test capacity: 8 cores, 16 GB RAM, one 16 GB GPU."""
+    return ResourceCapacity(
+        cpu_cores=8.0,
+        memory_mb=16384,
+        gpus=[GpuInfo(gpu_id="GPU-0", vram_mb=16384)],
+    )
 
 
 def docker_ready() -> bool:
@@ -233,7 +243,13 @@ def delayed_ollama_handler(available_models):
 
 @pytest.fixture
 def client_factory(app_settings, test_models):
-    def _make(handler, models=None, sandbox_enabled=False, sandbox_runner=None):
+    def _make(
+        handler,
+        models=None,
+        sandbox_enabled=False,
+        sandbox_runner=None,
+        resource_capacity=None,
+    ):
         registry = build_registry(models if models is not None else test_models)
         settings = app_settings
         if sandbox_enabled:
@@ -243,6 +259,7 @@ def client_factory(app_settings, test_models):
             ollama_transport=httpx.MockTransport(handler),
             model_registry=registry,
             sandbox_runner=sandbox_runner,
+            resource_capacity=resource_capacity,
         )
         return TestClient(app)
 
