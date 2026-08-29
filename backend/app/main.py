@@ -2,6 +2,8 @@
 
 The backend talks only to the locally configured Ollama endpoint
 (``OLLAMA_BASE_URL``). No external AI services, no telemetry.
+
+Architecture: HTTP request -> Job Manager -> Queue -> Worker -> Ollama.
 """
 
 import json
@@ -15,8 +17,14 @@ import httpx
 from fastapi import FastAPI
 
 from app.api.chat import router as chat_router
+from app.api.health import router as health_router
+from app.api.jobs import router as jobs_router
 from app.config import Settings, get_settings
+from app.services.job_manager import JobManager
+from app.services.job_queue import JobQueue
+from app.services.job_store import InMemoryJobStore
 from app.services.ollama_service import OllamaService
+from app.services.worker import Worker
 
 logger = logging.getLogger("app")
 
@@ -99,6 +107,9 @@ def setup_logging(settings: Settings) -> None:
 async def lifespan(app: FastAPI):
     settings = app.state.settings
     service = app.state.ollama_service
+    worker = app.state.worker
+
+    worker.start()
     logger.info(
         "application_startup",
         extra={
@@ -107,10 +118,14 @@ async def lifespan(app: FastAPI):
             "default_model": settings.default_model,
             "host": settings.host,
             "port": settings.port,
+            "worker": worker.state,
         },
     )
-    yield
-    await service.aclose()
+    try:
+        yield
+    finally:
+        await worker.stop()
+        await service.aclose()
 
 
 def create_app(
@@ -126,26 +141,39 @@ def create_app(
 
     if not settings.default_model:
         logger.warning(
-            "DEFAULT_MODEL is not set; /api/chat will fail until it is configured.",
+            "DEFAULT_MODEL is not set; jobs will fail until it is configured.",
             extra={"event": "startup_warning"},
         )
 
-    service = OllamaService(
+    ollama_service = OllamaService(
         base_url=settings.ollama_base_url,
         default_model=settings.default_model,
         timeout_seconds=settings.ollama_timeout_seconds,
         transport=ollama_transport,
     )
 
+    store = InMemoryJobStore()
+    job_manager = JobManager(store=store, default_model=settings.default_model)
+    job_queue = JobQueue()
+    worker = Worker(queue=job_queue, manager=job_manager, ollama=ollama_service)
+
     app = FastAPI(
         title="Sovereign On-Premise Agentic AI Workbench",
-        description="Local-only backend. Communicates exclusively with the local Ollama server.",
-        version="0.1.0",
+        description=(
+            "Local-only backend. Communicates exclusively with the local Ollama server. "
+            "Requests become jobs processed by a single background worker."
+        ),
+        version="0.2.0",
         lifespan=lifespan,
     )
     app.state.settings = settings
-    app.state.ollama_service = service
+    app.state.ollama_service = ollama_service
+    app.state.job_manager = job_manager
+    app.state.job_queue = job_queue
+    app.state.worker = worker
     app.include_router(chat_router)
+    app.include_router(jobs_router)
+    app.include_router(health_router)
 
     return app
 
