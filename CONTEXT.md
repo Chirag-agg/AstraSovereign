@@ -109,12 +109,29 @@ models, and provides an agentic pipeline that:
   missing model and nothing is auto-downloaded.
 - **Provider abstraction (Phase 3)**: registry entries carry a `provider` field;
   `ollama` is currently the only supported provider, kept extensible.
+- **Agent (Phase 4)**: after routing, a controlled loop runs each job —
+  decide → (tool) → observe → decide → complete. Termination is deterministic
+  (`MAX_AGENT_ITERATIONS`=10, `MAX_AGENT_TOOL_CALLS`=20); the agent checks job
+  cancellation between iterations and before tools, and records a serializable
+  `execution_trace` plus `agent_stage`/`iteration_count`/`tool_call_count` on the job.
+- **Model↔tool protocol (Phase 4)**: strict JSON via Ollama `format: json` —
+  `{"type":"final"|"tool_call",...}`; non-JSON model output is treated as a plain
+  final response. Tool name/args/paths are validated before any execution.
+- **Tools (Phase 4)**: `Tool` ABC + deny-by-default `ToolRegistry` with
+  `list_files`, `read_file`, `write_file`. Future tools plug in without changing
+  the agent loop.
+- **Workspace isolation (Phase 4)**: each job gets `data/workspaces/<user>/<job>/`;
+  identifiers are sanitized and `resolve_within_workspace` rejects `..` traversal,
+  absolute paths, and symlink escapes — tools cannot reach other users' workspaces
+  or arbitrary filesystem paths.
+- **Cancellation (Phase 4)**: `cancel_job` now accepts QUEUED **and** RUNNING jobs;
+  the worker/agent observe the state change and stop as soon as practical.
 
 ---
 
 ## Current Phase
 
-**Phase 3 — Model Router & Config-Driven Model Selection** (completed)
+**Phase 4 — Agentic Pipeline & Local Tool Calling** (completed)
 
 ---
 
@@ -244,6 +261,45 @@ models, and provides an agentic pipeline that:
   RAG, OCR, vision processing, document generation, Docker sandbox, authentication,
   Redis/Celery/external APIs.
 
+### Phase 4 — Agentic Pipeline & Local Tool Calling
+- **Agent** (`app/services/agent.py`): bounded, cancellation-aware local loop —
+  decide → (tool) → observe → decide → complete — against the selected model via
+  `OllamaService.generate(..., format="json")`. Deterministic termination
+  (`max_iterations`, `max_tool_calls`); malformed output and empty responses fail
+  cleanly. Records an ordered `execution_trace` (plan/tool_call/tool_result/final)
+  plus `agent_stage`/`iteration_count`/`tool_call_count` on the job.
+- **Model↔tool protocol**: strict JSON — `{"type":"final","response":...}` or
+  `{"type":"tool_call","tool":...,"arguments":{...}}`; plain non-JSON model text
+  is treated as a final response. `format: json` added to OllamaService.generate.
+- **Tools** (`app/services/tools.py` + `tool_registry.py`): `Tool` ABC (name,
+  description, input_schema, execute) with `list_files`, `read_file`, `write_file`.
+  `ToolRegistry` validates tool name and argument schema (deny-by-default) and
+  never lets a tool failure crash the loop.
+- **Workspace isolation** (`app/services/workspace.py`): each job gets
+  `data/workspaces/<user>/<job>/` (gitignored). `resolve_within_workspace`
+  rejects `..` traversal, absolute paths, and symlink escapes; identifiers are
+  sanitized so crafted headers cannot escape the root.
+- **Worker integration**: the worker creates the job workspace and runs the Agent,
+  then applies its outcome (COMPLETED/FAILED/CANCELLED). A job cancelled while
+  running is never resurrected to COMPLETED. `cancel_job` now accepts RUNNING jobs.
+- **Job visibility**: `GET /api/jobs/{job_id}` exposes `task_type`, `model`,
+  `agent_stage`, `iteration_count`, `tool_call_count`, `execution_trace`, and the
+  final `response`.
+- **Logging**: added `agent_started`, `agent_completed`, `agent_failed`,
+  `agent_cancelled`, `tool_call_started`, `tool_call_completed`,
+  `tool_call_failed` events. No prompts, responses, or file contents logged.
+- **Tests (104, all passing)**: 40 new — workspace isolation + traversal,
+  tool behavior/validation, agent loop (limits, cancellation, trace order, invalid
+  tool/args/path), and an end-to-end demo (plan → list → read → write → complete)
+  plus running-job cancellation. All 64 Phase 1–3 tests preserved.
+- **Live smoke test**: ran against real local Ollama (llama3.1) — a plain job
+  completed with `agent_started → plan → final`; a "list files" job made a real
+  `list_files` tool call against the job workspace and completed with a useful
+  response; trace + agent fields exposed correctly.
+- **Deliberately NOT implemented** (out of scope for Phase 4): Docker sandbox,
+  code execution, OCR, vision, RAG, vector DB, Word/PPT/Excel generation, GPU/VRAM
+  scheduling, frontend, authentication, Redis/Celery/Kafka, external services.
+
 ---
 
 ## Files and Directories
@@ -270,17 +326,21 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │   │   │   ├── job_store.py       JobStore ABC + InMemoryJobStore
 │   │   │   ├── job_manager.py     JobManager (lifecycle + ownership)
 │   │   │   ├── job_queue.py       FIFO async job queue
-│   │   │   ├── worker.py          background worker (dequeue → classify → route → Ollama)
+│   │   │   ├── worker.py          background worker (dequeue → classify → route → agent)
 │   │   │   ├── model_registry.py  ModelRegistry (validates config/models.yaml)
 │   │   │   ├── task_router.py     TaskRouter (deterministic classification)
-│   │   │   └── model_router.py    ModelRouter (task_type → enabled model)
+│   │   │   ├── model_router.py    ModelRouter (task_type → enabled model)
+│   │   │   ├── workspace.py       WorkspaceManager + safe path resolution
+│   │   │   ├── tools.py           Tool ABC + list_files/read_file/write_file
+│   │   │   ├── tool_registry.py   ToolRegistry (deny-by-default validation)
+│   │   │   └── agent.py           Agent (bounded loop, trace, cancellation)
 │   │   └── api/
 │   │       ├── deps.py            get_user_id (X-User-ID header dependency)
 │   │       ├── chat.py            POST /api/chat (enqueue job)
 │   │       ├── jobs.py            GET/DELETE /api/jobs, GET /api/jobs/{job_id}
 │   │       └── health.py          GET /health (Ollama + models + queue + worker)
 │   └── tests/
-│       ├── conftest.py            fixtures, model-aware Ollama mock, wait_for_job
+│       ├── conftest.py            fixtures, model-aware/scripted Ollama mocks, wait_for_job
 │       ├── test_ollama_service.py 8 tests (direct service unit tests)
 │       ├── test_chat.py           7 tests
 │       ├── test_health.py         3 tests
@@ -289,14 +349,19 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │       ├── test_concurrency.py    2 tests (5-user + FIFO ordering)
 │       ├── test_task_router.py    10 tests (classification rules)
 │       ├── test_model_router.py   11 tests (selection, registry validation)
-│       └── test_routing.py        9 tests (end-to-end job routing)
+│       ├── test_routing.py        9 tests (end-to-end job routing)
+│       ├── test_workspace.py      12 tests (isolation + traversal)
+│       ├── test_tools.py          14 tests (tool behavior + validation)
+│       ├── test_agent.py          12 tests (agent loop + cancellation)
+│       └── test_agent_demo.py     2 tests (demo + running-job cancellation)
 ├── frontend/                      (empty — reserved for frontend)
 ├── config/
 │   └── models.yaml                task type → local model registry (Phase 3)
 ├── data/
 │   ├── uploads/                   (empty — user uploads, gitignored)
 │   ├── outputs/                   (empty — generated deliverables, gitignored)
-│   └── knowledge/                 (empty — local knowledge base, gitignored)
+│   ├── knowledge/                 (empty — local knowledge base, gitignored)
+│   └── workspaces/                (per-job agent workspaces, gitignored)
 ├── logs/                          backend.log (gitignored, structured JSON)
 └── docker/                        (empty — reserved for sandbox/container images)
 ```
@@ -319,6 +384,12 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 - One worker only; no concurrency or priority scheduling yet (by design).
 - Task classification is keyword-based and deterministic; it may misclassify
   ambiguous prose (acceptable for this phase, no LLM used).
+- Agent tool-calling depends on the local model emitting the strict JSON protocol
+  (prompted via `format: json`); models that ignore the format degrade to a
+  plain-text final response (no tool use) rather than failing.
+- Tool results feed the model prompt; a `read_file` observation is capped at
+  ~4000 chars to bound prompt growth. Workspaces accumulate under
+  `data/workspaces/` (gitignored); no cleanup/retention policy yet.
 - `logs/backend.log` is generated at import time (module-level `app = create_app()`);
   it is gitignored so this is harmless.
 - Repository is a git repo (branch `main`) tracking `origin` at
@@ -328,14 +399,15 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 
 ## Next Steps
 
-1. **Recommended next phase — Phase 4: Agentic Pipeline / Tool Calling.**
-   Introduce an agent loop that decomposes tasks and calls local tools
-   (document/image processing, code sandbox, knowledge base search) using the
-   routing layer built in Phase 3. **Do not start until explicitly requested.**
+1. **Recommended next phase — Phase 5: Code Execution Sandbox (Docker).**
+   Add an isolated, containerized code-execution tool (per-job container with
+   network disabled) registered in the `ToolRegistry` so the agent can run
+   untrusted/generated code safely. Reuses the agent loop, routing, and workspace
+   isolation from Phase 4. **Do not start until explicitly requested.**
 2. Other candidate phases (do not start early): document & image processing (OCR,
-   vision); local knowledge base (RAG + vector store); Docker code sandbox; Office
-   deliverable generation (.docx/.xlsx/.pptx); durable job store (Redis/Postgres
-   behind `JobStore`); audit-log schema for "all major actions logged"; frontend.
+   vision); local knowledge base (RAG + vector store); Office deliverable
+   generation (.docx/.xlsx/.pptx); durable job store (Redis/Postgres behind
+   `JobStore`); audit-log schema for "all major actions logged"; frontend.
 3. Keep updating this file after every significant change.
 
 ---
@@ -361,3 +433,10 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   model). `/health` reports per-task-type model availability; jobs expose
   `task_type`/`model`. 64 tests incl. routing unit + end-to-end; live smoke test
   verified general and coding routing and the disabled-model clean failure.
+- **Phase 4 (2026-08-29)**: Added the agentic pipeline — a bounded, cancellation-aware
+  Agent loop (strict JSON tool-calling protocol with plain-text fallback), a
+  deny-by-default ToolRegistry with `list_files`/`read_file`/`write_file`, per-job
+  workspace isolation (`data/workspaces/<user>/<job>/`), and an ordered execution
+  trace exposed through the job API. Worker runs the agent after routing; cancel now
+  stops running jobs. 104 tests incl. the end-to-end demo; live smoke test verified a
+  real `list_files` tool call against real Ollama.

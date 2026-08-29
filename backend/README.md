@@ -1,27 +1,39 @@
-# Backend — Phase 3: Model Router & Config-Driven Model Selection
+# Backend — Phase 4: Agentic Pipeline & Local Tool Calling
 
 FastAPI backend that talks **only** to a locally running Ollama server. No
 external AI services, no telemetry, no data leaves the machine.
 
 Every request becomes a **job** with its own id and state, processed
 asynchronously by a single background worker. Each job is classified by task
-type and routed to the local model configured for that task type:
+type, routed to the configured local model, and executed by a **local agent**
+that may call workspace-scoped tools:
 
 ```
 Client ──HTTP──▶ FastAPI ──▶ Job Manager ──▶ Queue ──▶ Worker ──▶ Task Router
-                                                                        │
-                                                                        ▼
-                                                                   Model Registry
-                                                                        │
-                                                                        ▼
-                                                              OllamaService ──▶ Local Model
+                                                                    │
+                                                                    ▼
+                                                               Model Router
+                                                                    │
+                                                                    ▼
+                                                                  Agent
+                                                          ┌───────┼───────┐
+                                                          ▼       ▼       ▼
+                                                     ToolRegistry (list_files / read_file / write_file)
+                                                          │
+                                                          ▼
+                                                     Job Workspace (data/workspaces/<user>/<job>/)
+                                                                    │
+                                                                    ▼
+                                                          OllamaService ──▶ Local Model
 ```
 
 - `POST /api/chat` returns a `job_id` immediately (202); it never blocks on the model.
-- One worker → one active Ollama request at a time; jobs are processed FIFO.
+- One worker → one active model request at a time; jobs are processed FIFO.
 - Multi-user safe: each job retains its `user_id` and only its owner can read/cancel it.
-- Model selection is **config-driven** (`config/models.yaml`) — no model names are
-  hardcoded in the routing logic.
+- Model selection is **config-driven** (`config/models.yaml`).
+- The **agent loop** is bounded (max iterations / max tool calls), cancellation-aware,
+  and records a serializable **execution trace** on the job.
+- **Tools** are deny-by-default and operate only inside the job's isolated workspace.
 - All state is in-memory (single process). A `JobStore` abstraction is the seam for
   swapping in Redis/Postgres/etc. later.
 
@@ -67,6 +79,9 @@ Key variables (all optional; defaults shown):
 | `OLLAMA_BASE_URL`        | `http://localhost:11434` | Local Ollama endpoint (must stay local)     |
 | `DEFAULT_MODEL`          | *(required)*          | Fallback model (see routing below)            |
 | `MODELS_CONFIG`          | `../config/models.yaml` | Task-type → model mapping (registry)       |
+| `MAX_AGENT_ITERATIONS`   | `10`                  | Max model decisions per job (hard stop)       |
+| `MAX_AGENT_TOOL_CALLS`   | `20`                  | Max tool executions per job (hard stop)       |
+| `WORKSPACES_ROOT`        | `../data/workspaces`  | Per-job workspace root                       |
 | `HOST` / `PORT`          | `127.0.0.1` / `8000`  | FastAPI bind address (localhost only)         |
 | `OLLAMA_TIMEOUT_SECONDS` | `120`                 | Per-request timeout for Ollama calls          |
 | `LOG_LEVEL` / `LOG_FILE` | `INFO` / `../logs/backend.log` | Structured JSON logging            |
@@ -124,6 +139,39 @@ fails cleanly with a useful `error` (the backend never auto-downloads models).
 model is disabled, the job fails cleanly with a `model_routing_error` — it never
 silently falls back to another task type.
 
+## 3c. Agent & local tools
+
+After routing, the **Agent** runs a controlled loop: decide → (optionally call a
+tool) → observe → decide again → complete. Termination is deterministic
+(`MAX_AGENT_ITERATIONS`, `MAX_AGENT_TOOL_CALLS`); the job is failed cleanly if a
+limit is hit. A cancelled job stops the loop as soon as practical.
+
+**Model ↔ tool protocol:** the model is asked (with Ollama `format: json`) to
+respond with strict JSON — either `{"type":"final","response":"..."}` or
+`{"type":"tool_call","tool":"<name>","arguments":{...}}`. If the model returns
+plain (non-JSON) text, it is treated as a final response. Tool name, argument
+schema, and workspace path are all validated before anything runs.
+
+**Available tools (Phase 4):**
+
+| Tool         | Description                                    |
+| ------------ | ---------------------------------------------- |
+| `list_files` | List files in the current job workspace.       |
+| `read_file`  | Read a text file from the job workspace.       |
+| `write_file` | Write text content to a file in the workspace. |
+
+**Workspace isolation:** each job gets `data/workspaces/<user>/<job>/`. Tools
+reject `..` traversal, absolute paths, and symlink escapes — they can never read
+or write outside the job's workspace, reach another user's workspace, or touch
+application/system files. Path components are sanitized so a crafted `X-User-ID`
+cannot escape the root. Deny-by-default: only registered tools may be executed.
+
+**Execution trace:** every job records an ordered trace on the job object
+(`execution_trace`) with entries like `plan`, `tool_call`, `tool_result`, `final`
+(step-numbered). Tool results store only a summary, never raw file contents.
+`agent_stage`, `iteration_count`, and `tool_call_count` are also exposed via
+`GET /api/jobs/{job_id}`.
+
 ## 4. Run FastAPI
 
 ```powershell
@@ -176,7 +224,16 @@ Response (terminal example):
   "completed_at": "2026-08-29T14:57:28.017370Z",
   "model": "llama3.1:latest",
   "response": "...",
-  "error": null
+  "error": null,
+  "agent_stage": "completed",
+  "iteration_count": 2,
+  "tool_call_count": 1,
+  "execution_trace": [
+    { "step": 1, "type": "agent_started", "task_type": "general", "model": "llama3.1:latest" },
+    { "step": 2, "type": "tool_call", "tool": "list_files", "arguments": {} },
+    { "step": 3, "type": "tool_result", "tool": "list_files", "result_summary": "1 file(s) found" },
+    { "step": 4, "type": "final", "response_summary": "..." }
+  ]
 }
 ```
 
@@ -188,11 +245,14 @@ Job states: `queued`, `running`, `completed`, `failed`, `cancelled`.
 curl "http://127.0.0.1:8000/api/jobs?status=completed&limit=10&offset=0" -H "X-User-ID: user-001"
 ```
 
-### Cancel a queued job
+### Cancel a job
 
 ```bash
 curl -X DELETE http://127.0.0.1:8000/api/jobs/job-... -H "X-User-ID: user-001"
 ```
+
+Queued **or running** jobs can be cancelled; a running job stops its agent loop
+as soon as practical. Terminal jobs cannot be cancelled (409).
 
 ### Health / runtime status
 
@@ -221,20 +281,24 @@ model availability:
 | Invalid request body             | `422`       | (pydantic detail)|
 | Job not found                    | `404`       | `job_not_found`  |
 | Accessing another user's job     | `403`       | `forbidden`      |
-| Cancelling a non-queued job      | `409`       | `invalid_state`  |
+| Cancelling a terminal job        | `409`       | `invalid_state`  |
 
-Ollama-side failures (unreachable, timeout, model missing, bad payload) are **not**
-HTTP errors — the job transitions to `failed` and carries a useful `error` message.
-Poll `GET /api/jobs/{job_id}` to see the terminal state.
+Ollama/routing/agent failures (unreachable, timeout, model missing, bad payload,
+agent limits) are **not** HTTP errors — the job transitions to `failed` and
+carries a useful `error` message. Poll `GET /api/jobs/{job_id}` to see the
+terminal state.
 
 ## Logging
 
 Structured JSON to console and `logs/backend.log` (see `LOG_FILE`). Lifecycle
 events (`job_created`, `job_started`, `job_completed`, `job_failed`,
-`job_cancelled`) plus routing events (`registry_loaded`, `model_availability`,
-`task_classified`, `model_selected`, `routing_failure`) include `job_id`,
-`user_id`, `task_type`, and `model` where applicable. Confidential prompts and
-generated responses are never logged.
+`job_cancelled`), routing events (`registry_loaded`, `model_availability`,
+`task_classified`, `model_selected`, `routing_failure`), and agent events
+(`agent_started`, `agent_completed`, `agent_failed`, `agent_cancelled`,
+`tool_call_started`, `tool_call_completed`, `tool_call_failed`) include
+`job_id`, `user_id`, `task_type`, `model`, `tool`, and iteration counts where
+applicable. Confidential prompts, generated responses, and file contents are
+never logged.
 
 ## Tests
 
@@ -245,4 +309,6 @@ generated responses are never logged.
 Ollama is mocked via `httpx.MockTransport` — no live Ollama needed. Coverage
 includes the low-level Ollama client, task classification, model routing and
 registry validation, job API/ownership, worker failure states, routing through
-the API, and a five-user concurrency scenario.
+the API, workspace isolation and path traversal, the tool system, the agent loop
+(limits, cancellation, trace order), an end-to-end agent demo, and a five-user
+concurrency scenario.

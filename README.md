@@ -20,13 +20,14 @@ generation — with no external AI APIs and no data leaving the machine or netwo
 ## Layout
 
 ```
-├── backend/          FastAPI backend (Phase 3: model routing, job queue)
+├── backend/          FastAPI backend (Phase 4: agentic pipeline, local tools)
 ├── frontend/         Frontend application (planned)
 ├── config/           models.yaml — task type → local model registry
 ├── data/
 │   ├── uploads/      User uploads (not committed)
 │   ├── outputs/      Generated deliverables (not committed)
-│   └── knowledge/    Local knowledge base (not committed)
+│   ├── knowledge/    Local knowledge base (not committed)
+│   └── workspaces/   Per-job agent workspaces (not committed)
 ├── logs/             Audit logs (not committed)
 └── docker/           Sandbox / container images (planned)
 ```
@@ -38,12 +39,14 @@ See [CONTEXT.md](CONTEXT.md) for the authoritative project state and phase plan.
 The backend is a FastAPI service that communicates **only** with a local Ollama
 server. Requests become **jobs** processed asynchronously by a background worker
 (`POST /api/chat` returns a `job_id` immediately). Each job is classified by task
-type and routed to a config-driven model (`config/models.yaml`). Multi-user safe
-via an `X-User-ID` header. See [`backend/README.md`](backend/README.md) for
-setup, configuration, and usage.
+type, routed to a config-driven model (`config/models.yaml`), and executed by a
+**local agent** that can call workspace-scoped tools (`list_files`, `read_file`,
+`write_file`). Multi-user safe via an `X-User-ID` header. See
+[`backend/README.md`](backend/README.md) for setup, configuration, and usage.
 
 ## Status
 
-**Current phase: Phase 3 — Model Router & Config-Driven Model Selection.** Jobs are
-queued FIFO, classified by task type, and routed to the configured local model for
-that task type. Phases are built incrementally, one at a time.
+**Current phase: Phase 4 — Agentic Pipeline & Local Tool Calling.** Jobs are queued
+FIFO, classified, routed to a configured local model, and executed by a bounded,
+cancellation-aware agent with an isolated per-job workspace and an execution trace.
+Phases are built incrementally, one at a time.
