@@ -94,9 +94,13 @@ class JobManager:
         return updated
 
     async def cancel_job(self, user_id: str, job_id: str) -> Job:
-        """Cancel a queued job. Running/terminal jobs cannot be cancelled."""
+        """Cancel a queued or running job. Terminal jobs cannot be cancelled.
+
+        A running job is marked CANCELLED; the worker/agent observes the state
+        change and stops executing as soon as practical.
+        """
         job = await self.get_job(user_id, job_id)
-        if job.status != JobStatus.QUEUED:
+        if job.status not in (JobStatus.QUEUED, JobStatus.RUNNING):
             raise JobStateError(
                 f"Job {job_id} is {job.status.value} and cannot be cancelled."
             )

@@ -83,6 +83,9 @@ data/outputs/
 # ── Local Knowledge Base / Data ────────────────────────────────
 data/knowledge/
 
+# ── Job Workspaces (agent file tools) ──────────────────────────
+data/workspaces/
+
 # ── Models & AI Artifacts ──────────────────────────────────────
 models/
 *.gguf

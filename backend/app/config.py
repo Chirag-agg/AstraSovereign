@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     # Path to the models configuration file (task type -> model mapping).
     models_config: str = str(REPO_ROOT / "config" / "models.yaml")
 
+    # Agent loop limits (bounded, deterministic termination).
+    max_agent_iterations: int = 10
+    max_agent_tool_calls: int = 20
+
+    # Per-job workspace root (data/workspaces/<user>/<job>/).
+    workspaces_root: str = str(REPO_ROOT / "data" / "workspaces")
+
     # Structured (JSON) logging.
     log_level: str = "INFO"
     log_file: str = str(REPO_ROOT / "logs" / "backend.log")

@@ -44,6 +44,12 @@ class Job(BaseModel):
     response: Optional[str] = None
     error: Optional[str] = None
 
+    # Agent execution fields (Phase 4).
+    agent_stage: Optional[str] = None
+    iteration_count: int = 0
+    tool_call_count: int = 0
+    execution_trace: list[dict] = Field(default_factory=list)
+
 
 class JobSubmitResponse(BaseModel):
     """Returned immediately when a job is accepted into the queue."""

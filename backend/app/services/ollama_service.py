@@ -48,17 +48,25 @@ class OllamaService:
             transport=transport,
         )
 
-    async def generate(self, prompt: str, model: Optional[str] = None) -> tuple[str, str]:
+    async def generate(
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        format: Optional[str] = None,
+    ) -> tuple[str, str]:
         """Send a prompt to Ollama's ``/api/generate`` endpoint.
 
         Returns ``(response_text, model_used)``. The model name echoed by Ollama
         is returned when available, otherwise the requested model name.
+        ``format`` may be ``"json"`` to request structured JSON output.
         """
         model_name = (model or self.default_model).strip()
         if not model_name:
             raise OllamaRequestError("No model configured (set DEFAULT_MODEL).")
 
         payload = {"model": model_name, "prompt": prompt, "stream": False}
+        if format:
+            payload["format"] = format
 
         try:
             response = await self._client.post("/api/generate", json=payload)
