@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
+from app.services.agent import TASK_MARKER
 from app.services.model_registry import ModelConfig, ModelRegistry
 
 DEFAULT_HEADERS = {"X-User-ID": "user-001"}
@@ -20,6 +21,15 @@ def build_registry(models: dict[str, dict]) -> ModelRegistry:
     return ModelRegistry(
         models={name: ModelConfig(**cfg) for name, cfg in models.items()}
     )
+
+
+def _extract_task(prompt: str) -> str:
+    """Extract the user task from an agent prompt for mock echo replies."""
+    if TASK_MARKER in prompt:
+        tail = prompt.split(TASK_MARKER, 1)[1].strip()
+        if tail:
+            return tail.splitlines()[0].strip()
+    return prompt
 
 
 def make_ollama_handler(available_models, delay_seconds: float = 0.0):
@@ -42,13 +52,40 @@ def make_ollama_handler(available_models, delay_seconds: float = 0.0):
                 return httpx.Response(
                     404, json={"error": f"model '{model}' not found"}
                 )
+            task = _extract_task(payload["prompt"])
             return httpx.Response(
                 200,
                 json={
-                    "response": f"mocked reply to: {payload['prompt']}",
+                    "response": f"mocked reply to: {task}",
                     "model": model,
                 },
             )
+        return httpx.Response(404, json={"error": "not found"})
+
+    return handler
+
+
+def make_scripted_handler(responses, delay_seconds: float = 0.0):
+    """Mock Ollama that plays back a scripted list of model outputs.
+
+    Calling the model more times than scripted raises an AssertionError, which
+    fails the job (used to prove the agent does not exceed its budget).
+    """
+
+    script = list(responses)
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/tags":
+            return httpx.Response(
+                200, json={"models": [{"name": "test-model"}, {"name": "coder-model"}]}
+            )
+        if request.url.path == "/api/generate":
+            if delay_seconds:
+                await asyncio.sleep(delay_seconds)
+            if not script:
+                raise AssertionError("model called more times than scripted")
+            text = script.pop(0)
+            return httpx.Response(200, json={"response": text, "model": "test-model"})
         return httpx.Response(404, json={"error": "not found"})
 
     return handler
@@ -79,12 +116,13 @@ def wait_for_job(
 
 
 @pytest.fixture
-def app_settings():
+def app_settings(tmp_path):
     return Settings(
         ollama_base_url="http://ollama.test",
         default_model="test-model",
         log_level="ERROR",
         log_file="",
+        workspaces_root=str(tmp_path / "workspaces"),
     )
 
 

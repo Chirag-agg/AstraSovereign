@@ -21,6 +21,7 @@ from app.api.chat import router as chat_router
 from app.api.health import router as health_router
 from app.api.jobs import router as jobs_router
 from app.config import Settings, get_settings
+from app.services.agent import Agent
 from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
 from app.services.job_store import InMemoryJobStore
@@ -28,7 +29,10 @@ from app.services.model_registry import ModelRegistry
 from app.services.model_router import ModelRouter
 from app.services.ollama_service import OllamaService
 from app.services.task_router import TaskRouter
+from app.services.tool_registry import ToolRegistry
+from app.services.tools import ListFilesTool, ReadFileTool, WriteFileTool
 from app.services.worker import Worker
+from app.services.workspace import WorkspaceManager
 
 logger = logging.getLogger("app")
 
@@ -190,25 +194,38 @@ def create_app(
     task_router = TaskRouter()
     model_router = ModelRouter(registry=model_registry)
 
+    tool_registry = ToolRegistry([ListFilesTool(), ReadFileTool(), WriteFileTool()])
+    workspace_manager = WorkspaceManager(root=settings.workspaces_root)
+
     store = InMemoryJobStore()
     job_manager = JobManager(store=store, default_model=settings.default_model)
     job_queue = JobQueue()
+    agent = Agent(
+        manager=job_manager,
+        tool_registry=tool_registry,
+        model_client=ollama_service,
+        max_iterations=settings.max_agent_iterations,
+        max_tool_calls=settings.max_agent_tool_calls,
+    )
     worker = Worker(
         queue=job_queue,
         manager=job_manager,
         ollama=ollama_service,
         task_router=task_router,
         model_router=model_router,
+        agent=agent,
+        workspace_manager=workspace_manager,
     )
 
     app = FastAPI(
         title="Sovereign On-Premise Agentic AI Workbench",
         description=(
             "Local-only backend. Communicates exclusively with the local Ollama server. "
-            "Requests become jobs classified by task type and routed to a configured "
-            "local model by a single background worker."
+            "Requests become jobs classified by task type, routed to a configured "
+            "local model, and executed by a local agent that may call workspace-scoped "
+            "tools (list_files, read_file, write_file)."
         ),
-        version="0.3.0",
+        version="0.4.0",
         lifespan=lifespan,
     )
     app.state.settings = settings
@@ -219,6 +236,9 @@ def create_app(
     app.state.model_registry = model_registry
     app.state.task_router = task_router
     app.state.model_router = model_router
+    app.state.tool_registry = tool_registry
+    app.state.workspace_manager = workspace_manager
+    app.state.agent = agent
     app.include_router(chat_router)
     app.include_router(jobs_router)
     app.include_router(health_router)

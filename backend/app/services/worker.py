@@ -1,9 +1,9 @@
 """Background worker.
 
 Pulls the next queued job, classifies its task, selects a model via the model
-router, calls the (existing) Ollama service, and records the result. One worker
-instance processes jobs serially, so there is never more than one active Ollama
-request at a time.
+router, runs the local Agent (which may call workspace-scoped tools), and records
+the result. One worker instance processes jobs serially, so there is never more
+than one active model request at a time.
 """
 
 import asyncio
@@ -12,11 +12,13 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from app.schemas.job import Job, JobStatus
+from app.services.agent import Agent, AgentStatus
 from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
 from app.services.model_router import ModelRouter, ModelRoutingError
 from app.services.ollama_service import OllamaService, OllamaServiceError
 from app.services.task_router import TaskRouter
+from app.services.workspace import WorkspaceManager
 
 logger = logging.getLogger("app.worker")
 
@@ -29,12 +31,16 @@ class Worker:
         ollama: OllamaService,
         task_router: TaskRouter,
         model_router: ModelRouter,
+        agent: Agent,
+        workspace_manager: WorkspaceManager,
     ) -> None:
         self._queue = queue
         self._manager = manager
         self._ollama = ollama
         self._task_router = task_router
         self._model_router = model_router
+        self._agent = agent
+        self._workspace_manager = workspace_manager
         self._task: Optional[asyncio.Task] = None
         self._state = "stopped"  # stopped | idle | running
         self._active_job_id: Optional[str] = None
@@ -86,6 +92,7 @@ class Worker:
 
         self._state = "running"
         self._active_job_id = job_id
+        agent_result = None
         try:
             await self._manager.update_job(
                 job_id,
@@ -138,8 +145,11 @@ class Worker:
                 },
             )
 
-            response_text, model_used = await self._ollama.generate(
-                job.message, model=routing.model
+            workspace = await self._workspace_manager.create_workspace(
+                job.user_id, job_id
+            )
+            agent_result = await self._agent.run(
+                job=job, model=routing.model, workspace=workspace
             )
         except ModelRoutingError as exc:
             logger.error(
@@ -162,33 +172,52 @@ class Worker:
             )
             await self._fail(job, error=f"internal_error: {exc.__class__.__name__}")
         else:
-            try:
-                await self._manager.update_job(
-                    job_id,
-                    status=JobStatus.COMPLETED,
-                    completed_at=datetime.now(timezone.utc),
-                    response=response_text,
-                    model=model_used,
-                )
-            except Exception:
-                logger.exception(
-                    "worker_store_error",
-                    extra={"event": "job_failed", "job_id": job_id, "user_id": job.user_id},
-                )
-            else:
-                logger.info(
-                    "job_completed",
-                    extra={
-                        "event": "job_completed",
-                        "job_id": job_id,
-                        "user_id": job.user_id,
-                        "status": JobStatus.COMPLETED.value,
-                        "model": model_used,
-                    },
-                )
+            await self._finish_agent_job(job, agent_result)
         finally:
             self._active_job_id = None
             self._state = "idle"
+
+    async def _finish_agent_job(self, job: Job, agent_result: Optional[AgentStatus]) -> None:
+        """Apply the agent outcome to the job. Job lifecycle stays in the worker."""
+        if agent_result is None:
+            await self._fail(job, error="internal_error: agent produced no result")
+            return
+
+        current = await self._manager.get_job_for_worker(job.job_id)
+        if current is not None and current.status == JobStatus.CANCELLED:
+            return  # cancelled while the agent was finishing; do not resurrect it
+
+        if agent_result.status == AgentStatus.CANCELLED:
+            await self._manager.update_job(
+                job.job_id,
+                status=JobStatus.CANCELLED,
+                completed_at=datetime.now(timezone.utc),
+                agent_stage="cancelled",
+            )
+            return
+
+        if agent_result.status == AgentStatus.FAILED:
+            await self._fail(job, error=agent_result.error or "agent_failed")
+            return
+
+        await self._manager.update_job(
+            job.job_id,
+            status=JobStatus.COMPLETED,
+            completed_at=datetime.now(timezone.utc),
+            response=agent_result.response,
+            agent_stage="completed",
+        )
+        logger.info(
+            "job_completed",
+            extra={
+                "event": "job_completed",
+                "job_id": job.job_id,
+                "user_id": job.user_id,
+                "status": JobStatus.COMPLETED.value,
+                "task_type": job.task_type,
+                "model": job.model,
+            },
+        )
 
     async def _fail(self, job: Job, error: str) -> None:
         try:
