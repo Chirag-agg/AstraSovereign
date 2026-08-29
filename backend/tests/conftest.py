@@ -12,8 +12,39 @@ from app.config import Settings
 from app.main import create_app
 from app.services.agent import TASK_MARKER
 from app.services.model_registry import ModelConfig, ModelRegistry
+from app.services.sandbox_runner import ExecutionResult, SandboxRunnerError
 
 DEFAULT_HEADERS = {"X-User-ID": "user-001"}
+
+
+class FakeSandboxRunner:
+    """Scriptable sandbox runner for deterministic tests (no Docker required)."""
+
+    def __init__(self, results=None, error=None):
+        self.results = list(results or [])
+        self.error = error
+        self.calls = []
+
+    async def run(self, code, language="python", stdin=""):
+        self.calls.append({"code": code, "language": language, "stdin": stdin})
+        if self.error:
+            raise self.error
+        if self.results:
+            return self.results.pop(0)
+        return ExecutionResult(
+            success=True, exit_code=0, stdout="", stderr="", timed_out=False, duration_ms=1
+        )
+
+
+def ok_result(stdout="", stderr="", exit_code=0, timed_out=False, duration_ms=10):
+    return ExecutionResult(
+        success=exit_code == 0 and not timed_out,
+        exit_code=exit_code,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=timed_out,
+        duration_ms=duration_ms,
+    )
 
 
 def build_registry(models: dict[str, dict]) -> ModelRegistry:
@@ -177,12 +208,16 @@ def delayed_ollama_handler(available_models):
 
 @pytest.fixture
 def client_factory(app_settings, test_models):
-    def _make(handler, models=None):
+    def _make(handler, models=None, sandbox_enabled=False, sandbox_runner=None):
         registry = build_registry(models if models is not None else test_models)
+        settings = app_settings
+        if sandbox_enabled:
+            settings = app_settings.model_copy(update={"sandbox_enabled": True})
         app = create_app(
-            settings=app_settings,
+            settings=settings,
             ollama_transport=httpx.MockTransport(handler),
             model_registry=registry,
+            sandbox_runner=sandbox_runner,
         )
         return TestClient(app)
 
