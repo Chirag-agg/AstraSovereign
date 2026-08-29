@@ -20,9 +20,9 @@ generation — with no external AI APIs and no data leaving the machine or netwo
 ## Layout
 
 ```
-├── backend/          FastAPI backend (Phase 2: job manager, multi-user queue)
+├── backend/          FastAPI backend (Phase 3: model routing, job queue)
 ├── frontend/         Frontend application (planned)
-├── config/           Model routing / system configuration (planned)
+├── config/           models.yaml — task type → local model registry
 ├── data/
 │   ├── uploads/      User uploads (not committed)
 │   ├── outputs/      Generated deliverables (not committed)
@@ -37,12 +37,13 @@ See [CONTEXT.md](CONTEXT.md) for the authoritative project state and phase plan.
 
 The backend is a FastAPI service that communicates **only** with a local Ollama
 server. Requests become **jobs** processed asynchronously by a background worker
-(`POST /api/chat` returns a `job_id` immediately). Multi-user safe via an
-`X-User-ID` header. See [`backend/README.md`](backend/README.md) for setup,
-configuration, and usage.
+(`POST /api/chat` returns a `job_id` immediately). Each job is classified by task
+type and routed to a config-driven model (`config/models.yaml`). Multi-user safe
+via an `X-User-ID` header. See [`backend/README.md`](backend/README.md) for
+setup, configuration, and usage.
 
 ## Status
 
-**Current phase: Phase 2 — Job Manager & Multi-User Queue.** Requests are queued as
-persistent jobs and processed FIFO by a single worker against local Ollama. Phases
-are built incrementally, one at a time.
+**Current phase: Phase 3 — Model Router & Config-Driven Model Selection.** Jobs are
+queued FIFO, classified by task type, and routed to the configured local model for
+that task type. Phases are built incrementally, one at a time.

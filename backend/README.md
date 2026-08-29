@@ -1,18 +1,27 @@
-# Backend — Phase 2: Job Manager & Multi-User Queue
+# Backend — Phase 3: Model Router & Config-Driven Model Selection
 
 FastAPI backend that talks **only** to a locally running Ollama server. No
 external AI services, no telemetry, no data leaves the machine.
 
 Every request becomes a **job** with its own id and state, processed
-asynchronously by a single background worker:
+asynchronously by a single background worker. Each job is classified by task
+type and routed to the local model configured for that task type:
 
 ```
-Client ──HTTP──▶ FastAPI ──▶ Job Manager ──▶ Queue ──▶ Worker ──▶ Ollama ──▶ Local Model
+Client ──HTTP──▶ FastAPI ──▶ Job Manager ──▶ Queue ──▶ Worker ──▶ Task Router
+                                                                        │
+                                                                        ▼
+                                                                   Model Registry
+                                                                        │
+                                                                        ▼
+                                                              OllamaService ──▶ Local Model
 ```
 
 - `POST /api/chat` returns a `job_id` immediately (202); it never blocks on the model.
 - One worker → one active Ollama request at a time; jobs are processed FIFO.
 - Multi-user safe: each job retains its `user_id` and only its owner can read/cancel it.
+- Model selection is **config-driven** (`config/models.yaml`) — no model names are
+  hardcoded in the routing logic.
 - All state is in-memory (single process). A `JobStore` abstraction is the seam for
   swapping in Redis/Postgres/etc. later.
 
@@ -56,10 +65,64 @@ Key variables (all optional; defaults shown):
 | Variable                 | Default               | Meaning                                       |
 | ------------------------ | --------------------- | --------------------------------------------- |
 | `OLLAMA_BASE_URL`        | `http://localhost:11434` | Local Ollama endpoint (must stay local)     |
-| `DEFAULT_MODEL`          | *(required)*          | Model used by jobs (must exist in Ollama)     |
+| `DEFAULT_MODEL`          | *(required)*          | Fallback model (see routing below)            |
+| `MODELS_CONFIG`          | `../config/models.yaml` | Task-type → model mapping (registry)       |
 | `HOST` / `PORT`          | `127.0.0.1` / `8000`  | FastAPI bind address (localhost only)         |
 | `OLLAMA_TIMEOUT_SECONDS` | `120`                 | Per-request timeout for Ollama calls          |
 | `LOG_LEVEL` / `LOG_FILE` | `INFO` / `../logs/backend.log` | Structured JSON logging            |
+
+## 3b. Model routing (`config/models.yaml`)
+
+The model registry maps **task types** to **local models**. Edit
+`config/models.yaml` — no code changes are needed to add or change a model.
+
+```yaml
+models:
+  general:
+    provider: ollama
+    model: qwen2.5:7b
+    enabled: true
+    capabilities: [general, reasoning, summarization]
+
+  coding:
+    provider: ollama
+    model: qwen2.5-coder:7b
+    enabled: true
+    capabilities: [coding, debugging, code_review]
+
+  document:
+    provider: ollama
+    model: <placeholder>
+    enabled: false
+    capabilities: [document, summarization]
+
+  vision:
+    provider: ollama
+    model: <placeholder>
+    enabled: false
+    capabilities: [vision, image, document]
+```
+
+**Task types:** `general` (explanations, reasoning, summaries), `coding`
+(programming/scripting/debug requests, code blocks), `document` (reserved for
+future file inputs), `vision` (reserved for future image inputs).
+
+**Routing behavior:** the worker classifies each message with **deterministic
+rules only** (no LLM is used to classify), then selects the configured **enabled**
+model for that task type. The job records both `task_type` and `model`, so the
+client can see which model handled its job.
+
+**Adding a model:** pull it into Ollama (`ollama pull <model>`), then add/edit an
+entry in `models.yaml`. `enabled: false` entries are never selected.
+
+**Availability:** `/health` reports each task type's configured/enabled/available
+status. Startup and job execution never fail just because a model is missing
+locally — a job routed to an unavailable model enters the normal lifecycle and
+fails cleanly with a useful `error` (the backend never auto-downloads models).
+
+**Failure without fallback:** if a task type has no configured model, or its
+model is disabled, the job fails cleanly with a `model_routing_error` — it never
+silently falls back to another task type.
 
 ## 4. Run FastAPI
 
@@ -137,7 +200,19 @@ curl -X DELETE http://127.0.0.1:8000/api/jobs/job-... -H "X-User-ID: user-001"
 curl http://127.0.0.1:8000/health
 ```
 
-Includes queue size, job counts by state, and worker state/active job.
+Includes queue size, job counts by state, worker state/active job, and per-task-type
+model availability:
+
+```json
+{
+  "ollama": { "reachable": true },
+  "models": {
+    "general": { "configured": "qwen2.5:7b", "available": true, "enabled": true },
+    "coding":  { "configured": "qwen2.5-coder:7b", "available": true, "enabled": true },
+    "document": { "configured": "<placeholder>", "available": false, "enabled": false }
+  }
+}
+```
 
 ## HTTP error responses
 
@@ -156,8 +231,10 @@ Poll `GET /api/jobs/{job_id}` to see the terminal state.
 
 Structured JSON to console and `logs/backend.log` (see `LOG_FILE`). Lifecycle
 events (`job_created`, `job_started`, `job_completed`, `job_failed`,
-`job_cancelled`) include `job_id`, `user_id`, and `status`. Confidential prompts
-and generated responses are never logged.
+`job_cancelled`) plus routing events (`registry_loaded`, `model_availability`,
+`task_classified`, `model_selected`, `routing_failure`) include `job_id`,
+`user_id`, `task_type`, and `model` where applicable. Confidential prompts and
+generated responses are never logged.
 
 ## Tests
 
@@ -166,5 +243,6 @@ and generated responses are never logged.
 ```
 
 Ollama is mocked via `httpx.MockTransport` — no live Ollama needed. Coverage
-includes the low-level Ollama client, job API/ownership, worker failure states,
-and a five-user concurrency scenario.
+includes the low-level Ollama client, task classification, model routing and
+registry validation, job API/ownership, worker failure states, routing through
+the API, and a five-user concurrency scenario.

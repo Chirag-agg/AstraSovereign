@@ -91,12 +91,30 @@ models, and provides an agentic pipeline that:
   fallback; no authentication yet — the dependency is the future auth seam.
 - **Job states**: `queued`, `running`, `completed`, `failed`, `cancelled`.
   Priority is stored on the job model but priority scheduling is not implemented.
+- **Model registry (Phase 3)**: `config/models.yaml` maps task types to local
+  models (`provider`, `model`, `enabled`, `capabilities`). Model names come only
+  from config; adding a model is a config change. `ModelRegistry` validates the
+  file (fails fast on malformed config) and reports per-task-type availability.
+- **Task router (Phase 3)**: deterministic, rule-based classification
+  (`general`, `coding`, `document`, `vision`) — no LLM is used to classify.
+  Rules are ordered and isolated for easy extension.
+- **Model router (Phase 3)**: maps a classified `task_type` → configured **enabled**
+  model; raises `ModelRoutingError` (no config / disabled) instead of silently
+  falling back. `document`/`vision` are reserved for future file/image inputs and
+  are disabled by default, so such jobs fail cleanly with `model_routing_error`.
+- **Worker + routing (Phase 3)**: the worker classifies each job, stores the
+  `task_type` and selected `model` on the job, then calls `OllamaService` with the
+  selected model. A job routed to an unavailable model enters the normal lifecycle
+  and fails cleanly (`OllamaModelNotFoundError`); startup never fails over a
+  missing model and nothing is auto-downloaded.
+- **Provider abstraction (Phase 3)**: registry entries carry a `provider` field;
+  `ollama` is currently the only supported provider, kept extensible.
 
 ---
 
 ## Current Phase
 
-**Phase 2 — Job Manager & Multi-User Queue** (completed)
+**Phase 3 — Model Router & Config-Driven Model Selection** (completed)
 
 ---
 
@@ -183,6 +201,49 @@ models, and provides an agentic pipeline that:
   management, model auto-routing, agent loop, tool calling, RAG, OCR, vision, code
   sandbox, frontend, authentication, Redis/Celery/Kafka/Postgres.
 
+### Phase 3 — Model Router & Config-Driven Model Selection
+- **Model registry** (`config/models.yaml` + `app/services/model_registry.py`):
+  task type → model mapping (`provider`, `model`, `enabled`, `capabilities`).
+  `ModelRegistry.from_file()` validates the YAML and fails fast on malformed
+  config (`ModelConfigError`); `availability()` reports per-task-type
+  configured/enabled/available flags from the live Ollama model set.
+- **TaskRouter** (`app/services/task_router.py`): deterministic keyword/rule
+  classification into `general` / `coding` / `document` / `vision` with a
+  `reason`; no LLM used to classify. Rules are ordered and isolated.
+- **ModelRouter** (`app/services/model_router.py`): `resolve(task_type, reason)`
+  → `RoutingResult{task_type, provider, model, reason}`; raises
+  `ModelRoutingError` when a task type has no configured or enabled model — no
+  silent fallback, no external services.
+- **Worker integration**: each job is classified, the `task_type` and selected
+  `model` are stored on the job, then `OllamaService.generate(message,
+  model=<selected>)` is called. `ModelRoutingError` fails the job cleanly with a
+  useful `error`; routing failure jobs still record the classified `task_type`.
+- **Model availability**: startup discovers available Ollama models and logs
+  `model_availability` (non-fatal if Ollama is down). `/health` exposes
+  `models: {task_type: {configured, available, enabled}}`. A job routed to a
+  configured-but-unavailable model fails with `OllamaModelNotFoundError` through
+  the normal lifecycle; nothing is auto-downloaded.
+- **Logging**: added `registry_loaded`, `model_availability`, `task_classified`,
+  `model_selected`, `routing_failure` structured events (job_id/user_id/task_type/
+  model/status where applicable). No prompts or responses logged.
+- **API/job visibility**: jobs already expose `task_type` and `model` in
+  `GET /api/jobs/{job_id}` and `GET /api/jobs` — clients can see which model
+  handled their job.
+- **Tests (64, all passing)**: 30 new tests — TaskRouter classification,
+  ModelRouter/ModelRegistry (selection, disabled/missing failure, availability,
+  YAML validation), and end-to-end routing (general→general model,
+  coding→coding model, code snippet→coding, two jobs → two models, disabled /
+  missing-config / unavailable-model clean failures, listing exposes
+  task_type/model). All 34 Phase 1/2 tests preserved.
+- **Live smoke test**: ran against real local Ollama with a temp registry
+  (general→`llama3.1:latest`, coding→`llama3:latest`); verified general routing,
+  coding routing, and the disabled-model clean failure; `/health` model
+  availability correct.
+- **Deliberately NOT implemented** (out of scope for Phase 3): frontend, GPU
+  scheduling, VRAM management, dynamic model loading, agent loop, tool calling,
+  RAG, OCR, vision processing, document generation, Docker sandbox, authentication,
+  Redis/Celery/external APIs.
+
 ---
 
 ## Files and Directories
@@ -194,7 +255,7 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 ├── .gitignore                     excludes env, logs, uploads, outputs, models, caches
 ├── backend/
 │   ├── README.md                  backend setup/run/usage guide
-│   ├── requirements.txt           fastapi, uvicorn, httpx, pydantic-settings
+│   ├── requirements.txt           fastapi, uvicorn, httpx, pydantic-settings, pyyaml
 │   ├── requirements-dev.txt       pytest
 │   ├── pytest.ini                 pythonpath=tests config
 │   ├── .env.example               template for local config (copy to .env)
@@ -209,22 +270,29 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │   │   │   ├── job_store.py       JobStore ABC + InMemoryJobStore
 │   │   │   ├── job_manager.py     JobManager (lifecycle + ownership)
 │   │   │   ├── job_queue.py       FIFO async job queue
-│   │   │   └── worker.py          background worker (dequeue → Ollama → result)
+│   │   │   ├── worker.py          background worker (dequeue → classify → route → Ollama)
+│   │   │   ├── model_registry.py  ModelRegistry (validates config/models.yaml)
+│   │   │   ├── task_router.py     TaskRouter (deterministic classification)
+│   │   │   └── model_router.py    ModelRouter (task_type → enabled model)
 │   │   └── api/
 │   │       ├── deps.py            get_user_id (X-User-ID header dependency)
 │   │       ├── chat.py            POST /api/chat (enqueue job)
 │   │       ├── jobs.py            GET/DELETE /api/jobs, GET /api/jobs/{job_id}
-│   │       └── health.py          GET /health (Ollama + queue + worker status)
+│   │       └── health.py          GET /health (Ollama + models + queue + worker)
 │   └── tests/
-│       ├── conftest.py            fixtures, mock handlers, wait_for_job helper
+│       ├── conftest.py            fixtures, model-aware Ollama mock, wait_for_job
 │       ├── test_ollama_service.py 8 tests (direct service unit tests)
 │       ├── test_chat.py           7 tests
 │       ├── test_health.py         3 tests
 │       ├── test_jobs.py           8 tests
 │       ├── test_worker.py         5 tests
-│       └── test_concurrency.py    2 tests (5-user + FIFO ordering)
+│       ├── test_concurrency.py    2 tests (5-user + FIFO ordering)
+│       ├── test_task_router.py    10 tests (classification rules)
+│       ├── test_model_router.py   11 tests (selection, registry validation)
+│       └── test_routing.py        9 tests (end-to-end job routing)
 ├── frontend/                      (empty — reserved for frontend)
-├── config/                        (empty — reserved for model routing / system config)
+├── config/
+│   └── models.yaml                task type → local model registry (Phase 3)
 ├── data/
 │   ├── uploads/                   (empty — user uploads, gitignored)
 │   ├── outputs/                   (empty — generated deliverables, gitignored)
@@ -241,9 +309,16 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   `.env` (or exported env vars) with `DEFAULT_MODEL` set before jobs can run
   against a live Ollama.
 - Default `DEFAULT_MODEL` is empty; app logs a startup warning until configured.
+- `config/models.yaml` enables `qwen2.5:7b` (general) and `qwen2.5-coder:7b`
+  (coding), which are NOT currently pulled on the dev machine's Ollama (only
+  `llama3.1:latest` and `llama3:latest` exist). Jobs for those types fail cleanly
+  with `OllamaModelNotFoundError` until the models are pulled or the config is
+  edited. This is intentional: nothing is auto-downloaded.
 - The in-memory job store/queue are process-local: jobs are lost on restart and
   do not survive multiple processes. `JobStore` is the seam for a durable store.
 - One worker only; no concurrency or priority scheduling yet (by design).
+- Task classification is keyword-based and deterministic; it may misclassify
+  ambiguous prose (acceptable for this phase, no LLM used).
 - `logs/backend.log` is generated at import time (module-level `app = create_app()`);
   it is gitignored so this is harmless.
 - Repository is a git repo (branch `main`) tracking `origin` at
@@ -253,17 +328,14 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 
 ## Next Steps
 
-1. **Recommended next phase — Phase 3: Model Router & Config-Driven Selection.**
-   Define the `config/` model-routing schema (JSON/YAML) mapping task types
-   (reasoning, summarization, code, vision, embeddings) to local models, and
-   implement a `model_router` service that resolves a model per job from
-   configuration. Extend the `ChatRequest` (already has `task_type`) so the router
-   picks the model before the worker runs. **Do not start until explicitly requested.**
-2. Other candidate phases after Phase 3 (do not start early): agent loop / tool
-   calling; document & image processing (OCR, vision); local knowledge base (RAG +
-   vector store); Docker code sandbox; Office deliverable generation (.docx/.xlsx/.pptx);
-   durable job store (Redis/Postgres behind `JobStore`); audit-log schema for
-   "all major actions logged"; frontend.
+1. **Recommended next phase — Phase 4: Agentic Pipeline / Tool Calling.**
+   Introduce an agent loop that decomposes tasks and calls local tools
+   (document/image processing, code sandbox, knowledge base search) using the
+   routing layer built in Phase 3. **Do not start until explicitly requested.**
+2. Other candidate phases (do not start early): document & image processing (OCR,
+   vision); local knowledge base (RAG + vector store); Docker code sandbox; Office
+   deliverable generation (.docx/.xlsx/.pptx); durable job store (Redis/Postgres
+   behind `JobStore`); audit-log schema for "all major actions logged"; frontend.
 3. Keep updating this file after every significant change.
 
 ---
@@ -282,3 +354,10 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   `DELETE /api/jobs/{job_id}` enforce per-user ownership via `X-User-ID`. 34 tests
   incl. a five-user concurrency scenario; live smoke test against real Ollama.
   Also initialized the git repo (`main`) and pushed to GitHub.
+- **Phase 3 (2026-08-29)**: Added config-driven model routing —
+  `config/models.yaml` model registry, deterministic TaskRouter (general/coding/
+  document/vision), ModelRouter (task_type → enabled model, no silent fallback),
+  and worker integration (classify → select → call OllamaService with the selected
+  model). `/health` reports per-task-type model availability; jobs expose
+  `task_type`/`model`. 64 tests incl. routing unit + end-to-end; live smoke test
+  verified general and coding routing and the disabled-model clean failure.
