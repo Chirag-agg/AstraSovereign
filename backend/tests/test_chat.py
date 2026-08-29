@@ -27,7 +27,7 @@ def test_chat_default_user_fallback(client):
     assert job["user_id"] == "user-001"
 
 
-def test_chat_accepts_task_type_and_priority(client):
+def test_chat_accepts_priority_and_router_sets_task_type(client):
     resp = client.post(
         "/api/chat",
         json={"message": "Hello", "task_type": "summarization", "priority": 5},
@@ -35,8 +35,8 @@ def test_chat_accepts_task_type_and_priority(client):
     assert resp.status_code == 202
     job_id = resp.json()["job_id"]
     job = wait_for_job(client, job_id)
-    assert job["task_type"] == "summarization"
     assert job["priority"] == 5
+    assert job["task_type"] == "general"
 
 
 def test_chat_rejects_empty_message(client):

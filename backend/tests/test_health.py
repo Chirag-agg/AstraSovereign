@@ -21,6 +21,20 @@ def test_health_ok(client):
         "cancelled": 0,
     }
     assert body["worker"]["state"] in ("idle", "running")
+    assert body["models"]["general"] == {
+        "configured": "test-model",
+        "available": True,
+        "enabled": True,
+    }
+    assert body["models"]["coding"] == {
+        "configured": "coder-model",
+        "available": True,
+        "enabled": True,
+    }
+    assert body["models"]["document"]["available"] is False
+    assert body["models"]["document"]["enabled"] is False
+    assert body["models"]["vision"]["available"] is False
+    assert body["models"]["vision"]["enabled"] is False
 
 
 def test_health_reports_ollama_down(client_factory):
@@ -34,6 +48,9 @@ def test_health_reports_ollama_down(client_factory):
     assert body["status"] == "ok"
     assert body["ollama"]["reachable"] is False
     assert "error" in body["ollama"]
+    assert all(
+        not m["available"] for m in body["models"].values()
+    )
 
 
 def test_health_reports_job_stats(client):
