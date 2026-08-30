@@ -186,6 +186,26 @@ def make_scripted_handler(responses, delay_seconds: float = 0.0):
     return handler
 
 
+def make_text_pdf(path, lines):
+    """Generate a text-based PDF with the given lines (reportlab, local only)."""
+    from reportlab.pdfgen import canvas
+
+    canvas_obj = canvas.Canvas(str(path))
+    y = 760
+    for line in lines:
+        canvas_obj.drawString(72, y, line)
+        y -= 18
+    canvas_obj.save()
+
+
+def make_blank_pdf(path):
+    """Generate an image-only (no text) PDF — used for OCR-required detection."""
+    from reportlab.pdfgen import canvas
+
+    canvas_obj = canvas.Canvas(str(path))
+    canvas_obj.save()
+
+
 def wait_for_job(
     client: TestClient,
     job_id: str,

@@ -6,6 +6,8 @@ for future file/image inputs; their models are disabled by default in the
 registry, so jobs for those types currently fail cleanly at model selection.
 """
 
+import re
+
 from pydantic import BaseModel
 
 TASK_GENERAL = "general"
@@ -24,12 +26,15 @@ class TaskClassification(BaseModel):
 class TaskRule:
     """A deterministic match rule: if any keyword appears, classify as task_type."""
 
-    def __init__(self, task_type: str, reason: str, keywords: tuple[str, ...]) -> None:
+    def __init__(self, task_type: str, reason: str, keywords: tuple[str, ...] = (), pattern: str = "") -> None:
         self.task_type = task_type
         self.reason = reason
         self.keywords = keywords
+        self.pattern = re.compile(pattern) if pattern else None
 
     def matches(self, text: str) -> bool:
+        if self.pattern is not None and self.pattern.search(text):
+            return True
         return any(keyword in text for keyword in self.keywords)
 
 
@@ -91,6 +96,11 @@ class TaskRouter:
                     "look at this image",
                     "attached image",
                 ),
+            ),
+            TaskRule(
+                TASK_GENERAL,
+                "Knowledge base search request detected",
+                pattern=r"\b(search|query|look up|find)\b.*\b(documents?|knowledge|manuals?|files)\b",
             ),
             TaskRule(
                 TASK_DOCUMENT,
