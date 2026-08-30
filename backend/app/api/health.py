@@ -50,6 +50,7 @@ async def health(request: Request) -> dict:
 
     job_stats = await manager.stats()
     scheduler = request.app.state.scheduler
+    knowledge_base = request.app.state.knowledge_base
 
     return {
         "status": "ok",
@@ -60,5 +61,10 @@ async def health(request: Request) -> dict:
         "queue_size": queue.qsize(),
         "jobs": job_stats,
         "scheduler": scheduler.stats(),
+        "knowledge_base": {
+            **knowledge_base.stats(),
+            "embedding": knowledge_base.describe_embedding(),
+            "vector_store": "json",
+        },
         "worker": {"state": worker.state, "active_job_id": worker.active_job_id},
     }

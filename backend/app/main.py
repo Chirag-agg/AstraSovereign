@@ -18,14 +18,17 @@ import httpx
 from fastapi import FastAPI
 
 from app.api.chat import router as chat_router
+from app.api.documents import router as documents_router
 from app.api.health import router as health_router
 from app.api.jobs import router as jobs_router
 from app.config import Settings, get_settings
 from app.schemas.resources import GpuInfo, ResourceCapacity
 from app.services.agent import Agent
+from app.services.embedding import EmbeddingProvider, OllamaEmbeddingProvider
 from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
 from app.services.job_store import InMemoryJobStore
+from app.services.knowledge_base import KnowledgeBase
 from app.services.model_registry import ModelRegistry
 from app.services.model_router import ModelRouter
 from app.services.ollama_service import OllamaService
@@ -36,10 +39,12 @@ from app.services.task_router import TaskRouter
 from app.services.tool_registry import ToolRegistry
 from app.services.tools import (
     CodeExecutionTool,
+    DocumentSearchTool,
     ListFilesTool,
     ReadFileTool,
     WriteFileTool,
 )
+from app.services.vector_store import JsonVectorStore
 from app.services.worker import Worker
 from app.services.workspace import WorkspaceManager
 
@@ -126,6 +131,7 @@ async def lifespan(app: FastAPI):
     service = app.state.ollama_service
     worker = app.state.worker
     registry = app.state.model_registry
+    embedding_provider = app.state.embedding_provider
 
     worker.start()
     try:
@@ -169,6 +175,7 @@ async def lifespan(app: FastAPI):
     finally:
         await worker.stop()
         await service.aclose()
+        await embedding_provider.aclose()
 
 
 def build_resource_capacity(settings: Settings) -> ResourceCapacity:
@@ -194,11 +201,12 @@ def create_app(
     model_registry: Optional[ModelRegistry] = None,
     sandbox_runner: Optional[SandboxRunner] = None,
     resource_capacity: Optional[ResourceCapacity] = None,
+    embedding_provider: Optional[EmbeddingProvider] = None,
 ) -> FastAPI:
     """Build the FastAPI application.
 
     ``ollama_transport`` / ``model_registry`` / ``sandbox_runner`` /
-    ``resource_capacity`` are test seams.
+    ``resource_capacity`` / ``embedding_provider`` are test seams.
     """
     settings = settings or get_settings()
     setup_logging(settings)
@@ -223,6 +231,27 @@ def create_app(
     model_router = ModelRouter(registry=model_registry)
 
     tools = [ListFilesTool(), ReadFileTool(), WriteFileTool()]
+
+    embedding = embedding_provider or OllamaEmbeddingProvider(
+        base_url=settings.ollama_base_url,
+        model=settings.embedding_model,
+        transport=ollama_transport,
+    )
+    knowledge_base = KnowledgeBase(
+        vector_store=JsonVectorStore(settings.knowledge_base_root),
+        embedding_provider=embedding,
+        chunk_size=settings.chunk_size,
+        chunk_overlap=settings.chunk_overlap,
+    )
+    tools.append(
+        DocumentSearchTool(
+            knowledge_base=knowledge_base,
+            default_top_k=settings.document_search_default_top_k,
+            max_top_k=settings.document_search_max_top_k,
+            max_chunk_chars=settings.document_search_max_chunk_chars,
+        )
+    )
+
     if settings.sandbox_enabled:
         runner = sandbox_runner or DockerSandboxRunner(
             image=settings.sandbox_python_image,
@@ -272,9 +301,10 @@ def create_app(
             "Requests become jobs classified by task type, routed to a configured "
             "local model, scheduled against declared resource capacity, and executed "
             "by a local agent with workspace-scoped tools, an optional isolated "
-            "Docker code-execution sandbox, and an execution trace."
+            "Docker code-execution sandbox, a per-user local knowledge base "
+            "(document_search), and an execution trace."
         ),
-        version="0.6.0",
+        version="0.7.0",
         lifespan=lifespan,
     )
     app.state.settings = settings
@@ -289,8 +319,11 @@ def create_app(
     app.state.workspace_manager = workspace_manager
     app.state.agent = agent
     app.state.scheduler = scheduler
+    app.state.knowledge_base = knowledge_base
+    app.state.embedding_provider = embedding
     app.include_router(chat_router)
     app.include_router(jobs_router)
+    app.include_router(documents_router)
     app.include_router(health_router)
 
     return app

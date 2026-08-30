@@ -1,7 +1,10 @@
 """Shared fixtures for backend tests."""
 
 import asyncio
+import hashlib
 import json
+import math
+import re
 import shutil
 import subprocess
 import time
@@ -14,12 +17,38 @@ from app.config import Settings
 from app.main import create_app
 from app.schemas.resources import GpuInfo, ResourceCapacity
 from app.services.agent import TASK_MARKER
+from app.services.embedding import EmbeddingProvider
 from app.services.model_registry import ModelConfig, ModelRegistry
 from app.services.sandbox_runner import ExecutionResult, SandboxRunnerError
 
 DEFAULT_HEADERS = {"X-User-ID": "user-001"}
 
 SANDBOX_IMAGE = "python:3.12-alpine"
+
+
+class FakeEmbeddingProvider(EmbeddingProvider):
+    """Deterministic, keyword-overlap embedding provider for tests/demos.
+
+    Vectors encode token presence in a hashed space, so cosine similarity ranks
+    chunks that share tokens with the query (e.g. "pump maintenance" matches the
+    pump document) without needing a real embedding model.
+    """
+
+    DIM = 64
+
+    async def embed_many(self, texts: list[str]) -> list[list[float]]:
+        return [self._embed_one(text) for text in texts]
+
+    def _embed_one(self, text: str) -> list[float]:
+        vector = [0.0] * self.DIM
+        for token in re.findall(r"[a-z0-9]+", (text or "").lower()):
+            index = int(hashlib.md5(token.encode("utf-8")).hexdigest(), 16) % self.DIM
+            vector[index] += 1.0
+        norm = math.sqrt(sum(x * x for x in vector)) or 1.0
+        return [x / norm for x in vector]
+
+    def describe(self) -> dict:
+        return {"provider": "fake", "model": "keyword-hash"}
 
 
 def default_capacity() -> ResourceCapacity:
@@ -189,6 +218,8 @@ def app_settings(tmp_path):
         log_level="ERROR",
         log_file="",
         workspaces_root=str(tmp_path / "workspaces"),
+        knowledge_base_root=str(tmp_path / "knowledge"),
+        uploads_root=str(tmp_path / "uploads"),
     )
 
 
@@ -249,6 +280,7 @@ def client_factory(app_settings, test_models):
         sandbox_enabled=False,
         sandbox_runner=None,
         resource_capacity=None,
+        embedding_provider=None,
     ):
         registry = build_registry(models if models is not None else test_models)
         settings = app_settings
@@ -260,6 +292,7 @@ def client_factory(app_settings, test_models):
             model_registry=registry,
             sandbox_runner=sandbox_runner,
             resource_capacity=resource_capacity,
+            embedding_provider=embedding_provider or FakeEmbeddingProvider(),
         )
         return TestClient(app)
 
