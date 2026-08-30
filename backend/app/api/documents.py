@@ -2,7 +2,9 @@
 
 All operations are scoped to the authenticated user's own knowledge base. There
 is deliberately no public search endpoint here — the agent reaches the knowledge
-base only through the ``document_search`` tool.
+base only through the ``document_search`` tool. Image files and scanned
+(image-only) PDFs are routed through the local OCR pipeline; text-based
+documents keep the existing Phase 7 ingestion path.
 """
 
 import logging
@@ -11,7 +13,14 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 
 from app.api.deps import get_user_id
-from app.services.document_ingestion import DocumentIngestionError, document_type_for
+from app.services.document_ingestion import (
+    IMAGE_DOCUMENT_TYPES,
+    DocumentIngestionError,
+    DocumentRequiresOCR,
+    document_type_for,
+    extract_document_pages,
+)
+from app.services.multimodal import MultimodalError
 from app.services.workspace import WorkspaceManager
 
 logger = logging.getLogger("app.api.documents")
@@ -43,13 +52,14 @@ async def upload_document(
     request: Request,
     user_id: str = Depends(get_user_id),
 ) -> dict:
-    """Upload and ingest a text-based document (pdf/txt/md) into the user's KB."""
+    """Upload and ingest a document (pdf/txt/md/png/jpg/jpeg) into the user's KB."""
     knowledge_base = request.app.state.knowledge_base
+    multimodal = request.app.state.multimodal_service
     uploads_root = Path(request.app.state.settings.uploads_root)
 
     filename = _safe_filename(file.filename or "")
     try:
-        document_type_for(filename)
+        document_type = document_type_for(filename)
     except DocumentIngestionError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -60,6 +70,31 @@ async def upload_document(
     user_dir.mkdir(parents=True, exist_ok=True)
     destination = user_dir / filename
     destination.write_bytes(await file.read())
+
+    if document_type in IMAGE_DOCUMENT_TYPES:
+        try:
+            doc = await multimodal.ingest_scanned(user_id, destination, filename)
+        except MultimodalError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": "ocr_unavailable", "message": str(exc)},
+            )
+        return _metadata(doc)
+
+    if document_type == "pdf":
+        try:
+            extract_document_pages(destination, "pdf")
+        except DocumentRequiresOCR:
+            try:
+                doc = await multimodal.ingest_scanned(user_id, destination, filename)
+            except MultimodalError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"error": "ocr_unavailable", "message": str(exc)},
+                )
+            return _metadata(doc)
+        except DocumentIngestionError:
+            pass  # malformed PDF — let KnowledgeBase fail it cleanly
 
     doc = await knowledge_base.ingest_document(user_id, destination, filename)
     return _metadata(doc)

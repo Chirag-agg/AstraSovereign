@@ -40,7 +40,71 @@ class KnowledgeBase:
     # ---------------------------------------------------------- ingestion
 
     async def ingest_document(self, user_id: str, path: Path, filename: str) -> DocumentRecord:
+        """Ingest a text-based document (txt/md/text-PDF). Unchanged Phase 7 path."""
         document_type = document_type_for(filename)
+        doc = await self._new_document(user_id, filename, document_type)
+        try:
+            pages = extract_document_pages(path, document_type)
+            return await self._ingest_pages(
+                user_id, doc, pages, {}, "No extractable text found"
+            )
+        except DocumentRequiresOCR:
+            return await self._fail_document(user_id, doc, "Document requires OCR")
+        except (DocumentIngestionError, EmbeddingError) as exc:
+            return await self._fail_document(user_id, doc, str(exc))
+        except Exception as exc:  # unexpected ingestion failure
+            logger.exception(
+                "document_ingestion_failed",
+                extra={
+                    "event": "document_ingestion_failed",
+                    "user_id": user_id,
+                    "document_id": doc.document_id,
+                    "file_name": filename,
+                },
+            )
+            return await self._fail_document(
+                user_id, doc, f"internal_error: {exc.__class__.__name__}"
+            )
+
+    async def ingest_pages(
+        self,
+        user_id: str,
+        path: Path,
+        filename: str,
+        pages: list[tuple[Optional[int], str]],
+        metadata: Optional[dict] = None,
+        empty_text_error: str = "No extractable text found",
+    ) -> DocumentRecord:
+        """Ingest already-extracted ``(page, text)`` pairs (multimodal path).
+
+        Used by the OCR pipeline for scanned PDFs and image files. When no text
+        is produced, the document fails cleanly with ``empty_text_error``.
+        """
+        document_type = document_type_for(filename)
+        doc = await self._new_document(user_id, filename, document_type)
+        try:
+            return await self._ingest_pages(
+                user_id, doc, pages, metadata or {}, empty_text_error
+            )
+        except EmbeddingError as exc:
+            return await self._fail_document(user_id, doc, str(exc))
+        except Exception as exc:  # unexpected ingestion failure
+            logger.exception(
+                "document_ingestion_failed",
+                extra={
+                    "event": "document_ingestion_failed",
+                    "user_id": user_id,
+                    "document_id": doc.document_id,
+                    "file_name": filename,
+                },
+            )
+            return await self._fail_document(
+                user_id, doc, f"internal_error: {exc.__class__.__name__}"
+            )
+
+    async def _new_document(
+        self, user_id: str, filename: str, document_type: str
+    ) -> DocumentRecord:
         document_id = f"doc-{uuid.uuid4().hex[:12]}"
         doc = DocumentRecord(
             document_id=document_id,
@@ -60,62 +124,53 @@ class KnowledgeBase:
                 "file_name": filename,
             },
         )
+        return doc
 
-        try:
-            pages = extract_document_pages(path, document_type)
-            pieces = build_chunks(pages, self._chunk_size, self._chunk_overlap)
-            if not pieces:
-                raise DocumentIngestionError("No extractable text found")
-            texts = [piece["text"] for piece in pieces]
-            vectors = await self._embedder.embed_many(texts)
+    async def _ingest_pages(
+        self,
+        user_id: str,
+        doc: DocumentRecord,
+        pages: list[tuple[Optional[int], str]],
+        metadata: dict,
+        empty_text_error: str,
+    ) -> DocumentRecord:
+        pieces = build_chunks(pages, self._chunk_size, self._chunk_overlap)
+        if not pieces:
+            return await self._fail_document(user_id, doc, empty_text_error)
+        texts = [piece["text"] for piece in pieces]
+        vectors = await self._embedder.embed_many(texts)
 
-            chunks = []
-            for index, (piece, vector) in enumerate(zip(pieces, vectors)):
-                chunks.append(
-                    ChunkRecord(
-                        chunk_id=f"{document_id}:{index}",
-                        document_id=document_id,
-                        user_id=user_id,
-                        filename=filename,
-                        page=piece.get("page"),
-                        text=piece["text"],
-                        vector=vector,
-                    )
+        chunks = []
+        for index, (piece, vector) in enumerate(zip(pieces, vectors)):
+            chunks.append(
+                ChunkRecord(
+                    chunk_id=f"{doc.document_id}:{index}",
+                    document_id=doc.document_id,
+                    user_id=user_id,
+                    filename=doc.filename,
+                    page=piece.get("page"),
+                    text=piece["text"],
+                    vector=vector,
                 )
-            await self._store.upsert_chunks(user_id, chunks)
+            )
+        await self._store.upsert_chunks(user_id, chunks)
 
-            doc.status = DocumentStatus.READY
-            doc.chunk_count = len(chunks)
-            await self._store.put_document(user_id, doc)
-            logger.info(
-                "document_ingestion_completed",
-                extra={
-                    "event": "document_ingestion_completed",
-                    "user_id": user_id,
-                    "document_id": document_id,
-                    "file_name": filename,
-                    "chunk_count": len(chunks),
-                    "status": DocumentStatus.READY,
-                },
-            )
-            return doc
-        except DocumentRequiresOCR as exc:
-            return await self._fail_document(user_id, doc, "Document requires OCR")
-        except (DocumentIngestionError, EmbeddingError) as exc:
-            return await self._fail_document(user_id, doc, str(exc))
-        except Exception as exc:  # unexpected ingestion failure
-            logger.exception(
-                "document_ingestion_failed",
-                extra={
-                    "event": "document_ingestion_failed",
-                    "user_id": user_id,
-                    "document_id": document_id,
-                    "file_name": filename,
-                },
-            )
-            return await self._fail_document(
-                user_id, doc, f"internal_error: {exc.__class__.__name__}"
-            )
+        doc.status = DocumentStatus.READY
+        doc.chunk_count = len(chunks)
+        doc.metadata = metadata
+        await self._store.put_document(user_id, doc)
+        logger.info(
+            "document_ingestion_completed",
+            extra={
+                "event": "document_ingestion_completed",
+                "user_id": user_id,
+                "document_id": doc.document_id,
+                "file_name": doc.filename,
+                "chunk_count": len(chunks),
+                "status": DocumentStatus.READY,
+            },
+        )
+        return doc
 
     async def _fail_document(self, user_id: str, doc: DocumentRecord, error: str) -> DocumentRecord:
         doc.status = DocumentStatus.FAILED

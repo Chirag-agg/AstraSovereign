@@ -79,6 +79,17 @@ class Settings(BaseSettings):
     document_search_max_top_k: int = 10
     document_search_max_chunk_chars: int = 1000
 
+    # Multimodal OCR + vision (Phase 8). Everything runs locally — the OCR
+    # engine (RapidOCR) and PDF rendering (pypdfium2) are local libraries, and
+    # the vision model is the registry-configured local multimodal model.
+    ocr_enabled: bool = True
+    ocr_max_pages: int = 50
+    ocr_max_image_dimension: int = 4000
+    ocr_render_scale: float = 2.0
+    vision_max_pages: int = 5
+    vision_resource_wait_rounds: int = 5
+    multimodal_tmp_root: str = str(REPO_ROOT / "data" / "tmp")
+
     # Structured (JSON) logging.
     log_level: str = "INFO"
     log_file: str = str(REPO_ROOT / "logs" / "backend.log")

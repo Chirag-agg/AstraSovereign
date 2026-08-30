@@ -1,4 +1,4 @@
-# Backend — Phase 7: Local Document Ingestion & Knowledge Base
+# Backend — Phase 8: Local Multimodal Document Understanding (OCR + Vision)
 
 FastAPI backend that talks **only** to locally running services (Ollama, Docker).
 No external AI APIs, no hosted vector stores, no telemetry, no data leaves the
@@ -25,6 +25,9 @@ Document Upload -> Ingestion -> Text Extraction -> Chunking
   and records a serializable **execution trace** on the job.
 - **Tools** are deny-by-default and operate only inside the job's isolated workspace.
 - Generated code runs **only** inside an isolated Docker container — never on the host.
+- **Scanned PDFs and images** are processed fully locally: PDF page rendering
+  (`pypdfium2`) → OCR (`RapidOCR`, ONNX) → local vision model (Ollama) → structured
+  evidence the agent consumes through the `document_vision` tool.
 - All state is in-memory (single process). A `JobStore` abstraction is the seam for
   swapping in Redis/Postgres/etc. later.
 
@@ -34,6 +37,9 @@ Document Upload -> Ingestion -> Text Extraction -> Chunking
 - [Ollama](https://ollama.com) running locally with at least one model pulled.
 - **Docker** (daemon running) with a local Python image **only if** you enable the
   sandbox (`SANDBOX_ENABLED=true`). The backend never pulls images.
+- OCR (RapidOCR) and PDF rendering (pypdfium2) are pure-local Python packages with
+  no external service dependency. The vision model must already be pulled into
+  Ollama (`ollama pull llava:7b`); nothing is auto-downloaded.
 
 ## 1. Install dependencies
 
@@ -94,6 +100,13 @@ Key variables (all optional; defaults shown):
 | `DOCUMENT_SEARCH_DEFAULT_TOP_K` | `5`         | Default results per search                   |
 | `DOCUMENT_SEARCH_MAX_TOP_K` | `10`           | Hard cap on results per search               |
 | `DOCUMENT_SEARCH_MAX_CHUNK_CHARS` | `1000`   | Chunk text cap fed to the agent              |
+| `OCR_ENABLED`              | `true`                | Register the local OCR engine + scanned-doc ingestion |
+| `OCR_MAX_PAGES`            | `50`                  | Hard cap on pages OCR'd per document         |
+| `OCR_MAX_IMAGE_DIMENSION`  | `4000`                | Downscale oversized images to this max side  |
+| `OCR_RENDER_SCALE`         | `2.0`                 | PDF render scale (higher = sharper, bigger)  |
+| `VISION_MAX_PAGES`         | `5`                   | Hard cap on pages per `document_vision` call |
+| `VISION_RESOURCE_WAIT_ROUNDS` | `5`                | Max wait rounds for vision-model resources   |
+| `MULTIMODAL_TMP_ROOT`      | `../data/tmp`         | Per-job temp dir for rendered pages (cleaned)|
 | `HOST` / `PORT`          | `127.0.0.1` / `8000`  | FastAPI bind address (localhost only)         |
 | `OLLAMA_TIMEOUT_SECONDS` | `120`                 | Per-request timeout for Ollama calls          |
 | `LOG_LEVEL` / `LOG_FILE` | `INFO` / `../logs/backend.log` | Structured JSON logging            |
@@ -133,14 +146,21 @@ models:
 
   vision:
     provider: ollama
-    model: <placeholder>
-    enabled: false
+    model: llava:7b
+    enabled: true
     capabilities: [vision, image, document]
+    resources:
+      gpu_vram_mb: 4096
+      cpu_cores: 2
+      memory_mb: 4096
 ```
 
 **Task types:** `general` (explanations, reasoning, summaries), `coding`
 (programming/scripting/debug requests, code blocks), `document` (reserved for
-future file inputs), `vision` (reserved for future image inputs).
+future file inputs), `vision` (image/photo requests — routed to the local
+multimodal model). The `vision` entry also drives the `document_vision` tool:
+its declared `resources` are requested through the resource scheduler before
+any vision inference, so the scheduler is never bypassed.
 
 **Routing behavior:** the worker classifies each message with **deterministic
 rules only** (no LLM is used to classify), then selects the configured **enabled**
@@ -172,7 +192,7 @@ respond with strict JSON — either `{"type":"final","response":"..."}` or
 plain (non-JSON) text, it is treated as a final response. Tool name, argument
 schema, and workspace path are all validated before anything runs.
 
-**Available tools (Phase 5):**
+**Available tools (Phase 5 + Phase 7 + Phase 8):**
 
 | Tool            | Description                                              |
 | --------------- | -------------------------------------------------------- |
@@ -180,6 +200,8 @@ schema, and workspace path are all validated before anything runs.
 | `read_file`     | Read a text file from the job workspace.                 |
 | `write_file`    | Write text content to a file in the workspace.           |
 | `code_execution`| Run generated code in an isolated Docker sandbox (python).|
+| `document_search` | Search the user's local knowledge base of text documents. |
+| `document_vision` | Analyze scanned/image pages with local OCR + vision.    |
 
 `code_execution` arguments: `{"language": "python", "code": "...", "stdin": "..."}`.
 Only `python` is supported; anything else is rejected. The result surfaces in the
@@ -307,6 +329,64 @@ reports `No relevant local documents found`.
 `DELETE /api/documents/{document_id}`. There is deliberately **no public search
 endpoint** — the agent reaches the KB only through the `document_search` tool.
 
+## 3g. Local multimodal OCR + vision (Phase 8)
+
+Scanned/image documents are understood **entirely locally**:
+
+```
+PDF / IMAGE
+  → page/image preparation (pypdfium2 / Pillow)
+  → local OCR (RapidOCR, ONNX)                 → structured OCR text + regions
+  → local vision model (Ollama multimodal)     → structured observations
+  → document_vision tool → agent → grounded answer
+```
+
+**Input handling:** `.png`/`.jpg`/`.jpeg` uploads and **image-only PDFs** are
+detected automatically and routed through the multimodal pipeline; **text-based
+PDFs keep the existing Phase 7 path** untouched. OCR text is embedded into the
+knowledge base too, so `document_search` also finds scanned content.
+
+**Page/image preparation** (`DocumentPreparer`): PDF pages are rendered to local
+PNG images with `pypdfium2` (page numbers preserved), standalone images are
+normalized with Pillow, and oversized images are downscaled to
+`OCR_MAX_IMAGE_DIMENSION`. Malformed PDFs, unreadable pages, unsupported image
+formats, and rendering failures raise clean errors. Rendered pages live in a
+**per-user, per-job temp directory** under `MULTIMODAL_TMP_ROOT` and are deleted
+after success **and** after failure (no persistent sensitive images, no
+cross-user access).
+
+**OCR** (`OCRProvider` abstraction → `RapidOCREngine`): fully local ONNX OCR.
+Structured output keeps `text`, a bounding box `[x1,y1,x2,y2]`, and `confidence`.
+A deterministic `FakeOCRProvider` is used in tests. Configurable language/settings
+live behind the abstraction for a later swap (e.g. PaddleOCR).
+
+**Vision** (`VisionProvider` abstraction → `OllamaVisionProvider`): the registry-
+configured local multimodal model (default `llava:7b`) is asked about each page
+with the OCR text as optional context (per the "OCR first, vision when needed"
+strategy). The model name comes only from `config/models.yaml` — never hardcoded.
+If the model is missing/disabled/unreachable the multimodal task **fails cleanly**
+with a clear message; nothing silently falls back to an external service.
+
+**`document_vision` tool**: the only gateway the agent has to multimodal analysis
+(it never touches the vision model, OCR internals, or raw filesystem paths).
+Arguments: `{"document_id": "...", "pages": [1, 2], "question": "..."}`. Returns
+structured evidence labelled `[OCR]` and `[VISION]` with `document_id`, filename,
+and page, so the agent can distinguish OCR evidence, vision observations, and
+text-KB evidence (and never fabricates citations).
+
+**Resource scheduling:** the vision model's declared `resources` are requested
+through the existing `ResourceScheduler` before inference and released afterwards
+(under the job's id); impossible requests fail the tool cleanly.
+
+**Security/sovereignty:** no cloud OCR, no cloud vision, no external HTTP
+inference, no telemetry. Only metadata is logged (`ocr_started/completed/failed`,
+`vision_started/completed/failed`, `document_render_*`); image contents, OCR text,
+and vision responses are never logged.
+
+**APIs:** the document upload endpoint now accepts images and scanned PDFs. There
+is **no public multimodal endpoint** that bypasses workspace/ownership rules — the
+agent remains the primary consumer through the tool.
+
 ## 4. Run FastAPI
 
 ```powershell
@@ -421,6 +501,17 @@ allocated CPU/memory/VRAM per GPU:
     "chunks": 4,
     "embedding": { "provider": "ollama", "model": "nomic-embed-text" },
     "vector_store": "json"
+  },
+  "multimodal": {
+    "status": "ok",
+    "ocr": { "enabled": true, "provider": { "provider": "rapidocr", "engine": "rapidocr-onnxruntime" } },
+    "vision": {
+      "model": "llava:7b",
+      "enabled": true,
+      "available": false,
+      "provider": { "provider": "ollama" },
+      "resources": { "cpu_cores": 2.0, "memory_mb": 4096, "gpu_id": null, "gpu_vram_mb": 4096 }
+    }
   }
 }
 ```
@@ -454,9 +545,12 @@ events (`job_created`, `job_started`, `job_completed`, `job_failed`,
 (`document_ingestion_started/completed/failed`, `document_deleted`,
 `document_search_started/completed/failed`) include `job_id`, `user_id`, `model`,
 `task_type`, `tool`, `language`, duration, exit code, resource amounts, and
-document metadata where applicable. Confidential prompts, generated responses,
-generated source code, full stdout/stderr, file contents, and search chunks are
-never logged — only short summaries and metadata are.
+document metadata where applicable. Multimodal events (`ocr_started`,
+`ocr_completed`, `ocr_failed`, `vision_started`, `vision_completed`,
+`vision_failed`, `document_render_*`) log only page/provider/model/duration
+metadata. Confidential prompts, generated responses, generated source code, full
+stdout/stderr, file contents, OCR text, and search chunks are never logged — only
+short summaries and metadata are.
 
 ## Tests
 
@@ -475,7 +569,16 @@ fake runner, a Docker-invocation security test, the resource scheduler (grant/
 wait/reject, five-user scenario, release/cleanup, no leaks), scheduler worker
 integration, the local knowledge base (ingestion, chunking, OCR detection,
 vector store, document_search tool, cross-user isolation, no-contents-in-logs),
-a synthetic industrial-document demo, a five-user concurrency scenario, and
-**Docker integration tests** (network-blocked, no host fs, no socket, no
-privileged, timeout/cleanup) that are skipped explicitly when Docker is
-unavailable.
+the multimodal pipeline (document preparer, OCR provider abstraction + fake,
+vision provider abstraction + fake + Ollama mapping, image/scanned-PDF ingestion,
+the `document_vision` tool with ownership isolation, temp-image cleanup, OCR/
+vision failure handling, vision resource scheduling, no image/OCR content in
+logs), agent multimodal integration (document_search vs document_vision and a
+combined multi-step task), a synthetic industrial comparison demo, a synthetic
+industrial-document demo, a five-user concurrency scenario, and **Docker
+integration tests** (network-blocked, no host fs, no socket, no privileged,
+timeout/cleanup) that are skipped explicitly when Docker is unavailable.
+
+Real local OCR is exercised by `-m rapidocr` integration tests (RapidOCR is
+installed locally), and a real-vision smoke test runs when a local multimodal
+model is present on Ollama (skipped otherwise).

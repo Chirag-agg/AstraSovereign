@@ -20,14 +20,15 @@ generation — with no external AI APIs and no data leaving the machine or netwo
 ## Layout
 
 ```
-├── backend/          FastAPI backend (Phase 7: local document ingestion + knowledge base)
+├── backend/          FastAPI backend (Phase 8: local multimodal OCR + vision)
 ├── frontend/         Frontend application (planned)
 ├── config/           models.yaml — task type → model registry (+ resource requirements)
 ├── data/
 │   ├── uploads/      User uploads (not committed)
 │   ├── outputs/      Generated deliverables (not committed)
 │   ├── knowledge/    Per-user local vector stores (not committed)
-│   └── workspaces/   Per-job agent workspaces (not committed)
+│   ├── workspaces/   Per-job agent workspaces (not committed)
+│   └── tmp/          Rendered page images (cleaned after use, not committed)
 ├── logs/             Audit logs (not committed)
 └── docker/           Sandbox images / config (planned)
 ```
@@ -43,15 +44,17 @@ returns a `job_id` immediately). Each job is classified by task type, routed to 
 config-driven model (`config/models.yaml`), scheduled against declared resource
 capacity, and executed by a **local agent** that can call workspace-scoped tools
 (`list_files`, `read_file`, `write_file`), run generated code in an **isolated
-Docker sandbox**, and search the user's **local knowledge base** of ingested
-documents (`document_search`) for grounded, source-cited answers. Multi-user safe
-via an `X-User-ID` header. See [`backend/README.md`](backend/README.md) for setup,
-configuration, and usage.
+Docker sandbox**, search the user's **local knowledge base** of ingested
+documents (`document_search`) for grounded, source-cited answers, and analyze
+**scanned PDFs and images** with fully local OCR + a local vision model
+(`document_vision`). Multi-user safe via an `X-User-ID` header. See
+[`backend/README.md`](backend/README.md) for setup, configuration, and usage.
 
 ## Status
 
-**Current phase: Phase 7 — Local Document Ingestion & Knowledge Base.** The agent
-can ingest local text documents (PDF/txt/md), embed them with a local model, store
-them in a per-user local vector store, and answer retrieval-grounded questions via
-the `document_search` tool with source metadata. Phases are built incrementally,
-one at a time.
+**Current phase: Phase 8 — Local Multimodal Document Understanding.** Scanned
+PDFs and images are processed entirely on-premise: page rendering (pypdfium2) →
+local OCR (RapidOCR) → a registry-configured local vision model (Ollama) →
+structured evidence the agent consumes via the `document_vision` tool. Text-based
+documents keep the Phase 7 ingestion path. Phases are built incrementally, one at
+a time.

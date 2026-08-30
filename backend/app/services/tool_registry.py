@@ -78,3 +78,17 @@ def validate_arguments(schema: dict, arguments: Any) -> None:
             raise ToolError(f"Argument '{key}' must be an integer")
         if expected == "boolean" and not isinstance(value, bool):
             raise ToolError(f"Argument '{key}' must be a boolean")
+        if expected == "array":
+            items = prop.get("items") or {}
+            item_type = items.get("type")
+            if not isinstance(value, list):
+                raise ToolError(f"Argument '{key}' must be an array")
+            if item_type == "integer":
+                if any(isinstance(v, bool) or not isinstance(v, int) for v in value):
+                    raise ToolError(f"Argument '{key}' must be an array of integers")
+            elif item_type == "string":
+                if any(not isinstance(v, str) for v in value):
+                    raise ToolError(f"Argument '{key}' must be an array of strings")
+            elif item_type == "boolean":
+                if any(not isinstance(v, bool) for v in value):
+                    raise ToolError(f"Argument '{key}' must be an array of booleans")

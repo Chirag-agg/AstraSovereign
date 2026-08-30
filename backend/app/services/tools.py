@@ -1,11 +1,12 @@
 """Workspace-scoped local tools: list_files, read_file, write_file, code_execution,
-document_search.
+document_search, document_vision.
 
 Tools operate strictly inside the current job's workspace and never touch
 arbitrary filesystem paths (see ``resolve_within_workspace``). ``code_execution``
 runs generated code inside an isolated Docker sandbox and never on the host.
 ``document_search`` queries the user's local knowledge base and is the only
-gateway the agent has to it.
+gateway the agent has to it. ``document_vision`` is the only gateway the agent
+has to local OCR + vision analysis of the user's scanned/image documents.
 """
 
 import logging
@@ -17,6 +18,7 @@ from pydantic import BaseModel
 
 from app.services.knowledge_base import KnowledgeBase
 from app.services.log_context import get_job_context
+from app.services.multimodal import MultimodalError, MultimodalService
 from app.services.sandbox_runner import SandboxRunner, SandboxRunnerError
 from app.services.workspace import WorkspaceError, resolve_within_workspace
 
@@ -315,3 +317,77 @@ class DocumentSearchTool(BaseTool):
             summary=f"{len(results)} relevant chunk(s) from {len(filenames)} document(s)",
             content="\n".join(lines),
         )
+
+
+class DocumentVisionTool(BaseTool):
+    """Analyze pages of the user's ingested documents using local OCR + vision.
+
+    The only gateway the agent has to multimodal analysis. The agent never
+    touches the vision model, OCR internals, or raw filesystem paths directly —
+    everything flows through this tool with source metadata attached.
+    """
+
+    name = "document_vision"
+    description = (
+        "Analyze pages of the user's ingested documents (scanned PDFs or images) "
+        "using local OCR and a local vision model. Returns structured observations "
+        "about the requested pages with source metadata. Use when the question "
+        "concerns scanned, handwritten, or image content."
+    )
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "document_id": {"type": "string"},
+            "pages": {"type": "array", "items": {"type": "integer"}},
+            "question": {"type": "string"},
+        },
+        "required": ["document_id", "question"],
+        "additionalProperties": False,
+    }
+
+    def __init__(self, multimodal: MultimodalService) -> None:
+        self._multimodal = multimodal
+
+    async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
+        ctx = get_job_context()
+        user_id = ctx.get("user_id")
+        if not user_id:
+            raise ToolError("document_vision requires a user context")
+
+        document_id = arguments["document_id"]
+        question = str(arguments["question"]).strip()
+        if not question:
+            raise ToolError("question must not be empty")
+        pages_arg = arguments.get("pages")
+        pages = None
+        if pages_arg is not None:
+            pages = [int(p) for p in pages_arg]
+
+        try:
+            analysis = await self._multimodal.analyze(user_id, document_id, pages, question)
+        except MultimodalError as exc:
+            raise ToolError(str(exc)) from exc
+
+        content = _format_vision_analysis(analysis)
+        summary = f"Analyzed {len(analysis.pages)} page(s) of '{analysis.filename}'"
+        return ToolResult(ok=True, summary=summary, content=content)
+
+
+def _format_vision_analysis(analysis) -> str:
+    lines = [
+        f"Vision analysis of '{analysis.filename}' (doc={analysis.document_id}), "
+        f"{len(analysis.pages)} page(s)"
+    ]
+    for page in analysis.pages:
+        lines.append(f"\n[PAGE {page.page}]")
+        if page.ocr_text.strip():
+            lines.append(f"  [OCR] {page.ocr_text}")
+        else:
+            lines.append("  [OCR] (no text detected; image analyzed directly)")
+        if page.observations:
+            lines.append(f"  [VISION] ({page.vision_model or 'vision model'}) observations:")
+            for observation in page.observations:
+                lines.append(f"    - {observation}")
+        else:
+            lines.append("  [VISION] no observations returned")
+    return "\n".join(lines)

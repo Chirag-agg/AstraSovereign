@@ -171,12 +171,47 @@ models, and provides an agentic pipeline that:
 - **VectorStore/EmbeddingProvider abstractions (Phase 7)**: both behind
   interfaces so the JSON store and Ollama embeddings can be swapped later without
   touching the KB service or agent.
+- **Multimodal input handling (Phase 8)**: `document_type_for` now accepts
+  `png`/`jpg`/`jpeg`; the upload API detects image-only PDFs (`DocumentRequiresOCR`)
+  and image files and routes them through the OCR pipeline. Text-based PDFs keep the
+  unchanged Phase 7 text path. OCR text is embedded into the KB too, so
+  `document_search` also finds scanned content.
+- **DocumentPreparer (Phase 8)**: renders PDF pages to local PNG images via
+  `pypdfium2` (page numbers preserved) and normalizes standalone images via
+  Pillow (oversized images downscaled to `OCR_MAX_IMAGE_DIMENSION`). Malformed
+  PDFs / unreadable pages / unsupported images / rendering failures raise clean
+  `DocumentPreparationError`s. Rendered pages live in a per-user/per-job temp dir
+  under `MULTIMODAL_TMP_ROOT` and are deleted after success and failure.
+- **OCRProvider (Phase 8)**: `OCRProvider` ABC + `RapidOCREngine` (fully local
+  RapidOCR/ONNX, lazy engine init, run in a worker thread) producing structured
+  `OCRRegion`s (text + bbox + confidence). `FakeOCRProvider` (scripted per page)
+  gives deterministic tests. Provider is replaceable later (e.g. PaddleOCR).
+- **VisionProvider (Phase 8)**: `VisionProvider` ABC + `OllamaVisionProvider`
+  (local multimodal model via Ollama `/api/generate` with a base64 image, model
+  name always from the registry — never hardcoded) + `FakeVisionProvider`.
+  Provider is independent of the Agent.
+- **MultimodalService (Phase 8)**: orchestrates analyze (prepare → OCR → vision
+  per page, OCR text passed as optional context to vision) and scanned/image
+  ingestion (`ingest_scanned`). Vision-model `resources` flow through the
+  `ResourceScheduler` (sub-allocation under `<job_id>:vision`, released in a
+  `finally`); the worker also releases sub-allocations on job end. Missing/
+  disabled vision model → clean `MultimodalError`.
+- **document_vision tool (Phase 8)**: the ONLY gateway the agent has to
+  multimodal analysis (never touches vision model, OCR internals, or raw paths).
+  User scoped via `log_context`; returns `[OCR]`/`[VISION]`-labelled evidence with
+  `document_id`/filename/page so the agent can distinguish OCR, vision, and
+  text-KB sources.
+- **Logging (Phase 8)**: `ocr_started/completed/failed`,
+  `vision_started/completed/failed` events carry only page/provider/model/duration
+  metadata — never image contents, OCR text, or vision responses.
+- **Health (Phase 8)**: `/health` gains a `multimodal` section (OCR provider,
+  vision model configured/enabled/available, resources, subsystem status).
 
 ---
 
 ## Current Phase
 
-**Phase 7 — Local Document Ingestion & Knowledge Base** (completed)
+**Phase 8 — Local Multimodal Document Understanding (OCR + Vision)** (completed)
 
 ---
 
@@ -479,6 +514,87 @@ models, and provides an agentic pipeline that:
   generation, GPU scheduling changes, multi-GPU, distributed vector databases,
   external services, auth redesign, enterprise RBAC.
 
+### Phase 8 — Local Multimodal Document Understanding (OCR + Vision)
+- **Multimodal input support** (`document_ingestion.py`): document types now
+  include `png`/`jpg`/`jpeg`; image files and image-only ("scanned") PDFs are
+  detected and routed through the OCR pipeline. Text-based PDFs/txt/md keep the
+  Phase 7 path (text PDF test explicitly preserved). OCR'd text is chunked,
+  embedded, and stored in the same per-user vector store, so `document_search`
+  also retrieves scanned content.
+- **DocumentPreparer** (`services/document_preparer.py`): renders PDF pages to
+  local PNGs via `pypdfium2` (page numbers preserved, configurable scale, page
+  cap) and normalizes standalone images via Pillow (oversized → downscaled to
+  `OCR_MAX_IMAGE_DIMENSION`). Clean `DocumentPreparationError` for malformed PDF,
+  unreadable page, unsupported image, oversized image, out-of-range page, and
+  rendering failures. Fully local — no cloud converters / remote APIs.
+- **OCRProvider** (`services/ocr_provider.py`): `OCRProvider` ABC with
+  `RapidOCREngine` (fully local RapidOCR/ONNX, lazy engine init in a worker
+  thread) returning structured `OCRRegion`s (text + `[x1,y1,x2,y2]` bbox +
+  confidence) and `FakeOCRProvider` (scripted text per page, `fail_pages`,
+  records calls) for deterministic tests. `OCRProviderError` for engine failures.
+- **VisionProvider** (`services/vision_provider.py`): `VisionProvider` ABC +
+  `OllamaVisionProvider` (local multimodal model via Ollama `/api/generate` with a
+  base64 image; model name always from `config/models.yaml` — never hardcoded) +
+  `FakeVisionProvider` (scripted observations per page, records calls). Missing/
+  unreachable model → `VisionProviderError` → clean tool failure.
+- **OllamaService**: added `generate_with_image(prompt, model, image_path)` —
+  same local-endpoint-only guarantees and error mapping as `generate`.
+- **MultimodalService** (`services/multimodal.py`): coordinates per-page
+  prepare → OCR → vision (OCR text passed to vision as optional context per the
+  "OCR first, vision when needed" strategy) and `ingest_scanned` (render → OCR →
+  `KnowledgeBase.ingest_pages`). Vision-model `resources` are requested through
+  the `ResourceScheduler` under `<job_id>:vision` and released in a `finally`;
+  impossible requests fail cleanly ("vision resources rejected: …"). Temp page
+  images are stored under `MULTIMODAL_TMP_ROOT/<user>/<job>/` and removed after
+  success and failure (empty ancestors pruned).
+- **document_vision tool** (`services/tools.py`): the only gateway the agent has
+  to multimodal analysis. Args `{document_id, question, pages?}`; returns
+  `[OCR]`/`[VISION]`-labelled structured evidence with document_id/filename/page.
+  Ownership enforced via the per-user KB lookup; ToolRegistry now validates
+  `array`-typed arguments.
+- **KnowledgeBase**: refactored `ingest_document` (unchanged Phase 7 behavior) +
+  new `ingest_pages` (ingest pre-extracted `(page, text)` pairs with metadata).
+  Scanned/image docs store `metadata = {"page_count": N, "ocr": true}`.
+- **APIs**: `POST /api/documents` accepts images and routes image-only PDFs
+  through OCR; text PDFs unchanged. No new public multimodal endpoint (the agent
+  remains the primary consumer). `/health` gains a `multimodal` section (OCR
+  provider, vision model configured/enabled/available + resources, status).
+- **Config**: `OCR_ENABLED`, `OCR_MAX_PAGES`, `OCR_MAX_IMAGE_DIMENSION`,
+  `OCR_RENDER_SCALE`, `VISION_MAX_PAGES`, `VISION_RESOURCE_WAIT_ROUNDS`,
+  `MULTIMODAL_TMP_ROOT`; `config/models.yaml` vision entry now `llava:7b`,
+  `enabled: true`, with declared `resources`. Deps added (already installed in the
+  venv): `pillow`, `pypdfium2`, `rapidocr-onnxruntime`.
+- **Logging**: `ocr_started/completed/failed`, `vision_started/completed/failed`
+  with job_id/user_id/document_id/page/provider/model/duration — metadata only;
+  image contents, OCR text, and vision responses never logged (verified by a
+  no-contents-in-logs test).
+- **Tests (231 passing, 15 skipped)**: 47 new across `test_document_preparer.py`,
+  `test_ocr_provider.py`, `test_vision_provider.py`, `test_multimodal.py`,
+  `test_multimodal_agent.py`, `test_multimodal_demo.py`, and
+  `test_multimodal_integration.py` — covering all 21 Phase 8 test requirements:
+  image ingestion, scanned-PDF detection, PDF page rendering, OCR provider
+  abstraction/extraction/metadata, vision provider abstraction + model selection,
+  missing vision model handling, the document_vision tool, ownership isolation,
+  temp-image cleanup (success + failure), cross-user isolation, OCR/vision
+  failure handling, vision execution trace, resource-scheduling integration
+  (grant+release, rejection), text-PDF Phase 7 path preservation, agent choosing
+  document_search for text tasks, document_vision for image questions, both tools
+  in a multi-step task, and no image/OCR contents in logs. Real RapidOCR runs
+  (`-m rapidocr`); the real-vision smoke test is skipped when no local
+  multimodal model exists. All 184 Phase 1–7 tests preserved.
+- **Live verification**: real RapidOCR ingested a synthetic scanned inspection
+  PDF (embedded image, no text layer) → `ready` (chunked); the real `llama3.1`
+  agent answered a retrieval question grounded in the OCR'd content (4×
+  `document_search`, correct findings); `/health` multimodal section reported
+  rapidocr enabled and `llava:7b` configured-but-not-present (available: false).
+  A real vision smoke test is included but skipped on this machine because no
+  multimodal model is currently pulled into Ollama.
+- **Deliberately NOT implemented** (out of scope for Phase 8): Word/Excel/
+  PowerPoint generation, approval-note generation, the final report workflow,
+  handwriting-specialized model training, P&ID-specific symbolic reasoning,
+  dynamic model loading, distributed inference, frontend, auth redesign, external
+  services, and real-OCR-language tuning.
+
 ---
 
 ## Files and Directories
@@ -501,9 +617,10 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │   │   │   ├── chat.py            ChatRequest (message, task_type, priority)
 │   │   │   ├── job.py             Job, JobStatus, JobSubmitResponse, JobSummary
 │   │   │   ├── resources.py       ResourceRequirements/Allocation, GpuInfo, Capacity
-│   │   │   └── document.py        DocumentRecord, ChunkRecord, SearchResult
+│   │   │   ├── document.py        DocumentRecord, ChunkRecord, SearchResult
+│   │   │   └── multimodal.py      OCRRegion/OCRPageResult, VisionPageResult, PageEvidence, VisionAnalysisResult
 │   │   ├── services/
-│   │   │   ├── ollama_service.py  OllamaService async client + typed errors
+│   │   │   ├── ollama_service.py  OllamaService async client + typed errors + generate_with_image
 │   │   │   ├── job_store.py       JobStore ABC + InMemoryJobStore
 │   │   │   ├── job_manager.py     JobManager (lifecycle + ownership)
 │   │   │   ├── job_queue.py       FIFO async job queue
@@ -514,23 +631,27 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │   │   │   ├── workspace.py       WorkspaceManager + safe path resolution
 │   │   │   ├── log_context.py     contextvars job context for tool logging
 │   │   │   ├── sandbox_runner.py  SandboxRunner ABC + DockerSandboxRunner (Phase 5)
-│   │   │   ├── tools.py           Tool ABC + list/read/write + code_execution + document_search
+│   │   │   ├── document_preparer.py  PDF page rendering (pypdfium2) + image prep (Pillow) (Phase 8)
+│   │   │   ├── ocr_provider.py    OCRProvider ABC + RapidOCREngine + FakeOCRProvider (Phase 8)
+│   │   │   ├── vision_provider.py VisionProvider ABC + OllamaVisionProvider + FakeVisionProvider (Phase 8)
+│   │   │   ├── multimodal.py      MultimodalService (OCR+vision pipeline, scheduler integration) (Phase 8)
+│   │   │   ├── tools.py           Tool ABC + list/read/write + code_execution + document_search + document_vision
 │   │   │   ├── tool_registry.py   ToolRegistry (deny-by-default validation)
 │   │   │   ├── agent.py           Agent (bounded loop, trace, cancellation)
 │   │   │   ├── resource_provider.py  ResourceProvider ABC + in-memory + local discovery
 │   │   │   ├── resource_scheduler.py ResourceScheduler (grant/wait/reject, FIFO)
-│   │   │   ├── document_ingestion.py text extraction + deterministic chunking
+│   │   │   ├── document_ingestion.py text extraction + deterministic chunking (now incl. image types)
 │   │   │   ├── embedding.py       EmbeddingProvider ABC + OllamaEmbeddingProvider
 │   │   │   ├── vector_store.py    VectorStore ABC + JsonVectorStore
-│   │   │   └── knowledge_base.py  KnowledgeBase (ingest/search/delete, per-user)
+│   │   │   └── knowledge_base.py  KnowledgeBase (ingest/search/delete, per-user) + ingest_pages
 │   │   └── api/
 │   │       ├── deps.py            get_user_id (X-User-ID header dependency)
 │   │       ├── chat.py            POST /api/chat (enqueue job)
 │   │       ├── jobs.py            GET/DELETE /api/jobs, GET /api/jobs/{job_id}
-│   │       ├── documents.py       POST/GET/DELETE /api/documents
-│   │       └── health.py          GET /health (Ollama + models + queue + scheduler + KB + worker)
+│   │       ├── documents.py       POST/GET/DELETE /api/documents (+ image/scanned-PDF OCR routing)
+│   │       └── health.py          GET /health (Ollama + models + queue + scheduler + KB + multimodal + worker)
 │   └── tests/
-│       ├── conftest.py            fixtures, mocks, FakeEmbeddingProvider, pdf helpers, wait_for_job
+│       ├── conftest.py            fixtures, mocks, FakeEmbeddingProvider, FakeOCR/FakeVision, pdf/image helpers, wait_for_job
 │       ├── test_ollama_service.py 8 tests (direct service unit tests)
 │       ├── test_chat.py           7 tests
 │       ├── test_health.py         3 tests
@@ -553,14 +674,22 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │       ├── test_vector_store.py   7 tests (upsert/search/delete/persistence/isolation)
 │       ├── test_knowledge.py      10 tests (KB + document_search tool + logs)
 │       ├── test_documents_api.py  11 tests (document APIs + isolation)
-│       └── test_knowledge_demo.py 2 tests (synthetic industrial demo + no-results)
+│       ├── test_knowledge_demo.py 2 tests (synthetic industrial demo + no-results)
+│       ├── test_document_preparer.py 11 tests (PDF rendering, image prep, clean failures) (Phase 8)
+│       ├── test_ocr_provider.py   5 tests (fake + real RapidOCR) (Phase 8)
+│       ├── test_vision_provider.py 8 tests (fake + Ollama vision mapping) (Phase 8)
+│       ├── test_multimodal.py     20 tests (ingestion, tool, isolation, cleanup, scheduling, logs, health) (Phase 8)
+│       ├── test_multimodal_agent.py 3 tests (document_search vs document_vision + multi-step) (Phase 8)
+│       ├── test_multimodal_demo.py 1 test (synthetic industrial comparison) (Phase 8)
+│       └── test_multimodal_integration.py 2 tests (real RapidOCR + real vision smoke) (Phase 8)
 ├── frontend/                      (empty — reserved for frontend)
 ├── config/
-│   └── models.yaml                task type → local model registry (Phase 3)
+│   └── models.yaml                task type → local model registry (incl. vision=llava:7b + resources)
 ├── data/
 │   ├── uploads/                   (empty — user uploads, gitignored)
 │   ├── outputs/                   (empty — generated deliverables, gitignored)
 │   ├── knowledge/                 (empty — local knowledge base, gitignored)
+│   ├── tmp/                       (empty — rendered page images, cleaned, gitignored)
 │   └── workspaces/                (per-job agent workspaces, gitignored)
 ├── logs/                          backend.log (gitignored, structured JSON)
 └── docker/                        (empty — reserved for sandbox/container images)
@@ -601,16 +730,26 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 - Priority is stored on the job model but **priority scheduling is not
   implemented** — the scheduler is FIFO by default (structured for future
   priority/creation-time/resource ordering).
-- The knowledge base currently supports **text-based documents only** (PDF with
-  text layer, txt, md); scanned/image-only PDFs are detected and reported as
-  "Document requires OCR" (OCR/vision is the next phase). "No relevant local
-  documents found" is reported when a user's knowledge base has no matching
-  chunks (with the current simple vector store, a query against a non-empty KB
-  always returns its closest chunks). The vector store is a per-user JSON file
-  (simple + persistent); a real vector DB can be swapped in behind `VectorStore`.
+- The knowledge base supports **text-based documents** (PDF with text layer,
+  txt, md) through the Phase 7 path and **scanned/image-only documents** (image
+  PDFs, png/jpg/jpeg) through the Phase 8 OCR pipeline; OCR text is indexed so
+  `document_search` retrieves scanned content too. A PDF with no text layer AND
+  no OCR-able content still fails cleanly with "Document requires OCR". "No
+  relevant local documents found" is reported when a user's knowledge base has
+  no matching chunks. The vector store is a per-user JSON file (simple +
+  persistent); a real vector DB can be swapped in behind `VectorStore`.
+- **OCR quality** depends on the local RapidOCR engine; accuracy on dense
+  tables/handwriting is limited (no handwritten-text training in this phase).
+  **Vision** requires a local multimodal model in Ollama. The default
+  `config/models.yaml` configures `llava:7b`, which is NOT currently pulled on
+  the dev machine — the real-vision smoke test and live `document_vision` use are
+  skipped/fail cleanly until `ollama pull llava:7b` (or the config is edited);
+  `document_vision` tool calls fail cleanly with a clear message. Nothing is
+  auto-downloaded.
 - Tool results feed the model prompt; a `read_file` observation is capped at
   ~4000 chars to bound prompt growth. Workspaces accumulate under
-  `data/workspaces/` (gitignored); no cleanup/retention policy yet.
+  `data/workspaces/` (gitignored); no cleanup/retention policy yet. Rendered
+  page images under `data/tmp/` are cleaned after success and failure.
 - `logs/backend.log` is generated at import time (module-level `app = create_app()`);
   it is gitignored so this is harmless.
 - Repository is a git repo (branch `main`) tracking `origin` at
@@ -620,15 +759,15 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 
 ## Next Steps
 
-1. **Recommended next phase — Phase 8: OCR & Vision for Scanned Documents.**
-   Add local OCR (e.g., Ollama vision models or a local OCR engine) so
-   scanned/image-only PDFs and images can be ingested into the knowledge base,
-   plus an explicit file-passing mechanism to the code sandbox for generated
-   source/input files. **Do not start until explicitly requested.**
-2. Other candidate phases (do not start early): Office deliverable generation
-   (.docx/.xlsx/.pptx); durable job store (Redis/Postgres behind `JobStore`);
-   audit-log schema for "all major actions logged"; frontend; enterprise
-   organization-wide knowledge base with access control.
+1. **Recommended next phase — Phase 9: Office Deliverable Generation.** Produce
+   native Word (.docx), Excel (.xlsx), and PowerPoint (.pptx) outputs locally.
+   Combined with Phase 7 (text KB) and Phase 8 (OCR/vision evidence), this
+   completes the industrial inspection-report → approval-note workflow.
+   **Do not start until explicitly requested.**
+2. Other candidate phases (do not start early): durable job store (Redis/Postgres
+   behind `JobStore`); audit-log schema for "all major actions logged"; frontend;
+   enterprise organization-wide knowledge base with access control; multi-language
+   code sandbox.
 3. Keep updating this file after every significant change.
 
 ---
@@ -684,3 +823,18 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   agent answers retrieval-grounded questions with source metadata. 184 tests incl.
   the synthetic industrial-doc demo; live demo with `llama3.1` + `nomic-embed-text`
   produced a grounded pump-inspection answer and confirmed cross-user isolation.
+- **Phase 8 (2026-08-31)**: Added local multimodal document understanding —
+  image-only PDF detection + png/jpg/jpeg support, a `DocumentPreparer`
+  (pypdfium2 page rendering + Pillow image normalization, temp-file cleanup after
+  success/failure), an `OCRProvider` abstraction with the fully local RapidOCR
+  engine, a `VisionProvider` abstraction backed by the registry-configured local
+  multimodal model (Ollama, default `llava:7b`), a `MultimodalService` that runs
+  prepare → OCR → vision per page with OCR text as context and routes the vision
+  model's declared resources through the `ResourceScheduler`, and a
+  `document_vision` tool (the agent's only gateway to multimodal analysis) that
+  returns `[OCR]`/`[VISION]`-labelled evidence. Scanned/image docs are OCR-indexed
+  into the KB so `document_search` also finds them. `/health` gains a `multimodal`
+  section. 231 tests incl. the synthetic industrial comparison demo and real
+  RapidOCR integration; live smoke: real RapidOCR + real `llama3.1` agent answered
+  a retrieval question grounded in OCR'd scanned-PDF content. Vision smoke test
+  skipped until a multimodal model is pulled into Ollama.

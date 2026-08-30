@@ -1,7 +1,8 @@
 """Local document ingestion: text extraction + deterministic chunking.
 
-Supports text-based PDFs, plain text, and markdown. Scanned (image-only) PDFs
-are detected and reported as requiring OCR (not implemented in this phase).
+Supports text-based PDFs, plain text, markdown, and standalone images
+(png/jpg/jpeg). Scanned (image-only) PDFs and image files are detected here and
+routed to the Phase 8 multimodal pipeline (OCR + vision) by the caller.
 No external services or network calls are involved.
 """
 
@@ -10,7 +11,8 @@ from typing import Optional
 
 from pypdf import PdfReader
 
-SUPPORTED_DOCUMENT_TYPES = ("pdf", "txt", "md")
+SUPPORTED_DOCUMENT_TYPES = ("pdf", "txt", "md", "png", "jpg", "jpeg")
+IMAGE_DOCUMENT_TYPES = ("png", "jpg", "jpeg")
 
 
 class DocumentIngestionError(Exception):

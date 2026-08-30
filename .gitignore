@@ -86,6 +86,9 @@ data/knowledge/
 # ── Job Workspaces (agent file tools) ──────────────────────────
 data/workspaces/
 
+# ── Multimodal temp images (rendered pages, cleaned after use) ──
+data/tmp/
+
 # ── Models & AI Artifacts ──────────────────────────────────────
 models/
 *.gguf

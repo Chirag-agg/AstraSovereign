@@ -243,6 +243,17 @@ class Worker:
                 "worker_resource_release_error",
                 extra={"event": "resource_released", "job_id": job_id},
             )
+        # Release any sub-allocations held by this job (e.g. the vision model
+        # allocation under ``<job_id>:vision``), so a cancelled job never leaks.
+        try:
+            for allocation in self._scheduler.provider().allocated():
+                if allocation.job_id.startswith(f"{job_id}:"):
+                    await self._scheduler.release(allocation.job_id)
+        except Exception:
+            logger.exception(
+                "worker_subresource_release_error",
+                extra={"event": "resource_released", "job_id": job_id},
+            )
 
     async def _finish_agent_job(self, job: Job, agent_result: Optional[AgentStatus]) -> None:
         """Apply the agent outcome to the job. Job lifecycle stays in the worker."""

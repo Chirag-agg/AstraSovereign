@@ -51,6 +51,7 @@ async def health(request: Request) -> dict:
     job_stats = await manager.stats()
     scheduler = request.app.state.scheduler
     knowledge_base = request.app.state.knowledge_base
+    multimodal = request.app.state.multimodal_service
 
     return {
         "status": "ok",
@@ -66,5 +67,6 @@ async def health(request: Request) -> dict:
             "embedding": knowledge_base.describe_embedding(),
             "vector_store": "json",
         },
+        "multimodal": multimodal.describe_status(available_models),
         "worker": {"state": worker.state, "active_job_id": worker.active_job_id},
     }

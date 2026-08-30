@@ -15,11 +15,19 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
-from app.schemas.resources import GpuInfo, ResourceCapacity
+from app.schemas.resources import GpuInfo, ResourceCapacity, ResourceRequirements
 from app.services.agent import TASK_MARKER
+from app.services.document_preparer import DocumentPreparer
 from app.services.embedding import EmbeddingProvider
+from app.services.knowledge_base import KnowledgeBase
 from app.services.model_registry import ModelConfig, ModelRegistry
+from app.services.multimodal import MultimodalService
+from app.services.ocr_provider import FakeOCRProvider, OCRProvider
+from app.services.resource_provider import InMemoryResourceProvider
+from app.services.resource_scheduler import InMemoryResourceScheduler
 from app.services.sandbox_runner import ExecutionResult, SandboxRunnerError
+from app.services.vector_store import JsonVectorStore
+from app.services.vision_provider import FakeVisionProvider, VisionProvider
 
 DEFAULT_HEADERS = {"X-User-ID": "user-001"}
 
@@ -118,6 +126,49 @@ def build_registry(models: dict[str, dict]) -> ModelRegistry:
     )
 
 
+def make_multimodal_stack(
+    tmp_path,
+    ocr: OCRProvider = None,
+    vision: VisionProvider = None,
+    vision_model="vision-model",
+    vision_enabled=True,
+    vision_resources=None,
+    capacity=None,
+    vision_wait_rounds=3,
+):
+    """Build a fully wired MultimodalService for deterministic tests.
+
+    Returns ``(service, scheduler, uploads_root, tmp_root)``.
+    """
+    from pathlib import Path
+
+    uploads = Path(tmp_path) / "uploads"
+    tmproot = Path(tmp_path) / "tmp"
+    uploads.mkdir(parents=True, exist_ok=True)
+    tmproot.mkdir(parents=True, exist_ok=True)
+    kb = KnowledgeBase(
+        vector_store=JsonVectorStore(str(Path(tmp_path) / "kb")),
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    scheduler = InMemoryResourceScheduler(
+        InMemoryResourceProvider(capacity or default_capacity())
+    )
+    service = MultimodalService(
+        knowledge_base=kb,
+        preparer=DocumentPreparer(),
+        ocr_provider=ocr if ocr is not None else FakeOCRProvider(),
+        vision_provider=vision if vision is not None else FakeVisionProvider(),
+        vision_model=vision_model,
+        vision_enabled=vision_enabled,
+        vision_requirements=vision_resources or ResourceRequirements(),
+        scheduler=scheduler,
+        uploads_root=str(uploads),
+        tmp_root=str(tmproot),
+        vision_wait_rounds=vision_wait_rounds,
+    )
+    return service, scheduler, uploads, tmproot
+
+
 def _extract_task(prompt: str) -> str:
     """Extract the user task from an agent prompt for mock echo replies."""
     if TASK_MARKER in prompt:
@@ -186,6 +237,37 @@ def make_scripted_handler(responses, delay_seconds: float = 0.0):
     return handler
 
 
+def make_mutable_scripted_handler(script, delay_seconds: float = 0.0):
+    """Mock Ollama that reads a caller-mutated list of model outputs live.
+
+    Used when the scripted agent replies must be assembled after a document is
+    uploaded (e.g. ``document_vision`` needs the generated ``document_id``).
+    """
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/tags":
+            return httpx.Response(
+                200,
+                json={
+                    "models": [
+                        {"name": "test-model"},
+                        {"name": "coder-model"},
+                        {"name": "vision-model"},
+                    ]
+                },
+            )
+        if request.url.path == "/api/generate":
+            if delay_seconds:
+                await asyncio.sleep(delay_seconds)
+            if not script:
+                raise AssertionError("model called more times than scripted")
+            text = script.pop(0)
+            return httpx.Response(200, json={"response": text, "model": "test-model"})
+        return httpx.Response(404, json={"error": "not found"})
+
+    return handler
+
+
 def make_text_pdf(path, lines):
     """Generate a text-based PDF with the given lines (reportlab, local only)."""
     from reportlab.pdfgen import canvas
@@ -198,12 +280,45 @@ def make_text_pdf(path, lines):
     canvas_obj.save()
 
 
-def make_blank_pdf(path):
-    """Generate an image-only (no text) PDF — used for OCR-required detection."""
+def make_blank_pdf(path, pages=1):
+    """Generate an image-only (no text) PDF — used for OCR-required detection.
+
+    Contains ``pages`` blank pages (no text layer) so it remains renderable by
+    pypdfium2 while reporting no extractable text.
+    """
     from reportlab.pdfgen import canvas
 
     canvas_obj = canvas.Canvas(str(path))
+    for _ in range(pages):
+        canvas_obj.showPage()
     canvas_obj.save()
+
+
+def make_png(path, lines, width=600, height=220):
+    """Generate a PNG image containing the given text lines (Pillow, local only)."""
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(image)
+    y = 40
+    for line in lines:
+        draw.text((20, y), line, fill="black")
+        y += 50
+    image.save(path)
+    return path
+
+
+def make_image_pdf(path, image_path, page_count=1):
+    """Embed a raster image into an otherwise text-less PDF (scanned-style)."""
+    from PIL import Image
+    from reportlab.pdfgen import canvas
+
+    image = Image.open(image_path)
+    c = canvas.Canvas(str(path), pagesize=(image.width, image.height))
+    for _ in range(page_count):
+        c.drawImage(str(image_path), 0, 0, width=image.width, height=image.height)
+        c.showPage()
+    c.save()
 
 
 def wait_for_job(
@@ -301,6 +416,8 @@ def client_factory(app_settings, test_models):
         sandbox_runner=None,
         resource_capacity=None,
         embedding_provider=None,
+        ocr_provider=None,
+        vision_provider=None,
     ):
         registry = build_registry(models if models is not None else test_models)
         settings = app_settings
@@ -313,6 +430,8 @@ def client_factory(app_settings, test_models):
             sandbox_runner=sandbox_runner,
             resource_capacity=resource_capacity,
             embedding_provider=embedding_provider or FakeEmbeddingProvider(),
+            ocr_provider=ocr_provider or FakeOCRProvider(),
+            vision_provider=vision_provider,
         )
         return TestClient(app)
 

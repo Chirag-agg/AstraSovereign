@@ -44,9 +44,13 @@ models:
 
   vision:
     provider: ollama
-    model: <placeholder>
-    enabled: false
+    model: llava:7b
+    enabled: true
     capabilities:
       - vision
       - image
       - document
+    resources:
+      gpu_vram_mb: 4096
+      cpu_cores: 2
+      memory_mb: 4096

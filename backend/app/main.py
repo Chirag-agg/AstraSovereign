@@ -22,8 +22,9 @@ from app.api.documents import router as documents_router
 from app.api.health import router as health_router
 from app.api.jobs import router as jobs_router
 from app.config import Settings, get_settings
-from app.schemas.resources import GpuInfo, ResourceCapacity
+from app.schemas.resources import GpuInfo, ResourceCapacity, ResourceRequirements
 from app.services.agent import Agent
+from app.services.document_preparer import DocumentPreparer
 from app.services.embedding import EmbeddingProvider, OllamaEmbeddingProvider
 from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
@@ -31,6 +32,8 @@ from app.services.job_store import InMemoryJobStore
 from app.services.knowledge_base import KnowledgeBase
 from app.services.model_registry import ModelRegistry
 from app.services.model_router import ModelRouter
+from app.services.multimodal import MultimodalService
+from app.services.ocr_provider import OCRProvider, RapidOCREngine
 from app.services.ollama_service import OllamaService
 from app.services.resource_provider import InMemoryResourceProvider, LocalResourceProvider
 from app.services.resource_scheduler import InMemoryResourceScheduler
@@ -40,11 +43,13 @@ from app.services.tool_registry import ToolRegistry
 from app.services.tools import (
     CodeExecutionTool,
     DocumentSearchTool,
+    DocumentVisionTool,
     ListFilesTool,
     ReadFileTool,
     WriteFileTool,
 )
 from app.services.vector_store import JsonVectorStore
+from app.services.vision_provider import OllamaVisionProvider, VisionProvider
 from app.services.worker import Worker
 from app.services.workspace import WorkspaceManager
 
@@ -202,11 +207,14 @@ def create_app(
     sandbox_runner: Optional[SandboxRunner] = None,
     resource_capacity: Optional[ResourceCapacity] = None,
     embedding_provider: Optional[EmbeddingProvider] = None,
+    ocr_provider: Optional[OCRProvider] = None,
+    vision_provider: Optional[VisionProvider] = None,
 ) -> FastAPI:
     """Build the FastAPI application.
 
     ``ollama_transport`` / ``model_registry`` / ``sandbox_runner`` /
-    ``resource_capacity`` / ``embedding_provider`` are test seams.
+    ``resource_capacity`` / ``embedding_provider`` / ``ocr_provider`` /
+    ``vision_provider`` are test seams.
     """
     settings = settings or get_settings()
     setup_logging(settings)
@@ -229,6 +237,7 @@ def create_app(
 
     task_router = TaskRouter()
     model_router = ModelRouter(registry=model_registry)
+    vision_config = model_registry.get("vision")
 
     tools = [ListFilesTool(), ReadFileTool(), WriteFileTool()]
 
@@ -266,12 +275,40 @@ def create_app(
                 max_stderr_chars=settings.sandbox_max_stderr_chars,
             )
         )
-    tool_registry = ToolRegistry(tools)
-    workspace_manager = WorkspaceManager(root=settings.workspaces_root)
 
     capacity = resource_capacity or build_resource_capacity(settings)
     resource_provider = InMemoryResourceProvider(capacity)
     scheduler = InMemoryResourceScheduler(resource_provider)
+
+    ocr = ocr_provider
+    if ocr is None and settings.ocr_enabled:
+        ocr = RapidOCREngine()
+    vision = vision_provider or OllamaVisionProvider(ollama_service)
+    preparer = DocumentPreparer(
+        render_scale=settings.ocr_render_scale,
+        max_image_dimension=settings.ocr_max_image_dimension,
+        max_pages=settings.ocr_max_pages,
+    )
+    multimodal = MultimodalService(
+        knowledge_base=knowledge_base,
+        preparer=preparer,
+        ocr_provider=ocr,
+        vision_provider=vision,
+        vision_model=vision_config.model if vision_config else None,
+        vision_enabled=vision_config.enabled if vision_config else False,
+        vision_requirements=vision_config.resources if vision_config else ResourceRequirements(),
+        scheduler=scheduler,
+        uploads_root=settings.uploads_root,
+        tmp_root=settings.multimodal_tmp_root,
+        max_pages=settings.ocr_max_pages,
+        vision_max_pages=settings.vision_max_pages,
+        vision_wait_rounds=settings.vision_resource_wait_rounds,
+    )
+    if vision_config is not None:
+        tools.append(DocumentVisionTool(multimodal=multimodal))
+
+    tool_registry = ToolRegistry(tools)
+    workspace_manager = WorkspaceManager(root=settings.workspaces_root)
 
     store = InMemoryJobStore()
     job_manager = JobManager(store=store, default_model=settings.default_model)
@@ -302,9 +339,10 @@ def create_app(
             "local model, scheduled against declared resource capacity, and executed "
             "by a local agent with workspace-scoped tools, an optional isolated "
             "Docker code-execution sandbox, a per-user local knowledge base "
-            "(document_search), and an execution trace."
+            "(document_search), a local OCR + vision pipeline (document_vision), "
+            "and an execution trace."
         ),
-        version="0.7.0",
+        version="0.8.0",
         lifespan=lifespan,
     )
     app.state.settings = settings
@@ -321,6 +359,7 @@ def create_app(
     app.state.scheduler = scheduler
     app.state.knowledge_base = knowledge_base
     app.state.embedding_provider = embedding
+    app.state.multimodal_service = multimodal
     app.include_router(chat_router)
     app.include_router(jobs_router)
     app.include_router(documents_router)
