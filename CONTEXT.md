@@ -156,12 +156,27 @@ models, and provides an agentic pipeline that:
   (`gpu_vram_mb`/`cpu_cores`/`memory_mb`/`gpu_id`) in `config/models.yaml`.
   Priority remains on the job model but priority scheduling is not implemented;
   FIFO is the default.
+- **Knowledge base (Phase 7)**: a per-user local KB — upload → ingest → extract
+  (txt/md via file read, text PDFs via `pypdf`; image-only PDFs reported as
+  "Document requires OCR") → deterministic chunking → local embeddings (Ollama
+  `/api/embed`, `EMBEDDING_MODEL`) → a JSON-file-per-user `VectorStore` with
+  cosine search. Ownership is explicit per user; cross-user access is impossible.
+- **document_search tool (Phase 7)**: the ONLY gateway the agent has to the KB
+  (it never touches the vector store directly). User scoped via `log_context`;
+  returns filename/document_id/page/score and capped chunk text, or
+  "No relevant local documents found". Recorded in the execution trace.
+- **KB routing (Phase 7)**: an isolated TaskRouter search-intent rule routes
+  "search the documents/knowledge..." requests to `general` (the reasoning model
+  + document_search tool) instead of the reserved `document` task type.
+- **VectorStore/EmbeddingProvider abstractions (Phase 7)**: both behind
+  interfaces so the JSON store and Ollama embeddings can be swapped later without
+  touching the KB service or agent.
 
 ---
 
 ## Current Phase
 
-**Phase 6 — Resource Scheduler & GPU/VRAM Awareness** (completed)
+**Phase 7 — Local Document Ingestion & Knowledge Base** (completed)
 
 ---
 
@@ -414,6 +429,56 @@ models, and provides an agentic pipeline that:
   execution, distributed inference, Kubernetes, Redis/Celery/Kafka, frontend, RAG,
   OCR, vision, document generation, authentication.
 
+### Phase 7 — Local Document Ingestion & Knowledge Base
+- **Document model + ingestion** (`schemas/document.py`, `services/
+  document_ingestion.py`): `DocumentRecord` (metadata only) + `ChunkRecord` +
+  `SearchResult`. Text extraction for `.txt`/`.md` (direct read) and text PDFs
+  (pypdf, per page); image-only PDFs → "Document requires OCR"; malformed PDFs
+  fail cleanly. Deterministic order-preserving chunking (configurable size/
+  overlap) with stable chunk IDs and page metadata.
+- **Embeddings** (`services/embedding.py`): `EmbeddingProvider` ABC;
+  `OllamaEmbeddingProvider` uses the local Ollama `/api/embed` (configured model,
+  clean error if missing/unreachable). Deterministic `FakeEmbeddingProvider`
+  (keyword-overlap) for tests/demos.
+- **Vector store** (`services/vector_store.py`): `VectorStore` ABC;
+  `JsonVectorStore` persists per-user documents + chunk vectors to
+  `data/knowledge/<user>/store.json`, cosine search, delete/list, cross-restart
+  persistence, lock-guarded.
+- **KnowledgeBase** (`services/knowledge_base.py`): coordinates ingest
+  (extract → chunk → embed → store) and search; explicit per-user ownership;
+  structured `document_ingestion_started/completed/failed`, `document_deleted`,
+  `document_search_started/completed/failed` events (metadata only, never content).
+- **document_search tool** (`services/tools.py`): only gateway to the KB; user
+  scoped via `log_context`; caps `top_k` and chunk text; returns filename/
+  document_id/page/score; "No relevant local documents found" when empty.
+- **APIs** (`api/documents.py`): `POST /api/documents` (multipart upload → ingest,
+  returns document_id/filename/status), `GET /api/documents`,
+  `GET/DELETE /api/documents/{document_id}`. No public search endpoint.
+- **KB routing**: isolated TaskRouter search-intent rule (`search/query/look up/
+  find ... documents/knowledge/manuals/files`) → `general`, so retrieval requests
+  use the reasoning model + document_search instead of the reserved `document`
+  task type.
+- **Config**: `KNOWLEDGE_BASE_ROOT`, `UPLOADS_ROOT`, `CHUNK_SIZE`, `CHUNK_OVERLAP`,
+  `EMBEDDING_MODEL`, `DOCUMENT_SEARCH_DEFAULT/MAX_TOP_K`,
+  `DOCUMENT_SEARCH_MAX_CHUNK_CHARS`. Deps: `pypdf`, `python-multipart`
+  (`reportlab` for tests).
+- **Tests (184, all passing)**: 40 new — ingestion (txt/md/pdf/OCR/malformed),
+  chunking determinism/metadata, vector store upsert/search/delete/persistence/
+  cross-user isolation, KB + document_search tool (metadata, no-results, limits,
+  user context, no-contents-in-logs), document APIs (upload/list/get/delete,
+  isolation, no public search), and the synthetic industrial-doc demo (pump
+  manual PDF + inspection txt + safety md; agent document_search → grounded
+  answer; no-relevant flow). All 144 Phase 1–6 tests preserved.
+- **Live demo**: real Ollama (`llama3.1` reasoning + `nomic-embed-text`
+  embeddings) — 3 synthetic docs ingested (ready), agent answered the cooling
+  water pump inspection question grounded in retrieved chunks (2× document_search,
+  3 sources, correct inspection requirements); user-002 saw 0 docs and the agent
+  reported "No relevant local documents found".
+- **Deliberately NOT implemented** (out of scope for Phase 7): OCR, handwritten
+  text recognition, vision models, scanned-document understanding, Word/PPT/Excel
+  generation, GPU scheduling changes, multi-GPU, distributed vector databases,
+  external services, auth redesign, enterprise RBAC.
+
 ---
 
 ## Files and Directories
@@ -435,7 +500,8 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │   │   ├── schemas/
 │   │   │   ├── chat.py            ChatRequest (message, task_type, priority)
 │   │   │   ├── job.py             Job, JobStatus, JobSubmitResponse, JobSummary
-│   │   │   └── resources.py       ResourceRequirements/Allocation, GpuInfo, Capacity
+│   │   │   ├── resources.py       ResourceRequirements/Allocation, GpuInfo, Capacity
+│   │   │   └── document.py        DocumentRecord, ChunkRecord, SearchResult
 │   │   ├── services/
 │   │   │   ├── ollama_service.py  OllamaService async client + typed errors
 │   │   │   ├── job_store.py       JobStore ABC + InMemoryJobStore
@@ -443,23 +509,28 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │   │   │   ├── job_queue.py       FIFO async job queue
 │   │   │   ├── worker.py          background worker (dequeue → classify → route → schedule → agent)
 │   │   │   ├── model_registry.py  ModelRegistry (validates config/models.yaml)
-│   │   │   ├── task_router.py     TaskRouter (deterministic classification)
+│   │   │   ├── task_router.py     TaskRouter (deterministic classification + KB search intent)
 │   │   │   ├── model_router.py    ModelRouter (task_type → enabled model)
 │   │   │   ├── workspace.py       WorkspaceManager + safe path resolution
 │   │   │   ├── log_context.py     contextvars job context for tool logging
 │   │   │   ├── sandbox_runner.py  SandboxRunner ABC + DockerSandboxRunner (Phase 5)
-│   │   │   ├── tools.py           Tool ABC + list/read/write + code_execution
+│   │   │   ├── tools.py           Tool ABC + list/read/write + code_execution + document_search
 │   │   │   ├── tool_registry.py   ToolRegistry (deny-by-default validation)
 │   │   │   ├── agent.py           Agent (bounded loop, trace, cancellation)
 │   │   │   ├── resource_provider.py  ResourceProvider ABC + in-memory + local discovery
-│   │   │   └── resource_scheduler.py ResourceScheduler (grant/wait/reject, FIFO)
+│   │   │   ├── resource_scheduler.py ResourceScheduler (grant/wait/reject, FIFO)
+│   │   │   ├── document_ingestion.py text extraction + deterministic chunking
+│   │   │   ├── embedding.py       EmbeddingProvider ABC + OllamaEmbeddingProvider
+│   │   │   ├── vector_store.py    VectorStore ABC + JsonVectorStore
+│   │   │   └── knowledge_base.py  KnowledgeBase (ingest/search/delete, per-user)
 │   │   └── api/
 │   │       ├── deps.py            get_user_id (X-User-ID header dependency)
 │   │       ├── chat.py            POST /api/chat (enqueue job)
 │   │       ├── jobs.py            GET/DELETE /api/jobs, GET /api/jobs/{job_id}
-│   │       └── health.py          GET /health (Ollama + models + queue + scheduler + worker)
+│   │       ├── documents.py       POST/GET/DELETE /api/documents
+│   │       └── health.py          GET /health (Ollama + models + queue + scheduler + KB + worker)
 │   └── tests/
-│       ├── conftest.py            fixtures, model-aware/scripted Ollama mocks, wait_for_job
+│       ├── conftest.py            fixtures, mocks, FakeEmbeddingProvider, pdf helpers, wait_for_job
 │       ├── test_ollama_service.py 8 tests (direct service unit tests)
 │       ├── test_chat.py           7 tests
 │       ├── test_health.py         3 tests
@@ -477,7 +548,12 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │       ├── test_sandbox_demo.py   3 tests (factorial + bug-fix-loop demos)
 │       ├── test_sandbox_docker.py 14 tests (docker-marked integration tests)
 │       ├── test_resources.py      19 tests (scheduler + provider + five-user scenario)
-│       └── test_scheduler_worker.py 6 tests (worker + scheduler integration)
+│       ├── test_scheduler_worker.py 6 tests (worker + scheduler integration)
+│       ├── test_ingestion.py      11 tests (extraction + chunking)
+│       ├── test_vector_store.py   7 tests (upsert/search/delete/persistence/isolation)
+│       ├── test_knowledge.py      10 tests (KB + document_search tool + logs)
+│       ├── test_documents_api.py  11 tests (document APIs + isolation)
+│       └── test_knowledge_demo.py 2 tests (synthetic industrial demo + no-results)
 ├── frontend/                      (empty — reserved for frontend)
 ├── config/
 │   └── models.yaml                task type → local model registry (Phase 3)
@@ -525,6 +601,13 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 - Priority is stored on the job model but **priority scheduling is not
   implemented** — the scheduler is FIFO by default (structured for future
   priority/creation-time/resource ordering).
+- The knowledge base currently supports **text-based documents only** (PDF with
+  text layer, txt, md); scanned/image-only PDFs are detected and reported as
+  "Document requires OCR" (OCR/vision is the next phase). "No relevant local
+  documents found" is reported when a user's knowledge base has no matching
+  chunks (with the current simple vector store, a query against a non-empty KB
+  always returns its closest chunks). The vector store is a per-user JSON file
+  (simple + persistent); a real vector DB can be swapped in behind `VectorStore`.
 - Tool results feed the model prompt; a `read_file` observation is capped at
   ~4000 chars to bound prompt growth. Workspaces accumulate under
   `data/workspaces/` (gitignored); no cleanup/retention policy yet.
@@ -537,15 +620,15 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 
 ## Next Steps
 
-1. **Recommended next phase — Phase 7: Document & Image Processing (OCR/Vision).**
-   Add local OCR and vision-model support (e.g., Ollama vision models) with tools
-   to process uploaded documents/images inside the existing agent loop, plus an
-   explicit file-passing mechanism to the code sandbox for generated source/input
-   files. **Do not start until explicitly requested.**
-2. Other candidate phases (do not start early): local knowledge base (RAG + vector
-   store); Office deliverable generation (.docx/.xlsx/.pptx); durable job store
-   (Redis/Postgres behind `JobStore`); audit-log schema for "all major actions
-   logged"; frontend.
+1. **Recommended next phase — Phase 8: OCR & Vision for Scanned Documents.**
+   Add local OCR (e.g., Ollama vision models or a local OCR engine) so
+   scanned/image-only PDFs and images can be ingested into the knowledge base,
+   plus an explicit file-passing mechanism to the code sandbox for generated
+   source/input files. **Do not start until explicitly requested.**
+2. Other candidate phases (do not start early): Office deliverable generation
+   (.docx/.xlsx/.pptx); durable job store (Redis/Postgres behind `JobStore`);
+   audit-log schema for "all major actions logged"; frontend; enterprise
+   organization-wide knowledge base with access control.
 3. Keep updating this file after every significant change.
 
 ---
@@ -594,3 +677,10 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   select model → schedule → agent. `/health` reports scheduler state; jobs expose
   `resource_status`. 158 tests incl. the five-user scheduling scenario; live smoke
   test verified allocate→run→release and the exact 32 GB reject message.
+- **Phase 7 (2026-08-29)**: Added the local document knowledge base — ingestion
+  (txt/md/text-PDF; scanned PDFs → "requires OCR"), deterministic chunking, local
+  Ollama embeddings, a per-user persistent JSON vector store with cosine search, a
+  `document_search` tool (the only gateway for the agent), and document APIs. The
+  agent answers retrieval-grounded questions with source metadata. 184 tests incl.
+  the synthetic industrial-doc demo; live demo with `llama3.1` + `nomic-embed-text`
+  produced a grounded pump-inspection answer and confirmed cross-user isolation.

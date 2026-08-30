@@ -1,22 +1,20 @@
-# Backend — Phase 6: Resource Scheduler & GPU/VRAM Awareness
+# Backend — Phase 7: Local Document Ingestion & Knowledge Base
 
 FastAPI backend that talks **only** to locally running services (Ollama, Docker).
-No external AI APIs, no telemetry, no data leaves the machine.
+No external AI APIs, no hosted vector stores, no telemetry, no data leaves the
+machine.
 
 Every request becomes a **job** with its own id and state, processed
 asynchronously by a single background worker. Each job is classified by task
 type, routed to the configured local model, scheduled against declared resource
-capacity, and executed by a **local agent** that may call workspace-scoped tools
-and, when enabled, run generated code in an isolated Docker sandbox:
+capacity, and executed by a **local agent** that may call workspace-scoped tools,
+run generated code in an isolated Docker sandbox, and search the user's **local
+knowledge base** of ingested documents:
 
 ```
-Client ──HTTP──▶ FastAPI ──▶ Job Manager ──▶ Queue ──▶ Worker
-                                                       │
-                                           classify → select model → requirements
-                                                       │
-                                            Resource Scheduler (grant/wait/reject)
-                                                       │
-                                            Agent ──▶ Tools / Sandbox / Ollama
+Document Upload -> Ingestion -> Text Extraction -> Chunking
+   -> Local Embeddings (Ollama) -> Local Vector Store -> Knowledge Base
+   -> document_search tool -> Agent -> grounded answer
 ```
 
 - `POST /api/chat` returns a `job_id` immediately (202); it never blocks on the model.
@@ -88,6 +86,14 @@ Key variables (all optional; defaults shown):
 | `RESOURCE_MEMORY_MB`    | `16384`                | Scheduler memory capacity                    |
 | `RESOURCE_GPU_VRAM_MB`  | `16384`                | VRAM per GPU (`GPU-0`, `GPU-1`, ...)         |
 | `RESOURCE_GPU_COUNT`    | `1`                    | Number of GPUs in capacity                   |
+| `KNOWLEDGE_BASE_ROOT`   | `../data/knowledge`    | Per-user KB vector store location            |
+| `UPLOADS_ROOT`          | `../data/uploads`      | Uploaded document files (per user)           |
+| `CHUNK_SIZE`            | `800`                  | Chunk size (characters)                      |
+| `CHUNK_OVERLAP`         | `100`                  | Chunk overlap (characters)                   |
+| `EMBEDDING_MODEL`       | `nomic-embed-text`     | Local embedding model on Ollama              |
+| `DOCUMENT_SEARCH_DEFAULT_TOP_K` | `5`         | Default results per search                   |
+| `DOCUMENT_SEARCH_MAX_TOP_K` | `10`           | Hard cap on results per search               |
+| `DOCUMENT_SEARCH_MAX_CHUNK_CHARS` | `1000`   | Chunk text cap fed to the agent              |
 | `HOST` / `PORT`          | `127.0.0.1` / `8000`  | FastAPI bind address (localhost only)         |
 | `OLLAMA_TIMEOUT_SECONDS` | `120`                 | Per-request timeout for Ollama calls          |
 | `LOG_LEVEL` / `LOG_FILE` | `INFO` / `../logs/backend.log` | Structured JSON logging            |
@@ -259,6 +265,48 @@ primarily enforced at the accounting layer and is exercised deterministically by
 the scheduler unit tests (e.g. the five-user scenario: two 8 GB jobs share a
 16 GB GPU, the rest wait in FIFO order).
 
+## 3f. Local document knowledge base (Phase 7)
+
+The agent can answer questions grounded in **local organizational documents**
+(text-based PDFs, `.txt`, `.md`) without anything leaving the machine:
+
+```
+upload → ingest → extract text → chunk → embed (local Ollama) → vector store
+       → document_search tool → agent → grounded answer with sources
+```
+
+**Ingestion** (`KnowledgeBase`): `pypdf` extracts text from text-based PDFs
+(per page); `.txt`/`.md` are read directly. Image-only (scanned) PDFs are
+detected and reported as `Document requires OCR` (OCR is a later phase);
+malformed/unreadable PDFs fail cleanly.
+
+**Chunking**: deterministic, order-preserving, character-window chunks with
+configurable size/overlap (`CHUNK_SIZE`/`CHUNK_OVERLAP`); every chunk keeps its
+source `document_id`, `filename`, and page.
+
+**Embeddings**: `EmbeddingProvider` abstraction backed by the local Ollama
+server (`/api/embed`, `EMBEDDING_MODEL`) — no external embedding API. A
+deterministic fake provider is used in tests.
+
+**Vector store**: per-user JSON files under `KNOWLEDGE_BASE_ROOT/<user>/store.json`
+with cosine similarity search — fully local, persistent across restarts, behind
+a `VectorStore` abstraction so a real vector DB can be swapped in later.
+
+**Ownership**: the knowledge base is strictly **per-user**. A user's documents
+and chunks are never visible to, or searchable by, another user.
+
+**`document_search` tool**: the only gateway the agent has to the knowledge base
+(it never touches the vector store directly). Arguments: `{"query": "...",
+"top_k": N}`. Returns structured results with `filename`, `document_id`, page,
+and similarity score; text is capped (`DOCUMENT_SEARCH_MAX_CHUNK_CHARS`) and
+result count is capped (`DOCUMENT_SEARCH_MAX_TOP_K`). When nothing is relevant it
+reports `No relevant local documents found`.
+
+**APIs**: `POST /api/documents` (multipart upload → ingest, returns `document_id`,
+`filename`, `status`), `GET /api/documents`, `GET /api/documents/{document_id}`,
+`DELETE /api/documents/{document_id}`. There is deliberately **no public search
+endpoint** — the agent reaches the KB only through the `document_search` tool.
+
 ## 4. Run FastAPI
 
 ```powershell
@@ -367,6 +415,12 @@ allocated CPU/memory/VRAM per GPU:
       "memory_mb": 4096,
       "gpu": { "GPU-0": { "allocated_vram_mb": 8192, "capacity_vram_mb": 16384 } }
     }
+  },
+  "knowledge_base": {
+    "documents": 3,
+    "chunks": 4,
+    "embedding": { "provider": "ollama", "model": "nomic-embed-text" },
+    "vector_store": "json"
   }
 }
 ```
@@ -394,13 +448,15 @@ events (`job_created`, `job_started`, `job_completed`, `job_failed`,
 (`agent_started`, `agent_completed`, `agent_failed`, `agent_cancelled`,
 `tool_call_started`, `tool_call_completed`, `tool_call_failed`), sandbox events
 (`code_execution_started`, `code_execution_completed`, `code_execution_failed`,
-`code_execution_timeout`, `code_execution_cleanup`), and scheduler events
+`code_execution_timeout`, `code_execution_cleanup`), scheduler events
 (`resource_requested`, `resource_waiting`, `resource_allocated`,
-`resource_released`, `resource_rejected`) include `job_id`, `user_id`, `model`,
-`task_type`, `tool`, `language`, duration, exit code, and resource amounts where
-applicable. Confidential prompts, generated responses, generated source code,
-full stdout/stderr, and file contents are never logged — only short summaries
-are.
+`resource_released`, `resource_rejected`), and knowledge-base events
+(`document_ingestion_started/completed/failed`, `document_deleted`,
+`document_search_started/completed/failed`) include `job_id`, `user_id`, `model`,
+`task_type`, `tool`, `language`, duration, exit code, resource amounts, and
+document metadata where applicable. Confidential prompts, generated responses,
+generated source code, full stdout/stderr, file contents, and search chunks are
+never logged — only short summaries and metadata are.
 
 ## Tests
 
@@ -417,6 +473,9 @@ the API, workspace isolation and path traversal, the tool system, the agent loop
 factorial "killer test" and a bug-fix loop), the `code_execution` tool with a
 fake runner, a Docker-invocation security test, the resource scheduler (grant/
 wait/reject, five-user scenario, release/cleanup, no leaks), scheduler worker
-integration, a five-user concurrency scenario, and **Docker integration tests**
-(network-blocked, no host fs, no socket, no privileged, timeout/cleanup) that are
-skipped explicitly when Docker is unavailable.
+integration, the local knowledge base (ingestion, chunking, OCR detection,
+vector store, document_search tool, cross-user isolation, no-contents-in-logs),
+a synthetic industrial-document demo, a five-user concurrency scenario, and
+**Docker integration tests** (network-blocked, no host fs, no socket, no
+privileged, timeout/cleanup) that are skipped explicitly when Docker is
+unavailable.

@@ -57,7 +57,7 @@ class KnowledgeBase:
                 "event": "document_ingestion_started",
                 "user_id": user_id,
                 "document_id": document_id,
-                "filename": filename,
+                "file_name": filename,
             },
         )
 
@@ -93,7 +93,7 @@ class KnowledgeBase:
                     "event": "document_ingestion_completed",
                     "user_id": user_id,
                     "document_id": document_id,
-                    "filename": filename,
+                    "file_name": filename,
                     "chunk_count": len(chunks),
                     "status": DocumentStatus.READY,
                 },
@@ -110,7 +110,7 @@ class KnowledgeBase:
                     "event": "document_ingestion_failed",
                     "user_id": user_id,
                     "document_id": document_id,
-                    "filename": filename,
+                    "file_name": filename,
                 },
             )
             return await self._fail_document(
@@ -127,7 +127,7 @@ class KnowledgeBase:
                 "event": "document_ingestion_failed",
                 "user_id": user_id,
                 "document_id": doc.document_id,
-                "filename": doc.filename,
+                "file_name": doc.filename,
                 "status": DocumentStatus.FAILED,
                 "error": error,
             },
