@@ -62,6 +62,23 @@ class Settings(BaseSettings):
     resource_gpu_vram_mb: int = 16384
     resource_gpu_count: int = 1
 
+    # Local document knowledge base (Phase 7). All storage stays under the
+    # knowledge base root (per-user subdirectories).
+    knowledge_base_root: str = str(REPO_ROOT / "data" / "knowledge")
+    uploads_root: str = str(REPO_ROOT / "data" / "uploads")
+
+    # Deterministic text chunking.
+    chunk_size: int = 800
+    chunk_overlap: int = 100
+
+    # Local embedding model (served by the local Ollama instance).
+    embedding_model: str = "nomic-embed-text"
+
+    # document_search tool limits.
+    document_search_default_top_k: int = 5
+    document_search_max_top_k: int = 10
+    document_search_max_chunk_chars: int = 1000
+
     # Structured (JSON) logging.
     log_level: str = "INFO"
     log_file: str = str(REPO_ROOT / "logs" / "backend.log")
