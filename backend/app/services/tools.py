@@ -1,8 +1,11 @@
-"""Workspace-scoped local tools: list_files, read_file, write_file, code_execution.
+"""Workspace-scoped local tools: list_files, read_file, write_file, code_execution,
+document_search.
 
 Tools operate strictly inside the current job's workspace and never touch
 arbitrary filesystem paths (see ``resolve_within_workspace``). ``code_execution``
 runs generated code inside an isolated Docker sandbox and never on the host.
+``document_search`` queries the user's local knowledge base and is the only
+gateway the agent has to it.
 """
 
 import logging
@@ -12,6 +15,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel
 
+from app.services.knowledge_base import KnowledgeBase
 from app.services.log_context import get_job_context
 from app.services.sandbox_runner import SandboxRunner, SandboxRunnerError
 from app.services.workspace import WorkspaceError, resolve_within_workspace
@@ -234,4 +238,80 @@ class CodeExecutionTool(BaseTool):
             ok=result.success,
             summary=summary,
             content=content,
+        )
+
+
+class DocumentSearchTool(BaseTool):
+    """Search the caller's local knowledge base (user scoped via log context).
+
+    The agent reaches the knowledge base only through this tool — it never
+    touches the vector store directly.
+    """
+
+    name = "document_search"
+    description = (
+        "Search the user's local knowledge base of ingested documents for relevant "
+        "passages. Returns source metadata (filename, page) and matched text."
+    )
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string"},
+            "top_k": {"type": "integer"},
+        },
+        "required": ["query"],
+        "additionalProperties": False,
+    }
+
+    def __init__(
+        self,
+        knowledge_base: KnowledgeBase,
+        default_top_k: int = 5,
+        max_top_k: int = 10,
+        max_chunk_chars: int = 1000,
+    ) -> None:
+        self._kb = knowledge_base
+        self._default_top_k = default_top_k
+        self._max_top_k = max_top_k
+        self._max_chunk_chars = max_chunk_chars
+
+    async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
+        ctx = get_job_context()
+        user_id = ctx.get("user_id")
+        if not user_id:
+            raise ToolError("document_search requires a user context")
+
+        query = str(arguments["query"]).strip()
+        if not query:
+            raise ToolError("query must not be empty")
+        top_k = int(arguments.get("top_k", self._default_top_k))
+        top_k = max(1, min(top_k, self._max_top_k))
+
+        results = await self._kb.search(user_id, query, top_k)
+
+        if not results:
+            return ToolResult(
+                ok=True,
+                summary="No relevant local documents found",
+                content="No relevant local documents found",
+            )
+
+        filenames = sorted({r.filename for r in results})
+        lines = [f"Found {len(results)} relevant chunk(s)."]
+        lines.append(f"Sources: {', '.join(filenames)}")
+        for index, result in enumerate(results, start=1):
+            text = result.text
+            if len(text) > self._max_chunk_chars:
+                text = text[: self._max_chunk_chars] + "...[truncated]"
+            location = f" (page {result.page})" if result.page else ""
+            lines.append(
+                f"\n[{index}] {result.filename}{location} "
+                f"| score={result.score} | doc={result.document_id}"
+            )
+            lines.append(text)
+
+        return ToolResult(
+            ok=True,
+            summary=f"{len(results)} relevant chunk(s) from {len(filenames)} document(s)",
+            content="\n".join(lines),
         )
