@@ -24,6 +24,8 @@ from app.api.jobs import router as jobs_router
 from app.config import Settings, get_settings
 from app.schemas.resources import GpuInfo, ResourceCapacity, ResourceRequirements
 from app.services.agent import Agent
+from app.services.artifact_store import ArtifactStore, InMemoryArtifactStore
+from app.services.document_generator import DocumentGenerator, WordDocumentGenerator
 from app.services.document_preparer import DocumentPreparer
 from app.services.embedding import EmbeddingProvider, OllamaEmbeddingProvider
 from app.services.job_manager import JobManager
@@ -42,6 +44,7 @@ from app.services.task_router import TaskRouter
 from app.services.tool_registry import ToolRegistry
 from app.services.tools import (
     CodeExecutionTool,
+    DocumentGenerationTool,
     DocumentSearchTool,
     DocumentVisionTool,
     ListFilesTool,
@@ -307,6 +310,16 @@ def create_app(
     if vision_config is not None:
         tools.append(DocumentVisionTool(multimodal=multimodal))
 
+    artifact_store = InMemoryArtifactStore()
+    document_generator = WordDocumentGenerator()
+    tools.append(
+        DocumentGenerationTool(
+            generator=document_generator,
+            artifact_store=artifact_store,
+            scheduler=scheduler,
+        )
+    )
+
     tool_registry = ToolRegistry(tools)
     workspace_manager = WorkspaceManager(root=settings.workspaces_root)
 
@@ -340,9 +353,10 @@ def create_app(
             "by a local agent with workspace-scoped tools, an optional isolated "
             "Docker code-execution sandbox, a per-user local knowledge base "
             "(document_search), a local OCR + vision pipeline (document_vision), "
-            "and an execution trace."
+            "local Word deliverable generation (document_generation), and an "
+            "execution trace."
         ),
-        version="0.8.0",
+        version="0.9.0",
         lifespan=lifespan,
     )
     app.state.settings = settings
@@ -360,6 +374,8 @@ def create_app(
     app.state.knowledge_base = knowledge_base
     app.state.embedding_provider = embedding
     app.state.multimodal_service = multimodal
+    app.state.artifact_store = artifact_store
+    app.state.document_generator = document_generator
     app.include_router(chat_router)
     app.include_router(jobs_router)
     app.include_router(documents_router)

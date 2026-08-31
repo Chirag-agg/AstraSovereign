@@ -6,6 +6,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.schemas.artifact import ArtifactSummary
+
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -53,6 +55,10 @@ class Job(BaseModel):
     # Resource scheduling status (Phase 6): not_required | waiting | allocated |
     # released | rejected.
     resource_status: str = "not_required"
+
+    # Generated deliverables for this job (Phase 9). Populated by the jobs API
+    # from the ArtifactStore; the store remains the source of truth.
+    artifacts: list[ArtifactSummary] = Field(default_factory=list)
 
 
 class JobSubmitResponse(BaseModel):
