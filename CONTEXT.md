@@ -233,12 +233,32 @@ models, and provides an agentic pipeline that:
 - **Logging (Phase 9)**: `document_generation_started/completed/failed`,
   `artifact_created` events carry only type/filename/size/duration/status —
   never document content. `/health` gains a `document_generation` section.
+- **Frontend stack (Phase 10)**: Next.js 14 (App Router) + React 18 + TypeScript,
+  plain CSS, Vitest + React Testing Library. Single client page — no multiple
+  routes. Talks only to the local backend via a typed fetch client
+  (`NEXT_PUBLIC_API_BASE_URL`, default `http://localhost:8000`).
+- **Backend CORS (Phase 10)**: configurable `cors_origins` (default
+  `http://localhost:3000`), local-dev only. This is the only backend change for
+  the frontend.
+- **Frontend API client** (`frontend/src/lib/api.ts`): typed functions for
+  health, jobs (submit/get/list/cancel), documents (list/upload/delete), and
+  artifact download (fetch with `X-User-ID`, blob + content-disposition
+  filename). Components never scatter raw fetch calls.
+- **Polling** (`frontend/src/lib/hooks.ts`): jobs ~1s, lists ~2s, health ~3s;
+  polling stops at terminal states, retries on backend errors (reconnect), stops
+  on 404, and pauses in hidden tabs. No WebSockets.
+- **Sovereignty indicator**: shows only backend-verified facts from `/health`
+  (Ollama endpoint + reachability, local-only inference). The backend exposes no
+  external-API counter, so the UI explicitly says "not tracked by backend — no
+  counter to display" instead of fabricating a number.
+- **Dev user selector**: `user-001`…`user-005` via `X-User-ID` (persisted in
+  localStorage); no authentication. Backend ownership rules keep users isolated.
 
 ---
 
 ## Current Phase
 
-**Phase 9 — Office Deliverable Generation (Word)** (completed)
+**Phase 10 — Frontend Workbench & Flagship End-to-End Workflow** (completed)
 
 ---
 
@@ -693,6 +713,58 @@ models, and provides an agentic pipeline that:
   (partial files are cleaned on failure; completed artifacts persist in the job
   workspace with no cleanup policy yet).
 
+### Phase 10 — Frontend Workbench & Flagship End-to-End Workflow
+- **Frontend** (`frontend/`, Next.js 14 App Router + React 18 + TypeScript): a
+  single-page local workbench with a clean component architecture (AppShell,
+  Sidebar/JobList/JobCard, ChatPanel, TaskStatus, ExecutionTrace/ToolCall,
+  ResourcePanel/ModelStatus, DocumentList/UploadPanel, ArtifactList,
+  SovereigntyStatus, UserSelector, StatusBadge). Layout: header + 3-column grid
+  (jobs/documents sidebar, main task+trace+artifacts, system/sovereignty panel),
+  responsive to a laptop screen.
+- **Typed API client** (`src/lib/api.ts` + `src/lib/types.ts`): TypeScript
+  interfaces mirror the backend schemas; typed functions for health, jobs
+  (submit/get/list/cancel), documents (list/upload/delete with FormData), and
+  secure artifact download (fetch + `X-User-ID`, returns blob + filename).
+  `ApiError` surfaces backend `detail.message`; unreachable backend → friendly
+  "Backend unreachable".
+- **Polling hooks** (`src/lib/hooks.ts`): `usePolling` + `useJob`/`useJobs`/
+  `useHealth`/`useDocuments`. Job polling stops at terminal states (1s), lists
+  poll at 2s, health at 3s, retry-on-error for reconnect, stop-on-404, hidden-tab
+  pause. `useActiveUser` persists the dev user in localStorage.
+- **Sovereignty indicator**: shows only backend-verified facts — Ollama endpoint
+  + reachability, local-only inference, model counts; explicitly states the
+  backend exposes no external-API counter (no fabricated "0 external calls").
+- **Flagship workflow UX**: upload scanned report + maintenance procedure under
+  Documents, submit the approval-note prompt, watch QUEUED → RUNNING → COMPLETED,
+  the agent trace (document_search → document_vision → document_generation), the
+  answer, and the downloadable `approval_note.docx`. Nothing is hardcoded — the
+  UI renders whatever the backend does.
+- **Accessibility/UX**: text labels on status badges (never color-only),
+  keyboard-accessible buttons/selects, focus-visible outlines, clear error
+  alerts, no decorative animation.
+- **Backend change**: configurable `CORS_ORIGINS` (default `http://localhost:3000`)
+  via `fastapi.middleware.cors` — the only backend change; no redesign.
+- **Tests**: backend 290 passing (incl. 2 new CORS tests; Docker up so sandbox
+  integration tests ran; 1 vision smoke skipped — no multimodal model). Frontend
+  **31 Vitest tests** (backend fully mocked) covering job submission,
+  queued/running/completed/failed states, execution-trace rendering, model +
+  resource info, document list, artifact list + download, per-user isolation,
+  backend error handling, polling termination, and the flagship workflow. `tsc
+  --noEmit` and `next build` both pass.
+- **Live verification**: ran backend (temp config mapping general→`llama3.1`)
+  + `next start` together — frontend served at :3000, `/health` reachable with
+  `Access-Control-Allow-Origin: http://localhost:3000`; a live flagship run
+  through the exact endpoints the UI uses: real RapidOCR ingested the scanned
+  report, the real agent used `document_search` (+ `document_vision` attempt that
+  failed cleanly with no vision model, from which it recovered) +
+  `document_generation`, producing a downloadable `pump_approval_note.docx`
+  (37 KB) parsed successfully (title, Findings, Required Actions, Sources).
+- **Deliberately NOT implemented** (out of scope for Phase 10): authentication,
+  RBAC, new AI models, new tools, OCR/vision/RAG/sandbox changes, Excel/
+  PowerPoint, dynamic model loading, backend rewrite, external services, WebSockets,
+  real-time streaming, and an external-API telemetry counter (backend doesn't
+  expose one).
+
 ---
 
 ## Files and Directories
@@ -790,7 +862,29 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │       ├── test_artifact_api.py 9 tests (job artifacts, secure download, ownership, containment, health) (Phase 9)
 │       ├── test_document_generation_agent.py 2 tests (agent tool + trace + download) (Phase 9)
 │       └── test_approval_note_demo.py 1 test (synthetic approval-note workflow) (Phase 9)
-├── frontend/                      (empty — reserved for frontend)
+├── frontend/                      Next.js + React + TypeScript workbench (Phase 10)
+│   ├── package.json               next/react/typescript + vitest/RTL dev deps
+│   ├── next.config.mjs, tsconfig.json, vitest.config.ts
+│   └── src/
+│       ├── app/
+│       │   ├── layout.tsx         root layout (metadata)
+│       │   ├── page.tsx           single-page workbench (client component)
+│       │   └── globals.css        layout/panel/badge/table/trace styles
+│       ├── components/
+│       │   ├── AppShell.tsx       header + 3-column grid
+│       │   ├── JobList.tsx / JobCard, ChatPanel, TaskStatus
+│       │   ├── ExecutionTrace.tsx (incl. ToolCall rendering, content hidden)
+│       │   ├── ResourcePanel.tsx / ModelStatus.tsx
+│       │   ├── DocumentList.tsx / UploadPanel.tsx
+│       │   ├── ArtifactList.tsx / SovereigntyStatus.tsx
+│       │   ├── UserSelector.tsx / StatusBadge.tsx / ActiveJobPanel.tsx
+│       │   └── components.test.tsx, workbench.test.tsx   (Vitest)
+│       ├── lib/
+│       │   ├── api.ts             typed API client (health/jobs/documents/artifacts)
+│       │   ├── types.ts           TS interfaces mirroring backend schemas
+│       │   ├── hooks.ts           polling hooks + useActiveUser
+│       │   └── api.test.ts, hooks.test.tsx
+│       └── test-utils/factory.ts  fixtures + fetch mock helpers
 ├── config/
 │   └── models.yaml                task type → local model registry (incl. vision=llava:7b + resources)
 ├── data/
@@ -869,6 +963,14 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   incomplete arguments (the tool rejects them and the agent recovers) or returns
   empty finals/loops — deterministic tests use scripted valid calls, and a more
   capable local reasoning model produces more reliable tool calls.
+- **Frontend** (Phase 10): no real-time streaming (polling-based); the dev user
+  selector is a stand-in for authentication (backend `X-User-ID`); the
+  sovereignty indicator cannot display an "external API calls" count because the
+  backend exposes no such metric (shown as "not tracked"). `npm audit` reports
+  Next.js server-side advisories (DoS/cache/middleware) that require external
+  network access to the server — not applicable to this localhost-only demo.
+  The frontend requires the backend's CORS allow-list to include its origin
+  (default `http://localhost:3000`).
 - `logs/backend.log` is generated at import time (module-level `app = create_app()`);
   it is gitignored so this is harmless.
 - Repository is a git repo (branch `main`) tracking `origin` at
@@ -878,17 +980,17 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 
 ## Next Steps
 
-1. **Recommended next phase — Phase 10: End-to-End Flagship Workflow & Frontend.**
-   Turn the backend capabilities (job queue, routing, agent, sandbox, KB,
-   OCR/vision, Word deliverables) into a polished, operable demo: a minimal
-   frontend (job submission, document upload, artifact download/listing) and a
-   guided inspection-report → approval-note workflow that a judge can actually
-   run. **Do not start until explicitly requested.**
-2. Other candidate phases (do not start early): Excel (.xlsx) and PowerPoint
-   (.pptx) generators behind `DocumentGenerator`; durable job/artifact stores
+1. **Recommended next phase — Phase 11: Excel & PowerPoint Deliverable Generation.**
+   Add `.xlsx` (e.g. inspection readings/tables) and `.pptx` (e.g. inspection
+   summary slide deck) generators behind the existing `DocumentGenerator`
+   interface, with secure download and frontend artifact rendering for the new
+   types. **Do not start until explicitly requested.**
+2. Other candidate phases (do not start early): durable job/artifact stores
    (Redis/Postgres behind `JobStore`/`ArtifactStore`); audit-log schema for "all
    major actions logged"; enterprise organization-wide knowledge base with access
-   control; multi-language code sandbox.
+   control; multi-language code sandbox; real-time streaming/WebSocket job
+   updates; an external-API telemetry counter on the backend (would let the
+   sovereignty indicator show a verified "0 external calls").
 3. Keep updating this file after every significant change.
 
 ---
@@ -972,3 +1074,13 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   synthetic approval-note workflow; live verification: real RapidOCR + real
   `llama3.1` produced a downloadable `approval_note.docx` (37 KB) via
   `document_search` → `document_generation`.
+- **Phase 10 (2026-08-31)**: Added the frontend workbench — a single-page
+  Next.js + React + TypeScript client that operates the backend: typed API
+  client, polling hooks (terminal-stop/reconnect/hidden-tab pause), components
+  for jobs/trace/resources/documents/artifacts/sovereignty, a dev user selector
+  (`user-001`…`user-005`), and the flagship approval-note workflow UI (nothing
+  hardcoded). Backend gained configurable CORS (`CORS_ORIGINS`) as the only
+  backend change. 290 backend tests + 31 frontend Vitest tests (mocked backend);
+  `tsc --noEmit` and `next build` pass. Live: backend + `next start` ran
+  together with CORS verified; a live flagship run produced a downloadable
+  `pump_approval_note.docx` (37 KB) via the exact endpoints the UI uses.

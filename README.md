@@ -21,7 +21,7 @@ generation — with no external AI APIs and no data leaving the machine or netwo
 
 ```
 ├── backend/          FastAPI backend (Phase 9: office deliverable generation)
-├── frontend/         Frontend application (planned)
+├── frontend/         Next.js + React + TypeScript workbench (Phase 10)
 ├── config/           models.yaml — task type → model registry (+ resource requirements)
 ├── data/
 │   ├── uploads/      User uploads (not committed)
@@ -52,12 +52,20 @@ findings (`document_generation`) that users can list and download securely.
 Multi-user safe via an `X-User-ID` header. See [`backend/README.md`](backend/README.md)
 for setup, configuration, and usage.
 
+## Frontend
+
+A single-page **local workbench** (`frontend/`, Next.js + React + TypeScript)
+that operates the backend: submit tasks, watch job states and the agent
+execution trace, inspect model/resource status, upload documents, and download
+generated artifacts — with a visible `LOCAL / SOVEREIGN` indicator backed by
+`/health`. Dev user selector (`user-001`…`user-005`) via `X-User-ID`; no
+authentication. See [`frontend/README.md`](frontend/README.md).
+
 ## Status
 
-**Current phase: Phase 9 — Office Deliverable Generation (Word).** The agent can
-now produce real `.docx` deliverables from task results and evidence: structured
-content → `document_generation` tool → local Word generator (`python-docx`) →
-artifact registered on the job and securely downloadable. This completes the
-evidence→deliverable chain (scanned report → OCR+vision → agent reasoning →
-approval note). Excel/PowerPoint are reserved for a later phase. Phases are built
+**Current phase: Phase 10 — Frontend Workbench & Flagship End-to-End Workflow.**
+The frontend visualizes the backend's real behavior: jobs, agent traces, tool
+calls, resources, document processing, sovereignty, and generated deliverables.
+The flagship chain (scanned report + maintenance procedure → agent → OCR/search →
+approval-note `.docx` → download) is demonstrated end-to-end. Phases are built
 incrementally, one at a time.
