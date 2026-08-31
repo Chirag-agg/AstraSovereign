@@ -62,3 +62,26 @@ def test_health_reports_job_stats(client):
     assert body["jobs"]["total"] == 1
     assert body["jobs"]["completed"] == 1
     assert body["queue_size"] == 0
+
+
+def test_cors_allows_frontend_origin(client):
+    headers = {"Origin": "http://localhost:3000"}
+    resp = client.options(
+        "/api/chat",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,x-user-id",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+    resp = client.get("/health", headers=headers)
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+
+def test_cors_rejects_unknown_origin(client):
+    resp = client.get("/health", headers={"Origin": "http://evil.example"})
+    assert resp.headers.get("access-control-allow-origin") is None

@@ -16,6 +16,7 @@ from typing import Optional
 
 import httpx
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.chat import router as chat_router
 from app.api.documents import router as documents_router
@@ -376,6 +377,21 @@ def create_app(
     app.state.multimodal_service = multimodal
     app.state.artifact_store = artifact_store
     app.state.document_generator = document_generator
+
+    cors_origins = [
+        origin.strip()
+        for origin in settings.cors_origins.split(",")
+        if origin.strip()
+    ]
+    if cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_credentials=False,
+            allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", "X-User-ID"],
+        )
+
     app.include_router(chat_router)
     app.include_router(jobs_router)
     app.include_router(documents_router)

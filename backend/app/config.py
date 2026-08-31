@@ -94,6 +94,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file: str = str(REPO_ROOT / "logs" / "backend.log")
 
+    # Frontend cross-origin allow-list (comma-separated). Only local dev
+    # origins by default; the backend never talks to external services.
+    cors_origins: str = "http://localhost:3000"
+
 
 @lru_cache
 def get_settings() -> Settings:
