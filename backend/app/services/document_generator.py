@@ -91,6 +91,7 @@ class WordDocumentGenerator(DocumentGenerator):
                 f"Word generation failed: {exc.__class__.__name__}"
             ) from exc
 
+        self._normalize_zip(target)
         self._validate(target)
         return GeneratedDocument(
             filename=filename,
@@ -98,6 +99,28 @@ class WordDocumentGenerator(DocumentGenerator):
             size_bytes=target.stat().st_size,
             type="word",
         )
+
+    @staticmethod
+    def _normalize_zip(path: Path) -> None:
+        """Rewrite the .docx zip with fixed entry timestamps.
+
+        python-docx stamps every zip entry with the current time, which makes
+        byte-identical inputs produce different files across seconds. Normalizing
+        entry timestamps makes generation deterministic.
+        """
+        import io
+        import zipfile
+
+        fixed = (1980, 1, 1, 0, 0, 0)
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(path, "r") as source:
+            with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as target:
+                for info in source.infolist():
+                    new_info = zipfile.ZipInfo(info.filename, date_time=fixed)
+                    new_info.compress_type = zipfile.ZIP_DEFLATED
+                    new_info.external_attr = info.external_attr
+                    target.writestr(new_info, source.read(info.filename))
+        path.write_bytes(buffer.getvalue())
 
     @staticmethod
     def _add_section(doc, section: DocumentSection) -> None:

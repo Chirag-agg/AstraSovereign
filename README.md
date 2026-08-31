@@ -20,7 +20,7 @@ generation — with no external AI APIs and no data leaving the machine or netwo
 ## Layout
 
 ```
-├── backend/          FastAPI backend (Phase 8: local multimodal OCR + vision)
+├── backend/          FastAPI backend (Phase 9: office deliverable generation)
 ├── frontend/         Frontend application (planned)
 ├── config/           models.yaml — task type → model registry (+ resource requirements)
 ├── data/
@@ -45,16 +45,19 @@ config-driven model (`config/models.yaml`), scheduled against declared resource
 capacity, and executed by a **local agent** that can call workspace-scoped tools
 (`list_files`, `read_file`, `write_file`), run generated code in an **isolated
 Docker sandbox**, search the user's **local knowledge base** of ingested
-documents (`document_search`) for grounded, source-cited answers, and analyze
+documents (`document_search`) for grounded, source-cited answers, analyze
 **scanned PDFs and images** with fully local OCR + a local vision model
-(`document_vision`). Multi-user safe via an `X-User-ID` header. See
-[`backend/README.md`](backend/README.md) for setup, configuration, and usage.
+(`document_vision`), and generate **real Word deliverables** from structured
+findings (`document_generation`) that users can list and download securely.
+Multi-user safe via an `X-User-ID` header. See [`backend/README.md`](backend/README.md)
+for setup, configuration, and usage.
 
 ## Status
 
-**Current phase: Phase 8 — Local Multimodal Document Understanding.** Scanned
-PDFs and images are processed entirely on-premise: page rendering (pypdfium2) →
-local OCR (RapidOCR) → a registry-configured local vision model (Ollama) →
-structured evidence the agent consumes via the `document_vision` tool. Text-based
-documents keep the Phase 7 ingestion path. Phases are built incrementally, one at
-a time.
+**Current phase: Phase 9 — Office Deliverable Generation (Word).** The agent can
+now produce real `.docx` deliverables from task results and evidence: structured
+content → `document_generation` tool → local Word generator (`python-docx`) →
+artifact registered on the job and securely downloadable. This completes the
+evidence→deliverable chain (scanned report → OCR+vision → agent reasoning →
+approval note). Excel/PowerPoint are reserved for a later phase. Phases are built
+incrementally, one at a time.

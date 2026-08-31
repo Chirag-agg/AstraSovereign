@@ -206,12 +206,39 @@ models, and provides an agentic pipeline that:
   metadata — never image contents, OCR text, or vision responses.
 - **Health (Phase 8)**: `/health` gains a `multimodal` section (OCR provider,
   vision model configured/enabled/available, resources, subsystem status).
+- **Artifact model (Phase 9)**: `Artifact` (artifact_id, job_id, user_id,
+  filename, type, path, created_at, size_bytes, status `creating`/`completed`/
+  `failed`) + safe `ArtifactSummary` view (no internal path). Artifacts are tied
+  to their creating job and user.
+- **ArtifactStore (Phase 9)**: `ArtifactStore` ABC + lock-guarded in-memory impl;
+  generated files stay on disk inside the job workspace while the store holds
+  metadata only — the seam for moving to a database later.
+- **DocumentGenerator (Phase 9)**: `DocumentGenerator` ABC + `WordDocumentGenerator`
+  (python-docx) converting a structured `DocumentContent` (title, subtitle,
+  sections with headings/paragraphs/bullets/numbered/table, sources, footer) into
+  a valid `.docx`; deterministic, validated (exists, non-zero, reopens). Excel/PPT
+  are reserved future generators behind the same interface.
+- **document_generation tool (Phase 9)**: the only gateway the agent has to
+  generation. Strict argument validation (type/filename/sections/sources,
+  filename path-safety, content size cap). Writes only inside
+  `<workspace>/artifacts/` via the existing workspace containment. Registers the
+  artifact with the store; on failure marks it `failed` and cleans partial files.
+  CPU-only generation requests a small CPU/memory allocation through the
+  `ResourceScheduler` under `<job_id>:docgen` (released in a `finally`).
+- **Job/API integration (Phase 9)**: `GET /api/jobs/{job_id}` exposes the job's
+  `artifacts` (from the store); secure download
+  `GET /api/jobs/{job_id}/artifacts/{artifact_id}` verifies job ownership,
+  artifact↔job binding, and path containment inside the job workspace before
+  serving the file with the correct content type. No generic filesystem endpoint.
+- **Logging (Phase 9)**: `document_generation_started/completed/failed`,
+  `artifact_created` events carry only type/filename/size/duration/status —
+  never document content. `/health` gains a `document_generation` section.
 
 ---
 
 ## Current Phase
 
-**Phase 8 — Local Multimodal Document Understanding (OCR + Vision)** (completed)
+**Phase 9 — Office Deliverable Generation (Word)** (completed)
 
 ---
 
@@ -595,6 +622,77 @@ models, and provides an agentic pipeline that:
   dynamic model loading, distributed inference, frontend, auth redesign, external
   services, and real-OCR-language tuning.
 
+### Phase 9 — Office Deliverable Generation (Word)
+- **Artifact model** (`schemas/artifact.py`): `Artifact` (artifact_id, job_id,
+  user_id, filename, type, path, created_at, size_bytes, status
+  `creating`/`completed`/`failed`) plus `ArtifactSummary` (safe API view — no
+  internal path). Artifacts are always associated with their creating job and user.
+- **ArtifactStore** (`services/artifact_store.py`): `ArtifactStore` ABC +
+  `InMemoryArtifactStore` (lock-guarded, per-job listing, update, delete, stats).
+  Generated files remain on disk inside the job workspace; the store keeps
+  metadata only — the seam for moving persistence to a database later.
+- **DocumentGenerator** (`services/document_generator.py`): `DocumentGenerator`
+  ABC + `WordDocumentGenerator` using **python-docx**. Converts a structured
+  `DocumentContent` (title, subtitle, sections with headings/paragraphs/bullets/
+  numbered/table, a Sources numbered section, and a static footer) into a valid
+  `.docx`. Deterministic; output is validated (exists, size > 0, reopens with
+  `python-docx`) before success. Excel/PowerPoint are reserved future generators.
+- **Structured content** (`schemas/document_content.py`): `DocumentSection`
+  (heading, paragraphs, bullets, numbered, table) + `DocumentContent`
+  (document_type, title, subtitle, sections, sources) + `GeneratedDocument`. The
+  agent never emits formatting instructions — only this structured representation.
+- **document_generation tool** (`services/tools.py`): the only gateway the agent
+  has to generation. Args `{type, filename, title, document_type?, sections[],
+  sources[]?}`. Strict validation rejects unsupported types, unsafe filenames
+  (path separators/`..`/wrong extension), malformed sections, and oversized
+  content (>200k chars). Writes only under `<workspace>/artifacts/` via the
+  existing `resolve_within_workspace` containment. Registers an artifact, runs
+  the generator, updates to `completed` with real `size_bytes`, returns metadata;
+  on failure marks the artifact `failed`, cleans partial files, and returns a
+  controlled `ToolError`. CPU-only generation requests a small CPU/memory
+  allocation through the `ResourceScheduler` (`<job_id>:docgen`, released in a
+  `finally`; impossible requests fail cleanly).
+- **Job/API integration**: `Job.artifacts` field populated by the jobs API from
+  the ArtifactStore (`GET /api/jobs/{job_id}` shows artifacts). New secure
+  download `GET /api/jobs/{job_id}/artifacts/{artifact_id}` verifies job
+  ownership, artifact↔job binding, path containment inside the job workspace, and
+  file existence before serving with
+  `application/vnd.openxmlformats-officedocument.wordprocessingml.document`.
+  No generic filesystem download endpoint.
+- **Health/status**: `/health` gains `document_generation` (`available`, `word`,
+  artifact store stats).
+- **Config/deps**: no new runtime config; added `python-docx==1.2.0` to
+  requirements.txt (installed locally).
+- **Logging**: `document_generation_started/completed/failed` and `artifact_created`
+  events log only type/filename/size/duration/status — never document content
+  (verified by a no-sensitive-content-in-logs test).
+- **Tests (274 passing, 15 skipped)**: 43 new across `test_document_generator.py`,
+  `test_artifact_store.py`, `test_document_generation_tool.py`,
+  `test_artifact_api.py`, `test_document_generation_agent.py`, and
+  `test_approval_note_demo.py` — covering Word generation (headings, paragraphs,
+  bullets, numbered lists, tables, sources, footer, validity, determinism),
+  artifact registration/metadata, invalid filename/traversal rejection, cross-user
+  isolation, download ownership/containment, generation-failure cleanup, `.docx`
+  validity, the agent tool + execution-trace generation step, source metadata
+  preservation, no sensitive content in logs, and the synthetic approval-note
+  workflow. All 231 Phase 1–8 tests preserved (document_search, document_vision,
+  sandbox, resource scheduling unchanged).
+- **Live verification**: real RapidOCR ingested a synthetic scanned inspection
+  PDF; the real `llama3.1` agent ran `document_search` + `document_generation`
+  and produced a real `approval_note.docx` (37 KB) listed on the completed job and
+  downloaded through the secure endpoint (opened/parsed with python-docx). The
+  agent also demonstrated clean recovery when it attempted `document_vision`
+  without a local vision model. (Note: llama3.1 intermittently fails to emit the
+  large nested `document_generation` JSON and may loop/return empty finals — the
+  tool validation and agent error handling contain this; deterministic tests use
+  scripted valid calls.)
+- **Deliberately NOT implemented** (out of scope for Phase 9): Excel generation,
+  PowerPoint generation, PDF generation, document templates marketplace, OCR/
+  vision/RAG changes, GPU scheduling changes, auth redesign, external services,
+  cloud storage, generic file browser, artifact retention/lifecycle system
+  (partial files are cleaned on failure; completed artifacts persist in the job
+  workspace with no cleanup policy yet).
+
 ---
 
 ## Files and Directories
@@ -615,9 +713,11 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │   │   ├── config.py              pydantic-settings Settings (env-driven)
 │   │   ├── schemas/
 │   │   │   ├── chat.py            ChatRequest (message, task_type, priority)
-│   │   │   ├── job.py             Job, JobStatus, JobSubmitResponse, JobSummary
+│   │   │   ├── job.py             Job, JobStatus, JobSubmitResponse, JobSummary (+ artifacts)
 │   │   │   ├── resources.py       ResourceRequirements/Allocation, GpuInfo, Capacity
 │   │   │   ├── document.py        DocumentRecord, ChunkRecord, SearchResult
+│   │   │   ├── artifact.py        Artifact, ArtifactSummary, ArtifactStatus (Phase 9)
+│   │   │   ├── document_content.py DocumentSection/Content, GeneratedDocument (Phase 9)
 │   │   │   └── multimodal.py      OCRRegion/OCRPageResult, VisionPageResult, PageEvidence, VisionAnalysisResult
 │   │   ├── services/
 │   │   │   ├── ollama_service.py  OllamaService async client + typed errors + generate_with_image
@@ -631,11 +731,13 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │   │   │   ├── workspace.py       WorkspaceManager + safe path resolution
 │   │   │   ├── log_context.py     contextvars job context for tool logging
 │   │   │   ├── sandbox_runner.py  SandboxRunner ABC + DockerSandboxRunner (Phase 5)
+│   │   │   ├── artifact_store.py  ArtifactStore ABC + InMemoryArtifactStore (Phase 9)
+│   │   │   ├── document_generator.py DocumentGenerator ABC + WordDocumentGenerator (Phase 9)
 │   │   │   ├── document_preparer.py  PDF page rendering (pypdfium2) + image prep (Pillow) (Phase 8)
 │   │   │   ├── ocr_provider.py    OCRProvider ABC + RapidOCREngine + FakeOCRProvider (Phase 8)
 │   │   │   ├── vision_provider.py VisionProvider ABC + OllamaVisionProvider + FakeVisionProvider (Phase 8)
 │   │   │   ├── multimodal.py      MultimodalService (OCR+vision pipeline, scheduler integration) (Phase 8)
-│   │   │   ├── tools.py           Tool ABC + list/read/write + code_execution + document_search + document_vision
+│   │   │   ├── tools.py           Tool ABC + list/read/write + code_execution + document_search + document_vision + document_generation
 │   │   │   ├── tool_registry.py   ToolRegistry (deny-by-default validation)
 │   │   │   ├── agent.py           Agent (bounded loop, trace, cancellation)
 │   │   │   ├── resource_provider.py  ResourceProvider ABC + in-memory + local discovery
@@ -647,9 +749,9 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │   │   └── api/
 │   │       ├── deps.py            get_user_id (X-User-ID header dependency)
 │   │       ├── chat.py            POST /api/chat (enqueue job)
-│   │       ├── jobs.py            GET/DELETE /api/jobs, GET /api/jobs/{job_id}
+│   │       ├── jobs.py            GET/DELETE /api/jobs, GET /api/jobs/{job_id} (+ artifacts), artifact download
 │   │       ├── documents.py       POST/GET/DELETE /api/documents (+ image/scanned-PDF OCR routing)
-│   │       └── health.py          GET /health (Ollama + models + queue + scheduler + KB + multimodal + worker)
+│   │       └── health.py          GET /health (Ollama + models + queue + scheduler + KB + multimodal + docgen + worker)
 │   └── tests/
 │       ├── conftest.py            fixtures, mocks, FakeEmbeddingProvider, FakeOCR/FakeVision, pdf/image helpers, wait_for_job
 │       ├── test_ollama_service.py 8 tests (direct service unit tests)
@@ -681,7 +783,13 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │       ├── test_multimodal.py     20 tests (ingestion, tool, isolation, cleanup, scheduling, logs, health) (Phase 8)
 │       ├── test_multimodal_agent.py 3 tests (document_search vs document_vision + multi-step) (Phase 8)
 │       ├── test_multimodal_demo.py 1 test (synthetic industrial comparison) (Phase 8)
-│       └── test_multimodal_integration.py 2 tests (real RapidOCR + real vision smoke) (Phase 8)
+│       ├── test_multimodal_integration.py 2 tests (real RapidOCR + real vision smoke) (Phase 8)
+│       ├── test_document_generator.py 10 tests (Word generation: title/headings/paragraphs/bullets/numbered/tables/sources/footer/validity) (Phase 9)
+│       ├── test_artifact_store.py 7 tests (create/get/update/list/delete/stats/summary) (Phase 9)
+│       ├── test_document_generation_tool.py 15 tests (validation, isolation, cleanup, scheduling, logs) (Phase 9)
+│       ├── test_artifact_api.py 9 tests (job artifacts, secure download, ownership, containment, health) (Phase 9)
+│       ├── test_document_generation_agent.py 2 tests (agent tool + trace + download) (Phase 9)
+│       └── test_approval_note_demo.py 1 test (synthetic approval-note workflow) (Phase 9)
 ├── frontend/                      (empty — reserved for frontend)
 ├── config/
 │   └── models.yaml                task type → local model registry (incl. vision=llava:7b + resources)
@@ -750,6 +858,17 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   ~4000 chars to bound prompt growth. Workspaces accumulate under
   `data/workspaces/` (gitignored); no cleanup/retention policy yet. Rendered
   page images under `data/tmp/` are cleaned after success and failure.
+- **Document generation** is limited to Word (.docx) in this phase (Excel/PPT
+  reserved). Generated artifacts persist in the job workspace's `artifacts/`
+  directory with **no retention/cleanup policy yet** (partial files are cleaned
+  on failure; completed artifacts remain accessible after the job finishes —
+  this is the documented current behavior). The ArtifactStore is in-memory
+  (metadata lost on restart; files remain on disk) — the seam for a database
+  later. Real agent-driven generation depends on the local model emitting the
+  large nested `document_generation` JSON: llama3.1 sometimes emits invalid or
+  incomplete arguments (the tool rejects them and the agent recovers) or returns
+  empty finals/loops — deterministic tests use scripted valid calls, and a more
+  capable local reasoning model produces more reliable tool calls.
 - `logs/backend.log` is generated at import time (module-level `app = create_app()`);
   it is gitignored so this is harmless.
 - Repository is a git repo (branch `main`) tracking `origin` at
@@ -759,15 +878,17 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 
 ## Next Steps
 
-1. **Recommended next phase — Phase 9: Office Deliverable Generation.** Produce
-   native Word (.docx), Excel (.xlsx), and PowerPoint (.pptx) outputs locally.
-   Combined with Phase 7 (text KB) and Phase 8 (OCR/vision evidence), this
-   completes the industrial inspection-report → approval-note workflow.
-   **Do not start until explicitly requested.**
-2. Other candidate phases (do not start early): durable job store (Redis/Postgres
-   behind `JobStore`); audit-log schema for "all major actions logged"; frontend;
-   enterprise organization-wide knowledge base with access control; multi-language
-   code sandbox.
+1. **Recommended next phase — Phase 10: End-to-End Flagship Workflow & Frontend.**
+   Turn the backend capabilities (job queue, routing, agent, sandbox, KB,
+   OCR/vision, Word deliverables) into a polished, operable demo: a minimal
+   frontend (job submission, document upload, artifact download/listing) and a
+   guided inspection-report → approval-note workflow that a judge can actually
+   run. **Do not start until explicitly requested.**
+2. Other candidate phases (do not start early): Excel (.xlsx) and PowerPoint
+   (.pptx) generators behind `DocumentGenerator`; durable job/artifact stores
+   (Redis/Postgres behind `JobStore`/`ArtifactStore`); audit-log schema for "all
+   major actions logged"; enterprise organization-wide knowledge base with access
+   control; multi-language code sandbox.
 3. Keep updating this file after every significant change.
 
 ---
@@ -838,3 +959,16 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   RapidOCR integration; live smoke: real RapidOCR + real `llama3.1` agent answered
   a retrieval question grounded in OCR'd scanned-PDF content. Vision smoke test
   skipped until a multimodal model is pulled into Ollama.
+- **Phase 9 (2026-08-31)**: Added office deliverable generation (Word first) —
+  a `DocumentGenerator` abstraction with `WordDocumentGenerator` (python-docx)
+  converting structured `DocumentContent` (title, headings, paragraphs, bullets,
+  numbered lists, tables, sources, footer) into valid `.docx` files; an
+  `Artifact` model + `ArtifactStore` (in-memory metadata, files stay in the job
+  workspace); a `document_generation` tool (strict validation, workspace
+  containment, failure cleanup, CPU/memory scheduled through the
+  `ResourceScheduler`); job `artifacts` exposure and a secure download endpoint
+  (`GET /api/jobs/{job_id}/artifacts/{artifact_id}` with ownership + containment
+  checks); and a `document_generation` health section. 274 tests incl. the
+  synthetic approval-note workflow; live verification: real RapidOCR + real
+  `llama3.1` produced a downloadable `approval_note.docx` (37 KB) via
+  `document_search` → `document_generation`.

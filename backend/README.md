@@ -1,4 +1,4 @@
-# Backend — Phase 8: Local Multimodal Document Understanding (OCR + Vision)
+# Backend — Phase 9: Office Deliverable Generation (Word)
 
 FastAPI backend that talks **only** to locally running services (Ollama, Docker).
 No external AI APIs, no hosted vector stores, no telemetry, no data leaves the
@@ -28,6 +28,9 @@ Document Upload -> Ingestion -> Text Extraction -> Chunking
 - **Scanned PDFs and images** are processed fully locally: PDF page rendering
   (`pypdfium2`) → OCR (`RapidOCR`, ONNX) → local vision model (Ollama) → structured
   evidence the agent consumes through the `document_vision` tool.
+- **Real deliverables** are generated locally: the agent turns structured findings
+  into Word (`.docx`) files via the `document_generation` tool; artifacts are
+  registered, listed on the job, and securely downloadable.
 - All state is in-memory (single process). A `JobStore` abstraction is the seam for
   swapping in Redis/Postgres/etc. later.
 
@@ -202,6 +205,7 @@ schema, and workspace path are all validated before anything runs.
 | `code_execution`| Run generated code in an isolated Docker sandbox (python).|
 | `document_search` | Search the user's local knowledge base of text documents. |
 | `document_vision` | Analyze scanned/image pages with local OCR + vision.    |
+| `document_generation` | Generate a deliverable (Word .docx) from structured content. |
 
 `code_execution` arguments: `{"language": "python", "code": "...", "stdin": "..."}`.
 Only `python` is supported; anything else is rejected. The result surfaces in the
@@ -387,6 +391,59 @@ and vision responses are never logged.
 is **no public multimodal endpoint** that bypasses workspace/ownership rules — the
 agent remains the primary consumer through the tool.
 
+## 3h. Office deliverable generation (Phase 9)
+
+The agent can now produce **real Word documents** from task results and evidence,
+entirely locally:
+
+```
+Agent → structured content → document_generation tool → Word generator → .docx
+  → job workspace artifacts/ → ArtifactStore → job API → secure download
+```
+
+**Generator abstraction** (`DocumentGenerator` → `WordDocumentGenerator`):
+`python-docx` produces valid `.docx` files from a structured intermediate
+representation (`DocumentContent`): title, subtitle, headings, paragraphs, bullet
+lists (`List Bullet`), numbered lists (`List Number`), simple tables (`Table
+Grid`), an optional `Sources` numbered section, and a static footer. Excel and
+PowerPoint are reserved future generators behind the same interface. Generation is
+deterministic; output is validated (file exists, non-zero, reopens with
+`python-docx`) before success is reported.
+
+**`document_generation` tool**: the only gateway the agent has to generation.
+Arguments:
+`{"type":"word","filename":"...","title":"...","document_type":"...",
+"sections":[{"heading":"...","content"|"paragraphs"|"bullets"|"numbered"|"table":...}],
+"sources":[...]}`.
+All arguments are validated before generation — unsupported types, unsafe
+filenames (path separators, `..`, wrong extension), malformed sections, and
+oversized content are rejected. Artifacts are written only under
+`data/workspaces/<user>/<job>/artifacts/` (existing workspace containment).
+
+**Artifact model & store** (`Artifact` + `ArtifactStore` → in-memory store):
+each artifact carries `artifact_id`, `job_id`, `user_id`, `filename`, `type`,
+`path`, `created_at`, `size_bytes`, `status` (`creating`/`completed`/`failed`).
+Files stay on disk in the job workspace; the store holds metadata only (the seam
+for moving to a database later). API views expose a safe `ArtifactSummary`
+(no internal paths).
+
+**Job integration**: `GET /api/jobs/{job_id}` now includes the job's `artifacts`.
+Secure download: `GET /api/jobs/{job_id}/artifacts/{artifact_id}` — verifies job
+ownership, artifact↔job binding, and that the file path is still inside the job
+workspace before returning the file with the correct content type
+(`application/vnd.openxmlformats-officedocument.wordprocessingml.document`). There
+is **no generic filesystem download endpoint**.
+
+**Resource scheduling**: document generation is CPU-only; the tool requests a
+small CPU/memory allocation through the existing `ResourceScheduler` (sub-key
+`<job_id>:docgen`) and releases it in a `finally` — never GPU, never bypassed.
+
+**Failure handling**: on generation failure the partial file is cleaned, the
+artifact is marked `failed`, and a controlled error returns to the agent. Logged
+events (`document_generation_started/completed/failed`, `artifact_created`) carry
+only metadata — never document content. Artifacts remain accessible after job
+completion (no retention/cleanup policy yet).
+
 ## 4. Run FastAPI
 
 ```powershell
@@ -512,6 +569,11 @@ allocated CPU/memory/VRAM per GPU:
       "provider": { "provider": "ollama" },
       "resources": { "cpu_cores": 2.0, "memory_mb": 4096, "gpu_id": null, "gpu_vram_mb": 4096 }
     }
+  },
+  "document_generation": {
+    "available": true,
+    "word": "available",
+    "artifacts": { "artifacts": 2, "completed": 2 }
   }
 }
 ```
@@ -548,9 +610,11 @@ events (`job_created`, `job_started`, `job_completed`, `job_failed`,
 document metadata where applicable. Multimodal events (`ocr_started`,
 `ocr_completed`, `ocr_failed`, `vision_started`, `vision_completed`,
 `vision_failed`, `document_render_*`) log only page/provider/model/duration
-metadata. Confidential prompts, generated responses, generated source code, full
-stdout/stderr, file contents, OCR text, and search chunks are never logged — only
-short summaries and metadata are.
+metadata. Document-generation events (`document_generation_started/completed/
+failed`, `artifact_created`) log only type/filename/size/status metadata.
+Confidential prompts, generated responses, generated source code, full
+stdout/stderr, file contents, OCR text, document content, and search chunks are
+never logged — only short summaries and metadata are.
 
 ## Tests
 
@@ -574,10 +638,16 @@ vision provider abstraction + fake + Ollama mapping, image/scanned-PDF ingestion
 the `document_vision` tool with ownership isolation, temp-image cleanup, OCR/
 vision failure handling, vision resource scheduling, no image/OCR content in
 logs), agent multimodal integration (document_search vs document_vision and a
-combined multi-step task), a synthetic industrial comparison demo, a synthetic
-industrial-document demo, a five-user concurrency scenario, and **Docker
-integration tests** (network-blocked, no host fs, no socket, no privileged,
-timeout/cleanup) that are skipped explicitly when Docker is unavailable.
+combined multi-step task), a synthetic industrial comparison demo, Word document
+generation (title, headings, paragraphs, bullets, numbered lists, tables,
+sources, footer, validity, determinism), the artifact store, the
+`document_generation` tool (validation, workspace containment, failure cleanup,
+resource scheduling, log hygiene), artifact download API security (ownership,
+cross-job, path containment), agent document_generation integration, the
+synthetic approval-note workflow demo, a synthetic industrial-document demo, a
+five-user concurrency scenario, and **Docker integration tests** (network-blocked,
+no host fs, no socket, no privileged, timeout/cleanup) that are skipped explicitly
+when Docker is unavailable.
 
 Real local OCR is exercised by `-m rapidocr` integration tests (RapidOCR is
 installed locally), and a real-vision smoke test runs when a local multimodal
