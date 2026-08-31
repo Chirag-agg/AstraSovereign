@@ -1,5 +1,5 @@
 """Workspace-scoped local tools: list_files, read_file, write_file, code_execution,
-document_search, document_vision.
+document_search, document_vision, document_generation.
 
 Tools operate strictly inside the current job's workspace and never touch
 arbitrary filesystem paths (see ``resolve_within_workspace``). ``code_execution``
@@ -7,18 +7,33 @@ runs generated code inside an isolated Docker sandbox and never on the host.
 ``document_search`` queries the user's local knowledge base and is the only
 gateway the agent has to it. ``document_vision`` is the only gateway the agent
 has to local OCR + vision analysis of the user's scanned/image documents.
+``document_generation`` is the only way the agent creates deliverable files
+(e.g. Word .docx); artifacts are written only inside the job workspace and are
+registered with the ArtifactStore.
 """
 
 import logging
+import re
+import time
+import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Optional
 
 from pydantic import BaseModel
 
+from app.schemas.artifact import Artifact, ArtifactStatus
+from app.schemas.document_content import DocumentContent, DocumentSection
+from app.schemas.resources import ResourceRequirements
+from app.services.artifact_store import ArtifactStore
+from app.services.document_generator import (
+    DocumentGenerationError,
+    DocumentGenerator,
+)
 from app.services.knowledge_base import KnowledgeBase
 from app.services.log_context import get_job_context
 from app.services.multimodal import MultimodalError, MultimodalService
+from app.services.resource_scheduler import ResourceScheduler
 from app.services.sandbox_runner import SandboxRunner, SandboxRunnerError
 from app.services.workspace import WorkspaceError, resolve_within_workspace
 
@@ -391,3 +406,304 @@ def _format_vision_analysis(analysis) -> str:
         else:
             lines.append("  [VISION] no observations returned")
     return "\n".join(lines)
+
+
+_FILENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]*$")
+_SECTION_KEYS = {"heading", "content", "paragraphs", "bullets", "numbered", "table"}
+_MAX_DOCUMENT_CHARS = 200_000
+
+
+def _validate_artifact_filename(filename: Any, doc_type: str) -> str:
+    if not isinstance(filename, str) or not filename.strip():
+        raise ToolError("filename must be a non-empty string")
+    if filename != Path(filename).name:
+        raise ToolError(f"invalid filename '{filename}': path separators are not allowed")
+    if not _FILENAME_RE.match(filename):
+        raise ToolError(f"invalid filename '{filename}'")
+    suffix = Path(filename).suffix.lower()
+    if doc_type == "word" and suffix != ".docx":
+        raise ToolError("word artifacts must use the '.docx' extension")
+    return filename
+
+
+def _validate_document_section(raw: Any) -> DocumentSection:
+    if not isinstance(raw, dict):
+        raise ToolError("each section must be an object")
+    unknown = set(raw) - _SECTION_KEYS
+    if unknown:
+        raise ToolError(f"unknown section field(s): {', '.join(sorted(unknown))}")
+
+    heading = raw.get("heading", "")
+    if not isinstance(heading, str):
+        raise ToolError("section 'heading' must be a string")
+
+    if "content" in raw:
+        content = raw["content"]
+        if not isinstance(content, str):
+            raise ToolError("section 'content' must be a string")
+        paragraphs = [content] if content.strip() else []
+    else:
+        paragraphs = raw.get("paragraphs", [])
+        if not isinstance(paragraphs, list) or not all(
+            isinstance(item, str) for item in paragraphs
+        ):
+            raise ToolError("section 'paragraphs' must be an array of strings")
+
+    bullets = raw.get("bullets", [])
+    if not isinstance(bullets, list) or not all(isinstance(item, str) for item in bullets):
+        raise ToolError("section 'bullets' must be an array of strings")
+
+    numbered = raw.get("numbered", [])
+    if not isinstance(numbered, list) or not all(isinstance(item, str) for item in numbered):
+        raise ToolError("section 'numbered' must be an array of strings")
+
+    table = raw.get("table", [])
+    if not isinstance(table, list) or not all(
+        isinstance(row, list) and all(isinstance(cell, str) for cell in row)
+        for row in table
+    ):
+        raise ToolError("section 'table' must be an array of arrays of strings")
+
+    if not (heading or paragraphs or bullets or numbered or table):
+        raise ToolError(
+            "each section needs at least one of heading/content/paragraphs/bullets/numbered/table"
+        )
+    return DocumentSection(
+        heading=heading,
+        paragraphs=paragraphs,
+        bullets=bullets,
+        numbered=numbered,
+        table=table,
+    )
+
+
+class DocumentGenerationTool(BaseTool):
+    """Generate deliverable documents (Word .docx) from structured content.
+
+    The only gateway the agent has to document generation. Artifacts are written
+    only inside the job workspace's ``artifacts/`` directory and registered with
+    the ArtifactStore so they can be listed and downloaded securely. Content is
+    validated before generation; unsupported types, unsafe filenames, malformed
+    sections, and oversized content are rejected.
+    """
+
+    name = "document_generation"
+    description = (
+        "Generate a deliverable document from structured content. Currently "
+        "supports Word (.docx). Arguments: type ('word'), filename, title, "
+        "sections (each with heading/content/paragraphs/bullets/numbered/table), "
+        "and optional sources. Returns artifact metadata."
+    )
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "type": {"type": "string"},
+            "filename": {"type": "string"},
+            "title": {"type": "string"},
+            "document_type": {"type": "string"},
+            "sections": {"type": "array", "items": {"type": "object"}},
+            "sources": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["type", "filename", "title", "sections"],
+        "additionalProperties": False,
+    }
+
+    def __init__(
+        self,
+        generator: DocumentGenerator,
+        artifact_store: ArtifactStore,
+        scheduler: ResourceScheduler,
+        requirements: Optional[ResourceRequirements] = None,
+        wait_rounds: int = 5,
+    ) -> None:
+        self._generator = generator
+        self._store = artifact_store
+        self._scheduler = scheduler
+        self._requirements = requirements or ResourceRequirements(
+            cpu_cores=1.0, memory_mb=512
+        )
+        self._wait_rounds = max(wait_rounds, 1)
+
+    async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
+        ctx = get_job_context()
+        user_id = ctx.get("user_id")
+        job_id = ctx.get("job_id")
+        if not user_id:
+            raise ToolError("document_generation requires a user context")
+        if not job_id:
+            raise ToolError("document_generation requires a job context")
+
+        doc_type = str(arguments["type"]).strip().lower()
+        if doc_type not in self._generator.supported_types:
+            raise ToolError(
+                f"unsupported document type '{doc_type}'; "
+                f"supported: {', '.join(self._generator.supported_types)}"
+            )
+
+        filename = _validate_artifact_filename(arguments["filename"], doc_type)
+        title = str(arguments["title"]).strip()
+        if not title:
+            raise ToolError("title must not be empty")
+
+        document_label = str(arguments.get("document_type") or "document").strip()
+        sections = [
+            _validate_document_section(raw) for raw in arguments["sections"]
+        ]
+        sources_raw = arguments.get("sources") or []
+        if not isinstance(sources_raw, list) or not all(
+            isinstance(source, str) and source.strip() for source in sources_raw
+        ):
+            raise ToolError("sources must be an array of non-empty strings")
+
+        content = DocumentContent(
+            document_type=document_label,
+            title=title,
+            sections=sections,
+            sources=[source.strip() for source in sources_raw],
+        )
+        if content.char_count() > _MAX_DOCUMENT_CHARS:
+            raise ToolError(
+                f"document content exceeds the maximum of {_MAX_DOCUMENT_CHARS} characters"
+            )
+
+        artifacts_dir = self._resolve_artifacts_dir(workspace)
+        target = artifacts_dir / filename
+        artifact_id = f"art-{uuid.uuid4().hex[:12]}"
+        artifact = await self._store.create(
+            Artifact(
+                artifact_id=artifact_id,
+                job_id=job_id,
+                user_id=user_id,
+                filename=filename,
+                type=doc_type,
+                path=str(target),
+                status=ArtifactStatus.CREATING,
+            )
+        )
+
+        start = time.monotonic()
+        logger.info(
+            "document_generation_started",
+            extra={
+                "event": "document_generation_started",
+                "job_id": job_id,
+                "user_id": user_id,
+                "artifact_id": artifact_id,
+                "document_type": doc_type,
+                "file_name": filename,
+            },
+        )
+        logger.info(
+            "artifact_created",
+            extra={
+                "event": "artifact_created",
+                "job_id": job_id,
+                "user_id": user_id,
+                "artifact_id": artifact_id,
+                "document_type": doc_type,
+                "file_name": filename,
+                "status": ArtifactStatus.CREATING,
+            },
+        )
+
+        try:
+            generated = await self._generate(job_id, user_id, content, artifacts_dir, filename)
+        except DocumentGenerationError as exc:
+            await self._store.update(
+                artifact_id, status=ArtifactStatus.FAILED, size_bytes=0
+            )
+            _cleanup_partial(target)
+            duration_ms = int((time.monotonic() - start) * 1000)
+            logger.error(
+                "document_generation_failed",
+                extra={
+                    "event": "document_generation_failed",
+                    "job_id": job_id,
+                    "user_id": user_id,
+                    "artifact_id": artifact_id,
+                    "document_type": doc_type,
+                    "file_name": filename,
+                    "duration_ms": duration_ms,
+                    "status": ArtifactStatus.FAILED,
+                    "error": str(exc),
+                },
+            )
+            raise ToolError(f"document_generation failed: {exc}") from exc
+
+        await self._store.update(
+            artifact_id,
+            status=ArtifactStatus.COMPLETED,
+            size_bytes=generated.size_bytes,
+            path=str(generated.path),
+        )
+        duration_ms = int((time.monotonic() - start) * 1000)
+        logger.info(
+            "document_generation_completed",
+            extra={
+                "event": "document_generation_completed",
+                "job_id": job_id,
+                "user_id": user_id,
+                "artifact_id": artifact_id,
+                "document_type": doc_type,
+                "file_name": filename,
+                "size_bytes": generated.size_bytes,
+                "duration_ms": duration_ms,
+                "status": ArtifactStatus.COMPLETED,
+            },
+        )
+
+        content_lines = [
+            f"Generated artifact '{filename}' for job {job_id}.",
+            f"Artifact ID: {artifact_id}",
+            f"Type: {doc_type}",
+            f"Filename: {filename}",
+            f"Size: {generated.size_bytes} bytes",
+            f"Status: {ArtifactStatus.COMPLETED}",
+            "The file is available in the job workspace artifacts directory.",
+        ]
+        return ToolResult(
+            ok=True,
+            summary=f"Generated {doc_type} artifact '{filename}' ({generated.size_bytes} bytes)",
+            content="\n".join(content_lines),
+        )
+
+    @staticmethod
+    def _resolve_artifacts_dir(workspace: Path) -> Path:
+        try:
+            artifacts_dir = resolve_within_workspace(workspace, "artifacts")
+        except WorkspaceError as exc:
+            raise ToolError(str(exc)) from exc
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        return artifacts_dir
+
+    async def _generate(self, job_id, user_id, content, output_dir, filename):
+        if self._requirements.is_empty:
+            return await self._generator.generate(content, output_dir, filename)
+        sub_key = f"{job_id}:docgen"
+        for _ in range(self._wait_rounds + 1):
+            decision = await self._scheduler.request(
+                sub_key, user_id, "document_generation", self._requirements
+            )
+            if decision.decision == "grant":
+                try:
+                    return await self._generator.generate(content, output_dir, filename)
+                finally:
+                    await self._scheduler.release(sub_key)
+            if decision.decision == "reject":
+                await self._scheduler.cancel(sub_key)
+                raise DocumentGenerationError(
+                    f"document generation resources rejected: {decision.reason}"
+                )
+            await self._scheduler.wait_until_available(timeout=1.0)
+        await self._scheduler.cancel(sub_key)
+        raise DocumentGenerationError(
+            "document generation resources not available within the wait limit"
+        )
+
+
+def _cleanup_partial(path: Path) -> None:
+    try:
+        if path.exists():
+            path.unlink()
+    except OSError:
+        pass

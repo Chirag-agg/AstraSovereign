@@ -92,3 +92,6 @@ def validate_arguments(schema: dict, arguments: Any) -> None:
             elif item_type == "boolean":
                 if any(not isinstance(v, bool) for v in value):
                     raise ToolError(f"Argument '{key}' must be an array of booleans")
+            elif item_type == "object":
+                if any(not isinstance(v, dict) for v in value):
+                    raise ToolError(f"Argument '{key}' must be an array of objects")
