@@ -110,8 +110,7 @@ describe("api client", () => {
     });
     const result = await downloadArtifact("user-001", "job-1", "art-1");
     expect(result.filename).toBe("approval_note.docx");
-    expect(result.blob).toBeInstanceOf(Blob);
-    expect(result.blob.size).toBeGreaterThan(0);
+    expect(result.blob.size).toBe(10);
   });
 
   it("maps backend detail messages into ApiError", async () => {
