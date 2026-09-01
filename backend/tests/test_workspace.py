@@ -1,6 +1,7 @@
 """Workspace isolation: creation, sanitization, and path-resolution security."""
 
 import asyncio
+import os
 from pathlib import Path
 
 import pytest
@@ -67,9 +68,14 @@ def test_resolve_rejects_traversal(tmp_path):
 def test_resolve_rejects_absolute_paths(tmp_path):
     workspace = tmp_path / "ws"
     workspace.mkdir()
-    for bad in (str(tmp_path / "x"), "/etc/passwd", "\\\\server\\share"):
+    for bad in (str(tmp_path / "x"), "/etc/passwd"):
         with pytest.raises(WorkspaceError):
             resolve_within_workspace(workspace, bad)
+    # Windows UNC paths are absolute only on Windows; on POSIX the backslashes
+    # are ordinary filename characters (still contained in the workspace).
+    if os.name == "nt":
+        with pytest.raises(WorkspaceError):
+            resolve_within_workspace(workspace, "\\\\server\\share")
 
 
 def test_resolve_rejects_empty_path(tmp_path):
