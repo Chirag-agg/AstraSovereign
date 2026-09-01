@@ -9,6 +9,7 @@ results for tests and demos.
 
 import asyncio
 import logging
+import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
@@ -17,6 +18,10 @@ from app.schemas.multimodal import OCRRegion
 from app.services.document_preparer import page_number_from_path
 
 logger = logging.getLogger("app.ocr")
+
+# onnxruntime (used by RapidOCR) enables usage telemetry unless disabled — turn
+# it off so OCR never makes an outbound call (sovereignty requirement).
+os.environ.setdefault("ORT_TELEMETRY_ENABLED", "0")
 
 
 class OCRProviderError(Exception):

@@ -259,12 +259,40 @@ models, and provides an agentic pipeline that:
   `typecheck` + `vitest` + `next build` (Node 22). Note: the root `.gitignore`
   `lib/` rule was scoping out `frontend/src/lib/`; it is now scoped to `backend/`
   so the `@/lib` modules are version-controlled.
+- **Audit model + store (Phase 11)**: `AuditEvent` (event_id, timestamp,
+  event_type, component, status, job_id, user_id, metadata) — never prompts,
+  responses, document contents, OCR/vision text, code, or secrets. `JsonlAuditStore`
+  is append-only JSONL under `AUDIT_ROOT` (default `data/audit/`), concurrent-safe,
+  restart-persistent, with a log→audit handler that reuses existing structured
+  `event` log calls (no duplicated business logic).
+- **Audit events (Phase 11)**: JOB_CREATED/STARTED/COMPLETED/FAILED,
+  MODEL_SELECTED, MODEL_CALL_STARTED/COMPLETED (agent + embeddings + vision),
+  TOOL_CALL_*, DOCUMENT_INGESTION_*, DOCUMENT_SEARCH_*, OCR_*, VISION_*,
+  SANDBOX_* (code_execution), DOCUMENT_GENERATION_*, RESOURCE_ALLOCATED/RELEASED.
+- **NetworkGuard (Phase 11)**: classifies outbound HTTP as LOCAL (loopback +
+  configured Ollama host) vs EXTERNAL; blocks external by default
+  (`ExternalNetworkBlocked`), recording blocked attempts. All Ollama/embedding/
+  vision clients go through `GuardedTransport`. onnxruntime telemetry disabled
+  (`ORT_TELEMETRY_ENABLED=0`).
+- **Sovereignty status (Phase 11)**: `build_sovereignty_status` derives real
+  values only — `local_model_calls` from MODEL_CALL_COMPLETED audit count,
+  `external_connections.{status,count,blocked_attempts}` from the guard
+  (VERIFIED_LOCAL/VERIFIED_EXTERNAL/UNKNOWN; UNKNOWN until traffic observed, so
+  nothing is fabricated), `audit_logging`, `sandbox_network: DISABLED`. Exposed
+  via `/api/sovereignty` and `/health.sovereignty`.
+- **Audit API (Phase 11)**: `GET /api/audit` (user-scoped via X-User-ID, optional
+  `job_id`, pagination) and `GET /api/jobs/{job_id}/audit` (ownership enforced).
+  No generic log-file download endpoint.
+- **Frontend evidence (Phase 11)**: SovereigntyStatus shows network policy,
+  external-traffic status, audit-logging, local model calls, sandbox network;
+  JobAuditTimeline renders the user-scoped backend audit trail for the selected
+  job (polled until terminal).
 
 ---
 
 ## Current Phase
 
-**Phase 10 — Frontend Workbench & Flagship End-to-End Workflow** (completed)
+**Phase 11 — Sovereignty Hardening & Audit Evidence** (completed)
 
 ---
 
@@ -771,6 +799,63 @@ models, and provides an agentic pipeline that:
   real-time streaming, and an external-API telemetry counter (backend doesn't
   expose one).
 
+### Phase 11 — Sovereignty Hardening & Audit Evidence
+- **AuditEvent + JsonlAuditStore** (`schemas/audit.py`, `services/audit_store.py`):
+  append-only JSONL under `AUDIT_ROOT` (`data/audit/audit.jsonl`), concurrent-safe
+  (threading lock), restart-persistent, easy to inspect. A root `AuditLogHandler`
+  maps existing structured `event` log calls to audit event types with an
+  allowlist — business logic is never duplicated, and only a whitelisted set of
+  non-sensitive metadata keys is ever recorded (prompts, responses, document
+  contents, OCR/vision text, code, secrets are excluded; verified by a
+  sensitive-payload test). The emitting app loggers are lifted to INFO so audit
+  events flow even when the root level is higher.
+- **Audit events recorded**: JOB_CREATED/STARTED/COMPLETED/FAILED, MODEL_SELECTED,
+  MODEL_CALL_STARTED/COMPLETED (added in the agent, embedding provider, and
+  vision provider around each local model call), TOOL_CALL_STARTED/COMPLETED,
+  DOCUMENT_INGESTION_STARTED/COMPLETED, DOCUMENT_SEARCH_STARTED/COMPLETED,
+  OCR_STARTED/COMPLETED, VISION_STARTED/COMPLETED, SANDBOX_STARTED/COMPLETED
+  (code_execution), DOCUMENT_GENERATION_STARTED/COMPLETED, and
+  RESOURCE_ALLOCATED/RELEASED (resource_released now carries user_id so it stays
+  user-scoped).
+- **NetworkGuard** (`services/network_guard.py`): every outbound HTTP request via
+  the Ollama/embedding/vision clients passes a `GuardedTransport`. Loopback and
+  the configured Ollama host are LOCAL (counted); any other destination is
+  EXTERNAL — recorded as a blocked attempt and rejected by default
+  (`ExternalNetworkBlocked`). Status is VERIFIED_LOCAL / VERIFIED_EXTERNAL /
+  UNKNOWN (UNKNOWN until traffic is observed → nothing fabricated). onnxruntime
+  telemetry disabled (`ORT_TELEMETRY_ENABLED=0`) in the OCR engine.
+- **Sovereignty status**: `services/sovereignty.py` assembles real values
+  (`local_model_calls` from audit, `external_connections` from the guard,
+  `network_policy: LOCAL_ONLY`, `audit_logging: true`, `sandbox_network:
+  DISABLED`, `audit_events`). Exposed by `GET /api/sovereignty` and
+  `/health.sovereignty`.
+- **Audit API**: `GET /api/audit` (user-scoped, optional `job_id`, limit/offset
+  pagination) and `GET /api/jobs/{job_id}/audit` (ownership enforced, 403 cross-
+  user, 404 unknown). No generic log download.
+- **Frontend**: SovereigntyStatus panel shows the verified evidence (network
+  policy, external-traffic status + count + blocked attempts, audit logging,
+  local model calls, sandbox network, audit event count); JobAuditTimeline shows
+  the selected job's backend audit trail with friendly labels, polled until the
+  job is terminal.
+- **Security/dependency review** (`docs/SOVEREIGNTY.md`): documents what is
+  enforced (guard, sandbox `--network none`, no-startup-downloads, ORT telemetry
+  off), what is verified (audit trail, sovereignty status), and what cannot be
+  verified automatically (OS-level packet capture; third-party libs outside the
+  guarded clients). Startup behavior confirmed: no model/image/remote-config/
+  telemetry downloads.
+- **Tests (backend 322 passing)**: 24 new — audit store (creation, persistence,
+  concurrent writes, filtering, pagination, sensitive-payload exclusion, mapping),
+  network guard (localhost classification, external blocking, non-blocked status,
+  unknown state, guarded transport), audit API (user isolation, job filter,
+  sovereignty/health status, ownership), and the flagship workflow audit trail +
+  machine-readable demo report (all expected stages incl. resource alloc/release;
+  tools/models/artifact/sovereignty accurate). Frontend 32 passing (sovereignty
+  panel + job audit timeline rendering).
+- **Deliberately NOT implemented** (out of scope for Phase 11): authentication
+  redesign, RBAC, cloud logging, external monitoring, Kubernetes, distributed
+  tracing, new AI tools/models, new OCR/vision capabilities, Excel/PPT, model
+  training, automatic model downloading, OS-level packet capture.
+
 ---
 
 ## Files and Directories
@@ -980,6 +1065,13 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   network access to the server — not applicable to this localhost-only demo.
   The frontend requires the backend's CORS allow-list to include its origin
   (default `http://localhost:3000`).
+- **Sovereignty evidence (Phase 11)** is app-layer: the `NetworkGuard` proves the
+  backend's own HTTP clients only reach loopback/the configured Ollama host and
+  blocks external attempts; OS-level packet capture is not used and third-party
+  libraries outside the guarded clients are not instrumented (documented in
+  `docs/SOVEREIGNTY.md`; onnxruntime telemetry is disabled). The external-network
+  status is `UNKNOWN` until the guarded clients have made at least one call —
+  only then does it report `VERIFIED_LOCAL` (with external count 0).
 - `logs/backend.log` is generated at import time (module-level `app = create_app()`);
   it is gitignored so this is harmless.
 - Repository is a git repo (branch `main`) tracking `origin` at
@@ -989,17 +1081,17 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 
 ## Next Steps
 
-1. **Recommended next phase — Phase 11: Excel & PowerPoint Deliverable Generation.**
-   Add `.xlsx` (e.g. inspection readings/tables) and `.pptx` (e.g. inspection
-   summary slide deck) generators behind the existing `DocumentGenerator`
-   interface, with secure download and frontend artifact rendering for the new
-   types. **Do not start until explicitly requested.**
-2. Other candidate phases (do not start early): durable job/artifact stores
-   (Redis/Postgres behind `JobStore`/`ArtifactStore`); audit-log schema for "all
-   major actions logged"; enterprise organization-wide knowledge base with access
-   control; multi-language code sandbox; real-time streaming/WebSocket job
-   updates; an external-API telemetry counter on the backend (would let the
-   sovereignty indicator show a verified "0 external calls").
+1. **Recommended next phase — Phase 12: Excel & PowerPoint Deliverable Generation.**
+   Add `.xlsx` (inspection readings/tables) and `.pptx` (inspection summary slide
+   deck) generators behind the existing `DocumentGenerator` interface, with secure
+   download and frontend artifact rendering for the new types — completing the
+   Office deliverable set. **Do not start until explicitly requested.**
+2. Other candidate phases (do not start early): durable job/artifact/audit stores
+   (Redis/Postgres/SQLite behind `JobStore`/`ArtifactStore`/`AuditStore`);
+   OS-level outbound-network verification (optional, privileged tooling);
+   audit-log schema polish / retention for `data/audit`; enterprise
+   organization-wide knowledge base with access control; multi-language code
+   sandbox.
 3. Keep updating this file after every significant change.
 
 ---
@@ -1105,3 +1197,13 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   app.services.data_cleanup`, `docs/CLEANUP.md`, 7 tests; issue #9). Enabled SSH
   commit signing (dedicated `sovereign_signing` ed25519 key; registration of the
   signing key on the GitHub account is required before commits show "Verified").
+- **Phase 11 (2026-09-01)**: Added sovereignty hardening + audit evidence — an
+  append-only JSONL `AuditStore` (log→audit handler reusing existing events;
+  non-sensitive metadata only) recording job/model/tool/ingestion/search/OCR/
+  vision/sandbox/docgen/resource events; a `NetworkGuard` classifying local vs
+  external HTTP and blocking external by default; a trustworthy
+  `/api/sovereignty` + `/health.sovereignty` (real counts, UNKNOWN until traffic
+  seen); user-scoped `GET /api/audit` + `GET /api/jobs/{id}/audit`; frontend
+  Sovereignty panel + per-job Audit trail; onnxruntime telemetry disabled;
+  `docs/SOVEREIGNTY.md` with the dependency/network review. 322 backend + 32
+  frontend tests passing.

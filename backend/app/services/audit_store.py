@@ -67,6 +67,7 @@ _SAFE_METADATA_KEYS = {
     "reason",
     "document_id",
     "filename",
+    "file_name",
     "chunk_count",
     "resource_status",
     "cpu_cores",
@@ -78,6 +79,35 @@ _SAFE_METADATA_KEYS = {
     "iteration",
     "tool_calls",
     "error",
+}
+
+# Standard logging.LogRecord attributes — never treated as audit metadata (they
+# would leak source-file/thread info, e.g. `filename` = the emitting source file).
+_LOG_STANDARD_ATTRS = {
+    "name",
+    "msg",
+    "args",
+    "levelname",
+    "levelno",
+    "pathname",
+    "filename",
+    "module",
+    "exc_info",
+    "exc_text",
+    "stack_info",
+    "lineno",
+    "funcName",
+    "created",
+    "msecs",
+    "relativeCreated",
+    "thread",
+    "threadName",
+    "processName",
+    "process",
+    "taskName",
+    "message",
+    "asctime",
+    "event",
 }
 
 _MAX_METADATA_STRING = 200
@@ -108,7 +138,9 @@ def _event_from_log(record: logging.LogRecord, event_type: str) -> AuditEvent:
     metadata = {
         key: _cap(value)
         for key, value in extras.items()
-        if key in _SAFE_METADATA_KEYS and value is not None
+        if key in _SAFE_METADATA_KEYS
+        and key not in _LOG_STANDARD_ATTRS
+        and value is not None
     }
     return AuditEvent(
         event_id=f"evt-{uuid.uuid4().hex[:12]}",

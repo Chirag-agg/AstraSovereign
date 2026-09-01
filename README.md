@@ -63,18 +63,21 @@ authentication. See [`frontend/README.md`](frontend/README.md).
 
 ## Status
 
-**Current phase: Phase 10 — Frontend Workbench & Flagship End-to-End Workflow.**
-The frontend visualizes the backend's real behavior: jobs, agent traces, tool
-calls, resources, document processing, sovereignty, and generated deliverables.
-The flagship chain (scanned report + maintenance procedure → agent → OCR/search →
-approval-note `.docx` → download) is demonstrated end-to-end. Phases are built
-incrementally, one at a time.
+**Current phase: Phase 11 — Sovereignty Hardening & Audit Evidence.** Every
+meaningful operation writes a non-sensitive, append-only audit event (jobs,
+model calls, tools, OCR/vision, sandbox, document generation, resources); a
+`NetworkGuard` classifies local vs external HTTP and blocks external by default;
+`/api/sovereignty` and `/health` expose verified evidence (no fabricated
+counts); the frontend shows a sovereignty panel and a per-job audit timeline.
+Phases are built incrementally, one at a time.
 
 ## Documentation
 
 - [CONTEXT.md](CONTEXT.md) — authoritative project state, phases, and decisions
 - [Developer onboarding runbook](docs/ONBOARDING.md) — clone → running demo in ~30 min
 - [Cleanup / retention policy](docs/CLEANUP.md) — age-based local data cleanup
+- [Sovereignty, audit & network evidence](docs/SOVEREIGNTY.md) — what is enforced,
+  what is verified, dependency review, how to inspect the audit trail
 
 ## Contributing
 
