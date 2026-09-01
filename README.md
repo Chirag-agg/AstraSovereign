@@ -69,3 +69,16 @@ calls, resources, document processing, sovereignty, and generated deliverables.
 The flagship chain (scanned report + maintenance procedure → agent → OCR/search →
 approval-note `.docx` → download) is demonstrated end-to-end. Phases are built
 incrementally, one at a time.
+
+## Documentation
+
+- [CONTEXT.md](CONTEXT.md) — authoritative project state, phases, and decisions
+- [Developer onboarding runbook](docs/ONBOARDING.md) — clone → running demo in ~30 min
+- [Cleanup / retention policy](docs/CLEANUP.md) — age-based local data cleanup
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch flow, testing commands, and
+contribution rules. Use the issue/PR templates in `.github/`. CI
+(`.github/workflows/ci.yml`) runs the backend and frontend suites on every push
+and pull request.

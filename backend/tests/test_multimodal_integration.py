@@ -65,14 +65,18 @@ VISION_MODEL = _ollama_vision_model()
 @pytest.mark.skipif(not VISION_MODEL, reason="no local vision model available on Ollama")
 def test_real_vision_smoke(tmp_path):
     img = make_png(tmp_path / "page_0001.png", ["Pump seal leakage 3 ml/hr"])
-    service = OllamaService(
-        base_url="http://localhost:11434", default_model="unused", timeout_seconds=120
-    )
-    try:
-        provider = OllamaVisionProvider(service)
-        result = run(
-            provider.analyze(img, "What text or objects are visible?", "", VISION_MODEL)
+
+    async def scenario():
+        service = OllamaService(
+            base_url="http://localhost:11434", default_model="unused", timeout_seconds=120
         )
-        assert result.observations or result.text
-    finally:
-        run(service.aclose())
+        try:
+            provider = OllamaVisionProvider(service)
+            result = await provider.analyze(
+                img, "What text or objects are visible?", "", VISION_MODEL
+            )
+            assert result.observations or result.text
+        finally:
+            await service.aclose()
+
+    run(scenario())

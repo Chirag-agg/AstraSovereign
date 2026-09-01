@@ -956,8 +956,11 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   auto-downloaded.
 - Tool results feed the model prompt; a `read_file` observation is capped at
   ~4000 chars to bound prompt growth. Workspaces accumulate under
-  `data/workspaces/` (gitignored); no cleanup/retention policy yet. Rendered
-  page images under `data/tmp/` are cleaned after success and failure.
+  `data/workspaces/` (gitignored); no automatic cleanup/retention yet — a
+  documented age-based cleanup command exists (`python -m
+  app.services.data_cleanup --yes`, see `docs/CLEANUP.md`), and deleting an old
+  workspace also removes its artifacts. Rendered page images under `data/tmp/`
+  are cleaned after success and failure.
 - **Document generation** is limited to Word (.docx) in this phase (Excel/PPT
   reserved). Generated artifacts persist in the job workspace's `artifacts/`
   directory with **no retention/cleanup policy yet** (partial files are cleaned
@@ -1095,3 +1098,10 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   build run on every push and PR (green verified). Fixed a repo-level gitignore
   bug where the bare `lib/` rule silently excluded `frontend/src/lib/` from
   version control (now scoped to `backend/`).
+- **Phase 10 follow-up (2026-09-01)**: Community/ops hardening — `CONTRIBUTING.md`
+  + issue/PR templates (issue #7), `docs/ONBOARDING.md` developer runbook
+  (issue #8), and an age-based local data cleanup tool + policy
+  (`backend/app/services/data_cleanup.py`, CLI via `python -m
+  app.services.data_cleanup`, `docs/CLEANUP.md`, 7 tests; issue #9). Enabled SSH
+  commit signing (dedicated `sovereign_signing` ed25519 key; registration of the
+  signing key on the GitHub account is required before commits show "Verified").
