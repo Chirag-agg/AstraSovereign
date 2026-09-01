@@ -8,6 +8,7 @@ observations.
 """
 
 import logging
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
@@ -53,13 +54,37 @@ class OllamaVisionProvider(VisionProvider):
         ocr_text: str,
         model: str,
     ) -> VisionPageResult:
+        start = time.monotonic()
+        logger.info(
+            "model_call_started",
+            extra={"event": "model_call_started", "model": model},
+        )
         prompt = _build_vision_prompt(question, ocr_text)
         try:
             response, _used = await self._ollama.generate_with_image(
                 prompt, model=model, image_path=image_path
             )
         except OllamaServiceError as exc:
+            logger.error(
+                "model_call_completed",
+                extra={
+                    "event": "model_call_completed",
+                    "model": model,
+                    "status": "failed",
+                    "duration_ms": int((time.monotonic() - start) * 1000),
+                    "error": str(exc),
+                },
+            )
             raise VisionProviderError(str(exc)) from exc
+        logger.info(
+            "model_call_completed",
+            extra={
+                "event": "model_call_completed",
+                "model": model,
+                "status": "completed",
+                "duration_ms": int((time.monotonic() - start) * 1000),
+            },
+        )
         observations = _split_observations(response)
         page = page_number_from_path(image_path) or 1
         return VisionPageResult(

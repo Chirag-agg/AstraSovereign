@@ -6,6 +6,7 @@ embedding implementation so it can be replaced later.
 """
 
 import logging
+import time
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -51,6 +52,37 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         self._model = model
 
     async def embed_many(self, texts: list[str]) -> list[list[float]]:
+        start = time.monotonic()
+        logger.info(
+            "model_call_started",
+            extra={"event": "model_call_started", "model": self._model},
+        )
+        try:
+            result = await self._embed_many(texts)
+        except EmbeddingError as exc:
+            logger.error(
+                "model_call_completed",
+                extra={
+                    "event": "model_call_completed",
+                    "model": self._model,
+                    "status": "failed",
+                    "duration_ms": int((time.monotonic() - start) * 1000),
+                    "error": str(exc),
+                },
+            )
+            raise
+        logger.info(
+            "model_call_completed",
+            extra={
+                "event": "model_call_completed",
+                "model": self._model,
+                "status": "completed",
+                "duration_ms": int((time.monotonic() - start) * 1000),
+            },
+        )
+        return result
+
+    async def _embed_many(self, texts: list[str]) -> list[list[float]]:
         payload = {"model": self._model, "input": list(texts)}
         try:
             response = await self._client.post("/api/embed", json=payload)

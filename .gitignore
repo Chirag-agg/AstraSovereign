@@ -88,6 +88,9 @@ data/workspaces/
 # ── Multimodal temp images (rendered pages, cleaned after use) ──
 data/tmp/
 
+# ── Local audit trail (Phase 11, append-only JSONL) ──
+data/audit/
+
 # ── Models & AI Artifacts ──────────────────────────────────────
 models/
 *.gguf

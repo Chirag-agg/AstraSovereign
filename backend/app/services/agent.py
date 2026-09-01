@@ -9,6 +9,7 @@ execution trace stored on the job.
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -122,11 +123,33 @@ class Agent:
             iterations += 1
             prompt = self._build_prompt(job.message, model, history)
 
+            model_call_start = time.monotonic()
+            logger.info(
+                "model_call_started",
+                extra={
+                    "event": "model_call_started",
+                    "job_id": job_id,
+                    "user_id": user_id,
+                    "model": model,
+                },
+            )
             try:
                 raw, _model_used = await self._model.generate(
                     prompt, model=model, format="json"
                 )
             except OllamaServiceError as exc:
+                logger.error(
+                    "model_call_completed",
+                    extra={
+                        "event": "model_call_completed",
+                        "job_id": job_id,
+                        "user_id": user_id,
+                        "model": model,
+                        "status": "failed",
+                        "duration_ms": int((time.monotonic() - model_call_start) * 1000),
+                        "error": str(exc),
+                    },
+                )
                 return await self._fail(
                     job_id,
                     user_id,
@@ -147,6 +170,18 @@ class Agent:
                         "iteration": iterations,
                     },
                 )
+                logger.error(
+                    "model_call_completed",
+                    extra={
+                        "event": "model_call_completed",
+                        "job_id": job_id,
+                        "user_id": user_id,
+                        "model": model,
+                        "status": "failed",
+                        "duration_ms": int((time.monotonic() - model_call_start) * 1000),
+                        "error": f"internal_error: {exc.__class__.__name__}",
+                    },
+                )
                 return await self._fail(
                     job_id,
                     user_id,
@@ -157,6 +192,17 @@ class Agent:
                     tool_calls,
                     f"internal_error: {exc.__class__.__name__}",
                 )
+            logger.info(
+                "model_call_completed",
+                extra={
+                    "event": "model_call_completed",
+                    "job_id": job_id,
+                    "user_id": user_id,
+                    "model": model,
+                    "status": "completed",
+                    "duration_ms": int((time.monotonic() - model_call_start) * 1000),
+                },
+            )
 
             decision = self._parse_decision(raw)
             if await self._is_cancelled(job_id):

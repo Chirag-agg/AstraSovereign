@@ -18,6 +18,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.audit import router as audit_router
 from app.api.chat import router as chat_router
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
@@ -26,6 +27,7 @@ from app.config import Settings, get_settings
 from app.schemas.resources import GpuInfo, ResourceCapacity, ResourceRequirements
 from app.services.agent import Agent
 from app.services.artifact_store import ArtifactStore, InMemoryArtifactStore
+from app.services.audit_store import ensure_audit_handler, get_audit_store
 from app.services.document_generator import DocumentGenerator, WordDocumentGenerator
 from app.services.document_preparer import DocumentPreparer
 from app.services.embedding import EmbeddingProvider, OllamaEmbeddingProvider
@@ -36,6 +38,7 @@ from app.services.knowledge_base import KnowledgeBase
 from app.services.model_registry import ModelRegistry
 from app.services.model_router import ModelRouter
 from app.services.multimodal import MultimodalService
+from app.services.network_guard import NetworkGuard, make_guarded_transport
 from app.services.ocr_provider import OCRProvider, RapidOCREngine
 from app.services.ollama_service import OllamaService
 from app.services.resource_provider import InMemoryResourceProvider, LocalResourceProvider
@@ -204,6 +207,17 @@ def build_resource_capacity(settings: Settings) -> ResourceCapacity:
     )
 
 
+def _base_url_host(url: str) -> str:
+    """Extract the hostname of the configured local Ollama endpoint."""
+    try:
+        from urllib.parse import urlsplit
+
+        host = urlsplit(url).hostname
+        return host.lower() if host else ""
+    except ValueError:
+        return ""
+
+
 def create_app(
     settings: Optional[Settings] = None,
     ollama_transport: Optional[httpx.AsyncBaseTransport] = None,
@@ -222,6 +236,9 @@ def create_app(
     """
     settings = settings or get_settings()
     setup_logging(settings)
+    audit_store = get_audit_store()
+    audit_store.configure(settings.audit_root)
+    ensure_audit_handler()
 
     if not settings.default_model:
         logger.warning(
@@ -229,11 +246,14 @@ def create_app(
             extra={"event": "startup_warning"},
         )
 
+    network_guard = NetworkGuard(allowed_hosts={_base_url_host(settings.ollama_base_url)})
+    guarded_transport = make_guarded_transport(ollama_transport, network_guard)
+
     ollama_service = OllamaService(
         base_url=settings.ollama_base_url,
         default_model=settings.default_model,
         timeout_seconds=settings.ollama_timeout_seconds,
-        transport=ollama_transport,
+        transport=guarded_transport,
     )
 
     if model_registry is None:
@@ -248,7 +268,7 @@ def create_app(
     embedding = embedding_provider or OllamaEmbeddingProvider(
         base_url=settings.ollama_base_url,
         model=settings.embedding_model,
-        transport=ollama_transport,
+        transport=guarded_transport,
     )
     knowledge_base = KnowledgeBase(
         vector_store=JsonVectorStore(settings.knowledge_base_root),
@@ -377,6 +397,8 @@ def create_app(
     app.state.multimodal_service = multimodal
     app.state.artifact_store = artifact_store
     app.state.document_generator = document_generator
+    app.state.audit_store = audit_store
+    app.state.network_guard = network_guard
 
     cors_origins = [
         origin.strip()
@@ -396,6 +418,7 @@ def create_app(
     app.include_router(jobs_router)
     app.include_router(documents_router)
     app.include_router(health_router)
+    app.include_router(audit_router)
 
     return app
 

@@ -9,6 +9,7 @@ from app.services.ollama_service import (
     OllamaTimeoutError,
     OllamaUnavailableError,
 )
+from app.services.sovereignty import build_sovereignty_status
 
 logger = logging.getLogger("app.api.health")
 
@@ -79,5 +80,10 @@ async def health(request: Request) -> dict:
         },
         "multimodal": multimodal.describe_status(available_models),
         "document_generation": document_generation,
+        "sovereignty": build_sovereignty_status(
+            request.app.state.audit_store,
+            request.app.state.network_guard,
+            ollama_url=settings.ollama_base_url,
+        ),
         "worker": {"state": worker.state, "active_job_id": worker.active_job_id},
     }

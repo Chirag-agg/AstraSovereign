@@ -54,6 +54,7 @@ class InMemoryResourceScheduler(ResourceScheduler):
     def __init__(self, provider: ResourceProvider) -> None:
         self._provider = provider
         self._waiters: "OrderedDict[str, tuple[str, ResourceRequirements]]" = OrderedDict()
+        self._job_users: dict[str, str] = {}
         self._available = asyncio.Event()
 
     def provider(self) -> ResourceProvider:
@@ -83,6 +84,7 @@ class InMemoryResourceScheduler(ResourceScheduler):
         return None
 
     async def request(self, job_id: str, user_id: str, model: str, req: ResourceRequirements) -> SchedulerDecision:
+        self._job_users[job_id] = user_id
         logger.info(
             "resource_requested",
             extra={
@@ -167,6 +169,7 @@ class InMemoryResourceScheduler(ResourceScheduler):
         return SchedulerDecision(decision=WAIT)
 
     async def release(self, job_id: str) -> Optional[ResourceAllocation]:
+        user_id = self._job_users.pop(job_id, None)
         allocation = await self._provider.release(job_id)
         if allocation is not None:
             logger.info(
@@ -174,6 +177,7 @@ class InMemoryResourceScheduler(ResourceScheduler):
                 extra={
                     "event": "resource_released",
                     "job_id": job_id,
+                    "user_id": user_id,
                     "cpu_cores": allocation.cpu_cores,
                     "memory_mb": allocation.memory_mb,
                     "gpu_id": allocation.gpu_id,
@@ -184,6 +188,7 @@ class InMemoryResourceScheduler(ResourceScheduler):
         return allocation
 
     async def cancel(self, job_id: str) -> bool:
+        self._job_users.pop(job_id, None)
         removed = self._waiters.pop(job_id, None) is not None
         if removed:
             logger.info(

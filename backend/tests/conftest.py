@@ -355,6 +355,8 @@ def app_settings(tmp_path):
         workspaces_root=str(tmp_path / "workspaces"),
         knowledge_base_root=str(tmp_path / "knowledge"),
         uploads_root=str(tmp_path / "uploads"),
+        multimodal_tmp_root=str(tmp_path / "tmp"),
+        audit_root=str(tmp_path / "audit"),
     )
 
 

@@ -98,6 +98,9 @@ class Settings(BaseSettings):
     # origins by default; the backend never talks to external services.
     cors_origins: str = "http://localhost:3000"
 
+    # Local audit trail (Phase 11): append-only JSONL under this root.
+    audit_root: str = str(REPO_ROOT / "data" / "audit")
+
 
 @lru_cache
 def get_settings() -> Settings:
