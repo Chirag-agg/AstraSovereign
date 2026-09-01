@@ -53,12 +53,6 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Diagnose TypeScript resolution
-        run: |
-          node -p "'tsc=' + require('typescript').version"
-          npx tsc --showConfig 2>&1 | sed -n '/"paths"/,/}/p'
-          npx tsc --noEmit --traceResolution 2>&1 | grep -i "resolving module '@/lib/api'" -A2 | head -20 || true
-
       - name: Typecheck
         run: npm run typecheck
 
