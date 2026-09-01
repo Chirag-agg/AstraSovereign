@@ -57,6 +57,9 @@ function renderWorkbench(state: WorkbenchState) {
     if (jobMatch) {
       return state.jobDetail(jobMatch[1]);
     }
+    if (path.includes("/audit")) {
+      return jsonResponse([]);
+    }
     if (path.includes("/artifacts/")) {
       return blobResponse("fake-docx-bytes", "approval_note.docx");
     }

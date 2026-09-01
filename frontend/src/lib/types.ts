@@ -76,6 +76,34 @@ export interface GpuAllocation {
   capacity_vram_mb: number;
 }
 
+export interface ExternalConnections {
+  status: "VERIFIED_LOCAL" | "VERIFIED_EXTERNAL" | "UNKNOWN" | "NOT_TRACKED";
+  count: number;
+  blocked_attempts: number;
+  local_connections: number;
+}
+
+export interface SovereigntyStatus {
+  network_policy: string;
+  local_model_calls: number;
+  external_connections: ExternalConnections;
+  audit_logging: boolean;
+  audit_events: number;
+  sandbox_network: string;
+  ollama_endpoint: string;
+}
+
+export interface AuditEvent {
+  event_id: string;
+  timestamp: string;
+  event_type: string;
+  component: string;
+  status: string;
+  job_id?: string | null;
+  user_id?: string | null;
+  metadata: Record<string, unknown>;
+}
+
 export interface SchedulerStats {
   queued_jobs: number;
   running_jobs: number;
@@ -127,6 +155,7 @@ export interface Health {
     word: string;
     artifacts: { artifacts: number; completed: number };
   };
+  sovereignty: SovereigntyStatus;
   worker: { state: string; active_job_id: string | null };
 }
 

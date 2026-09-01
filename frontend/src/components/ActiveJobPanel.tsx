@@ -2,8 +2,10 @@
 
 import { useJob } from "@/lib/hooks";
 import type { ArtifactSummary } from "@/lib/types";
+import { isTerminalStatus } from "@/lib/types";
 import ArtifactList from "./ArtifactList";
 import ExecutionTrace from "./ExecutionTrace";
+import JobAuditTimeline from "./JobAuditTimeline";
 import TaskStatus from "./TaskStatus";
 
 export default function ActiveJobPanel({
@@ -41,6 +43,11 @@ export default function ActiveJobPanel({
     <div className="active-job">
       <TaskStatus job={job} />
       <ExecutionTrace trace={job.execution_trace} />
+      <JobAuditTimeline
+        userId={userId}
+        jobId={jobId}
+        terminal={isTerminalStatus(job.status)}
+      />
       <section className="panel" aria-label="Answer">
         <div className="panel-title">Answer</div>
         {job.response ? (

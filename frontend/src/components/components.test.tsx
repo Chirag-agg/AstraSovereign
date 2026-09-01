@@ -1,18 +1,22 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import ArtifactList from "./ArtifactList";
 import DocumentList from "./DocumentList";
 import ExecutionTrace from "./ExecutionTrace";
+import JobAuditTimeline from "./JobAuditTimeline";
 import SovereigntyStatus from "./SovereigntyStatus";
 import StatusBadge from "./StatusBadge";
 import TaskStatus from "./TaskStatus";
 import UserSelector from "./UserSelector";
 import {
   artifactFixture,
+  auditEventFixture,
   documentFixture,
   healthFixture,
+  installFetch,
   jobFixture,
+  jsonResponse,
   traceFixture,
 } from "@/test-utils/factory";
 
@@ -25,18 +29,55 @@ describe("StatusBadge", () => {
 });
 
 describe("SovereigntyStatus", () => {
-  it("shows LOCAL/SOVEREIGN and verified local facts, without fabricating an external-API count", () => {
+  it("shows LOCAL/SOVEREIGN and verified audit/network facts", () => {
     render(<SovereigntyStatus health={healthFixture()} />);
     expect(screen.getByLabelText("Local / sovereign mode")).toHaveTextContent("LOCAL");
     expect(screen.getByLabelText("Local / sovereign mode")).toHaveTextContent("SOVEREIGN");
+    expect(screen.getByText("LOCAL_ONLY")).toBeInTheDocument();
+    expect(screen.getByText(/VERIFIED_LOCAL/)).toBeInTheDocument();
+    expect(screen.getByText("ENABLED")).toBeInTheDocument();
+    expect(screen.getByText("DISABLED")).toBeInTheDocument(); // sandbox network
     expect(screen.getByText(/Ollama at http:\/\/localhost:11434/)).toBeInTheDocument();
-    expect(screen.getByText("not tracked by backend — no counter to display")).toBeInTheDocument();
-    expect(screen.queryByText(/0 external/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/3 total/)).toBeInTheDocument(); // local model calls
   });
 
-  it("shows UNREACHABLE when Ollama is down", () => {
-    render(<SovereigntyStatus health={healthFixture({ ollama: { reachable: false, url: "http://localhost:11434" } })} />);
-    expect(screen.getByText("UNREACHABLE")).toBeInTheDocument();
+  it("shows UNKNOWN when there is no external-traffic evidence", () => {
+    const unknown = {
+      ...healthFixture().sovereignty,
+      external_connections: { status: "UNKNOWN" as const, count: 0, blocked_attempts: 0, local_connections: 0 },
+    };
+    render(<SovereigntyStatus health={healthFixture({ sovereignty: unknown })} />);
+    expect(screen.getByText(/UNKNOWN/)).toBeInTheDocument();
+  });
+});
+
+describe("JobAuditTimeline", () => {
+  async function flush(ms = 0) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  it("renders the job audit timeline with friendly labels and non-sensitive metadata", async () => {
+    vi.useFakeTimers();
+    installFetch((url) => {
+      if (url.includes("/audit")) {
+        return jsonResponse([
+          auditEventFixture({ event_type: "JOB_CREATED" }),
+          auditEventFixture({ event_id: "evt-2", event_type: "MODEL_SELECTED", metadata: { model: "llama3.1:latest" } }),
+          auditEventFixture({ event_id: "evt-3", event_type: "DOCUMENT_GENERATION_COMPLETED", metadata: { filename: "approval_note.docx" } }),
+        ]);
+      }
+      return jsonResponse({ detail: { message: "not found" } }, 404);
+    });
+    render(<JobAuditTimeline userId="user-001" jobId="job-1" terminal />);
+    await flush();
+
+    expect(screen.getByText("Job created")).toBeInTheDocument();
+    expect(screen.getByText("Model selected")).toBeInTheDocument();
+    expect(screen.getByText("document_generation done")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Audit trail" })).toBeInTheDocument();
+    vi.useRealTimers();
   });
 });
 

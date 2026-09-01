@@ -2,12 +2,14 @@
 // All backend calls go through here — components never scatter raw fetch calls.
 
 import type {
+  AuditEvent,
   DocumentMeta,
   Health,
   Job,
   JobStatus,
   JobSubmitResponse,
   JobSummary,
+  SovereigntyStatus,
 } from "./types";
 
 export const API_BASE_URL =
@@ -159,6 +161,33 @@ export async function deleteDocument(userId: string, documentId: string): Promis
 export interface DownloadResult {
   blob: Blob;
   filename: string;
+}
+
+// ------------------------------------------------- audit + sovereignty
+
+export function getSovereignty(): Promise<SovereigntyStatus> {
+  return request<SovereigntyStatus>("/api/sovereignty");
+}
+
+export function getAudit(
+  userId: string,
+  jobId?: string,
+  limit = 100,
+  offset = 0,
+): Promise<AuditEvent[]> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (jobId) {
+    params.set("job_id", jobId);
+  }
+  return request<AuditEvent[]>(`/api/audit?${params.toString()}`, {}, userId);
+}
+
+export function getJobAudit(userId: string, jobId: string): Promise<AuditEvent[]> {
+  return request<AuditEvent[]>(
+    `/api/jobs/${encodeURIComponent(jobId)}/audit`,
+    {},
+    userId,
+  );
 }
 
 export async function downloadArtifact(

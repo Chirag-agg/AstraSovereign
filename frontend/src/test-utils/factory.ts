@@ -4,6 +4,7 @@ import { vi } from "vitest";
 
 import type {
   ArtifactSummary,
+  AuditEvent,
   DocumentMeta,
   Health,
   Job,
@@ -88,7 +89,35 @@ export function healthFixture(overrides: Partial<Health> = {}): Health {
       },
     },
     document_generation: { available: true, word: "available", artifacts: { artifacts: 1, completed: 1 } },
+    sovereignty: {
+      network_policy: "LOCAL_ONLY",
+      local_model_calls: 3,
+      external_connections: {
+        status: "VERIFIED_LOCAL",
+        count: 0,
+        blocked_attempts: 0,
+        local_connections: 5,
+      },
+      audit_logging: true,
+      audit_events: 12,
+      sandbox_network: "DISABLED",
+      ollama_endpoint: "http://localhost:11434",
+    },
     worker: { state: "idle", active_job_id: null },
+    ...overrides,
+  };
+}
+
+export function auditEventFixture(overrides: Partial<AuditEvent> = {}): AuditEvent {
+  return {
+    event_id: "evt-1",
+    timestamp: "2026-09-01T12:00:00Z",
+    event_type: "JOB_CREATED",
+    component: "job_manager",
+    status: "ok",
+    job_id: "job-1",
+    user_id: "user-001",
+    metadata: {},
     ...overrides,
   };
 }
