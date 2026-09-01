@@ -71,3 +71,5 @@ the flagship approval-note workflow rendering.
 - The `npm audit` findings are Next.js server-side advisories (DoS/cache/middleware)
   that require external network access to the server; this localhost-only demo is
   not exposed to them.
+- **CI**: `.github/workflows/ci.yml` runs `typecheck` + `vitest` + `next build`
+  on every push/pull request.

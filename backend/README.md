@@ -652,3 +652,6 @@ when Docker is unavailable.
 Real local OCR is exercised by `-m rapidocr` integration tests (RapidOCR is
 installed locally), and a real-vision smoke test runs when a local multimodal
 model is present on Ollama (skipped otherwise).
+
+**CI**: `.github/workflows/ci.yml` runs the full backend suite (plus the
+frontend typecheck/tests/build) on every push and pull request.

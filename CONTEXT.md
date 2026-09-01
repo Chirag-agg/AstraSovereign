@@ -253,6 +253,12 @@ models, and provides an agentic pipeline that:
   counter to display" instead of fabricating a number.
 - **Dev user selector**: `user-001`…`user-005` via `X-User-ID` (persisted in
   localStorage); no authentication. Backend ownership rules keep users isolated.
+- **CI pipeline**: `.github/workflows/ci.yml` runs on every push (all branches)
+  and pull request — Backend `pytest` (Python 3.13; docker-marked sandbox tests
+  auto-skip; `libgl1`/`libglib2.0-0` installed for opencv/rapidocr) and Frontend
+  `typecheck` + `vitest` + `next build` (Node 22). Note: the root `.gitignore`
+  `lib/` rule was scoping out `frontend/src/lib/`; it is now scoped to `backend/`
+  so the `@/lib` modules are version-controlled.
 
 ---
 
@@ -1084,3 +1090,8 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   `tsc --noEmit` and `next build` pass. Live: backend + `next start` ran
   together with CORS verified; a live flagship run produced a downloadable
   `pump_approval_note.docx` (37 KB) via the exact endpoints the UI uses.
+- **Phase 10 follow-up (2026-09-01)**: Added the CI pipeline
+  (`.github/workflows/ci.yml`) — backend `pytest` + frontend typecheck/vitest/
+  build run on every push and PR (green verified). Fixed a repo-level gitignore
+  bug where the bare `lib/` rule silently excluded `frontend/src/lib/` from
+  version control (now scoped to `backend/`).
