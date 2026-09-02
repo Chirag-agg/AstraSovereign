@@ -332,6 +332,9 @@ reports `No relevant local documents found`.
 `filename`, `status`), `GET /api/documents`, `GET /api/documents/{document_id}`,
 `DELETE /api/documents/{document_id}`. There is deliberately **no public search
 endpoint** — the agent reaches the KB only through the `document_search` tool.
+Job listings return a `message` preview (for chat titles); generated artifacts
+across a user's jobs are listed by `GET /api/artifacts` (metadata only — file
+bytes are served by the secure per-job download endpoint).
 
 ## 3g. Local multimodal OCR + vision (Phase 8)
 

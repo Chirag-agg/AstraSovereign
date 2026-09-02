@@ -63,13 +63,14 @@ authentication. See [`frontend/README.md`](frontend/README.md).
 
 ## Status
 
-**Current phase: Phase 11 — Sovereignty Hardening & Audit Evidence.** Every
-meaningful operation writes a non-sensitive, append-only audit event (jobs,
-model calls, tools, OCR/vision, sandbox, document generation, resources); a
-`NetworkGuard` classifies local vs external HTTP and blocks external by default;
-`/api/sovereignty` and `/health` expose verified evidence (no fabricated
-counts); the frontend shows a sovereignty panel and a per-job audit timeline.
-Phases are built incrementally, one at a time.
+**Current phase: Phase 11 — Sovereignty Hardening, Audit Evidence & Workbench UX
+Redesign.** Every operation writes a non-sensitive append-only audit event; a
+`NetworkGuard` blocks external HTTP and `/api/sovereignty` reports verified
+evidence. The frontend is a conversation-first workbench: a sidebar
+(Chats/Documents/Artifacts/System), a large composer, assistant messages with
+inline artifact cards, and a terminal-like **Work Console** that shows the agent
+working from the real `execution_trace`. Phases are built incrementally, one at
+a time.
 
 ## Documentation
 

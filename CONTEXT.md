@@ -287,12 +287,25 @@ models, and provides an agentic pipeline that:
   external-traffic status, audit-logging, local model calls, sandbox network;
   JobAuditTimeline renders the user-scoped backend audit trail for the selected
   job (polled until terminal).
+- **Conversation-first UX (Phase 11 UX redesign)**: the frontend is a
+  Claude/Cowork-inspired workbench — a left sidebar (New task / Chats /
+  Documents / Artifacts / System), a conversation-centred main column (user +
+  assistant messages, markdown rendering, readable errors, inline artifact
+  cards), a large bottom Composer (attach chips, send/cancel), and a
+  terminal-like **Work Console** derived ONLY from real `execution_trace`
+  (planning, `$ tool` commands, running/completed/failed states, TASK COMPLETED)
+  that auto-opens while the agent works. System/sovereignty facts moved to a
+  secondary drawer. Dark-first design system; responsive (sidebar collapses).
+- **Backend micro-additions for the UX (documented)**: `ArtifactSummary` now
+  carries `job_id`; `GET /api/artifacts` lists the caller's artifacts across
+  jobs; `JobSummary` now carries `message` (chat titles). No other backend
+  behavior changed.
 
 ---
 
 ## Current Phase
 
-**Phase 11 — Sovereignty Hardening & Audit Evidence** (completed)
+**Phase 11 — Sovereignty Hardening & Audit Evidence (backend) + Workbench UX Redesign (frontend)** (completed)
 
 ---
 
@@ -856,6 +869,53 @@ models, and provides an agentic pipeline that:
   tracing, new AI tools/models, new OCR/vision capabilities, Excel/PPT, model
   training, automatic model downloading, OS-level packet capture.
 
+### Phase 11 — Workbench UX Redesign (frontend)
+- **Conversation-first layout**: grid of a persistent left sidebar and a main
+  column (top bar, scrollable conversation, bottom composer). Removed the old
+  dashboard layout (Task status / trace / resource panels as primary).
+- **Sidebar** (NEW / Chats / Documents / Artifacts / System + user footer with
+  LOCAL pill): chat entries are message-titled (backend `JobSummary.message`);
+  documents show status and support upload/delete; artifacts list the caller's
+  files across jobs (via new `GET /api/artifacts`) and download through the
+  secure per-job endpoint; System opens the drawer.
+- **Composer**: large multiline input, attach button with file chips (uploads to
+  the document API, chip shows uploading/indexed/failed), Send and Cancel
+  (running task) controls, user tag. The user never chooses models/tools — the
+  backend orchestrates.
+- **Conversation**: user message + assistant block that acknowledges QUEUED/
+  RUNNING, embeds the **Work Console**, then shows the final markdown answer and
+  inline **artifact cards**. Failures map to readable messages with an
+  expandable technical detail; cancelled shows a notice. A lazy "Audit trail"
+  expander surfaces the per-job audit events. No backend JSON or sensitive
+  contents are rendered.
+- **Work Console**: built by `lib/console.ts` purely from `execution_trace`
+  (planning block from leading plan entries, `$ tool` command lines,
+  `✓/✕ result` lines, `TASK COMPLETED/FAILED/CANCELLED`); never invents steps and
+  never shows arguments/file contents. Running tool shows "running…" with a
+  subtle spinner (text always present). Auto-opens while working; collapsible.
+- **System drawer**: secondary panel with only backend-verified facts
+  (sovereignty: network policy, external-traffic status/count/blocked, audit
+  logging/events, sandbox network; services: Ollama/models/worker/queue/KB/OCR/
+  vision/docgen; resources: CPU/RAM/GPU).
+- **Design**: dark-first, restrained, monospace only for the console, generous
+  whitespace, statuses always carry text. Responsive: sidebar becomes an
+  off-canvas drawer under 860px.
+- **Tests**: frontend suite rewritten/expanded to 42 tests — console builder
+  (real trace → lines, no fabrication, no sensitive content), WorkConsole
+  (completed/running/collapsible), Markdown, ArtifactCard, Conversation
+  (completed/failed/cancelled/welcome), friendly errors, SystemDrawer, and the
+  page (flagship submit→queued→running→completed with console + artifact,
+  failure banner, cancellation, attachment chip, artifact download, user
+  isolation, chat selection, system drawer, backend-unavailable, cancelled
+  state). Backend 324 passing (incl. `job_id` on summaries + `/api/artifacts`).
+- **Live verification**: backend + `next start` ran together; the flagships
+  upload → chat → completed (document_search/vision/generation) → audit →
+  sovereignty (VERIFIED_LOCAL, 0 external) → artifact download (37 KB) chain
+  works through the exact endpoints the UI calls; `/api/jobs` returns `message`
+  for chat titles and `/api/artifacts` lists the generated file with `job_id`.
+- **Deliberately NOT implemented**: new models/tools/OCR/vision/RAG, Excel/PPT,
+  authentication/RBAC, WebSockets, backend architecture changes, telemetry.
+
 ---
 
 ## Files and Directories
@@ -962,16 +1022,15 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 │       │   ├── page.tsx           single-page workbench (client component)
 │       │   └── globals.css        layout/panel/badge/table/trace styles
 │       ├── components/
-│       │   ├── AppShell.tsx       header + 3-column grid
-│       │   ├── JobList.tsx / JobCard, ChatPanel, TaskStatus
-│       │   ├── ExecutionTrace.tsx (incl. ToolCall rendering, content hidden)
-│       │   ├── ResourcePanel.tsx / ModelStatus.tsx
-│       │   ├── DocumentList.tsx / UploadPanel.tsx
-│       │   ├── ArtifactList.tsx / SovereigntyStatus.tsx
-│       │   ├── UserSelector.tsx / StatusBadge.tsx / ActiveJobPanel.tsx
+│       │   ├── Sidebar.tsx        New task / Chats / Documents / Artifacts / System + user footer
+│       │   ├── Conversation.tsx   user+assistant messages, work console, artifact cards, errors
+│       │   ├── WorkConsole.tsx    terminal-like log from real execution_trace
+│       │   ├── Composer.tsx       large input + attach chips + send/cancel
+│       │   ├── ArtifactCard.tsx / Markdown.tsx / SystemDrawer.tsx
 │       │   └── components.test.tsx, workbench.test.tsx   (Vitest)
 │       ├── lib/
-│       │   ├── api.ts             typed API client (health/jobs/documents/artifacts)
+│       │   ├── api.ts             typed API client (health/jobs/documents/artifacts/audit)
+│       │   ├── console.ts         Work Console builder (pure, trace-driven)
 │       │   ├── types.ts           TS interfaces mirroring backend schemas
 │       │   ├── hooks.ts           polling hooks + useActiveUser
 │       │   └── api.test.ts, hooks.test.tsx
@@ -1207,3 +1266,11 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   Sovereignty panel + per-job Audit trail; onnxruntime telemetry disabled;
   `docs/SOVEREIGNTY.md` with the dependency/network review. 322 backend + 32
   frontend tests passing.
+- **Phase 11 UX (2026-09-01)**: Redesigned the frontend into a conversation-first
+  Claude/Cowork-style workbench (sidebar + conversation + composer +
+  terminal-like Work Console built from real `execution_trace`; system facts in a
+  secondary drawer; dark-first styling; responsive sidebar). Documented backend
+  micro-additions: `ArtifactSummary.job_id`, `GET /api/artifacts`,
+  `JobSummary.message`. 324 backend + 42 frontend tests passing; live flagship
+  verified (search/vision/generation, audit, sovereignty VERIFIED_LOCAL, 37 KB
+  artifact download).
