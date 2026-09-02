@@ -178,16 +178,20 @@ export default function Conversation({
         ) : null}
 
         {job.status === "completed" ? (
-          <>
-            {job.response ? <Markdown text={job.response} /> : <div className="loading-row">Completed.</div>}
+          <div className="assistant-content">
+            {job.response ? (
+              <Markdown text={job.response} />
+            ) : (
+              <div className="loading-row">Completed.</div>
+            )}
             {job.artifacts.length > 0 ? (
-              <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
                 {job.artifacts.map((artifact) => (
                   <ArtifactCard key={artifact.artifact_id} artifact={artifact} onDownload={onDownload} />
                 ))}
               </div>
             ) : null}
-          </>
+          </div>
         ) : null}
 
         {job.status === "failed" ? (

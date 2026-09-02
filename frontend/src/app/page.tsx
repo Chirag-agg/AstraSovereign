@@ -225,6 +225,7 @@ export default function WorkbenchPage() {
             ☰
           </button>
           <div className="brand">
+            <span className="brand-icon" aria-hidden="true">🛡</span>
             Sovereign Workbench
             <small>on-premise · air-gapped · local models</small>
           </div>
@@ -232,9 +233,7 @@ export default function WorkbenchPage() {
           <button type="button" className="menu-btn" onClick={() => setSystemOpen(true)}>
             System
           </button>
-        </header>
-
-        <div className="conversation-scroll">
+        </header>        <div className="conversation-scroll">
           {notice ? (
             <div className="banner banner-error" role="alert" style={{ maxWidth: 780, margin: "0 auto 12px" }}>
               <span aria-hidden="true">✕</span>

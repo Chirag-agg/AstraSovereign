@@ -104,7 +104,11 @@ export default function WorkConsole({
           : "running…";
 
   return (
-    <div className="console" role="group" aria-label="Work console">
+    <div
+      className={job.status === "completed" ? "console done" : "console"}
+      role="group"
+      aria-label="Work console"
+    >
       <button
         type="button"
         className={`console-header ${expanded ? "open" : ""}`}
