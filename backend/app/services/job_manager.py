@@ -98,6 +98,19 @@ class JobManager:
         jobs = await self.list_jobs(user_id, status=status, limit=limit, offset=offset)
         return [JobSummary.from_job(job) for job in jobs]
 
+    async def list_all(
+        self,
+        status: Optional[JobStatus] = None,
+        limit: int = 200,
+        offset: int = 0,
+    ) -> list[Job]:
+        """Admin: list all jobs across users (newest first). Not user-scoped."""
+        jobs = await self._store.list_all()
+        if status is not None:
+            jobs = [job for job in jobs if job.status == status]
+        jobs.sort(key=lambda job: (job.created_at, job.job_id), reverse=True)
+        return jobs[offset : offset + limit]
+
     async def update_job(self, job_id: str, **fields) -> Job:
         updated = await self._store.update(job_id, **fields)
         if updated is None:
