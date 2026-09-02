@@ -5,8 +5,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ApiError, getHealth, getJob, getJobAudit, listDocuments, listJobs } from "./api";
-import type { AuditEvent, DocumentMeta, Health, Job, JobSummary } from "./types";
+import { ApiError, getHealth, getJob, getJobAudit, listArtifacts, listDocuments, listJobs } from "./api";
+import type { ArtifactSummary, AuditEvent, DocumentMeta, Health, Job, JobSummary } from "./types";
 import { isTerminalStatus } from "./types";
 
 export const USER_IDS = ["user-001", "user-002", "user-003", "user-004", "user-005"];
@@ -185,6 +185,19 @@ export function useDocuments(userId: string): {
     [userId],
   );
   return { documents: result.data, error: result.error };
+}
+
+/** Poll the caller's artifacts across jobs (for the Artifacts sidebar). */
+export function useArtifacts(userId: string): {
+  artifacts: ArtifactSummary[] | null;
+  error: string | null;
+} {
+  const result = usePolling<ArtifactSummary[]>(
+    () => listArtifacts(userId),
+    { intervalMs: POLL_LIST_MS, retryOnError: true },
+    [userId],
+  );
+  return { artifacts: result.data, error: result.error };
 }
 
 /** Poll a job's audit trail; stops once the job is terminal. */

@@ -1,157 +1,216 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import ArtifactList from "./ArtifactList";
-import DocumentList from "./DocumentList";
-import ExecutionTrace from "./ExecutionTrace";
-import JobAuditTimeline from "./JobAuditTimeline";
-import SovereigntyStatus from "./SovereigntyStatus";
-import StatusBadge from "./StatusBadge";
-import TaskStatus from "./TaskStatus";
-import UserSelector from "./UserSelector";
+import ArtifactCard from "./ArtifactCard";
+import Conversation, { friendlyJobError } from "./Conversation";
+import Markdown from "./Markdown";
+import SystemDrawer from "./SystemDrawer";
+import WorkConsole from "./WorkConsole";
+import { buildConsoleLines, threadTitle } from "@/lib/console";
 import {
   artifactFixture,
-  auditEventFixture,
-  documentFixture,
+  cancelledJobFixture,
+  completedJobWithFlagshipTrace,
+  failedJobWithTrace,
   healthFixture,
-  installFetch,
   jobFixture,
-  jsonResponse,
-  traceFixture,
+  runningJobWithDocumentVision,
 } from "@/test-utils/factory";
 
-describe("StatusBadge", () => {
-  it("renders a text label (never color-only)", () => {
-    render(<StatusBadge value="completed" />);
-    expect(screen.getByText("completed")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveClass("badge-ok");
+describe("console builder (real execution_trace -> lines)", () => {
+  const completed = completedJobWithFlagshipTrace();
+
+  it("derives planning, commands, results and completion from the trace", () => {
+    const lines = buildConsoleLines(completed.execution_trace, "completed");
+    const kinds = lines.map((l) => l.kind);
+    expect(kinds).toContain("planning");
+    expect(kinds).toContain("command");
+    expect(kinds).toContain("result");
+    const commands = lines.filter((l) => l.kind === "command");
+    const tools = commands.map((c) => (c.kind === "command" ? c.tool : ""));
+    expect(tools).toEqual(["document_search", "document_vision", "document_generation"]);
+    const finalLine = lines[lines.length - 1];
+    expect(finalLine.kind === "final" && finalLine.state === "done").toBe(true);
+    const results = lines.filter((l) => l.kind === "result" && l.ok);
+    expect(results.length).toBe(3);
+  });
+
+  it("never invents activity and never exposes arguments/content", () => {
+    const lines = buildConsoleLines(completed.execution_trace, "completed");
+    const serialized = JSON.stringify(lines);
+    expect(serialized).not.toContain("pump maintenance");
+    expect(serialized).not.toContain("query");
+    expect(serialized).not.toContain("arguments");
+  });
+
+  it("keeps a running tool open when no result has arrived", () => {
+    const lines = buildConsoleLines(runningJobWithDocumentVision().execution_trace, "running");
+    const commands = lines.filter((l) => l.kind === "command");
+    expect(commands.some((c) => c.state === "running")).toBe(true);
+    const last = commands[commands.length - 1];
+    expect(last && last.kind === "command" && last.tool === "document_vision").toBe(true);
+  });
+
+  it("shows a failed tool result and a failed final state", () => {
+    const job = failedJobWithTrace();
+    const lines = buildConsoleLines(job.execution_trace, job.status);
+    expect(lines.some((l) => l.kind === "result" && !l.ok)).toBe(true);
+    const finalLine = lines[lines.length - 1];
+    expect(finalLine.kind === "final" && finalLine.state === "failed").toBe(true);
+  });
+
+  it("shows a cancelled final state", () => {
+    const lines = buildConsoleLines([], "cancelled");
+    const last = lines[lines.length - 1];
+    expect(last.kind === "final" && last.state === "cancelled").toBe(true);
   });
 });
 
-describe("SovereigntyStatus", () => {
-  it("shows LOCAL/SOVEREIGN and verified audit/network facts", () => {
-    render(<SovereigntyStatus health={healthFixture()} />);
-    expect(screen.getByLabelText("Local / sovereign mode")).toHaveTextContent("LOCAL");
-    expect(screen.getByLabelText("Local / sovereign mode")).toHaveTextContent("SOVEREIGN");
-    expect(screen.getByText("LOCAL_ONLY")).toBeInTheDocument();
-    expect(screen.getByText(/VERIFIED_LOCAL/)).toBeInTheDocument();
-    expect(screen.getByText("ENABLED")).toBeInTheDocument();
-    expect(screen.getByText("DISABLED")).toBeInTheDocument(); // sandbox network
-    expect(screen.getByText(/Ollama at http:\/\/localhost:11434/)).toBeInTheDocument();
-    expect(screen.getByText(/3 total/)).toBeInTheDocument(); // local model calls
-  });
-
-  it("shows UNKNOWN when there is no external-traffic evidence", () => {
-    const unknown = {
-      ...healthFixture().sovereignty,
-      external_connections: { status: "UNKNOWN" as const, count: 0, blocked_attempts: 0, local_connections: 0 },
-    };
-    render(<SovereigntyStatus health={healthFixture({ sovereignty: unknown })} />);
-    expect(screen.getByText(/UNKNOWN/)).toBeInTheDocument();
+describe("threadTitle", () => {
+  it("truncates long messages", () => {
+    expect(threadTitle("hello")).toBe("hello");
+    const long = "x".repeat(100);
+    expect(threadTitle(long).length).toBeLessThan(50);
   });
 });
 
-describe("JobAuditTimeline", () => {
-  async function flush(ms = 0) {
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(ms);
-    });
-  }
+describe("WorkConsole", () => {
+  it("renders commands, results and completion from a completed job", () => {
+    const job = completedJobWithFlagshipTrace();
+    render(<WorkConsole job={job} expanded onToggle={() => undefined} />);
+    expect(screen.getByText("document_search", { selector: ".cmd" })).toBeInTheDocument();
+    expect(screen.getByText(/3 relevant chunk/)).toBeInTheDocument();
+    expect(screen.getByText(/TASK COMPLETED/)).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Work console" })).toBeInTheDocument();
+  });
 
-  it("renders the job audit timeline with friendly labels and non-sensitive metadata", async () => {
-    vi.useFakeTimers();
-    installFetch((url) => {
-      if (url.includes("/audit")) {
-        return jsonResponse([
-          auditEventFixture({ event_type: "JOB_CREATED" }),
-          auditEventFixture({ event_id: "evt-2", event_type: "MODEL_SELECTED", metadata: { model: "llama3.1:latest" } }),
-          auditEventFixture({ event_id: "evt-3", event_type: "DOCUMENT_GENERATION_COMPLETED", metadata: { filename: "approval_note.docx" } }),
-        ]);
-      }
-      return jsonResponse({ detail: { message: "not found" } }, 404);
-    });
-    render(<JobAuditTimeline userId="user-001" jobId="job-1" terminal />);
-    await flush();
+  it("indicates a running tool with text", () => {
+    const job = runningJobWithDocumentVision();
+    render(<WorkConsole job={job} expanded onToggle={() => undefined} />);
+    expect(screen.getAllByText(/running…/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("document_vision", { selector: ".cmd" })).toBeInTheDocument();
+  });
 
-    expect(screen.getByText("Job created")).toBeInTheDocument();
-    expect(screen.getByText("Model selected")).toBeInTheDocument();
-    expect(screen.getByText("document_generation done")).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Audit trail" })).toBeInTheDocument();
-    vi.useRealTimers();
+  it("is collapsible", () => {
+    const job = completedJobWithFlagshipTrace();
+    const onToggle = vi.fn();
+    render(<WorkConsole job={job} expanded={false} onToggle={onToggle} />);
+    expect(screen.queryByRole("group", { name: "Work console" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Work console/i }));
+    expect(onToggle).toHaveBeenCalled();
   });
 });
 
-describe("ExecutionTrace", () => {
-  it("renders trace steps and tool calls without exposing sensitive content", () => {
-    const trace = [
-      traceFixture({ step: 1, type: "agent_started" }),
-      traceFixture({ step: 2, type: "tool_call", tool: "document_generation", arguments: { filename: "note.docx", content: "SECRET-CONTENT" } }),
-      traceFixture({ step: 3, type: "tool_result", tool: "document_generation", ok: true, result_summary: "Generated word artifact 'note.docx'" }),
-      traceFixture({ step: 4, type: "final", response_summary: "Done." }),
-    ];
-    render(<ExecutionTrace trace={trace} />);
-    expect(screen.getByText("Agent started")).toBeInTheDocument();
-    expect(screen.getByText("Tool: document_generation")).toBeInTheDocument();
-    expect(screen.getByText(/filename=note.docx/)).toBeInTheDocument();
-    expect(screen.queryByText("SECRET-CONTENT")).not.toBeInTheDocument();
-    expect(screen.getByText("Completed")).toBeInTheDocument();
+describe("Markdown", () => {
+  it("renders paragraphs, lists and code blocks", () => {
+    render(
+      <Markdown text={"Hello **world**.\n\n- one\n- two\n\n```py\nprint(1)\n```"} />,
+    );
+    expect(screen.getByText("world")).toBeInTheDocument();
+    expect(screen.getByText("one")).toBeInTheDocument();
+    expect(screen.getByText("two")).toBeInTheDocument();
+    expect(screen.getByText("print(1)")).toBeInTheDocument();
   });
 });
 
-describe("ArtifactList", () => {
-  it("shows artifact metadata and triggers download", () => {
+describe("ArtifactCard", () => {
+  it("shows metadata and downloads", () => {
     const artifact = artifactFixture();
     const onDownload = vi.fn();
-    render(<ArtifactList artifacts={[artifact]} onDownload={onDownload} />);
+    render(<ArtifactCard artifact={artifact} onDownload={onDownload} />);
     expect(screen.getByText("approval_note.docx")).toBeInTheDocument();
     expect(screen.getByText(/Word document/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Download approval_note.docx/ }));
     expect(onDownload).toHaveBeenCalledWith(artifact);
   });
+});
 
-  it("shows an empty state when there are no artifacts", () => {
-    render(<ArtifactList artifacts={[]} onDownload={vi.fn()} />);
-    expect(screen.getByText("No artifacts for this job.")).toBeInTheDocument();
+describe("friendlyJobError", () => {
+  it("maps model/vision/resource errors to human messages", () => {
+    expect(friendlyJobError(jobFixture({ status: "failed", error: "resource_rejected: nope" }))).toMatch(
+      /resource scheduler/i,
+    );
+    expect(
+      friendlyJobError(jobFixture({ status: "failed", error: "OllamaModelNotFoundError: x" })),
+    ).toMatch(/model is unavailable/i);
   });
 });
 
-describe("DocumentList", () => {
-  it("lists documents and supports deletion", () => {
-    const onDelete = vi.fn();
-    render(<DocumentList documents={[documentFixture()]} onDelete={onDelete} />);
-    expect(screen.getByText("manual.txt")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Delete manual.txt" }));
-    expect(onDelete).toHaveBeenCalledWith("doc-1");
-  });
-
-  it("shows an empty state", () => {
-    render(<DocumentList documents={[]} onDelete={vi.fn()} />);
-    expect(screen.getByText("No documents uploaded for this user.")).toBeInTheDocument();
-  });
-});
-
-describe("UserSelector", () => {
-  it("switches the active user", () => {
-    const onChange = vi.fn();
-    render(<UserSelector user="user-001" onChange={onChange} />);
-    fireEvent.change(screen.getByRole("combobox", { name: "Active user" }), {
-      target: { value: "user-002" },
-    });
-    expect(onChange).toHaveBeenCalledWith("user-002");
-  });
-});
-
-describe("TaskStatus", () => {
-  it("renders task/model/agent metadata", () => {
+describe("Conversation", () => {
+  it("shows the user message, assistant answer and artifact card for a completed job", () => {
+    const job = completedJobWithFlagshipTrace();
     render(
-      <TaskStatus
-        job={jobFixture({ status: "running", task_type: "general", model: "llama3.1:latest", agent_stage: "tool_call", iteration_count: 3, tool_call_count: 2, resource_status: "allocated" })}
+      <Conversation
+        userId="user-001"
+        job={job}
+        onDownload={() => undefined}
+        onSubmit={() => undefined}
+        consoleOpen
+        setConsoleOpen={() => undefined}
       />,
     );
-    expect(screen.getByText("general")).toBeInTheDocument();
-    expect(screen.getByText("llama3.1:latest")).toBeInTheDocument();
-    expect(screen.getByText("tool_call")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
-    expect(screen.getByText("allocated")).toBeInTheDocument();
+    expect(screen.getByText(job.message)).toBeInTheDocument();
+    expect(screen.getByText(/Created approval_note.docx/)).toBeInTheDocument();
+    expect(screen.getByText("approval_note.docx")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Work console" })).toBeInTheDocument();
+  });
+
+  it("shows a readable failure message, not a raw error", () => {
+    const job = failedJobWithTrace();
+    render(
+      <Conversation
+        userId="user-001"
+        job={job}
+        onDownload={() => undefined}
+        onSubmit={() => undefined}
+        consoleOpen
+        setConsoleOpen={() => undefined}
+      />,
+    );
+    expect(screen.getByText(/vision analysis is unavailable/i)).toBeInTheDocument();
+  });
+
+  it("shows a cancelled notice", () => {
+    render(
+      <Conversation
+        userId="user-001"
+        job={cancelledJobFixture()}
+        onDownload={() => undefined}
+        onSubmit={() => undefined}
+        consoleOpen={false}
+        setConsoleOpen={() => undefined}
+      />,
+    );
+    expect(screen.getByText(/task was cancelled/i)).toBeInTheDocument();
+  });
+
+  it("shows a welcome state when no job is active", () => {
+    render(
+      <Conversation
+        userId="user-001"
+        job={null}
+        onDownload={() => undefined}
+        onSubmit={vi.fn()}
+        consoleOpen={false}
+        setConsoleOpen={() => undefined}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Try the demo/i })).toBeInTheDocument();
+  });
+});
+
+describe("SystemDrawer", () => {
+  it("renders only backend-verified facts", () => {
+    render(<SystemDrawer open onClose={() => undefined} health={healthFixture()} error={null} />);
+    expect(screen.getByText("LOCAL_ONLY")).toBeInTheDocument();
+    expect(screen.getByText(/VERIFIED_LOCAL/)).toBeInTheDocument();
+    expect(screen.getByText("ENABLED")).toBeInTheDocument();
+    expect(screen.getByText("online")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "System status" })).toBeInTheDocument();
+  });
+
+  it("shows an unavailable state when the backend is down", () => {
+    render(<SystemDrawer open onClose={() => undefined} health={null} error="Backend unreachable" />);
+    expect(screen.getByRole("alert")).toHaveTextContent(/Backend unavailable/i);
   });
 });

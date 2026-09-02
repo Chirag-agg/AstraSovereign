@@ -129,13 +129,13 @@ async def list_jobs(
 ) -> list[JobSummary]:
     """List the caller's own jobs (newest first). Never returns other users' jobs."""
     manager = request.app.state.job_manager
-    jobs = await manager.list_jobs(
+    jobs = await manager.list_summaries(
         user_id,
         status=job_status,
         limit=limit,
         offset=offset,
     )
-    return [JobSummary.from_job(job) for job in jobs]
+    return jobs
 
 
 @router.delete("/{job_id}", response_model=Job)

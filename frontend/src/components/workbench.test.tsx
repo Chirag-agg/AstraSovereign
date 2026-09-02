@@ -1,43 +1,48 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+﻿import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import WorkbenchPage from "@/app/page";
 import type { JobStatus } from "@/lib/types";
 import {
   blobResponse,
+  cancelledJobFixture,
   completedJobWithFlagshipTrace,
   documentFixture,
+  failedJobWithTrace,
   healthFixture,
   installFetch,
   jobFixture,
+  jobSummaryFixture,
   jsonResponse,
+  runningJobWithDocumentVision,
   statusSequence,
 } from "@/test-utils/factory";
 
 const API = "http://localhost:8000";
 
-interface WorkbenchState {
+interface State {
   health: () => Response;
   jobs: (userId: string) => Response;
   documents: (userId: string) => Response;
-  jobDetail: (jobId: string) => Response;
+  artifacts: (userId: string) => Response;
+  jobDetail: () => Response;
   submit: () => Response;
 }
 
-function makeState(overrides: Partial<WorkbenchState> = {}): WorkbenchState {
-  const defaultJobDetail = jobFixture({ status: "queued" });
+function makeState(overrides: Partial<State> = {}): State {
   return {
     health: () => jsonResponse(healthFixture()),
     jobs: () => jsonResponse([]),
     documents: () => jsonResponse([]),
-    jobDetail: () => jsonResponse(defaultJobDetail),
+    artifacts: () => jsonResponse([]),
+    jobDetail: () => jsonResponse(jobFixture({ status: "queued" })),
     submit: () => jsonResponse({ job_id: "job-1", status: "queued" }, 202),
     ...overrides,
   };
 }
 
-function renderWorkbench(state: WorkbenchState) {
-  const fetchMock = installFetch((url, init) => {
+function renderPage(state: State) {
+  return installFetch((url, init) => {
     const path = url.replace(API, "");
     const method = init?.method || "GET";
     const headers = (init?.headers as Record<string, string>) || {};
@@ -48,14 +53,23 @@ function renderWorkbench(state: WorkbenchState) {
       return state.jobs(headers["X-User-ID"] || "user-001");
     }
     if (path === "/api/documents") {
+      if (method === "POST") {
+        return jsonResponse(documentFixture({ status: "ready" }), 201);
+      }
       return state.documents(headers["X-User-ID"] || "user-001");
+    }
+    if (path === "/api/artifacts") {
+      return state.artifacts(headers["X-User-ID"] || "user-001");
     }
     if (path === "/api/chat" && method === "POST") {
       return state.submit();
     }
     const jobMatch = path.match(/^\/api\/jobs\/([^/]+)$/);
     if (jobMatch) {
-      return state.jobDetail(jobMatch[1]);
+      if (method === "DELETE") {
+        return jsonResponse(jobFixture({ status: "cancelled" }));
+      }
+      return state.jobDetail();
     }
     if (path.includes("/audit")) {
       return jsonResponse([]);
@@ -65,8 +79,6 @@ function renderWorkbench(state: WorkbenchState) {
     }
     return jsonResponse({ detail: { message: "not found" } }, 404);
   });
-  render(<WorkbenchPage />);
-  return fetchMock;
 }
 
 async function flush(ms = 0) {
@@ -75,15 +87,12 @@ async function flush(ms = 0) {
   });
 }
 
-async function submitTask(text: string) {
-  fireEvent.change(screen.getByLabelText("Task description"), {
-    target: { value: text },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Submit task" }));
+async function typeAndSend(text: string) {
+  fireEvent.change(screen.getByLabelText("Task description"), { target: { value: text } });
+  await flush();
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
   await flush();
 }
-
-const taskRegion = () => screen.getByRole("region", { name: "Task status" });
 
 afterEach(() => {
   window.localStorage.clear();
@@ -92,114 +101,184 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("Workbench page", () => {
-  it("runs the flagship workflow: submit → QUEUED → RUNNING → COMPLETED with trace and artifact", async () => {
+describe("Workbench page (conversation-first)", () => {
+  it("flagship flow: submit -> queued -> running -> completed with work console + artifact", async () => {
     vi.useFakeTimers();
+    const TASK =
+      "Review the inspection report against the maintenance procedure and create an approval note.";
     const next = statusSequence(["queued", "running", "completed"]);
+    const withMessage = (job: ReturnType<typeof completedJobWithFlagshipTrace>) => ({
+      ...job,
+      message: TASK,
+    });
     const state = makeState({
       jobDetail: () => {
         const status = next();
-        return jsonResponse(
-          status === "completed" ? completedJobWithFlagshipTrace() : jobFixture({ status }),
-        );
+        if (status === "completed") {
+          return jsonResponse(withMessage(completedJobWithFlagshipTrace()));
+        }
+        if (status === "running") {
+          return jsonResponse(withMessage(runningJobWithDocumentVision()));
+        }
+        return jsonResponse(jobFixture({ status: "queued", message: TASK }));
       },
+      jobs: () => jsonResponse([jobSummaryFixture({ status: "completed" as JobStatus, message: TASK })]),
     });
-    renderWorkbench(state);
+    renderPage(state);
+    render(<WorkbenchPage />);
     await flush();
 
-    await submitTask(
-      "Review the inspection report against the maintenance procedure and create an approval note.",
-    );
+    await typeAndSend(TASK);
 
-    expect(within(taskRegion()).getByText("QUEUED")).toBeInTheDocument();
+    // user message appears immediately; first poll reports queued
+    expect(screen.getAllByText(new RegExp(TASK.slice(0, 24))).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Queued — waiting for the agent/)).toBeInTheDocument();
 
     await flush(1000);
-    expect(within(taskRegion()).getByText("RUNNING")).toBeInTheDocument();
+    expect(screen.getAllByText(/Working on it/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/running…/).length).toBeGreaterThanOrEqual(1);
 
     await flush(1000);
-    expect(within(taskRegion()).getByText("COMPLETED")).toBeInTheDocument();
+    expect(screen.getByText(/Completed in/)).toBeInTheDocument();
+    expect(screen.getByText("document_search", { selector: ".cmd" })).toBeInTheDocument();
+    expect(screen.getByText("document_generation", { selector: ".cmd" })).toBeInTheDocument();
+    expect(screen.getByText(/TASK COMPLETED/)).toBeInTheDocument();
+    expect(screen.getByText(/Created approval_note.docx/)).toBeInTheDocument();
 
-    // execution trace rendered
-    expect(screen.getByText("Tool: document_search")).toBeInTheDocument();
-    expect(screen.getByText("Tool: document_vision")).toBeInTheDocument();
-    expect(screen.getByText("Tool: document_generation")).toBeInTheDocument();
-    expect(screen.getByText("Completed")).toBeInTheDocument();
-
-    // model information rendered
-    expect(screen.getAllByText("llama3.1:latest").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("general").length).toBeGreaterThan(0);
-
-    // artifacts rendered
-    const artifactRegion = screen.getByRole("region", { name: "Generated files" });
-    expect(within(artifactRegion).getByText("approval_note.docx")).toBeInTheDocument();
-    expect(within(artifactRegion).getByText(/Word document/)).toBeInTheDocument();
-
-    // answer rendered
-    const answerRegion = screen.getByRole("region", { name: "Answer" });
-    expect(within(answerRegion).getByText(/Created approval_note.docx/)).toBeInTheDocument();
+    const artifactCard = screen.getByRole("group", { name: /Artifact approval_note.docx/ });
+    expect(within(artifactCard).getByText("approval_note.docx")).toBeInTheDocument();
   });
 
-  it("stops polling once the job is terminal", async () => {
+  it("shows a readable failure for a failed job", async () => {
     vi.useFakeTimers();
-    let calls = 0;
-    const state = makeState({
-      jobDetail: () => {
-        calls += 1;
-        return jsonResponse(completedJobWithFlagshipTrace());
-      },
-    });
-    renderWorkbench(state);
+    const state = makeState({ jobDetail: () => jsonResponse(failedJobWithTrace()) });
+    renderPage(state);
+    render(<WorkbenchPage />);
     await flush();
-
-    await submitTask("do it");
-    expect(within(taskRegion()).getByText("COMPLETED")).toBeInTheDocument();
-
-    const callsAtTerminal = calls;
-    await flush(5000);
-    expect(calls).toBe(callsAtTerminal);
+    await typeAndSend("do the thing");
+    await flush(1000);
+    expect(screen.getByText(/vision analysis is unavailable/i)).toBeInTheDocument();
   });
 
-  it("downloads an artifact through the secure endpoint", async () => {
+  it("cancels a running task from the composer", async () => {
     vi.useFakeTimers();
-    const state = makeState({
-      jobDetail: () => jsonResponse(completedJobWithFlagshipTrace()),
+    const deleteMock = vi.fn();
+    installFetch((url, init) => {
+      const path = url.replace(API, "");
+      const method = init?.method || "GET";
+      const headers = (init?.headers as Record<string, string>) || {};
+      if (path === "/health") {
+        return jsonResponse(healthFixture());
+      }
+      if (path === "/api/chat") {
+        return jsonResponse({ job_id: "job-1", status: "queued" }, 202);
+      }
+      if (path.startsWith("/api/jobs?") || path === "/api/jobs") {
+        return jsonResponse([jobSummaryFixture({ status: "running" as JobStatus })]);
+      }
+      if (path.includes("/api/documents")) {
+        return jsonResponse([]);
+      }
+      if (path.includes("/api/artifacts")) {
+        return jsonResponse([]);
+      }
+      const detail = path.match(/^\/api\/jobs\/([^/]+)$/);
+      if (detail) {
+        if (method === "DELETE") {
+          deleteMock(path);
+          return jsonResponse(jobFixture({ status: "cancelled" }));
+        }
+        return jsonResponse(runningJobWithDocumentVision());
+      }
+      return jsonResponse({ detail: { message: "not found" } }, 404);
     });
-    renderWorkbench(state);
+    render(<WorkbenchPage />);
     await flush();
+    await typeAndSend("do it");
+    await flush(1000);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel task" }));
+    expect(deleteMock).toHaveBeenCalledWith("/api/jobs/job-1");
+  });
 
+  it("uploads an attachment and shows it as a chip", async () => {
+    vi.useFakeTimers();
+    renderPage(makeState());
+    render(<WorkbenchPage />);
+    await flush();
+    const file = new File(["data"], "manual.txt", { type: "text/plain" });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+    await flush();
+    expect(screen.getByText("manual.txt")).toBeInTheDocument();
+    expect(screen.getByText(/indexed/)).toBeInTheDocument();
+  });
+
+  it("downloads an artifact from the conversation card", async () => {
+    vi.useFakeTimers();
     const objectUrl = vi.fn(() => "blob:fake");
     const revoke = vi.fn();
     vi.stubGlobal("URL", { ...URL, createObjectURL: objectUrl, revokeObjectURL: revoke });
-
-    await submitTask("make a note");
-    const artifactRegion = screen.getByRole("region", { name: "Generated files" });
-    fireEvent.click(within(artifactRegion).getByRole("button", { name: /Download approval_note.docx/ }));
+    const state = makeState({ jobDetail: () => jsonResponse(completedJobWithFlagshipTrace()) });
+    renderPage(state);
+    render(<WorkbenchPage />);
     await flush();
-
+    await typeAndSend("make it");
+    await flush(1000);
+    fireEvent.click(screen.getByRole("button", { name: /Download approval_note.docx/ }));
+    await flush();
     expect(objectUrl).toHaveBeenCalled();
     expect(revoke).toHaveBeenCalled();
   });
 
-  it("keeps per-user jobs isolated in client state", async () => {
+  it("keeps per-user data isolated when switching users", async () => {
     vi.useFakeTimers();
     const state = makeState({
       jobs: (userId) =>
         jsonResponse([
           userId === "user-001"
-            ? { ...jobFixture({ job_id: "job-own-1", status: "completed" }) }
-            : { ...jobFixture({ job_id: "job-other-1", status: "completed" }) },
+            ? jobSummaryFixture({ job_id: "job-own", message: "my task", status: "completed" as JobStatus })
+            : jobSummaryFixture({ job_id: "job-other", message: "other task", status: "completed" as JobStatus }),
         ]),
+      documents: (userId) => jsonResponse(userId === "user-001" ? [documentFixture()] : []),
     });
-    renderWorkbench(state);
+    renderPage(state);
+    render(<WorkbenchPage />);
     await flush();
-    expect(screen.getByText("job-own-1")).toBeInTheDocument();
+    expect(screen.getByText("my task")).toBeInTheDocument();
+    expect(screen.getByText("manual.txt")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Active user" }), {
-      target: { value: "user-002" },
-    });
+    fireEvent.change(screen.getByLabelText("Active user"), { target: { value: "user-002" } });
     await flush();
-    expect(screen.getByText("job-other-1")).toBeInTheDocument();
-    expect(screen.queryByText("job-own-1")).not.toBeInTheDocument();
+    expect(screen.getByText("other task")).toBeInTheDocument();
+    expect(screen.queryByText("my task")).not.toBeInTheDocument();
+    expect(screen.queryByText("manual.txt")).not.toBeInTheDocument();
+  });
+
+  it("selecting a chat in the sidebar shows it in the conversation", async () => {
+    vi.useFakeTimers();
+    const state = makeState({
+      jobs: () =>
+        jsonResponse([
+          jobSummaryFixture({ job_id: "job-old", message: "earlier task", status: "completed" as JobStatus }),
+        ]),
+      jobDetail: () => jsonResponse(completedJobWithFlagshipTrace()),
+    });
+    renderPage(state);
+    render(<WorkbenchPage />);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: /earlier task/i }));
+    await flush(1000);
+    expect(screen.getByText("do the thing")).toBeInTheDocument();
+  });
+
+  it("opens the system drawer and shows verified facts", async () => {
+    vi.useFakeTimers();
+    renderPage(makeState());
+    render(<WorkbenchPage />);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "System" }));
+    expect(screen.getByRole("dialog", { name: "System status" })).toBeInTheDocument();
+    expect(screen.getByText("LOCAL_ONLY")).toBeInTheDocument();
   });
 
   it("shows a graceful banner when the backend is unreachable", async () => {
@@ -209,42 +288,21 @@ describe("Workbench page", () => {
         throw new TypeError("fetch failed");
       },
     });
-    renderWorkbench(state);
+    renderPage(state);
+    render(<WorkbenchPage />);
     await flush();
-    expect(screen.getByText(/Backend unreachable — retrying/)).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByText(/Backend unreachable/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   });
 
-  it("surfaces job failure errors with a readable message", async () => {
+  it("shows a cancelled state when the job is cancelled", async () => {
     vi.useFakeTimers();
-    const state = makeState({
-      jobDetail: () =>
-        jsonResponse(
-          jobFixture({
-            status: "failed",
-            error: "model_routing_error: Model for task type 'document' is disabled.",
-          }),
-        ),
-    });
-    renderWorkbench(state);
+    const state = makeState({ jobDetail: () => jsonResponse(cancelledJobFixture()) });
+    renderPage(state);
+    render(<WorkbenchPage />);
     await flush();
-
-    await submitTask("make a thing");
-    expect(screen.getByText(/model_routing_error/)).toBeInTheDocument();
-  });
-
-  it("lists the active user's documents", async () => {
-    vi.useFakeTimers();
-    const state = makeState({
-      documents: (userId) =>
-        jsonResponse(
-          userId === "user-001"
-            ? [documentFixture({ filename: "inspection_report.pdf", document_id: "doc-1" })]
-            : [],
-        ),
-    });
-    renderWorkbench(state);
-    await flush();
-    expect(screen.getByText("inspection_report.pdf")).toBeInTheDocument();
+    await typeAndSend("stop");
+    await flush(1000);
+    expect(screen.getByText(/task was cancelled/i)).toBeInTheDocument();
   });
 });

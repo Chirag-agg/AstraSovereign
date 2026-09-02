@@ -2,6 +2,7 @@
 // All backend calls go through here — components never scatter raw fetch calls.
 
 import type {
+  ArtifactSummary,
   AuditEvent,
   DocumentMeta,
   Health,
@@ -188,6 +189,10 @@ export function getJobAudit(userId: string, jobId: string): Promise<AuditEvent[]
     {},
     userId,
   );
+}
+
+export function listArtifacts(userId: string): Promise<ArtifactSummary[]> {
+  return request<ArtifactSummary[]>("/api/artifacts", {}, userId);
 }
 
 export async function downloadArtifact(

@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from app.schemas.job import Job, JobStatus
+from app.schemas.job import Job, JobStatus, JobSummary
 from app.services.job_store import JobStore
 
 logger = logging.getLogger("app.job_manager")
@@ -86,6 +86,17 @@ class JobManager:
             own = [job for job in own if job.status == status]
         own.sort(key=lambda job: (job.created_at, job.job_id), reverse=True)
         return own[offset : offset + limit]
+
+    async def list_summaries(
+        self,
+        user_id: str,
+        status: Optional[JobStatus] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[JobSummary]:
+        """Lightweight job summaries (with message text, no response/error)."""
+        jobs = await self.list_jobs(user_id, status=status, limit=limit, offset=offset)
+        return [JobSummary.from_job(job) for job in jobs]
 
     async def update_job(self, job_id: str, **fields) -> Job:
         updated = await self._store.update(job_id, **fields)

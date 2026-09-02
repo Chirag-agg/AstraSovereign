@@ -25,6 +25,7 @@ export interface TraceEntry {
 
 export interface ArtifactSummary {
   artifact_id: string;
+  job_id: string;
   filename: string;
   type: string;
   size_bytes: number;
@@ -56,6 +57,7 @@ export interface Job {
 export interface JobSummary {
   job_id: string;
   user_id: string;
+  message: string;
   task_type: string;
   status: JobStatus;
   priority: number;

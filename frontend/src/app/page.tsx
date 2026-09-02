@@ -1,29 +1,14 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import ActiveJobPanel from "@/components/ActiveJobPanel";
-import AppShell from "@/components/AppShell";
-import ChatPanel from "@/components/ChatPanel";
-import DocumentList from "@/components/DocumentList";
-import JobList from "@/components/JobList";
-import ResourcePanel from "@/components/ResourcePanel";
-import SovereigntyStatus from "@/components/SovereigntyStatus";
-import UploadPanel from "@/components/UploadPanel";
-import UserSelector from "@/components/UserSelector";
-import {
-  ApiError,
-  cancelJob,
-  deleteDocument,
-  downloadArtifact,
-  submitChat,
-  uploadDocument,
-} from "@/lib/api";
-import { useActiveUser, useDocuments, useHealth, useJobs } from "@/lib/hooks";
-import type { ArtifactSummary } from "@/lib/types";
-
-const FLAGSHIP_HINT =
-  'Try: "Review the inspection report against the maintenance procedure, identify any issues requiring attention, and create an approval note." (Upload the scanned report and the procedure in Documents first.)';
+import Composer, { type AttachmentChip } from "@/components/Composer";
+import Conversation, { DEMO_TASK } from "@/components/Conversation";
+import Sidebar from "@/components/Sidebar";
+import SystemDrawer from "@/components/SystemDrawer";
+import { ApiError, cancelJob, deleteDocument, downloadArtifact, submitChat, uploadDocument } from "@/lib/api";
+import { useActiveUser, useArtifacts, useDocuments, useHealth, useJob, useJobs } from "@/lib/hooks";
+import type { ArtifactSummary, JobStatus } from "@/lib/types";
 
 function messageFromError(err: unknown): string {
   if (err instanceof ApiError) {
@@ -35,48 +20,156 @@ function messageFromError(err: unknown): string {
   return "Unexpected error";
 }
 
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Polls one job and renders it as a conversation thread. */
+function ActiveTask({
+  userId,
+  jobId,
+  onDownload,
+  onSubmit,
+  onStatus,
+  consoleOpen,
+  setConsoleOpen,
+}: {
+  userId: string;
+  jobId: string;
+  onDownload: (artifact: ArtifactSummary) => void;
+  onSubmit: (text: string) => void;
+  onStatus: (status: JobStatus) => void;
+  consoleOpen: boolean;
+  setConsoleOpen: (open: boolean) => void;
+}) {
+  const { job, error } = useJob(userId, jobId);
+  useEffect(() => {
+    if (job) {
+      onStatus(job.status);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.status]);
+
+  if (error && !job) {
+    return (
+      <div className="conversation">
+        <div className="banner banner-error" role="alert">
+          {error}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <Conversation
+      userId={userId}
+      job={job}
+      onDownload={onDownload}
+      onSubmit={onSubmit}
+      consoleOpen={consoleOpen}
+      setConsoleOpen={setConsoleOpen}
+    />
+  );
+}
+
 export default function WorkbenchPage() {
   const [user, setUser] = useActiveUser();
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [activeStatus, setActiveStatus] = useState<JobStatus | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [systemOpen, setSystemOpen] = useState(false);
+  const [consoleOpen, setConsoleOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [chips, setChips] = useState<AttachmentChip[]>([]);
 
   const { health, error: healthError } = useHealth();
   const { jobs, error: jobsError } = useJobs(user);
   const { documents, error: docsError } = useDocuments(user);
+  const { artifacts, error: artifactsError } = useArtifacts(user);
+
+  const startNew = useCallback(() => {
+    setActiveJobId(null);
+    setActiveStatus(null);
+    setConsoleOpen(false);
+    setChips([]);
+    setNotice(null);
+    setSidebarOpen(false);
+  }, []);
 
   const changeUser = useCallback(
     (next: string) => {
       setUser(next);
-      setActiveJobId(null);
-      setNotice(null);
+      startNew();
     },
-    [setUser],
+    [setUser, startNew],
   );
 
   const handleSubmit = useCallback(
     async (message: string) => {
+      setNotice(null);
+      setConsoleOpen(true);
       try {
         const response = await submitChat(user, message);
         setActiveJobId(response.job_id);
-        setNotice(null);
+        setActiveStatus("queued");
+        setChips([]);
       } catch (err) {
-        setNotice(`Submit failed: ${messageFromError(err)}`);
+        setNotice(`Could not start the task: ${messageFromError(err)}`);
       }
     },
     [user],
   );
 
-  const handleUpload = useCallback(
+  const addAttachment = useCallback(
     async (file: File) => {
-      setUploading(true);
-      setNotice(null);
+      const chipId = `${Date.now()}-${file.name}`;
+      setChips((prev) => [...prev, { id: chipId, filename: file.name, state: "uploading" }]);
       try {
-        await uploadDocument(user, file);
+        const doc = await uploadDocument(user, file);
+        setChips((prev) =>
+          prev.map((c) =>
+            c.id === chipId ? { ...c, state: doc.status === "ready" ? "ready" : "processing" } : c,
+          ),
+        );
+        if (doc.status === "failed") {
+          setNotice(`Document failed to ingest: ${doc.error || "unknown error"}`);
+        }
       } catch (err) {
+        setChips((prev) => prev.map((c) => (c.id === chipId ? { ...c, state: "failed" } : c)));
         setNotice(`Upload failed: ${messageFromError(err)}`);
-      } finally {
-        setUploading(false);
+      }
+    },
+    [user],
+  );
+
+  const removeAttachment = useCallback((id: string) => {
+    setChips((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
+  const handleCancel = useCallback(
+    async (jobId: string) => {
+      try {
+        await cancelJob(user, jobId);
+      } catch (err) {
+        setNotice(`Cancel failed: ${messageFromError(err)}`);
+      }
+    },
+    [user],
+  );
+
+  const handleDownload = useCallback(
+    async (artifact: ArtifactSummary) => {
+      try {
+        const { blob, filename } = await downloadArtifact(user, artifact.job_id, artifact.artifact_id);
+        triggerDownload(blob, filename);
+      } catch (err) {
+        setNotice(`Download failed: ${messageFromError(err)}`);
       }
     },
     [user],
@@ -93,128 +186,118 @@ export default function WorkbenchPage() {
     [user],
   );
 
-  const handleCancel = useCallback(
-    async (jobId: string) => {
-      try {
-        await cancelJob(user, jobId);
-      } catch (err) {
-        setNotice(`Cancel failed: ${messageFromError(err)}`);
-      }
-    },
-    [user],
-  );
+  const running = activeStatus === "queued" || activeStatus === "running";
 
-  const handleDownload = useCallback(
-    async (artifact: ArtifactSummary) => {
-      if (!activeJobId) {
-        return;
-      }
-      try {
-        const { blob, filename } = await downloadArtifact(user, activeJobId, artifact.artifact_id);
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(url);
-      } catch (err) {
-        setNotice(`Download failed: ${messageFromError(err)}`);
-      }
-    },
-    [user, activeJobId],
-  );
-
-  const header = (
-    <div className="header-inner">
-      <h1 className="app-title">Sovereign AI Workbench</h1>
-      <span className="app-subtitle">On-premise · air-gapped · local models</span>
-      <div className="header-right">
-        <UserSelector user={user} onChange={changeUser} />
-      </div>
-    </div>
-  );
-
-  const sidebar = (
-    <div className="sidebar-stack">
-      <JobList
+  return (
+    <div className="app">
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        user={user}
+        onUserChange={changeUser}
+        onNew={startNew}
         jobs={jobs}
         activeJobId={activeJobId}
-        onSelect={setActiveJobId}
-        onCancel={(jobId) => void handleCancel(jobId)}
+        onSelectJob={(jobId) => {
+          setActiveJobId(jobId);
+          setActiveStatus(null);
+          setConsoleOpen(false);
+          setSidebarOpen(false);
+        }}
+        onCancelJob={(jobId) => void handleCancel(jobId)}
+        documents={documents}
+        uploading={chips.some((c) => c.state === "uploading")}
+        onUploadDocument={(file) => void addAttachment(file)}
+        onDeleteDocument={(id) => void handleDeleteDocument(id)}
+        artifacts={artifacts}
+        onSelectArtifact={(a) => void handleDownload(a)}
+        onOpenSystem={() => setSystemOpen(true)}
       />
-      <UploadPanel onUpload={handleUpload} busy={uploading} />
-      <DocumentList documents={documents} onDelete={(id) => void handleDeleteDocument(id)} />
-    </div>
-  );
 
-  const main = (
-    <div className="main-stack">
-      {notice ? (
-        <div className="alert alert-error" role="alert">
-          {notice}
+      <div className="app-main">
+        <header className="topbar">
           <button
             type="button"
-            className="btn btn-ghost btn-small"
-            onClick={() => setNotice(null)}
-            aria-label="Dismiss message"
+            className="menu-btn sidebar-toggle"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open sidebar"
           >
-            Dismiss
+            ☰
           </button>
-        </div>
-      ) : null}
-      {healthError && !health ? (
-        <div className="alert alert-error" role="alert">
-          Backend unreachable — retrying… ({healthError})
-        </div>
-      ) : null}
-      {jobsError && !jobs ? (
-        <div className="alert alert-error" role="alert">
-          Could not load jobs: {jobsError}
-        </div>
-      ) : null}
-      {docsError && !documents ? (
-        <div className="alert alert-error" role="alert">
-          Could not load documents: {docsError}
-        </div>
-      ) : null}
+          <div className="brand">
+            Sovereign Workbench
+            <small>on-premise · air-gapped · local models</small>
+          </div>
+          <div className="topbar-spacer" />
+          <button type="button" className="menu-btn" onClick={() => setSystemOpen(true)}>
+            System
+          </button>
+        </header>
 
-      <ChatPanel onSubmit={handleSubmit} disabled={false} hint={FLAGSHIP_HINT} />
+        <div className="conversation-scroll">
+          {notice ? (
+            <div className="banner banner-error" role="alert" style={{ maxWidth: 780, margin: "0 auto 12px" }}>
+              <span aria-hidden="true">✕</span>
+              <div style={{ flex: 1 }}>{notice}</div>
+              <button type="button" className="icon-btn" onClick={() => setNotice(null)} aria-label="Dismiss">
+                ×
+              </button>
+            </div>
+          ) : null}
+          {healthError && !health ? (
+            <div className="banner banner-error" role="alert" style={{ maxWidth: 780, margin: "0 auto 12px" }}>
+              Backend unreachable — retrying… ({healthError})
+            </div>
+          ) : null}
+          {jobsError && !jobs ? (
+            <div className="banner banner-error" role="alert" style={{ maxWidth: 780, margin: "0 auto 12px" }}>
+              Could not load tasks: {jobsError}
+            </div>
+          ) : null}
 
-      {activeJobId ? (
-        <ActiveJobPanel
-          key={activeJobId}
-          userId={user}
-          jobId={activeJobId}
-          onDownload={(artifact) => void handleDownload(artifact)}
-        />
-      ) : (
-        <section className="panel empty-state" aria-label="Welcome">
-          <div className="panel-title">Workbench</div>
-          <p>
-            Submit a task to start a job. The agent runs fully on-premise: routing,
-            scheduling, tool calls, retrieval, OCR/vision, and document generation
-            all happen on this machine.
-          </p>
-          <ol className="steps">
-            <li>Select a development user.</li>
-            <li>Upload the scanned report and maintenance procedure under Documents.</li>
-            <li>Submit a task (e.g. the approval-note prompt above).</li>
-            <li>Watch QUEUED → RUNNING → COMPLETED and the execution trace.</li>
-            <li>Download generated files from the job.</li>
-          </ol>
-        </section>
-      )}
+          {activeJobId ? (
+            <ActiveTask
+              key={activeJobId}
+              userId={user}
+              jobId={activeJobId}
+              onDownload={(artifact) => void handleDownload(artifact)}
+              onSubmit={(text) => void handleSubmit(text)}
+              onStatus={setActiveStatus}
+              consoleOpen={consoleOpen}
+              setConsoleOpen={setConsoleOpen}
+            />
+          ) : (
+            <Conversation
+              userId={user}
+              job={null}
+              onDownload={() => undefined}
+              onSubmit={(text) => void handleSubmit(text)}
+              consoleOpen={false}
+              setConsoleOpen={() => undefined}
+            />
+          )}
+        </div>
+
+        <div className="composer-wrap">
+          <Composer
+            user={user}
+            attachments={chips}
+            onAttachFile={(file) => void addAttachment(file)}
+            onRemoveAttachment={removeAttachment}
+            running={running}
+            onSubmit={(text) => void handleSubmit(text)}
+            onCancel={() => activeJobId && void handleCancel(activeJobId)}
+            disabled={Boolean(healthError) && !health}
+          />
+        </div>
+      </div>
+
+      <SystemDrawer
+        open={systemOpen}
+        onClose={() => setSystemOpen(false)}
+        health={health}
+        error={healthError}
+      />
     </div>
   );
-
-  const right = (
-    <div className="right-stack">
-      <SovereigntyStatus health={health} />
-      <ResourcePanel health={health} />
-    </div>
-  );
-
-  return <AppShell header={header} sidebar={sidebar} main={main} right={right} />;
 }

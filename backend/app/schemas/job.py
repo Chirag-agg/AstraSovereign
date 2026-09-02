@@ -69,10 +69,11 @@ class JobSubmitResponse(BaseModel):
 
 
 class JobSummary(BaseModel):
-    """Lightweight view of a job, used for listings (no message/response/error)."""
+    """Lightweight view of a job, used for listings (no response/error/trace)."""
 
     job_id: str
     user_id: str
+    message: str = ""
     task_type: str
     status: JobStatus
     priority: int
@@ -86,6 +87,7 @@ class JobSummary(BaseModel):
         return cls(
             job_id=job.job_id,
             user_id=job.user_id,
+            message=job.message,
             task_type=job.task_type,
             status=job.status,
             priority=job.priority,

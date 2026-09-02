@@ -125,6 +125,7 @@ export function auditEventFixture(overrides: Partial<AuditEvent> = {}): AuditEve
 export function artifactFixture(overrides: Partial<ArtifactSummary> = {}): ArtifactSummary {
   return {
     artifact_id: "art-1",
+    job_id: "job-1",
     filename: "approval_note.docx",
     type: "word",
     size_bytes: 18432,
@@ -166,6 +167,7 @@ export function jobSummaryFixture(overrides: Partial<JobSummary> = {}): JobSumma
   return {
     job_id: "job-abc",
     user_id: "user-001",
+    message: "do the thing",
     task_type: "general",
     status: "queued",
     priority: 0,
@@ -188,27 +190,68 @@ export function documentFixture(overrides: Partial<DocumentMeta> = {}): Document
   };
 }
 
+export function flagshipTrace(): TraceEntry[] {
+  return [
+    traceFixture({ step: 1, type: "agent_started", task_type: "general" }),
+    traceFixture({ step: 2, type: "plan", description: "Gather requirements and findings" }),
+    traceFixture({ step: 3, type: "tool_call", tool: "document_search", arguments: { query: "pump maintenance", top_k: 3 } }),
+    traceFixture({ step: 4, type: "tool_result", tool: "document_search", ok: true, result_summary: "3 relevant chunk(s) from 1 document(s)" }),
+    traceFixture({ step: 5, type: "plan", description: "Now analyze the scanned page" }),
+    traceFixture({ step: 6, type: "tool_call", tool: "document_vision", arguments: { document_id: "doc-1", pages: [1], question: "findings?" } }),
+    traceFixture({ step: 7, type: "tool_result", tool: "document_vision", ok: true, result_summary: "Analyzed 1 page(s) of 'scan.pdf'" }),
+    traceFixture({ step: 8, type: "plan", description: "Generate the approval note" }),
+    traceFixture({ step: 9, type: "tool_call", tool: "document_generation", arguments: { filename: "approval_note.docx", title: "Approval Note" } }),
+    traceFixture({ step: 10, type: "tool_result", tool: "document_generation", ok: true, result_summary: "Generated word artifact 'approval_note.docx' (18432 bytes)" }),
+    traceFixture({ step: 11, type: "final", response_summary: "Created approval_note.docx." }),
+  ];
+}
+
 export function completedJobWithFlagshipTrace(): Job {
   return jobFixture({
     status: "completed",
     agent_stage: "completed",
     iteration_count: 5,
     tool_call_count: 3,
+    started_at: "2026-08-31T12:00:00Z",
+    completed_at: "2026-08-31T12:00:18Z",
     response:
       "Created approval_note.docx (Word artifact). The inspection is within limits; monitor the seal.",
+    execution_trace: flagshipTrace(),
+    artifacts: [artifactFixture({ job_id: "job-abc" })],
+  });
+}
+
+export function runningJobWithDocumentVision(): Job {
+  return jobFixture({
+    status: "running",
+    agent_stage: "tool_call",
+    iteration_count: 3,
+    tool_call_count: 2,
+    started_at: "2026-08-31T12:00:05Z",
+    completed_at: null,
+    response: null,
+    execution_trace: flagshipTrace().slice(0, 6), // ends at tool_call document_vision (no result yet)
+  });
+}
+
+export function failedJobWithTrace(): Job {
+  return jobFixture({
+    status: "failed",
+    agent_stage: "failed",
+    iteration_count: 2,
+    tool_call_count: 1,
+    error: "vision analysis failed: vision model is not available locally",
+    response: null,
     execution_trace: [
       traceFixture({ step: 1, type: "agent_started", task_type: "general" }),
-      traceFixture({ step: 2, type: "plan", description: "Gather requirements and findings" }),
-      traceFixture({ step: 3, type: "tool_call", tool: "document_search", arguments: { query: "pump maintenance", top_k: 3 } }),
-      traceFixture({ step: 4, type: "tool_result", tool: "document_search", ok: true, result_summary: "3 relevant chunk(s) from 1 document(s)" }),
-      traceFixture({ step: 5, type: "tool_call", tool: "document_vision", arguments: { document_id: "doc-1", pages: [1], question: "findings?" } }),
-      traceFixture({ step: 6, type: "tool_result", tool: "document_vision", ok: true, result_summary: "Analyzed 1 page(s) of 'scan.pdf'" }),
-      traceFixture({ step: 7, type: "tool_call", tool: "document_generation", arguments: { filename: "approval_note.docx", title: "Approval Note" } }),
-      traceFixture({ step: 8, type: "tool_result", tool: "document_generation", ok: true, result_summary: "Generated word artifact 'approval_note.docx' (18432 bytes)" }),
-      traceFixture({ step: 9, type: "final", response_summary: "Created approval_note.docx." }),
+      traceFixture({ step: 2, type: "tool_call", tool: "document_vision", arguments: {} }),
+      traceFixture({ step: 3, type: "tool_result", tool: "document_vision", ok: false, result_summary: "vision analysis failed" }),
     ],
-    artifacts: [artifactFixture()],
   });
+}
+
+export function cancelledJobFixture(): Job {
+  return jobFixture({ status: "cancelled", agent_stage: "cancelled" });
 }
 
 export const statusSequence = (statuses: JobStatus[]) => {
