@@ -32,6 +32,10 @@ class ArtifactStore(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def list_for_user(self, user_id: str) -> list[Artifact]:
+        raise NotImplementedError
+
+    @abstractmethod
     async def update(self, artifact_id: str, **fields) -> Optional[Artifact]:
         raise NotImplementedError
 
@@ -66,6 +70,14 @@ class InMemoryArtifactStore(ArtifactStore):
                 artifact
                 for artifact in self._artifacts.values()
                 if artifact.job_id == job_id
+            ]
+
+    async def list_for_user(self, user_id: str) -> list[Artifact]:
+        async with self._lock:
+            return [
+                artifact
+                for artifact in self._artifacts.values()
+                if artifact.user_id == user_id
             ]
 
     async def update(self, artifact_id: str, **fields) -> Optional[Artifact]:

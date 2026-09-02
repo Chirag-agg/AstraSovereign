@@ -202,3 +202,26 @@ def test_health_document_generation_section(client):
     assert dg["available"] is True
     assert dg["word"] == "available"
     assert "artifacts" in dg
+
+
+def test_artifacts_endpoint_lists_cross_job(client_factory, app_settings):
+    client, script = make_client_and_script(client_factory)
+    with client as c:
+        job_id, artifact = generate_artifact(c, script, app_settings)
+        listing = c.get("/api/artifacts", headers={"X-User-ID": "user-001"}).json()
+
+    assert len(listing) == 1
+    assert listing[0]["artifact_id"] == artifact["artifact_id"]
+    assert listing[0]["job_id"] == job_id
+    assert "path" not in listing[0]
+
+
+def test_artifacts_endpoint_user_isolation(client_factory, app_settings):
+    client, script = make_client_and_script(client_factory)
+    with client as c:
+        generate_artifact(c, script, app_settings)
+        own = c.get("/api/artifacts", headers={"X-User-ID": "user-001"}).json()
+        other = c.get("/api/artifacts", headers={"X-User-ID": "user-002"}).json()
+
+    assert len(own) == 1
+    assert other == []

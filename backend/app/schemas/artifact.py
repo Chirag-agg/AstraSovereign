@@ -39,6 +39,7 @@ class ArtifactSummary(BaseModel):
     """Safe, serializable view of an artifact (no path, no internals)."""
 
     artifact_id: str
+    job_id: str
     filename: str
     type: str
     size_bytes: int
@@ -49,6 +50,7 @@ class ArtifactSummary(BaseModel):
     def from_artifact(cls, artifact: Artifact) -> "ArtifactSummary":
         return cls(
             artifact_id=artifact.artifact_id,
+            job_id=artifact.job_id,
             filename=artifact.filename,
             type=artifact.type,
             size_bytes=artifact.size_bytes,
