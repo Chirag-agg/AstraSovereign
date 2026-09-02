@@ -336,6 +336,13 @@ Job listings return a `message` preview (for chat titles); generated artifacts
 across a user's jobs are listed by `GET /api/artifacts` (metadata only — file
 bytes are served by the secure per-job download endpoint).
 
+**Development admin API** (`/api/admin/*`): a dev-only operations surface
+(overview, jobs + detail, users, models, resources, knowledge, audit,
+sovereignty, system). It requires the `X-Role: admin` header (403 otherwise) and
+returns aggregate **operational metadata only** — never user messages, prompts,
+responses, or document contents. This is a development role gate, not production
+authentication.
+
 ## 3g. Local multimodal OCR + vision (Phase 8)
 
 Scanned/image documents are understood **entirely locally**:

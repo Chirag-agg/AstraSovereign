@@ -27,6 +27,20 @@ user-001 · LOCAL
 - All sovereignty/audit numbers come from the real backend
   (`/api/sovereignty`, `/health`).
 
+## Two experiences
+
+- **User workspace** (`/`) — conversation-first: chats, documents, artifacts,
+  Work Console, composer. No infrastructure metrics.
+- **Admin / operations console** (`/admin`, `/admin/overview`, `/admin/workloads`,
+  `/admin/users`, `/admin/models`, `/admin/resources`, `/admin/knowledge`,
+  `/admin/audit`, `/admin/sovereignty`, `/admin/system`) — dense operational
+  views fed by dev-only `/api/admin/*` endpoints (aggregate metadata only).
+
+A clearly-labelled **dev User/Admin switch** (top bar) chooses which experience
+the browser loads. This is **not** authentication/RBAC — the backend enforces the
+admin boundary via the `X-Role: admin` header and never returns user messages,
+prompts, or document contents to the admin views.
+
 ## Run
 
 ```bash

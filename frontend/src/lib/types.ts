@@ -166,3 +166,86 @@ export const TERMINAL_JOB_STATUSES: JobStatus[] = ["completed", "failed", "cance
 export function isTerminalStatus(status: JobStatus): boolean {
   return TERMINAL_JOB_STATUSES.includes(status);
 }
+
+// -------- admin / organizational (Phase 11 UX, dev-only role) --------
+
+export type DevRole = "user" | "admin";
+
+export interface AdminOverview {
+  jobs: Record<string, number>;
+  models_available: number;
+  models_configured: number;
+  ollama_reachable: boolean;
+  scheduler: SchedulerStats;
+  worker: { state: string };
+  failed_today: number;
+  audit_events: number;
+  sovereignty: SovereigntyStatus;
+}
+
+export interface AdminJobMeta {
+  job_id: string;
+  user_id: string;
+  task_type: string;
+  status: JobStatus;
+  priority: number;
+  model?: string | null;
+  created_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  duration_ms?: number | null;
+  resource_status?: string;
+  agent_stage?: string | null;
+  iteration_count?: number;
+  tool_call_count?: number;
+  error?: string | null;
+}
+
+export interface AdminJobDetail extends AdminJobMeta {
+  execution_trace: TraceEntry[];
+  artifacts: ArtifactSummary[];
+}
+
+export interface AdminUserRow {
+  user_id: string;
+  jobs: number;
+  active_jobs: number;
+  failed_jobs: number;
+  documents: number;
+  artifacts: number;
+  recent_activity?: string | null;
+}
+
+export interface AdminModelRow {
+  task_type: string;
+  provider: string;
+  model: string;
+  enabled: boolean;
+  available: boolean;
+  capabilities: string[];
+  resources: Record<string, unknown>;
+}
+
+export interface AdminResources {
+  capacity: { cpu_cores: number; memory_mb: number; gpus: { gpu_id: string; vram_mb: number }[] };
+  allocated: { job_id: string; gpu_id?: string | null; cpu_cores: number; memory_mb: number; gpu_vram_mb: number }[];
+  waiting_jobs: number;
+  running_jobs: number;
+  allocated_gpu: Record<string, GpuAllocation>;
+}
+
+export type ComponentState = "HEALTHY" | "DEGRADED" | "UNAVAILABLE" | "UNKNOWN";
+
+export interface AdminSystemHealth {
+  ollama: ComponentState;
+  models: ComponentState;
+  worker: ComponentState;
+  queue: ComponentState;
+  scheduler: ComponentState;
+  knowledge_base: ComponentState;
+  ocr: ComponentState;
+  vision: ComponentState;
+  document_generation: ComponentState;
+  audit_store: ComponentState;
+  sandbox_network: string;
+}

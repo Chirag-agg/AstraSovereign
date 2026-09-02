@@ -3,6 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import WorkbenchPage from "@/app/page";
 import type { JobStatus } from "@/lib/types";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/",
+}));
 import {
   blobResponse,
   cancelledJobFixture,

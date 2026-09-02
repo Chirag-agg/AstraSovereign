@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import Composer, { type AttachmentChip } from "@/components/Composer";
@@ -7,7 +8,15 @@ import Conversation, { DEMO_TASK } from "@/components/Conversation";
 import Sidebar from "@/components/Sidebar";
 import SystemDrawer from "@/components/SystemDrawer";
 import { ApiError, cancelJob, deleteDocument, downloadArtifact, submitChat, uploadDocument } from "@/lib/api";
-import { useActiveUser, useArtifacts, useDocuments, useHealth, useJob, useJobs } from "@/lib/hooks";
+import {
+  useActiveUser,
+  useArtifacts,
+  useDevRole,
+  useDocuments,
+  useHealth,
+  useJob,
+  useJobs,
+} from "@/lib/hooks";
 import type { ArtifactSummary, JobStatus } from "@/lib/types";
 
 function messageFromError(err: unknown): string {
@@ -79,7 +88,9 @@ function ActiveTask({
 }
 
 export default function WorkbenchPage() {
+  const router = useRouter();
   const [user, setUser] = useActiveUser();
+  const [devRole, setDevRole] = useDevRole();
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [activeStatus, setActiveStatus] = useState<JobStatus | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -233,6 +244,22 @@ export default function WorkbenchPage() {
           <button type="button" className="menu-btn" onClick={() => setSystemOpen(true)}>
             System
           </button>
+          <select
+            className="user-select"
+            style={{ width: "auto" }}
+            aria-label="Development role"
+            value={devRole}
+            onChange={(e) => {
+              const next = e.target.value === "admin" ? "admin" : "user";
+              setDevRole(next);
+              if (next === "admin") {
+                router.push("/admin");
+              }
+            }}
+          >
+            <option value="user">dev: user</option>
+            <option value="admin">dev: admin</option>
+          </select>
         </header>        <div className="conversation-scroll">
           {notice ? (
             <div className="banner banner-error" role="alert" style={{ maxWidth: 780, margin: "0 auto 12px" }}>

@@ -300,6 +300,19 @@ models, and provides an agentic pipeline that:
   carries `job_id`; `GET /api/artifacts` lists the caller's artifacts across
   jobs; `JobSummary` now carries `message` (chat titles). No other backend
   behavior changed.
+- **Organizational User + Admin (Phase 11 UX)**: two clearly separated
+  experiences on one platform. `/` is the conversation-first **User workspace**
+  (chats/documents/artifacts, Work Console, composer — no infrastructure
+  metrics). `/admin[/section]` is the **Admin/operations console** (Overview,
+  Workloads, Users, Models, Resources, Knowledge, Audit, Sovereignty, System) fed
+  by new dev-only `/api/admin/*` endpoints that return aggregate operational
+  metadata only (never user messages/responses/document contents).
+- **Dev role model**: a `useDevRole()` user/admin switch (localStorage,
+  clearly labelled dev-only) chooses which UI/APIs the browser uses. NOT
+  authentication/RBAC — the backend independently enforces the admin boundary via
+  the `X-Role: admin` header; a real identity layer must replace both later.
+  Platform administration and confidential content access remain separate
+  concepts (admins get operational metadata, not private content).
 
 ---
 
@@ -870,8 +883,7 @@ models, and provides an agentic pipeline that:
   training, automatic model downloading, OS-level packet capture.
 
 ### Phase 11 — Workbench UX Redesign (frontend)
-- **Conversation-first layout**: grid of a persistent left sidebar and a main
-  column (top bar, scrollable conversation, bottom composer). Removed the old
+- **Conversation-first layout**: grid of a persistent left sidebar and a main  column (top bar, scrollable conversation, bottom composer). Removed the old
   dashboard layout (Task status / trace / resource panels as primary).
 - **Sidebar** (NEW / Chats / Documents / Artifacts / System + user footer with
   LOCAL pill): chat entries are message-titled (backend `JobSummary.message`);
@@ -913,6 +925,22 @@ models, and provides an agentic pipeline that:
   sovereignty (VERIFIED_LOCAL, 0 external) → artifact download (37 KB) chain
   works through the exact endpoints the UI calls; `/api/jobs` returns `message`
   for chat titles and `/api/artifacts` lists the generated file with `job_id`.
+- **Organizational User + Admin split**: `/` = conversation-first **User
+  workspace** (no infra metrics, no other users). `/admin[/section]` =
+  **Admin/operations console** (Overview, Workloads, Users, Models, Resources,
+  Knowledge, Audit, Sovereignty, System) with dense tables and real data from
+  dev-only `/api/admin/*` endpoints. A clearly-labelled dev **User/Admin**
+  switch (`useDevRole`, localStorage) selects the experience; the backend
+  enforces the admin boundary independently via `X-Role: admin`. Admin views
+  expose operational metadata only — never messages, prompts, or document
+  contents (job detail shows task type/model/duration/trace, not the message).
+  Routes: `/admin` + `/admin/{section}` (9 static sections).
+- **Live verification**: backend + `next start`; user flagship upload →
+  job runs; `/api/admin/*` returns real overview (job counts, models available,
+  audit events), cross-user workload metadata, per-user counts, filtered audit,
+  sovereignty (VERIFIED_LOCAL · 0 external), all-HEALTHY system states, and job
+  detail with trace but no private `message`. Request without the admin role
+  → 403. Frontend: user page (no admin nav) and `/admin/*` console both serve.
 - **Deliberately NOT implemented**: new models/tools/OCR/vision/RAG, Excel/PPT,
   authentication/RBAC, WebSockets, backend architecture changes, telemetry.
 
@@ -1131,6 +1159,12 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   `docs/SOVEREIGNTY.md`; onnxruntime telemetry is disabled). The external-network
   status is `UNKNOWN` until the guarded clients have made at least one call —
   only then does it report `VERIFIED_LOCAL` (with external count 0).
+- **The dev User/Admin role switch is NOT authentication/RBAC.** It only chooses
+  which UI/APIs the browser uses. The backend independently requires the
+  `X-Role: admin` header on `/api/admin/*` (403 otherwise) and admin responses
+  deliberately exclude user messages/prompts/document contents. A production
+  deployment must replace the role switch and the header gate with verified
+  identity + authorization, and must never trust the browser.
 - `logs/backend.log` is generated at import time (module-level `app = create_app()`);
   it is gitignored so this is harmless.
 - Repository is a git repo (branch `main`) tracking `origin` at
@@ -1271,6 +1305,11 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   terminal-like Work Console built from real `execution_trace`; system facts in a
   secondary drawer; dark-first styling; responsive sidebar). Documented backend
   micro-additions: `ArtifactSummary.job_id`, `GET /api/artifacts`,
-  `JobSummary.message`. 324 backend + 42 frontend tests passing; live flagship
-  verified (search/vision/generation, audit, sovereignty VERIFIED_LOCAL, 37 KB
-  artifact download).
+  `JobSummary.message`. Then split the product into **User workspace** (`/`) and a
+  **development Admin/operations console** (`/admin[/section]`, 9 sections) fed
+  by dev-only `/api/admin/*` endpoints (overview/jobs/users/models/resources/
+  knowledge/audit/sovereignty/system) that return operational metadata only;
+  clearly-labelled dev User/Admin role switch (not auth — backend enforces the
+  `X-Role: admin` boundary). Applied UI refinements (sidebar row layout + hover
+  actions, scroll fade, brand anchor, composer glow, assistant card, console
+  accent). 330 backend + 46 frontend tests passing.

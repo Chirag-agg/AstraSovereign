@@ -6,11 +6,36 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, getHealth, getJob, getJobAudit, listArtifacts, listDocuments, listJobs } from "./api";
-import type { ArtifactSummary, AuditEvent, DocumentMeta, Health, Job, JobSummary } from "./types";
+import type { ArtifactSummary, AuditEvent, DevRole, DocumentMeta, Health, Job, JobSummary } from "./types";
 import { isTerminalStatus } from "./types";
 
 export const USER_IDS = ["user-001", "user-002", "user-003", "user-004", "user-005"];
 const USER_STORAGE_KEY = "sovereign.active-user";
+const ROLE_STORAGE_KEY = "sovereign.dev-role";
+
+/**
+ * Development-only role switch (user | admin). NOT authentication/RBAC — the
+ * backend still enforces the admin boundary; this only chooses which UI/APIs the
+ * browser uses. Clearly labelled dev-only.
+ */
+export function useDevRole(): [DevRole, (role: DevRole) => void] {
+  const [role, setRole] = useState<DevRole>(() => {
+    if (typeof window === "undefined") {
+      return "user";
+    }
+    const stored = window.localStorage.getItem(ROLE_STORAGE_KEY);
+    return stored === "admin" ? "admin" : "user";
+  });
+
+  const changeRole = useCallback((next: DevRole) => {
+    setRole(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(ROLE_STORAGE_KEY, next);
+    }
+  }, []);
+
+  return [role, changeRole];
+}
 
 const POLL_JOB_MS = 1000;
 const POLL_LIST_MS = 2000;

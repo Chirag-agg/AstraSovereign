@@ -2,6 +2,13 @@
 // All backend calls go through here — components never scatter raw fetch calls.
 
 import type {
+  AdminJobDetail,
+  AdminJobMeta,
+  AdminModelRow,
+  AdminOverview,
+  AdminResources,
+  AdminSystemHealth,
+  AdminUserRow,
   ArtifactSummary,
   AuditEvent,
   DocumentMeta,
@@ -193,6 +200,85 @@ export function getJobAudit(userId: string, jobId: string): Promise<AuditEvent[]
 
 export function listArtifacts(userId: string): Promise<ArtifactSummary[]> {
   return request<ArtifactSummary[]>("/api/artifacts", {}, userId);
+}
+
+// ------------------------------------------------- development admin (dev-only)
+
+// All /api/admin calls carry the development `X-Role: admin` header. This is a
+// DEV-ONLY role switch, NOT production authentication — the backend enforces it.
+
+const ADMIN_HEADER = { "X-Role": "admin" };
+
+function adminRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const headers = { ...(options.headers || {}), ...ADMIN_HEADER };
+  return request<T>(path, { ...options, headers });
+}
+
+export function getAdminOverview(): Promise<AdminOverview> {
+  return adminRequest<AdminOverview>("/api/admin/overview");
+}
+
+export function getAdminJobs(
+  status?: JobStatus,
+  limit = 200,
+): Promise<AdminJobMeta[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (status) {
+    params.set("status", status);
+  }
+  return adminRequest<AdminJobMeta[]>(`/api/admin/jobs?${params.toString()}`);
+}
+
+export function getAdminJob(jobId: string): Promise<AdminJobDetail> {
+  return adminRequest<AdminJobDetail>(`/api/admin/jobs/${encodeURIComponent(jobId)}`);
+}
+
+export function getAdminUsers(): Promise<AdminUserRow[]> {
+  return adminRequest<AdminUserRow[]>("/api/admin/users");
+}
+
+export function getAdminModels(): Promise<AdminModelRow[]> {
+  return adminRequest<AdminModelRow[]>("/api/admin/models");
+}
+
+export function getAdminResources(): Promise<AdminResources> {
+  return adminRequest<AdminResources>("/api/admin/resources");
+}
+
+export function getAdminKnowledge(): Promise<{
+  documents: number;
+  chunks: number;
+  embedding: Record<string, unknown>;
+  per_user: Record<string, number>;
+}> {
+  return adminRequest("/api/admin/knowledge");
+}
+
+export function getAdminAudit(opts?: {
+  userId?: string;
+  jobId?: string;
+  eventType?: string;
+}): Promise<AuditEvent[]> {
+  const params = new URLSearchParams();
+  if (opts?.userId) {
+    params.set("user_id", opts.userId);
+  }
+  if (opts?.jobId) {
+    params.set("job_id", opts.jobId);
+  }
+  if (opts?.eventType) {
+    params.set("event_type", opts.eventType);
+  }
+  const qs = params.toString();
+  return adminRequest<AuditEvent[]>(`/api/admin/audit${qs ? `?${qs}` : ""}`);
+}
+
+export function getAdminSovereignty(): Promise<SovereigntyStatus> {
+  return adminRequest<SovereigntyStatus>("/api/admin/sovereignty");
+}
+
+export function getAdminSystem(): Promise<AdminSystemHealth> {
+  return adminRequest<AdminSystemHealth>("/api/admin/system");
 }
 
 export async function downloadArtifact(

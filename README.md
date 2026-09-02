@@ -63,14 +63,16 @@ authentication. See [`frontend/README.md`](frontend/README.md).
 
 ## Status
 
-**Current phase: Phase 11 — Sovereignty Hardening, Audit Evidence & Workbench UX
-Redesign.** Every operation writes a non-sensitive append-only audit event; a
-`NetworkGuard` blocks external HTTP and `/api/sovereignty` reports verified
-evidence. The frontend is a conversation-first workbench: a sidebar
-(Chats/Documents/Artifacts/System), a large composer, assistant messages with
-inline artifact cards, and a terminal-like **Work Console** that shows the agent
-working from the real `execution_trace`. Phases are built incrementally, one at
-a time.
+**Current phase: Phase 11 — Sovereignty Hardening, Audit Evidence, Workbench UX &
+Organizational User/Admin split.** The platform now has two experiences: a
+conversation-first **User workspace** (`/`) with a terminal-like Work Console,
+and a **development Admin/operations console** (`/admin`) fed by `/api/admin/*`
+(overview, workloads, users, models, resources, knowledge, audit, sovereignty,
+system). A clearly dev-only User/Admin role switch selects the experience; the
+backend enforces the admin boundary independently (`X-Role: admin`) and never
+exposes user messages or document contents to admins. Sovereignty remains
+verified (NetworkGuard + audit trail). Phases are built incrementally, one at a
+time.
 
 ## Documentation
 
