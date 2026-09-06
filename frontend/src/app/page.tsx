@@ -46,6 +46,7 @@ function ActiveTask({
   jobId,
   onDownload,
   onSubmit,
+  onCancel,
   onStatus,
   consoleOpen,
   setConsoleOpen,
@@ -54,6 +55,7 @@ function ActiveTask({
   jobId: string;
   onDownload: (artifact: ArtifactSummary) => void;
   onSubmit: (text: string) => void;
+  onCancel: () => void;
   onStatus: (status: JobStatus) => void;
   consoleOpen: boolean;
   setConsoleOpen: (open: boolean) => void;
@@ -81,6 +83,7 @@ function ActiveTask({
       job={job}
       onDownload={onDownload}
       onSubmit={onSubmit}
+      onCancel={onCancel}
       consoleOpen={consoleOpen}
       setConsoleOpen={setConsoleOpen}
     />
@@ -288,6 +291,7 @@ export default function WorkbenchPage() {
               jobId={activeJobId}
               onDownload={(artifact) => void handleDownload(artifact)}
               onSubmit={(text) => void handleSubmit(text)}
+              onCancel={() => void handleCancel(activeJobId)}
               onStatus={setActiveStatus}
               consoleOpen={consoleOpen}
               setConsoleOpen={setConsoleOpen}

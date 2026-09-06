@@ -8,6 +8,8 @@ import type { ArtifactSummary, Job } from "@/lib/types";
 import ArtifactCard from "./ArtifactCard";
 import Markdown from "./Markdown";
 import WorkConsole from "./WorkConsole";
+import TextShimmer from "@/components/prompt-kit/text-shimmer";
+import ThinkingBar from "@/components/prompt-kit/thinking-bar";
 
 export const DEMO_TASK =
   "Review the inspection report against the maintenance procedure, identify issues requiring attention, and create an approval note.";
@@ -104,6 +106,7 @@ export default function Conversation({
   job,
   onDownload,
   onSubmit,
+  onCancel,
   consoleOpen,
   setConsoleOpen,
 }: {
@@ -111,6 +114,7 @@ export default function Conversation({
   job: Job | null;
   onDownload: (artifact: ArtifactSummary) => void;
   onSubmit: (text: string) => void;
+  onCancel?: () => void;
   consoleOpen: boolean;
   setConsoleOpen: (open: boolean) => void;
 }) {
@@ -165,10 +169,21 @@ export default function Conversation({
           </div>
         ) : null}
         {job.status === "running" ? (
-          <div className="ack">
-            <span className="spinner" aria-hidden="true" />
-            Working on it — the agent is executing locally.
-          </div>
+          onCancel ? (
+            <div style={{ margin: "2px 0 10px" }}>
+              <ThinkingBar
+                text="Working on it — the agent is executing locally"
+                stopLabel="Stop"
+                onStop={onCancel}
+                onClick={() => setConsoleOpen(true)}
+              />
+            </div>
+          ) : (
+            <div className="ack">
+              <span className="spinner" aria-hidden="true" />
+              <TextShimmer duration={1.4}>Working on it — the agent is executing locally.</TextShimmer>
+            </div>
+          )
         ) : null}
 
         {(job.execution_trace && job.execution_trace.length > 0) || job.status === "running" ? (

@@ -1350,3 +1350,427 @@ button {
   padding: 14px;
   margin: 18px 0;
 }
+
+
+/* ==================================================== prompt-kit primitives */
+
+/* text shimmer */
+.pka-shimmer {
+  background: linear-gradient(110deg, var(--text-2) 35%, var(--text) 50%, var(--text-2) 65%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: pka-shimmer 1.6s linear infinite;
+  display: inline-block;
+}
+
+@keyframes pka-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* thinking bar */
+.pka-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 5px 6px 5px 12px;
+  font-size: 13px;
+}
+
+.pka-thinking .pka-thinking-text {
+  color: var(--text-2);
+}
+
+.pka-thinking .pka-thinking-dot {
+  color: var(--accent);
+}
+
+.pka-thinking .pka-thinking-stop {
+  border: 1px solid var(--border-strong);
+  background: var(--surface-3);
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pka-thinking .pka-thinking-stop:hover {
+  color: var(--text);
+}
+
+/* reasoning (collapsible) */
+.pka-reasoning {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pka-reasoning-trigger {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 12px;
+  padding: 2px 4px;
+  cursor: pointer;
+  text-align: left;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  width: fit-content;
+}
+
+.pka-reasoning-trigger:hover {
+  color: var(--text-2);
+}
+
+.pka-reasoning-trigger .spin {
+  color: var(--accent);
+}
+
+.pka-reasoning-content {
+  color: var(--text-2);
+  font-size: 13px;
+  border-left: 2px solid var(--border-strong);
+  padding: 2px 12px;
+}
+
+/* chain of thought */
+.pka-cot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pka-cot-step {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.pka-cot-trigger {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pka-cot-trigger:hover {
+  background: var(--surface-3);
+}
+
+.pka-cot-trigger .chev {
+  color: var(--text-3);
+  font-size: 10px;
+  transition: transform 0.12s ease;
+}
+
+.pka-cot-trigger.open .chev {
+  transform: rotate(90deg);
+}
+
+.pka-cot-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 12px 8px 30px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* steps */
+.pka-steps {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.pka-steps-trigger {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  padding: 9px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.pka-steps-trigger:hover {
+  background: var(--surface-3);
+}
+
+.pka-steps-trigger .chev {
+  color: var(--text-3);
+  font-size: 10px;
+}
+
+.pka-steps-content {
+  padding: 4px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.pka-step-item {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.pka-step-item .marker {
+  color: var(--text-3);
+  flex: 0 0 14px;
+}
+
+.pka-step-item.done .marker {
+  color: var(--success);
+}
+
+.pka-step-item.active .marker {
+  color: var(--accent);
+}
+
+/* tool chip */
+.pka-tool {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.pka-tool .pka-tool-icon {
+  flex: 0 0 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+}
+
+.pka-tool .pka-tool-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pka-tool .pka-tool-type {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.pka-tool .pka-tool-state {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.pka-tool .pka-tool-meta {
+  color: var(--text-3);
+  font-size: 12px;
+  font-family: var(--mono);
+}
+
+.pka-tool .pka-tool-error {
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.pka-tool.ok .pka-tool-state { color: var(--success); }
+.pka-tool.running .pka-tool-state { color: var(--accent); }
+.pka-tool.error .pka-tool-state { color: var(--danger); }
+
+/* source chips */
+.pka-source-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.pka-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 2px 10px;
+  position: relative;
+}
+
+.pka-source:hover {
+  border-color: var(--focus);
+}
+
+.pka-source .favicon {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pka-source:hover .pka-source-pop {
+  display: block;
+}
+
+.pka-source-pop {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 220px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  z-index: 20;
+}
+
+.pka-source-pop .title {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.pka-source-pop .desc {
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+/* file upload drop overlay */
+.pka-file-zone {
+  position: relative;
+}
+
+.pka-file-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4,6,9,0.55);
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.pka-file-overlay-inner {
+  background: var(--surface-2);
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius);
+  padding: 24px 40px;
+  text-align: center;
+  box-shadow: 0 16px 60px rgba(0,0,0,0.45);
+}
+
+.pka-file-overlay-inner h3 {
+  margin: 8px 0 2px;
+  font-size: 15px;
+}
+
+.pka-file-overlay-inner p {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+/* prompt input (generic) */
+.pka-prompt {
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 8px 8px 8px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.pka-prompt:focus-within {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px rgba(91,157,255,0.14);
+}
+
+.pka-prompt textarea {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+}
+
+.pka-prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+}
+
+.pka-action-btn {
+  border: none;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pka-action-btn:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.pka-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
