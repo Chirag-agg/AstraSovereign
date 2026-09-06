@@ -17,20 +17,30 @@ const ROLE_STORAGE_KEY = "sovereign.dev-role";
  * Development-only role switch (user | admin). NOT authentication/RBAC — the
  * backend still enforces the admin boundary; this only chooses which UI/APIs the
  * browser uses. Clearly labelled dev-only.
+ *
+ * Hydration-safe: localStorage is read only after mount, so the server and the
+ * first client render always agree on the default value.
  */
 export function useDevRole(): [DevRole, (role: DevRole) => void] {
-  const [role, setRole] = useState<DevRole>(() => {
-    if (typeof window === "undefined") {
-      return "user";
+  const [role, setRole] = useState<DevRole>("user");
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(ROLE_STORAGE_KEY);
+      if (stored === "admin") {
+        setRole("admin");
+      }
+    } catch {
+      // ignore storage access errors
     }
-    const stored = window.localStorage.getItem(ROLE_STORAGE_KEY);
-    return stored === "admin" ? "admin" : "user";
-  });
+  }, []);
 
   const changeRole = useCallback((next: DevRole) => {
     setRole(next);
-    if (typeof window !== "undefined") {
+    try {
       window.localStorage.setItem(ROLE_STORAGE_KEY, next);
+    } catch {
+      // ignore storage access errors
     }
   }, []);
 
@@ -43,18 +53,25 @@ const POLL_HEALTH_MS = 3000;
 
 /** Selected dev user, persisted to localStorage. No real authentication. */
 export function useActiveUser(): [string, (user: string) => void] {
-  const [user, setUser] = useState<string>(() => {
-    if (typeof window === "undefined") {
-      return USER_IDS[0];
+  const [user, setUser] = useState<string>(USER_IDS[0]);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(USER_STORAGE_KEY);
+      if (stored && USER_IDS.includes(stored)) {
+        setUser(stored);
+      }
+    } catch {
+      // ignore storage access errors
     }
-    const stored = window.localStorage.getItem(USER_STORAGE_KEY);
-    return stored && USER_IDS.includes(stored) ? stored : USER_IDS[0];
-  });
+  }, []);
 
   const changeUser = useCallback((next: string) => {
     setUser(next);
-    if (typeof window !== "undefined") {
+    try {
       window.localStorage.setItem(USER_STORAGE_KEY, next);
+    } catch {
+      // ignore storage access errors
     }
   }, []);
 

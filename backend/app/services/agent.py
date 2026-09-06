@@ -204,7 +204,21 @@ class Agent:
                 },
             )
 
-            decision = self._parse_decision(raw)
+            try:
+                decision = self._parse_decision(raw)
+            except AgentError as exc:
+                # The model produced JSON we cannot interpret (e.g. it put a tool
+                # name in "type"). Instead of killing the job with an internal
+                # error, tell the model what it did wrong and give it another
+                # chance (bounded by max_iterations).
+                history.append(
+                    "Your previous reply was not a valid action. Reply with STRICT JSON only, "
+                    'either {"type":"final","response":"..."} or '
+                    '{"type":"tool_call","tool":"<name>","arguments":{...}}. '
+                    f"(Reason: {exc})"
+                )
+                await self._sync(job_id, trace, stage, iterations, tool_calls)
+                continue
             if await self._is_cancelled(job_id):
                 return await self._cancelled(
                     job_id, user_id, job.task_type, model, trace, iterations, tool_calls
@@ -476,6 +490,19 @@ class Agent:
                     raise AgentError("tool_call is missing a valid 'tool' name")
                 if not isinstance(arguments, dict):
                     raise AgentError("tool_call 'arguments' must be an object")
+                return {
+                    "type": "tool_call",
+                    "tool": tool,
+                    "arguments": arguments,
+                    "reasoning": parsed.get("reasoning"),
+                }
+            # Tolerate models that supply the tool name under "tool" while
+            # omitting or garbling "type" (they intended a tool call).
+            tool = parsed.get("tool")
+            if isinstance(tool, str) and tool and dtype != "final":
+                arguments = parsed.get("arguments")
+                if not isinstance(arguments, dict):
+                    arguments = {}
                 return {
                     "type": "tool_call",
                     "tool": tool,

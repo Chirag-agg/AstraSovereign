@@ -333,7 +333,7 @@ def create_app(
     if vision_config is not None:
         tools.append(DocumentVisionTool(multimodal=multimodal))
 
-    artifact_store = InMemoryArtifactStore()
+    artifact_store = InMemoryArtifactStore(settings.artifact_store_root)
     document_generator = WordDocumentGenerator()
     tools.append(
         DocumentGenerationTool(
@@ -346,7 +346,7 @@ def create_app(
     tool_registry = ToolRegistry(tools)
     workspace_manager = WorkspaceManager(root=settings.workspaces_root)
 
-    store = InMemoryJobStore()
+    store = InMemoryJobStore(settings.job_store_root)
     job_manager = JobManager(store=store, default_model=settings.default_model)
     job_queue = JobQueue()
     agent = Agent(
@@ -413,7 +413,7 @@ def create_app(
             allow_origins=cors_origins,
             allow_credentials=False,
             allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-            allow_headers=["Content-Type", "X-User-ID"],
+            allow_headers=["Content-Type", "X-User-ID", "X-Role"],
         )
 
     app.include_router(chat_router)

@@ -101,7 +101,9 @@ class Settings(BaseSettings):
     # Local audit trail (Phase 11): append-only JSONL under this root.
     audit_root: str = str(REPO_ROOT / "data" / "audit")
 
-
+    # Durable store snapshots so job/artifact history survives restarts.
+    job_store_root: str = str(REPO_ROOT / "data" / "jobs")
+    artifact_store_root: str = str(REPO_ROOT / "data" / "artifacts")
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

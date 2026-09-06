@@ -279,3 +279,34 @@ def test_agent_cancelled_before_run_returns_immediately(tmp_path):
     result = asyncio.run(scenario())
     assert result.status == "cancelled"
     assert result.iterations == 0
+
+
+def test_agent_recovers_from_unparseable_decision(tmp_path):
+    """A garbled JSON decision should prompt a retry, not kill the job."""
+    result, final = run_agent(
+        [
+            '{"type":"document_search","x":1}',  # model put a tool in "type"
+            '{"type":"final","response":"recovered"}',
+        ],
+        "do the thing",
+        tmp_path,
+    )
+    assert result.status == "completed"
+    assert result.response == "recovered"
+    assert result.iterations == 2
+    assert final.error is None
+
+
+def test_agent_tolerates_tool_without_type(tmp_path):
+    """A model may omit/garble 'type' but still supply a tool call."""
+    result, final = run_agent(
+        [
+            '{"tool":"list_files","arguments":{}}',
+            '{"type":"final","response":"done"}',
+        ],
+        "list files",
+        tmp_path,
+    )
+    assert result.status == "completed"
+    assert result.response == "done"
+    assert tool_calls_in(final.execution_trace) == ["list_files"]

@@ -91,6 +91,10 @@ data/tmp/
 # ── Local audit trail (Phase 11, append-only JSONL) ──
 data/audit/
 
+# ── Durable store snapshots (jobs / artifact metadata) ──
+data/jobs/
+data/artifacts/
+
 # ── Models & AI Artifacts ──────────────────────────────────────
 models/
 *.gguf

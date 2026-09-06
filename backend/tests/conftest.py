@@ -357,6 +357,8 @@ def app_settings(tmp_path):
         uploads_root=str(tmp_path / "uploads"),
         multimodal_tmp_root=str(tmp_path / "tmp"),
         audit_root=str(tmp_path / "audit"),
+        job_store_root=str(tmp_path / "jobs"),
+        artifact_store_root=str(tmp_path / "artifacts"),
     )
 
 

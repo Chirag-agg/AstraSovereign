@@ -6,10 +6,7 @@ export type Theme = "dark" | "light";
 const THEME_KEY = "sovereign.theme";
 
 function initialTheme(): Theme {
-  if (typeof window === "undefined") {
-    return "dark";
-  }
-  return window.localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+  return "dark";
 }
 
 export function applyTheme(theme: Theme) {
@@ -19,16 +16,28 @@ export function applyTheme(theme: Theme) {
   document.documentElement.dataset.theme = theme;
 }
 
-/** Sun/moon theme toggler (persisted, animated). */
+/** Sun/moon theme toggler (persisted, animated, hydration-safe). */
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const [theme, setTheme] = useState<Theme>(initialTheme);
+
+  // Restore the persisted theme only after mount (keeps SSR/CSR consistent).
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(THEME_KEY);
+      if (stored === "light" || stored === "dark") {
+        setTheme(stored);
+      }
+    } catch {
+      // ignore storage access errors
+    }
+  }, []);
 
   useEffect(() => {
     applyTheme(theme);
     try {
       window.localStorage.setItem(THEME_KEY, theme);
     } catch {
-      // ignore storage errors
+      // ignore storage access errors
     }
   }, [theme]);
 
