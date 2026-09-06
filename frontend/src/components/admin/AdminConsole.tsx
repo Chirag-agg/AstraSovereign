@@ -621,13 +621,18 @@ function RoleSwitch({ role, onChange }: { role: DevRole; onChange: (r: DevRole) 
 }
 
 export default function AdminConsole() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/admin";
   const router = useRouter();
   const [role, setRole] = useDevRole();
   const section = useMemo<Section>(() => {
-    const seg = pathname.split("/").filter(Boolean)[1]; // [admin, section?]
-    return (SECTIONS as readonly string[]).includes(seg ?? "overview") ? (seg as Section) : "overview";
+    const seg = pathname.split("/").filter(Boolean)[1] ?? "overview"; // [admin, section?]
+    return (SECTIONS as readonly string[]).includes(seg) ? (seg as Section) : "overview";
   }, [pathname]);
+
+  const changeRole = (next: DevRole) => {
+    setRole(next);
+    router.replace(next === "admin" ? "/admin" : "/");
+  };
 
   if (role !== "admin") {
     return (
@@ -639,19 +644,20 @@ export default function AdminConsole() {
             </span>
             Sovereign Control Plane
           </div>
-          <span className="dev-note">development role switch — not authentication</span>
+          <span className="dev-note">development — not authentication</span>
         </div>
         <div className="dev-gate">
-          <h2>Development admin access</h2>
+          <h2>Operations console</h2>
           <p style={{ color: "var(--text-2)" }}>
-            The operations console is gated behind a development admin role.
+            This area is the platform operations console for administrators.
           </p>
           <div className="warn-box">
-            This role switch is <strong>not</strong> production authentication. The backend
-            independently enforces the admin boundary via the <code>X-Role: admin</code> header
-            on /api/admin/*. Replace this with real identity/RBAC before any production use.
+            The switch below is a <strong>development-only</strong> role selection, not
+            production authentication. The backend independently enforces the admin
+            boundary on /api/admin/* and never exposes users&apos; private messages or
+            document contents.
           </div>
-          <RoleSwitch role={role} onChange={setRole} />
+          <RoleSwitch role={role} onChange={changeRole} />
           <button type="button" className="btn btn-ghost" onClick={() => router.push("/")}>
             ← Back to my work
           </button>
@@ -660,7 +666,7 @@ export default function AdminConsole() {
     );
   }
 
-  const title = SECTION_TITLES[section];
+  const title = SECTION_TITLES[section] ?? SECTION_TITLES.overview;
 
   return (
     <div className="admin">
@@ -674,7 +680,7 @@ export default function AdminConsole() {
         <span className="dev-note">development admin</span>
         <div className="topbar-spacer" />
         <ThemeToggle />
-        <RoleSwitch role={role} onChange={(r) => router.push(r === "admin" ? "/admin" : "/")} />
+        <RoleSwitch role={role} onChange={changeRole} />
         <Link href="/" className="menu-btn">
           User workspace
         </Link>

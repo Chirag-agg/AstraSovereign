@@ -95,6 +95,13 @@ export default function WorkbenchPage() {
   const router = useRouter();
   const [user, setUser] = useActiveUser();
   const [devRole, setDevRole] = useDevRole();
+
+  // Landing page follows the development role: admins land in the control plane.
+  useEffect(() => {
+    if (devRole === "admin") {
+      router.replace("/admin");
+    }
+  }, [devRole, router]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [activeStatus, setActiveStatus] = useState<JobStatus | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -247,23 +254,22 @@ export default function WorkbenchPage() {
           <div className="topbar-spacer" />
           <ThemeToggle />
           <button type="button" className="menu-btn" onClick={() => setSystemOpen(true)}>
-            System
+            Local
           </button>
           <select
             className="user-select"
             style={{ width: "auto" }}
             aria-label="Development role"
+            title="Development-only role (not authentication)"
             value={devRole}
             onChange={(e) => {
               const next = e.target.value === "admin" ? "admin" : "user";
               setDevRole(next);
-              if (next === "admin") {
-                router.push("/admin");
-              }
+              router.replace(next === "admin" ? "/admin" : "/");
             }}
           >
-            <option value="user">dev: user</option>
-            <option value="admin">dev: admin</option>
+            <option value="user">role: user</option>
+            <option value="admin">role: admin</option>
           </select>
         </header>        <div className="conversation-scroll">
           {notice ? (

@@ -199,18 +199,21 @@ describe("Conversation", () => {
   });
 });
 
-describe("SystemDrawer", () => {
-  it("renders only backend-verified facts", () => {
+describe("SystemDrawer (user Local & privacy)", () => {
+  it("renders only backend-verified local facts", () => {
     render(<SystemDrawer open onClose={() => undefined} health={healthFixture()} error={null} />);
-    expect(screen.getByText("LOCAL_ONLY")).toBeInTheDocument();
+    expect(screen.getByText("on this machine")).toBeInTheDocument();
     expect(screen.getByText(/VERIFIED_LOCAL/)).toBeInTheDocument();
     expect(screen.getByText("ENABLED")).toBeInTheDocument();
-    expect(screen.getByText("online")).toBeInTheDocument();
-    expect(screen.getByRole("dialog", { name: "System status" })).toBeInTheDocument();
+    expect(screen.getByText("available")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Local and privacy" })).toBeInTheDocument();
+    // no infrastructure tables in the user view
+    expect(screen.queryByText("GPU-0")).not.toBeInTheDocument();
+    expect(screen.queryByText("Worker")).not.toBeInTheDocument();
   });
 
   it("shows an unavailable state when the backend is down", () => {
     render(<SystemDrawer open onClose={() => undefined} health={null} error="Backend unreachable" />);
-    expect(screen.getByRole("alert")).toHaveTextContent(/Backend unavailable/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/backend is unavailable/i);
   });
 });

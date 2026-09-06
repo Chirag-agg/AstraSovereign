@@ -103,7 +103,7 @@ describe("AdminConsole (dev-only)", () => {
     window.localStorage.setItem("sovereign.dev-role", "user");
     installFetch(() => jsonResponse({}, 403));
     render(<AdminConsole />);
-    expect(screen.getByText("Development admin access")).toBeInTheDocument();
+    expect(screen.getByText("Operations console")).toBeInTheDocument();
     expect(screen.queryByText("Platform overview")).not.toBeInTheDocument();
   });
 
@@ -134,6 +134,16 @@ describe("AdminConsole (dev-only)", () => {
     expect(screen.getByText("All jobs")).toBeInTheDocument();
     expect(screen.getByText("user-002")).toBeInTheDocument();
     expect(screen.getByText("qwen-coder")).toBeInTheDocument();
+  });
+
+  it("defaults to the overview section on /admin without crashing", async () => {
+    vi.useFakeTimers();
+    window.localStorage.setItem("sovereign.dev-role", "admin");
+    path = "/admin";
+    installFetch(adminHandler);
+    render(<AdminConsole />);
+    await flush();
+    expect(screen.getByText("Platform overview")).toBeInTheDocument();
   });
 
   it("renders the system health view with explicit states", async () => {

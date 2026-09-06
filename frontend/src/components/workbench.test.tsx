@@ -276,14 +276,14 @@ describe("Workbench page (conversation-first)", () => {
     expect(screen.getByText("do the thing")).toBeInTheDocument();
   });
 
-  it("opens the system drawer and shows verified facts", async () => {
+  it("opens the local & privacy drawer and shows verified facts", async () => {
     vi.useFakeTimers();
     renderPage(makeState());
     render(<WorkbenchPage />);
     await flush();
-    fireEvent.click(screen.getByRole("button", { name: "System" }));
-    expect(screen.getByRole("dialog", { name: "System status" })).toBeInTheDocument();
-    expect(screen.getByText("LOCAL_ONLY")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Local" }));
+    expect(screen.getByRole("dialog", { name: "Local and privacy" })).toBeInTheDocument();
+    expect(screen.getByText("on this machine")).toBeInTheDocument();
   });
 
   it("shows a graceful banner when the backend is unreachable", async () => {

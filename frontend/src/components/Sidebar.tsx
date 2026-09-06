@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 
 import { threadTitle } from "@/lib/console";
+import { dedupeDocuments } from "@/lib/documents";
 import type { ArtifactSummary, DocumentMeta, JobSummary } from "@/lib/types";
 import { isTerminalStatus } from "@/lib/types";
 import { formatBytes } from "./ArtifactCard";
@@ -68,6 +69,7 @@ export default function Sidebar({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const pickFile = () => inputRef.current?.click();
+  const uniqueDocuments = useMemo(() => dedupeDocuments(documents), [documents]);
 
   return (
     <>
@@ -156,14 +158,14 @@ export default function Sidebar({
               />
             </div>
             <ul className="sb-list">
-              {!documents || documents.length === 0 ? (
+              {uniqueDocuments.length === 0 ? (
                 <li className="sb-item" aria-hidden="true">
                   <span className="sb-title t-mut">
                     {uploading ? "Uploading…" : "No documents"}
                   </span>
                 </li>
               ) : (
-                documents.map((doc) => (
+                uniqueDocuments.map((doc) => (
                   <li key={doc.document_id} className="sb-row">
                     <div className="sb-item">
                       <span className="sb-main">
@@ -228,17 +230,17 @@ export default function Sidebar({
             </ul>
           </div>
 
-          {/* system */}
+          {/* local & privacy */}
           <div className="sb-section">
             <div className="sb-head">
-              <span>System</span>
+              <span>Local</span>
             </div>
             <ul className="sb-list">
               <li>
                 <button type="button" className="sb-item" onClick={onOpenSystem}>
                   <span className="sb-main">
-                    <span className="sb-title">Infrastructure & sovereignty</span>
-                    <span className="sb-sub">local services · audit · network</span>
+                    <span className="sb-title">Local &amp; privacy</span>
+                    <span className="sb-sub">how your work stays on this machine</span>
                   </span>
                   <span className="sb-status">›</span>
                 </button>
