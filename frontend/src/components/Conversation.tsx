@@ -8,6 +8,10 @@ import type { ArtifactSummary, Job } from "@/lib/types";
 import ArtifactCard from "./ArtifactCard";
 import Markdown from "./Markdown";
 import WorkConsole from "./WorkConsole";
+import NewtonsCradle from "@/components/core/newtons-cradle";
+import TextEffect from "@/components/core/text-effect";
+import Tilt from "@/components/core/tilt";
+import UnderlineButton from "@/components/core/underline-button";
 import TextShimmer from "@/components/prompt-kit/text-shimmer";
 import ThinkingBar from "@/components/prompt-kit/thinking-bar";
 
@@ -128,14 +132,21 @@ export default function Conversation({
   if (!job) {
     return (
       <div className="welcome">
-        <h2>Sovereign AI Workbench</h2>
+        <Tilt rotationFactor={3}>
+          <h2>
+            <TextEffect per="word">Sovereign AI Workbench</TextEffect>
+          </h2>
+        </Tilt>
         <p>Talk to the agent normally. When it does real work, you can watch it.</p>
         <p className="loading-row">
           Models, OCR, knowledge, tools and the sandbox all run locally on this machine.
         </p>
-        <button type="button" className="example-pill" onClick={() => onSubmit(DEMO_TASK)}>
+        <UnderlineButton
+          ariaLabel={`Try the demo: ${DEMO_TASK}`}
+          onClick={() => onSubmit(DEMO_TASK)}
+        >
           Try the demo — “{DEMO_TASK}”
-        </button>
+        </UnderlineButton>
       </div>
     );
   }
@@ -164,8 +175,9 @@ export default function Conversation({
 
         {job.status === "queued" ? (
           <div className="ack">
-            <span className="spinner" aria-hidden="true" />
-            Queued — the agent is about to start.
+            <NewtonsCradle label="queued" size={20} />
+            <span className="visually-hidden">Queued — the agent is about to start.</span>
+            <span aria-hidden="true">Queued — the agent is about to start.</span>
           </div>
         ) : null}
         {job.status === "running" ? (
@@ -180,8 +192,11 @@ export default function Conversation({
             </div>
           ) : (
             <div className="ack">
-              <span className="spinner" aria-hidden="true" />
-              <TextShimmer duration={1.4}>Working on it — the agent is executing locally.</TextShimmer>
+              <NewtonsCradle label="working" size={20} />
+              <span className="visually-hidden">Working on it — the agent is executing locally.</span>
+              <TextShimmer duration={1.4}>
+                <span aria-hidden="true">Working on it — the agent is executing locally.</span>
+              </TextShimmer>
             </div>
           )
         ) : null}

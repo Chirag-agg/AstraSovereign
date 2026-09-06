@@ -1,4 +1,4 @@
-/* Sovereign Workbench — dark, conversation-first design system. */
+﻿/* Sovereign Workbench â€” dark, conversation-first design system. */
 
 :root {
   --bg: #0b0e13;
@@ -1774,3 +1774,202 @@ button {
   font-size: 12px;
   color: var(--text-2);
 }
+
+
+/* ==================================================== core motion primitives */
+
+/* text effect: staggered char fade-up */
+.core-text-char {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(6px);
+  animation: core-fade-up 0.5s ease forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes core-fade-up {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .core-text-char {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}
+
+/* tilt */
+.core-tilt {
+  transform-style: preserve-3d;
+  transition: transform 0.18s ease-out;
+  will-change: transform;
+}
+
+/* newtons cradle */
+.nc {
+  --uib-size: 22px;
+  --uib-speed: 1.2s;
+  --uib-color: var(--accent);
+  position: relative;
+  display: inline-flex;
+  width: var(--uib-size);
+  height: var(--uib-size);
+  align-items: center;
+}
+
+.nc-dot {
+  position: relative;
+  height: 100%;
+  width: 25%;
+  transform-origin: center top;
+}
+
+.nc-dot::after {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 25%;
+  border-radius: 50%;
+  background: var(--uib-color);
+}
+
+.nc-dot:first-child {
+  animation: nc-swing var(--uib-speed) linear infinite;
+}
+
+.nc-dot:last-child {
+  animation: nc-swing2 var(--uib-speed) linear infinite;
+}
+
+@keyframes nc-swing {
+  0% { transform: rotate(0deg); animation-timing-function: ease-out; }
+  25% { transform: rotate(70deg); animation-timing-function: ease-in; }
+  50% { transform: rotate(0deg); animation-timing-function: linear; }
+}
+
+@keyframes nc-swing2 {
+  0% { transform: rotate(0deg); animation-timing-function: linear; }
+  50% { transform: rotate(0deg); animation-timing-function: ease-out; }
+  75% { transform: rotate(-70deg); animation-timing-function: ease-in; }
+}
+
+/* generating ring */
+.ring-wrap {
+  display: inline-block;
+}
+
+.ring {
+  display: block;
+  border-radius: 50%;
+  animation: ring-spin 2s linear infinite;
+}
+
+@keyframes ring-spin {
+  0% { transform: rotate(90deg); box-shadow: 0 4px 10px 0 #fff inset, 0 6px 14px 0 var(--accent) inset; }
+  50% { transform: rotate(270deg); box-shadow: 0 4px 10px 0 #fff inset, 0 4px 6px 0 var(--success) inset; }
+  100% { transform: rotate(450deg); box-shadow: 0 4px 10px 0 #fff inset, 0 6px 14px 0 var(--accent) inset; }
+}
+
+/* underline-grow button/link */
+.uib-btn {
+  font: inherit;
+  font-size: 13px;
+  background: transparent;
+  border: none;
+  padding: 6px 2px;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  transition: color 0.35s ease;
+}
+
+.uib-btn::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.35s ease;
+}
+
+.uib-btn:hover::before {
+  width: 100%;
+}
+
+.uib-btn::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 0;
+  width: 100%;
+  background: var(--accent);
+  transition: height 0.4s ease;
+  z-index: -1;
+  opacity: 0.12;
+}
+
+.uib-btn:hover::after {
+  height: 100%;
+}
+
+/* theme toggle */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-2);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-toggle .sun,
+.theme-toggle .moon {
+  transition: transform 0.35s ease, opacity 0.3s ease;
+}
+
+.theme-toggle .sun {
+  position: absolute;
+}
+
+html[data-theme="dark"] .theme-toggle .moon {
+  transform: translateY(-20px);
+  opacity: 0;
+}
+
+html[data-theme="light"] .theme-toggle .sun {
+  transform: translateY(20px);
+  opacity: 0;
+}
+
+/* light theme token overrides */
+html[data-theme="light"] {
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --surface-3: #e2e7ee;
+  --border: #d7dde5;
+  --border-strong: #c3ccd7;
+  --text: #16202b;
+  --text-2: #465464;
+  --text-3: #77838f;
+  --focus: #0b6bd6;
+}
+
+html[data-theme="light"] .console {
+  background: #10141b; /* keep the console terminal-dark in both themes */
+}
+

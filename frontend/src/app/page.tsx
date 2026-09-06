@@ -8,6 +8,7 @@ import Conversation, { DEMO_TASK } from "@/components/Conversation";
 import Sidebar from "@/components/Sidebar";
 import SystemDrawer from "@/components/SystemDrawer";
 import { ApiError, cancelJob, deleteDocument, downloadArtifact, submitChat, uploadDocument } from "@/lib/api";
+import ThemeToggle from "@/components/core/theme-toggle";
 import {
   useActiveUser,
   useArtifacts,
@@ -244,6 +245,7 @@ export default function WorkbenchPage() {
             <small>on-premise · air-gapped · local models</small>
           </div>
           <div className="topbar-spacer" />
+          <ThemeToggle />
           <button type="button" className="menu-btn" onClick={() => setSystemOpen(true)}>
             System
           </button>

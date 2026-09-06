@@ -16,6 +16,8 @@ import {
   getAdminSystem,
   getAdminUsers,
 } from "@/lib/api";
+import AnimatedNumber from "@/components/core/animated-number";
+import ThemeToggle from "@/components/core/theme-toggle";
 import { useDevRole, usePolling } from "@/lib/hooks";
 import type {
   AdminJobDetail,
@@ -91,16 +93,17 @@ function OverviewView() {
   const { data } = useAdmin(getAdminOverview, 3000);
   const jobs = data?.jobs ?? {};
   const sovereign = data?.sovereignty;
+  const spring = { duration: 1200, bounce: 0 };
   return (
     <>
       <div className="stat-row">
-        <Stat k="Active jobs" v={String(jobs.running ?? 0)} />
-        <Stat k="Queued jobs" v={String(jobs.queued ?? 0)} />
-        <Stat k="Completed" v={String(jobs.completed ?? 0)} />
-        <Stat k="Failed" v={String(jobs.failed ?? 0)} />
-        <Stat k="Models available" v={String(data?.models_available ?? 0)} />
-        <Stat k="Failed today" v={String(data?.failed_today ?? 0)} />
-        <Stat k="Audit events" v={String(data?.audit_events ?? 0)} />
+        <Stat k="Active jobs" v={<AnimatedNumber value={jobs.running ?? 0} springOptions={spring} />} />
+        <Stat k="Queued jobs" v={<AnimatedNumber value={jobs.queued ?? 0} springOptions={spring} />} />
+        <Stat k="Completed" v={<AnimatedNumber value={jobs.completed ?? 0} springOptions={spring} />} />
+        <Stat k="Failed" v={<AnimatedNumber value={jobs.failed ?? 0} springOptions={spring} />} />
+        <Stat k="Models available" v={<AnimatedNumber value={data?.models_available ?? 0} springOptions={spring} />} />
+        <Stat k="Failed today" v={<AnimatedNumber value={data?.failed_today ?? 0} springOptions={spring} />} />
+        <Stat k="Audit events" v={<AnimatedNumber value={data?.audit_events ?? 0} springOptions={spring} />} />
       </div>
 
       <Panel title="Workload">
@@ -128,7 +131,7 @@ function OverviewView() {
   );
 }
 
-function Stat({ k, v }: { k: string; v: string }) {
+function Stat({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="stat-card">
       <div className="k">{k}</div>
@@ -670,6 +673,7 @@ export default function AdminConsole() {
         </div>
         <span className="dev-note">development admin</span>
         <div className="topbar-spacer" />
+        <ThemeToggle />
         <RoleSwitch role={role} onChange={(r) => router.push(r === "admin" ? "/admin" : "/")} />
         <Link href="/" className="menu-btn">
           User workspace

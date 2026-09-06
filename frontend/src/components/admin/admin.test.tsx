@@ -114,6 +114,7 @@ describe("AdminConsole (dev-only)", () => {
     installFetch(adminHandler);
     render(<AdminConsole />);
     await flush();
+    await flush(1300); // let AnimatedNumber finish its count-up
     expect(screen.getByText("Platform overview")).toBeInTheDocument();
     expect(screen.getByText("Models available")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
