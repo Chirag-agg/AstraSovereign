@@ -84,7 +84,7 @@ export default function Composer({
         ) : null}
         <textarea
           aria-label="Task description"
-          placeholder="Ask Sovereign AI to do something…"
+          placeholder="Ask the on-premise AI to do something…"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {

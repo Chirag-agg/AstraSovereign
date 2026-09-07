@@ -70,3 +70,20 @@ mocked backend (no live model needed).
   to them.
 - **CI**: `.github/workflows/ci.yml` runs `typecheck` + `vitest` + `next build`
   on every push/pull request.
+
+## Adopted SIH workbench (`/preview`)
+
+- The polished operator workbench (ported from the SIH/POC UI) lives under
+  `src/sih/` and is mounted client-only at `/preview` (`src/app/preview/page.tsx`,
+  `dynamic ssr:false`). Sections: Agent Chat, Live Logs, Model Routing, Knowledge
+  Base, Vault, Code Sandbox, and a right rail (Audit / Network / Models).
+- It is wired to the real backend: Agent Chat submits real jobs and polls the
+  trace; uploads ingest into the knowledge base; artifacts download the real
+  files; Knowledge/Vault/Models/Logs/Sandbox read live endpoints.
+- Styling: Tailwind CSS v4 (`@import "tailwindcss"` at the top of
+  `src/app/globals.css`; `postcss.config.mjs` → `@tailwindcss/postcss`) plus the
+  SIH light/dark design tokens appended in `globals.css`. No product branding.
+- Client document exports: `.docx` via `docx`; `.xlsx`/`.pptx` generated with a
+  small JSZip OOXML writer (`src/sih/lib/exportFile.ts`). `next.config.mjs` stubs
+  the `node:` scheme for client bundling.
+- Frontend checks: `npm run typecheck`, `npm test` (63), `npm run build`.

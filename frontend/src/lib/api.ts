@@ -1,5 +1,5 @@
-// Typed API client for the Sovereign backend.
-// All backend calls go through here — components never scatter raw fetch calls.
+﻿// Typed API client for the local workbench backend.
+// All backend calls go through here â€” components never scatter raw fetch calls.
 
 import type {
   AdminJobDetail,
@@ -205,7 +205,7 @@ export function listArtifacts(userId: string): Promise<ArtifactSummary[]> {
 // ------------------------------------------------- development admin (dev-only)
 
 // All /api/admin calls carry the development `X-Role: admin` header. This is a
-// DEV-ONLY role switch, NOT production authentication — the backend enforces it.
+// DEV-ONLY role switch, NOT production authentication â€” the backend enforces it.
 
 const ADMIN_HEADER = { "X-Role": "admin" };
 
@@ -311,3 +311,4 @@ export async function downloadArtifact(
   const filename = match ? match[1] : "artifact.docx";
   return { blob, filename };
 }
+

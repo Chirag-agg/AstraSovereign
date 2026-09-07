@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Sovereign AI Workbench",
+  title: "AI Workbench",
   description:
     "Local, air-gapped on-premise agentic AI workbench. Jobs, agent traces, resources, and generated deliverables — all local.",
 };

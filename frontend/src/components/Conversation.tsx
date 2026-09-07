@@ -134,7 +134,7 @@ export default function Conversation({
       <div className="welcome">
         <Tilt rotationFactor={3}>
           <h2>
-            <TextEffect per="word">Sovereign AI Workbench</TextEffect>
+            <TextEffect per="word">On-premise AI Workbench</TextEffect>
           </h2>
         </Tilt>
         <p>Talk to the agent normally. When it does real work, you can watch it.</p>

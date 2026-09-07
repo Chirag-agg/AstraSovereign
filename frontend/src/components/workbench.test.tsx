@@ -47,6 +47,7 @@ function makeState(overrides: Partial<State> = {}): State {
 }
 
 function renderPage(state: State) {
+  window.sessionStorage.setItem("sovereign.session", "1");
   return installFetch((url, init) => {
     const path = url.replace(API, "");
     const method = init?.method || "GET";
@@ -101,6 +102,7 @@ async function typeAndSend(text: string) {
 
 afterEach(() => {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   vi.unstubAllGlobals();
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -167,6 +169,7 @@ describe("Workbench page (conversation-first)", () => {
 
   it("cancels a running task from the composer", async () => {
     vi.useFakeTimers();
+    window.sessionStorage.setItem("sovereign.session", "1");
     const deleteMock = vi.fn();
     installFetch((url, init) => {
       const path = url.replace(API, "");
@@ -311,3 +314,31 @@ describe("Workbench page (conversation-first)", () => {
     expect(screen.getByText(/task was cancelled/i)).toBeInTheDocument();
   });
 });
+
+
+
+
+describe("Workbench gate (login)", () => {
+  it("shows the login when there is no session", async () => {
+    vi.useFakeTimers();
+    window.sessionStorage.removeItem("sovereign.session");
+    installFetch(() => jsonResponse({ detail: { message: "not found" } }, 404));
+    render(<WorkbenchPage />);
+    await flush();
+    expect(screen.getByText("Sign in to the on-premise AI workbench")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Task description")).not.toBeInTheDocument();
+  });
+
+  it("enters the workspace once a session exists", async () => {
+    vi.useFakeTimers();
+    window.sessionStorage.setItem("sovereign.session", "1");
+    renderPage(makeState());
+    render(<WorkbenchPage />);
+    await flush();
+    expect(screen.getByLabelText("Task description")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+  });
+});
+
+
+

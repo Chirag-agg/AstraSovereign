@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -8,6 +8,7 @@ import Conversation, { DEMO_TASK } from "@/components/Conversation";
 import Sidebar from "@/components/Sidebar";
 import SystemDrawer from "@/components/SystemDrawer";
 import { ApiError, cancelJob, deleteDocument, downloadArtifact, submitChat, uploadDocument } from "@/lib/api";
+import Login from "@/components/Login";
 import ThemeToggle from "@/components/core/theme-toggle";
 import {
   useActiveUser,
@@ -91,7 +92,7 @@ function ActiveTask({
   );
 }
 
-export default function WorkbenchPage() {
+function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const router = useRouter();
   const [user, setUser] = useActiveUser();
   const [devRole, setDevRole] = useDevRole();
@@ -244,11 +245,11 @@ export default function WorkbenchPage() {
             onClick={() => setSidebarOpen(true)}
             aria-label="Open sidebar"
           >
-            ☰
+            â˜°
           </button>
           <div className="brand">
-            <span className="brand-icon" aria-hidden="true">🛡</span>
-            Sovereign Workbench
+            <span className="brand-mark" aria-hidden="true" />
+            AI Workbench
             <small>on-premise · air-gapped · local models</small>
           </div>
           <div className="topbar-spacer" />
@@ -271,19 +272,22 @@ export default function WorkbenchPage() {
             <option value="user">role: user</option>
             <option value="admin">role: admin</option>
           </select>
+          <button type="button" className="menu-btn" onClick={onSignOut} aria-label="Sign out">
+            Sign out
+          </button>
         </header>        <div className="conversation-scroll">
           {notice ? (
             <div className="banner banner-error" role="alert" style={{ maxWidth: 780, margin: "0 auto 12px" }}>
-              <span aria-hidden="true">✕</span>
+              <span aria-hidden="true">âœ•</span>
               <div style={{ flex: 1 }}>{notice}</div>
               <button type="button" className="icon-btn" onClick={() => setNotice(null)} aria-label="Dismiss">
-                ×
+                Ã—
               </button>
             </div>
           ) : null}
           {healthError && !health ? (
             <div className="banner banner-error" role="alert" style={{ maxWidth: 780, margin: "0 auto 12px" }}>
-              Backend unreachable — retrying… ({healthError})
+              Backend unreachable â€” retryingâ€¦ ({healthError})
             </div>
           ) : null}
           {jobsError && !jobs ? (
@@ -339,3 +343,33 @@ export default function WorkbenchPage() {
     </div>
   );
 }
+
+export default function WorkbenchPage() {
+  const router = useRouter();
+  const [authed, setAuthed] = useState(false);
+
+  useEffect(() => {
+    try {
+      setAuthed(window.sessionStorage.getItem("sovereign.session") === "1");
+    } catch {
+      setAuthed(false);
+    }
+  }, []);
+
+  if (!authed) {
+    return <Login onAuthenticated={(role) => router.replace(role === "admin" ? "/admin" : "/")} />;
+  }
+
+  const signOut = () => {
+    try {
+      window.sessionStorage.removeItem("sovereign.session");
+    } catch {
+      // ignore
+    }
+    setAuthed(false);
+  };
+
+  return <WorkbenchWorkspace onSignOut={signOut} />;
+}
+
+

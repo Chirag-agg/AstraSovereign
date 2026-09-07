@@ -79,6 +79,22 @@ export function buildConsoleLines(trace: TraceEntry[], status: JobStatus): Conso
       }
       case "final":
         break;
+      case "stage_started":
+        lines.push({
+          kind: "header",
+          text: `stage ${entry.label ?? entry.stage ?? ""}${entry.model ? ` · ${entry.model}` : ""}`,
+        });
+        break;
+      case "stage_completed":
+        lines.push({
+          kind: "result",
+          ok: true,
+          text: `${entry.label ?? entry.stage ?? "stage"} complete${entry.output_summary ? ` · ${String(entry.output_summary)}` : ""}`,
+        });
+        break;
+      case "pipeline_completed":
+        lines.push({ kind: "header", text: "multi-model pipeline complete" });
+        break;
       default:
         break;
     }

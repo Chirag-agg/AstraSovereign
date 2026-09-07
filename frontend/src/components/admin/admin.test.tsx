@@ -103,7 +103,7 @@ describe("AdminConsole (dev-only)", () => {
     window.localStorage.setItem("sovereign.dev-role", "user");
     installFetch(() => jsonResponse({}, 403));
     render(<AdminConsole />);
-    expect(screen.getByText("Operations console")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Operations console" })).toBeInTheDocument();
     expect(screen.queryByText("Platform overview")).not.toBeInTheDocument();
   });
 

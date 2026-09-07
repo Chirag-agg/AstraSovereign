@@ -286,8 +286,11 @@ function JobDetail({ job, onClose }: { job: AdminJobDetail; onClose: () => void 
           {job.execution_trace.map((entry, i) => (
             <div key={i} className="cline">
               <span className="cmd">{entry.type}</span>
+              {entry.label ? <span> · {String(entry.label)}</span> : null}
+              {entry.model ? <span className="meta"> [{entry.model}]</span> : null}
               {entry.tool ? <span> · {entry.tool}</span> : null}
               {entry.result_summary ? <span className="meta"> → {entry.result_summary}</span> : null}
+              {entry.output_summary ? <span className="meta"> → {String(entry.output_summary)}</span> : null}
             </div>
           ))}
         </div>
@@ -639,10 +642,8 @@ export default function AdminConsole() {
       <div className="admin">
         <div className="admin-top">
           <div className="brand">
-            <span className="brand-icon" aria-hidden="true">
-              🛡
-            </span>
-            Sovereign Control Plane
+            <span className="brand-mark" aria-hidden="true" />
+            Operations console
           </div>
           <span className="dev-note">development — not authentication</span>
         </div>
@@ -672,10 +673,8 @@ export default function AdminConsole() {
     <div className="admin">
       <div className="admin-top">
         <div className="brand">
-          <span className="brand-icon" aria-hidden="true">
-            🛡
-          </span>
-          Sovereign Control Plane
+          <span className="brand-mark" aria-hidden="true" />
+          Operations console
         </div>
         <span className="dev-note">development admin</span>
         <div className="topbar-spacer" />
