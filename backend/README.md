@@ -683,3 +683,13 @@ frontend typecheck/tests/build) on every push and pull request.
 - Run: `\.venv\Scripts\python -m uvicorn app.main:app` (ensure `python-docx` is
   installed in the venv and Docker is up for code execution). Tests:
   `pytest` (full suite green, incl. `tests/test_pipeline.py`).
+
+## Cowork (projects, project-aware execution, context)
+
+- Services: `projects.py` (persistent per-user projects + scoped files + locks),
+  `context.py` (ContextManager: summaries, decisions, active task, compaction,
+  execution summaries). API: `api/projects.py`.
+- Jobs carry `project_id`; the worker runs the agent/pipeline against the project
+  folder. Mutation lock -> 409 while a project job runs.
+- Settings: `COWORK_PROJECTS_ROOT`, `COWORK_FILE_MAX_BYTES`. Run the demo from the
+  root README "Quick demo (Cowork)".

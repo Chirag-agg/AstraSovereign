@@ -87,3 +87,9 @@ mocked backend (no live model needed).
   small JSZip OOXML writer (`src/sih/lib/exportFile.ts`). `next.config.mjs` stubs
   the `node:` scheme for client bundling.
 - Frontend checks: `npm run typecheck`, `npm test` (63), `npm run build`.
+
+## Cowork page (`/cowork`)
+
+Project list + conversation, a file tree and editor over the persistent project
+folder (save disabled while the agent runs), create-file, and a live execution
+panel. Uses the typed cowork client in `src/lib/api.ts`.

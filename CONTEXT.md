@@ -1400,3 +1400,25 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 - Current: UI adoption + real-data wiring + multi-model pipeline (this block).
 - Next candidates: pipeline summary card in the UI, per-stage verification
   outputs, real math model pull + enable, and further stage templates.
+
+#### Cowork — persistent project AI-IDE (M1-M6)
+- Backend: per-user persistent projects under `data/projects/<user>/<project>` with
+  hidden `.cowork/` metadata. `api/projects.py` exposes project CRUD, file
+  tree/read/write/delete (ownership + `resolve_within_workspace` containment,
+  text-only, size-capped), `POST /api/cowork/chat`, and
+  `GET /api/projects/{id}/history`.
+- Jobs carry optional `project_id`; the worker executes the agent/pipeline
+  against the project folder, so files persist across turns. A backend-enforced
+  project lock returns 409 for file mutations while an agent job runs.
+- M3/M4: per-project ContextManager (`.cowork/context/`) persists project
+  summary, decisions, active task, capped recent turns with deterministic
+  compaction, and bounded execution summaries (job/model/outcome/files touched).
+  Requests are assembled filesystem-first (authoritative) then decisions/active
+  task/recent+archived conversation/request. Raw chain-of-thought is never
+  stored; only short plain-text summaries.
+- UI: `/cowork` (Next) = project list + chat, file tree + editor (save disabled
+  under the agent lock), create-file, and a live execution panel showing
+  plan/tool/stage steps with model chips plus decisions/executions on completion.
+- Integration tests: `test_cowork.py`, `test_cowork_context.py`,
+  `test_cowork_e2e.py` (build -> inspect -> modify -> run in sandbox -> doc
+  generation into the project).

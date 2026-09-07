@@ -112,3 +112,21 @@ and pull request.
 - Frontend: `cd frontend && npm install && npm run dev`, then open
   `http://localhost:3000/preview` for the adopted workbench UI, or `/` for the
   classic workspace and `/admin` for the operations console.
+
+## Cowork (persistent project AI-IDE)
+
+- `/cowork` — create a project, chat with the agent inside it, browse and edit the
+  real files it writes (all local), and watch live agent reasoning/steps.
+- Requests run through the same jobs/pipeline machinery but execute against the
+  project folder, so files persist turn to turn. Backend APIs:
+  `/api/projects`, `/api/projects/{id}/files|file`, `/api/cowork/chat`,
+  `/api/projects/{id}/history`.
+
+### Quick demo (Cowork)
+1. Backend up (venv uvicorn) + Ollama + Docker; frontend `npm run dev`.
+2. Open `http://localhost:3000/cowork`, sign in, create a project.
+3. Ask: "Build a small Python CLI in this project and run it in the sandbox." —
+   watch files appear in the tree, execution steps stream, and a verified
+   implementation come back.
+4. Ask a follow-up: "Add CSV support" — the agent reads the files from step 3
+   and edits them in place. Files, decisions and summaries persist per project.
