@@ -409,7 +409,7 @@ def _format_vision_analysis(analysis) -> str:
 
 
 _FILENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]*$")
-_SECTION_KEYS = {"heading", "content", "paragraphs", "bullets", "numbered", "table"}
+_SECTION_KEYS = {"heading", "content", "paragraphs", "bullets", "numbered", "table", "sources"}
 _MAX_DOCUMENT_CHARS = 200_000
 
 
@@ -452,6 +452,12 @@ def _validate_document_section(raw: Any) -> DocumentSection:
     bullets = raw.get("bullets", [])
     if not isinstance(bullets, list) or not all(isinstance(item, str) for item in bullets):
         raise ToolError("section 'bullets' must be an array of strings")
+
+    sources = raw.get("sources")
+    if sources is not None and (
+        not isinstance(sources, list) or not all(isinstance(item, str) for item in sources)
+    ):
+        raise ToolError("section 'sources' must be an array of strings")
 
     numbered = raw.get("numbered", [])
     if not isinstance(numbered, list) or not all(isinstance(item, str) for item in numbered):

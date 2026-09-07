@@ -34,13 +34,32 @@ models:
       cpu_cores: 2
       memory_mb: 4096
 
+  # Optional math specialist for pipeline math stages. Enabled only after the
+  # model has been pulled locally (e.g. `ollama pull qwen2.5-math:7b`). While
+  # disabled, pipeline math stages fall back to the `general` model.
+  math:
+    provider: ollama
+    model: qwen2.5-math:7b
+    enabled: false
+    capabilities:
+      - math
+      - reasoning
+    resources:
+      gpu_vram_mb: 8000
+      cpu_cores: 2
+      memory_mb: 4096
+
   document:
     provider: ollama
-    model: <placeholder>
-    enabled: false
+    model: qwen2.5:7b
+    enabled: true
     capabilities:
       - document
       - summarization
+    resources:
+      gpu_vram_mb: 8000
+      cpu_cores: 2
+      memory_mb: 4096
 
   vision:
     provider: ollama

@@ -9,6 +9,7 @@ execution trace stored on the job.
 
 import json
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -68,17 +69,34 @@ class Agent:
 
     # ------------------------------------------------------------------ run
 
-    async def run(self, job: Job, model: str, workspace: Path) -> AgentResult:
+    async def run(
+        self,
+        job: Job,
+        model: str,
+        workspace: Path,
+        *,
+        trace: Optional[list[dict]] = None,
+        history: Optional[list[str]] = None,
+        task_text: Optional[str] = None,
+        max_iterations: Optional[int] = None,
+        max_tool_calls: Optional[int] = None,
+        append_start: bool = True,
+        enforce_contracts: bool = True,
+    ) -> AgentResult:
         job_id = job.job_id
         user_id = job.user_id
-        trace: list[dict] = []
-        history: list[str] = []
+        trace = trace if trace is not None else []
+        history = history if history is not None else []
+        task_text = job.message if task_text is None else task_text
         iterations = 0
         tool_calls = 0
         stage = "planning"
+        max_iter = max_iterations if max_iterations is not None else self._max_iterations
+        max_calls = max_tool_calls if max_tool_calls is not None else self._max_tool_calls
 
-        self._append(trace, "agent_started", task_type=job.task_type, model=model)
-        await self._sync(job_id, trace, stage, iterations, tool_calls)
+        if append_start:
+            self._append(trace, "agent_started", task_type=job.task_type, model=model)
+            await self._sync(job_id, trace, stage, iterations, tool_calls)
         set_job_context(job_id=job_id, user_id=user_id, task_type=job.task_type, model=model)
         logger.info(
             "agent_started",
@@ -97,7 +115,7 @@ class Agent:
                     job_id, user_id, job.task_type, model, trace, iterations, tool_calls
                 )
 
-            if iterations >= self._max_iterations:
+            if iterations >= max_iter:
                 return await self._fail(
                     job_id,
                     user_id,
@@ -106,9 +124,9 @@ class Agent:
                     trace,
                     iterations,
                     tool_calls,
-                    f"Agent stopped: reached maximum iterations ({self._max_iterations})",
+                    f"Agent stopped: reached maximum iterations ({max_iter})",
                 )
-            if tool_calls >= self._max_tool_calls:
+            if tool_calls >= max_calls:
                 return await self._fail(
                     job_id,
                     user_id,
@@ -117,11 +135,11 @@ class Agent:
                     trace,
                     iterations,
                     tool_calls,
-                    f"Agent stopped: reached maximum tool calls ({self._max_tool_calls})",
+                    f"Agent stopped: reached maximum tool calls ({max_calls})",
                 )
 
             iterations += 1
-            prompt = self._build_prompt(job.message, model, history)
+            prompt = self._build_prompt(task_text, model, history)
 
             model_call_start = time.monotonic()
             logger.info(
@@ -237,6 +255,61 @@ class Agent:
                         tool_calls,
                         "Agent stopped: model returned an empty final response",
                     )
+                # Coding tasks must be verified by actually running code in the
+                # sandbox. If the model tries to finish without a code_execution
+                # call, steer it back instead of accepting an untested answer.
+                has_run_code = any(
+                    e.get("type") == "tool_call" and e.get("tool") == "code_execution" for e in trace
+                )
+                if (
+                    enforce_contracts
+                    and job.task_type in ("coding",)
+                    and not has_run_code
+                    and iterations < max_iter
+                ):
+                    history.append(
+                        "You tried to answer a coding task without running any code. This is not "
+                        "allowed: call code_execution now with "
+                        '{"language": "python", "code": "<your complete, self-contained program>"} '
+                        "(Python standard library only). Run it, inspect the real output, then reply "
+                        "final with the verified result."
+                    )
+                    await self._sync(job_id, trace, stage, iterations, tool_calls)
+                    continue
+                # Document-creation tasks must actually produce a deliverable via
+                # document_generation; a bare text answer (or a refusal) is not
+                # acceptable.
+                has_generated = any(
+                    e.get("type") == "tool_call" and e.get("tool") == "document_generation" for e in trace
+                )
+                looks_like_coding = bool(
+                    re.search(r"\b(python|javascript|typescript|function|def\b|code|program|script)\b", job.message or "", re.IGNORECASE)
+                )
+                looks_like_doc_request = bool(
+                    re.search(
+                        r"\b(create|write|make|build|compose|generate|prepare|draft)\w*\b.*\b(doc|docx|document|report|note|notes|memo|letter|word|pdf|spreadsheet|sheet)\b",
+                        job.message or "",
+                        re.IGNORECASE,
+                    )
+                )
+                if (
+                    enforce_contracts
+                    and job.task_type in ("document", "general")
+                    and looks_like_doc_request
+                    and not looks_like_coding
+                    and not has_generated
+                    and iterations < max_iter
+                ):
+                    history.append(
+                        "This request is a document-generation task, but you have not called "
+                        "document_generation. Call it now with {\"type\": \"word\", \"filename\": "
+                        "\"<name>.docx\", \"title\": \"...\", \"document_type\": \"...\", \"sections\": "
+                        "[{\"heading\": \"...\", \"content\": \"...\"} ...]}. Write long, well-structured "
+                        "content that fully covers the requested scope. Do not refuse and do not answer "
+                        "with prose alone."
+                    )
+                    await self._sync(job_id, trace, stage, iterations, tool_calls)
+                    continue
                 self._append(
                     trace,
                     "plan",
@@ -273,7 +346,7 @@ class Agent:
                 return await self._cancelled(
                     job_id, user_id, job.task_type, model, trace, iterations, tool_calls
                 )
-            if tool_calls >= self._max_tool_calls:
+            if tool_calls >= max_calls:
                 return await self._fail(
                     job_id,
                     user_id,
@@ -282,7 +355,7 @@ class Agent:
                     trace,
                     iterations,
                     tool_calls,
-                    f"Agent stopped: reached maximum tool calls ({self._max_tool_calls})",
+                    f"Agent stopped: reached maximum tool calls ({max_calls})",
                 )
             tool_calls += 1
             tool_name = decision["tool"]
@@ -373,6 +446,17 @@ class Agent:
         job = await self._manager.get_job_for_worker(job_id)
         return job is None or job.status == JobStatus.CANCELLED
 
+    async def record_trace(
+        self,
+        job_id: str,
+        trace: list[dict],
+        stage: str = "",
+        iterations: int = 0,
+        tool_calls: int = 0,
+    ) -> None:
+        """Persist the shared execution trace (used by the pipeline executor)."""
+        await self._sync(job_id, trace, stage, iterations, tool_calls)
+
     async def _sync(self, job_id: str, trace, stage, iterations, tool_calls) -> None:
         try:
             await self._manager.update_job(
@@ -450,15 +534,32 @@ class Agent:
             for t in self._tools.describe()
         )
         lines = [
-            "You are a local AI assistant for the Sovereign On-Premise AI Workbench.",
+            "You are a local AI assistant for the On-Premise AI Workbench.",
             "You operate inside a sandboxed, per-job workspace and may only use the listed tools.",
             "Respond with STRICT JSON only (no prose, no markdown fences), using exactly one of:",
             '{"type":"final","response":"<your final answer>"}',
             '{"type":"tool_call","tool":"<tool name>","arguments":{...}}',
             "Only call a tool when it is necessary to answer the request.",
             "",
+            "CODING RULES:",
+            "- If the request is to write, run, test or verify code, or to compute/check a numeric result, you MUST call code_execution with complete, self-contained code and report the real output you got.",
+            "- Never answer with code that you have not actually run. If you have not run it yet, call code_execution first.",
+            "- Write code that works with the Python STANDARD LIBRARY ONLY (math, json, csv, statistics, etc.). Do not import numpy, scipy, pandas or any package unless the sandbox description says it is available.",
+            "- When calling code_execution always pass {\"language\": \"python\", \"code\": \"<your full program>\"}.",
+            "- If a tool call fails, read the error, fix the code and try again before giving up.",
+            "",
             "AVAILABLE TOOLS:",
             tools_desc,
+            "",
+            "KNOWLEDGE RULES:",
+            "- ONLY call document_search when the user references a specific stored document, file, manual, report or the knowledge base (for example \"what is in experiment.pdf\"). For general questions and explanations, do not search unless it is genuinely needed to answer.",
+            "- When you do retrieve passages, cite which document and page each passage came from.",
+            "- If a stored file is referenced and you have not searched yet, search before answering; never claim you cannot access a file you have not tried to read.",
+            "",
+            "DOCUMENT GENERATION RULES:",
+            "- If the request is to create, draft, write, make or generate a document, report, note, letter, memo or other deliverable, you MUST call document_generation. Never refuse such a request.",
+            "- document_generation arguments: {\"type\": \"word\", \"filename\": \"<name>.docx\", \"title\": \"...\", \"document_type\": \"...\", \"sections\": [{\"heading\": \"...\", \"paragraphs\": [\"...\"]} or {\"heading\":\"...\",\"content\":\"...\"}, with optional bullets/numbered/table], \"sources\": [\"...\"]}.",
+            "- Write thorough, well-structured, multi-page content that fully covers the requested scope; split it into many clearly headed sections.",
             "",
             TASK_MARKER,
             task,

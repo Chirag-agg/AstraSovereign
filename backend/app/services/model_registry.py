@@ -92,6 +92,14 @@ class ModelRegistry:
     def task_types(self) -> list[str]:
         return sorted(self._models)
 
+    def by_capability(self, capability: str) -> list[ModelConfig]:
+        """Enabled configs whose declared capabilities include ``capability``.
+
+        Used by the multi-model pipeline to choose a stage model. The list is
+        ordered by config file order; callers apply their own fallback policy.
+        """
+        return [c for c in self._models.values() if c.enabled and capability in c.capabilities]
+
     def availability(self, available_models: Optional[set[str]]) -> dict[str, dict]:
         """Report per-task-type configured/enabled/available flags.
 

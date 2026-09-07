@@ -43,10 +43,11 @@ class Settings(BaseSettings):
     # Per-job workspace root (data/workspaces/<user>/<job>/).
     workspaces_root: str = str(REPO_ROOT / "data" / "workspaces")
 
-    # Docker code-execution sandbox (Phase 5). Disabled by default; enabling it
-    # registers the code_execution tool. The image must already exist locally —
-    # the backend never pulls images.
-    sandbox_enabled: bool = False
+    # Docker code-execution sandbox (Phase 5). Enabled by default so the
+    # code_execution tool is always registered; if Docker is unavailable the
+    # tool reports a clean runtime error instead of failing silently. The image
+    # must already exist locally — the backend never pulls images.
+    sandbox_enabled: bool = True
     sandbox_python_image: str = "python:3.12-alpine"
     sandbox_timeout_seconds: float = 10.0
     sandbox_cpu_limit: str = "0.5"
@@ -104,6 +105,20 @@ class Settings(BaseSettings):
     # Durable store snapshots so job/artifact history survives restarts.
     job_store_root: str = str(REPO_ROOT / "data" / "jobs")
     artifact_store_root: str = str(REPO_ROOT / "data" / "artifacts")
+
+    # Multi-model pipeline (decompose complex tasks into capability stages).
+    # Every capability executed by a stage must be on the server-side allowlist
+    # in ``app.services.pipeline.ALLOWED_PIPELINE_CAPABILITIES``.
+    pipeline_enabled: bool = True
+    pipeline_planner_capability: str = "reasoning"
+    pipeline_max_stages: int = 4
+    pipeline_stage_max_iterations: int = 4
+    pipeline_stage_max_tool_calls: int = 8
+    pipeline_attempts: int = 2
+    pipeline_min_prompt_chars: int = 40
+    # Hard truncation caps for stage-output chaining (never silent).
+    pipeline_max_stage_output_chars: int = 12000
+    pipeline_max_context_chars: int = 16000
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

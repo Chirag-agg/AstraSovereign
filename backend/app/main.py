@@ -34,6 +34,7 @@ from app.services.document_generator import DocumentGenerator, WordDocumentGener
 from app.services.document_preparer import DocumentPreparer
 from app.services.embedding import EmbeddingProvider, OllamaEmbeddingProvider
 from app.services.job_manager import JobManager
+from app.services.capability_router import CapabilityRouter
 from app.services.job_queue import JobQueue
 from app.services.job_store import InMemoryJobStore
 from app.services.knowledge_base import KnowledgeBase
@@ -356,6 +357,31 @@ def create_app(
         max_iterations=settings.max_agent_iterations,
         max_tool_calls=settings.max_agent_tool_calls,
     )
+
+    capability_router = CapabilityRouter(registry=model_registry)
+    pipeline_executor = None
+    complexity_gate = None
+    if settings.pipeline_enabled:
+        from app.services.pipeline import ComplexityGate, PipelineExecutor
+
+        complexity_gate = ComplexityGate(
+            min_prompt_chars=settings.pipeline_min_prompt_chars
+        )
+        pipeline_executor = PipelineExecutor(
+            manager=job_manager,
+            agent=agent,
+            capability_router=capability_router,
+            scheduler=scheduler,
+            ollama=ollama_service,
+            planner_capability=settings.pipeline_planner_capability,
+            max_stages=settings.pipeline_max_stages,
+            stage_max_iterations=settings.pipeline_stage_max_iterations,
+            stage_max_tool_calls=settings.pipeline_stage_max_tool_calls,
+            attempts=settings.pipeline_attempts,
+            max_stage_output_chars=settings.pipeline_max_stage_output_chars,
+            max_context_chars=settings.pipeline_max_context_chars,
+        )
+
     worker = Worker(
         queue=job_queue,
         manager=job_manager,
@@ -365,6 +391,8 @@ def create_app(
         agent=agent,
         workspace_manager=workspace_manager,
         scheduler=scheduler,
+        pipeline_executor=pipeline_executor,
+        complexity_gate=complexity_gate,
     )
 
     app = FastAPI(

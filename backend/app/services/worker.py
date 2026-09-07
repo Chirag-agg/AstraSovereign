@@ -17,6 +17,7 @@ from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
 from app.services.model_router import ModelRouter, ModelRoutingError
 from app.services.ollama_service import OllamaService, OllamaServiceError
+from app.services.pipeline import ComplexityGate, PipelineExecutor
 from app.services.resource_scheduler import ResourceScheduler
 from app.services.task_router import TaskRouter
 from app.services.workspace import WorkspaceManager
@@ -35,6 +36,8 @@ class Worker:
         agent: Agent,
         workspace_manager: WorkspaceManager,
         scheduler: ResourceScheduler,
+        pipeline_executor: Optional[PipelineExecutor] = None,
+        complexity_gate: Optional[ComplexityGate] = None,
     ) -> None:
         self._queue = queue
         self._manager = manager
@@ -44,6 +47,8 @@ class Worker:
         self._agent = agent
         self._workspace_manager = workspace_manager
         self._scheduler = scheduler
+        self._pipeline_executor = pipeline_executor
+        self._complexity_gate = complexity_gate
         self._task: Optional[asyncio.Task] = None
         self._state = "stopped"  # stopped | idle | running
         self._active_job_id: Optional[str] = None
@@ -130,6 +135,9 @@ class Worker:
                 job_id,
                 model=routing.model,
             )
+            job = await self._manager.get_job_for_worker(job_id)
+            if job is None or job.status == JobStatus.CANCELLED:
+                return
 
             decision = await self._request_resources(job, routing)
             if decision is None:
@@ -170,9 +178,31 @@ class Worker:
             workspace = await self._workspace_manager.create_workspace(
                 job.user_id, job_id
             )
-            agent_result = await self._agent.run(
-                job=job, model=routing.model, workspace=workspace
+            use_pipeline = bool(
+                self._pipeline_executor is not None
+                and self._complexity_gate is not None
+                and self._complexity_gate.should_pipeline(
+                    classification.task_type, job.message
+                )
             )
+            if use_pipeline:
+                logger.info(
+                    "pipeline_started",
+                    extra={
+                        "event": "pipeline_started",
+                        "job_id": job_id,
+                        "user_id": job.user_id,
+                        "task_type": classification.task_type,
+                        "lead_model": routing.model,
+                    },
+                )
+                agent_result = await self._pipeline_executor.execute(
+                    job, workspace, classification.task_type, routing.model
+                )
+            else:
+                agent_result = await self._agent.run(
+                    job=job, model=routing.model, workspace=workspace
+                )
         except ModelRoutingError as exc:
             logger.error(
                 "routing_failure",
