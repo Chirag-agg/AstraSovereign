@@ -188,6 +188,32 @@ async def delete_project_file(
         raise _containment_error(exc) from exc
 
 
+@router.get("/api/projects/{project_id}/history")
+async def project_history(
+    project_id: str,
+    request: Request,
+    user_id: str = Depends(get_user_id),
+) -> dict:
+    """Cowork conversation + bounded execution summaries for a project."""
+    projects = _get_projects(request)
+    try:
+        projects.get_project(user_id, project_id)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    context_manager = request.app.state.context_manager
+    if context_manager is None:
+        return {"project_id": project_id, "messages": [], "decisions": [], "executions": [], "active_task": "", "project_summary": ""}
+    state = context_manager.get_state(user_id, project_id)
+    return {
+        "project_id": project_id,
+        "messages": context_manager.get_messages(user_id, project_id),
+        "decisions": state.get("decisions", []),
+        "executions": state.get("executions", []),
+        "active_task": state.get("active_task", ""),
+        "project_summary": state.get("project_summary", ""),
+    }
+
+
 @router.post("/api/cowork/chat", response_model=JobSubmitResponse, status_code=202)
 async def cowork_chat(
     payload: CoworkChatRequest,

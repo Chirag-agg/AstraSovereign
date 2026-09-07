@@ -312,3 +312,73 @@ export async function downloadArtifact(
   return { blob, filename };
 }
 
+
+// -------------------------------------------------------------- cowork
+
+export interface ProjectMeta {
+  project_id: string;
+  name: string;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectFileEntry {
+  name: string;
+  path: string;
+  kind: "dir" | "file";
+  size: number | null;
+  updated: string | null;
+}
+
+export interface ProjectHistory {
+  project_id: string;
+  messages: { role: "user" | "assistant"; text: string; timestamp?: string }[];
+  decisions: { decision: string; reason?: string; timestamp?: string; source_job?: string }[];
+  executions: {
+    job_id: string;
+    timestamp?: string;
+    model?: string | null;
+    summary?: string;
+    files_touched?: string[];
+  }[];
+  active_task: string;
+  project_summary: string;
+}
+
+export function listProjects(userId: string): Promise<ProjectMeta[]> {
+  return request<ProjectMeta[]>("/api/projects", {}, userId);
+}
+
+export function createProject(userId: string, name: string): Promise<ProjectMeta> {
+  return request<ProjectMeta>("/api/projects", { method: "POST", body: { name } }, userId);
+}
+
+export function deleteProject(userId: string, projectId: string): Promise<void> {
+  return request<void>(`/api/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" }, userId);
+}
+
+export function listProjectFiles(userId: string, projectId: string): Promise<{ entries: ProjectFileEntry[] }> {
+  return request(`/api/projects/${encodeURIComponent(projectId)}/files`, {}, userId);
+}
+
+export function readProjectFile(userId: string, projectId: string, path: string): Promise<{ path: string; content: string }> {
+  const qs = new URLSearchParams({ path });
+  return request(`/api/projects/${encodeURIComponent(projectId)}/file?${qs.toString()}`, {}, userId);
+}
+
+export function writeProjectFile(userId: string, projectId: string, path: string, content: string): Promise<{ ok: boolean }> {
+  return request(
+    `/api/projects/${encodeURIComponent(projectId)}/file?path=${encodeURIComponent(path)}`,
+    { method: "PUT", body: { content } },
+    userId,
+  );
+}
+
+export function coworkChat(userId: string, projectId: string, message: string): Promise<JobSubmitResponse> {
+  return request<JobSubmitResponse>("/api/cowork/chat", { method: "POST", body: { project_id: projectId, message } }, userId);
+}
+
+export function projectHistory(userId: string, projectId: string): Promise<ProjectHistory> {
+  return request<ProjectHistory>(`/api/projects/${encodeURIComponent(projectId)}/history`, {}, userId);
+}
