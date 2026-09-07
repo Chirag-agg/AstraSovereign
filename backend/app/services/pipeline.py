@@ -301,8 +301,14 @@ class PipelineExecutor:
                 extra={"event": "pipeline_stage_failed", "job_id": job.job_id, "stage": key},
             )
 
-    def _stage_task(self, stage: StageDef, job: Job, outputs: dict[str, str]) -> str:
-        parts = [stage.instruction, "", f"Original request: {job.message}"]
+    def _stage_task(
+        self,
+        stage: StageDef,
+        job: Job,
+        outputs: dict[str, str],
+        base_text: Optional[str] = None,
+    ) -> str:
+        parts = [stage.instruction, "", f"Original request: {base_text or job.message}"]
         prior = []
         budget = self._max_context_chars
         for key, text in outputs.items():
@@ -324,7 +330,14 @@ class PipelineExecutor:
             return text
         return text[:limit] + f"\n[Previous stage output truncated at {limit} characters]"
 
-    async def execute(self, job: Job, workspace, task_type: str, lead_model: str) -> AgentResult:
+    async def execute(
+        self,
+        job: Job,
+        workspace,
+        task_type: str,
+        lead_model: str,
+        task_text: Optional[str] = None,
+    ) -> AgentResult:
         trace: list[dict] = []
         history: list[str] = []
         try:
@@ -370,7 +383,7 @@ class PipelineExecutor:
                         }
                     )
                     await self._agent.record_trace(job.job_id, trace, f"stage:{stage.key}", 0, 0)
-                    stage_task = self._stage_task(stage, job, outputs)
+                    stage_task = self._stage_task(stage, job, outputs, base_text=task_text)
                     result = await self._agent.run(
                         job,
                         model=resolved.model,

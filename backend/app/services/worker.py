@@ -17,6 +17,7 @@ from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
 from app.services.model_router import ModelRouter, ModelRoutingError
 from app.services.ollama_service import OllamaService, OllamaServiceError
+from app.services.context import ContextManager
 from app.services.pipeline import ComplexityGate, PipelineExecutor
 from app.services.projects import CoworkProjects, ProjectLocks, ProjectNotFoundError
 from app.services.resource_scheduler import ResourceScheduler
@@ -41,6 +42,7 @@ class Worker:
         complexity_gate: Optional[ComplexityGate] = None,
         projects: Optional[CoworkProjects] = None,
         project_locks: Optional[ProjectLocks] = None,
+        context_manager: Optional[ContextManager] = None,
     ) -> None:
         self._queue = queue
         self._manager = manager
@@ -54,6 +56,7 @@ class Worker:
         self._complexity_gate = complexity_gate
         self._projects = projects
         self._project_locks = project_locks
+        self._context_manager = context_manager
         self._task: Optional[asyncio.Task] = None
         self._state = "stopped"  # stopped | idle | running
         self._active_job_id: Optional[str] = None
@@ -195,6 +198,11 @@ class Worker:
                 workspace = await self._workspace_manager.create_workspace(
                     job.user_id, job_id
                 )
+            task_text = job.message
+            if job.project_id and self._context_manager is not None and self._projects is not None:
+                task_text = self._context_manager.build_request(
+                    job.user_id, job.project_id, job.message
+                )
             use_pipeline = bool(
                 self._pipeline_executor is not None
                 and self._complexity_gate is not None
@@ -214,11 +222,15 @@ class Worker:
                     },
                 )
                 agent_result = await self._pipeline_executor.execute(
-                    job, workspace, classification.task_type, routing.model
+                    job,
+                    workspace,
+                    classification.task_type,
+                    routing.model,
+                    task_text=task_text,
                 )
             else:
                 agent_result = await self._agent.run(
-                    job=job, model=routing.model, workspace=workspace
+                    job=job, model=routing.model, workspace=workspace, task_text=task_text
                 )
         except ModelRoutingError as exc:
             logger.error(
@@ -246,6 +258,40 @@ class Worker:
             await self._release_resources(job_id)
             if project_lock_held and job.project_id and self._project_locks is not None:
                 self._project_locks.release(job.user_id, job.project_id)
+            if job.project_id and self._context_manager is not None and self._projects is not None:
+                try:
+                    current = await self._manager.get_job_for_worker(job_id)
+                    if current is not None and current.status in (
+                        JobStatus.COMPLETED,
+                        JobStatus.FAILED,
+                        JobStatus.CANCELLED,
+                    ):
+                        if current.status == JobStatus.COMPLETED:
+                            message_text = current.response or "Completed."
+                        else:
+                            message_text = f"Task {current.status.value}: {current.error or ''}"
+                        self._context_manager.add_assistant_message(
+                            current.user_id, current.project_id, message_text
+                        )
+                        files_touched = []
+                        for entry in current.execution_trace or []:
+                            if entry.get("type") == "tool_call" and entry.get("tool") == "write_file":
+                                args = entry.get("arguments")
+                                if isinstance(args, dict) and args.get("path"):
+                                    files_touched.append(str(args["path"]))
+                        self._context_manager.add_execution_summary(
+                            current.user_id,
+                            current.project_id,
+                            current.job_id,
+                            model=current.model,
+                            summary=message_text[:600],
+                            files_touched=files_touched,
+                        )
+                except Exception:
+                    logger.exception(
+                        "worker_context_record_error",
+                        extra={"event": "job_failed", "job_id": job_id, "user_id": job.user_id},
+                    )
             self._active_job_id = None
             self._state = "idle"
 

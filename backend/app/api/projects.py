@@ -214,6 +214,9 @@ async def cowork_chat(
         project_id=payload.project_id,
     )
     await queue.enqueue(job.job_id)
+    context_manager = request.app.state.context_manager
+    if context_manager is not None:
+        context_manager.add_user_message(user_id, payload.project_id, payload.message)
     logger.info(
         "cowork_chat_submitted",
         extra={

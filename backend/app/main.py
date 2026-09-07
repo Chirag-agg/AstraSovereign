@@ -36,6 +36,7 @@ from app.services.document_preparer import DocumentPreparer
 from app.services.embedding import EmbeddingProvider, OllamaEmbeddingProvider
 from app.services.job_manager import JobManager
 from app.services.capability_router import CapabilityRouter
+from app.services.context import ContextManager
 from app.services.job_queue import JobQueue
 from app.services.job_store import InMemoryJobStore
 from app.services.knowledge_base import KnowledgeBase
@@ -392,6 +393,7 @@ def create_app(
         file_max_bytes=settings.cowork_file_max_bytes,
     )
     project_locks = cowork_locks or ProjectLocks()
+    context_manager = ContextManager(projects)
 
     worker = Worker(
         queue=job_queue,
@@ -406,6 +408,7 @@ def create_app(
         complexity_gate=complexity_gate,
         projects=projects,
         project_locks=project_locks,
+        context_manager=context_manager,
     )
 
     app = FastAPI(
@@ -437,6 +440,7 @@ def create_app(
     app.state.scheduler = scheduler
     app.state.projects = projects
     app.state.project_locks = project_locks
+    app.state.context_manager = context_manager
     app.state.knowledge_base = knowledge_base
     app.state.embedding_provider = embedding
     app.state.multimodal_service = multimodal
