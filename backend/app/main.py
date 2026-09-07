@@ -24,6 +24,7 @@ from app.api.audit import router as audit_router
 from app.api.chat import router as chat_router
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
+from app.api.projects import router as projects_router
 from app.api.jobs import router as jobs_router
 from app.config import Settings, get_settings
 from app.schemas.resources import GpuInfo, ResourceCapacity, ResourceRequirements
@@ -44,6 +45,8 @@ from app.services.multimodal import MultimodalService
 from app.services.network_guard import NetworkGuard, make_guarded_transport
 from app.services.ocr_provider import OCRProvider, RapidOCREngine
 from app.services.ollama_service import OllamaService
+from app.services.pipeline import ComplexityGate, PipelineExecutor
+from app.services.projects import CoworkProjects, ProjectLocks
 from app.services.resource_provider import InMemoryResourceProvider, LocalResourceProvider
 from app.services.resource_scheduler import InMemoryResourceScheduler
 from app.services.sandbox_runner import DockerSandboxRunner, SandboxRunner
@@ -230,6 +233,8 @@ def create_app(
     embedding_provider: Optional[EmbeddingProvider] = None,
     ocr_provider: Optional[OCRProvider] = None,
     vision_provider: Optional[VisionProvider] = None,
+    cowork_projects: Optional[CoworkProjects] = None,
+    cowork_locks: Optional[ProjectLocks] = None,
 ) -> FastAPI:
     """Build the FastAPI application.
 
@@ -382,6 +387,12 @@ def create_app(
             max_context_chars=settings.pipeline_max_context_chars,
         )
 
+    projects = cowork_projects or CoworkProjects(
+        root=settings.cowork_projects_root,
+        file_max_bytes=settings.cowork_file_max_bytes,
+    )
+    project_locks = cowork_locks or ProjectLocks()
+
     worker = Worker(
         queue=job_queue,
         manager=job_manager,
@@ -393,6 +404,8 @@ def create_app(
         scheduler=scheduler,
         pipeline_executor=pipeline_executor,
         complexity_gate=complexity_gate,
+        projects=projects,
+        project_locks=project_locks,
     )
 
     app = FastAPI(
@@ -422,6 +435,8 @@ def create_app(
     app.state.workspace_manager = workspace_manager
     app.state.agent = agent
     app.state.scheduler = scheduler
+    app.state.projects = projects
+    app.state.project_locks = project_locks
     app.state.knowledge_base = knowledge_base
     app.state.embedding_provider = embedding
     app.state.multimodal_service = multimodal
@@ -451,6 +466,7 @@ def create_app(
     app.include_router(health_router)
     app.include_router(audit_router)
     app.include_router(admin_router)
+    app.include_router(projects_router)
 
     return app
 

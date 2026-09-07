@@ -28,6 +28,7 @@ class JobCreate(BaseModel):
     message: str = Field(..., min_length=1)
     task_type: str = "general"
     priority: int = 0
+    project_id: Optional[str] = None
 
 
 class Job(BaseModel):
@@ -60,6 +61,10 @@ class Job(BaseModel):
     # from the ArtifactStore; the store remains the source of truth.
     artifacts: list[ArtifactSummary] = Field(default_factory=list)
 
+    # Cowork: when set, the agent runs against this persistent project folder
+    # instead of the per-job workspace.
+    project_id: Optional[str] = None
+
 
 class JobSubmitResponse(BaseModel):
     """Returned immediately when a job is accepted into the queue."""
@@ -81,6 +86,7 @@ class JobSummary(BaseModel):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     model: Optional[str] = None
+    project_id: Optional[str] = None
 
     @classmethod
     def from_job(cls, job: Job) -> "JobSummary":
@@ -95,4 +101,5 @@ class JobSummary(BaseModel):
             started_at=job.started_at,
             completed_at=job.completed_at,
             model=job.model,
+            project_id=job.project_id,
         )

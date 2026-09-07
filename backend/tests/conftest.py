@@ -422,11 +422,17 @@ def client_factory(app_settings, test_models):
         embedding_provider=None,
         ocr_provider=None,
         vision_provider=None,
+        project_root=None,
+        file_max_bytes=1_000_000,
     ):
         registry = build_registry(models if models is not None else test_models)
-        settings = app_settings
+        updates = {}
         if sandbox_enabled:
-            settings = app_settings.model_copy(update={"sandbox_enabled": True})
+            updates["sandbox_enabled"] = True
+        if project_root is not None:
+            updates["cowork_projects_root"] = str(project_root)
+        updates["cowork_file_max_bytes"] = file_max_bytes
+        settings = app_settings.model_copy(update=updates) if updates else app_settings
         app = create_app(
             settings=settings,
             ollama_transport=httpx.MockTransport(handler),

@@ -119,6 +119,12 @@ class Settings(BaseSettings):
     # Hard truncation caps for stage-output chaining (never silent).
     pipeline_max_stage_output_chars: int = 12000
     pipeline_max_context_chars: int = 16000
+
+    # Cowork: persistent per-user project workspaces (AI-IDE mode).
+    cowork_enabled: bool = True
+    cowork_projects_root: str = str(REPO_ROOT / "data" / "projects")
+    cowork_file_max_bytes: int = 1_000_000
+    cowork_tree_max_entries: int = 500
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

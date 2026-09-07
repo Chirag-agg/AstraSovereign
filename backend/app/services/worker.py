@@ -18,6 +18,7 @@ from app.services.job_queue import JobQueue
 from app.services.model_router import ModelRouter, ModelRoutingError
 from app.services.ollama_service import OllamaService, OllamaServiceError
 from app.services.pipeline import ComplexityGate, PipelineExecutor
+from app.services.projects import CoworkProjects, ProjectLocks, ProjectNotFoundError
 from app.services.resource_scheduler import ResourceScheduler
 from app.services.task_router import TaskRouter
 from app.services.workspace import WorkspaceManager
@@ -38,6 +39,8 @@ class Worker:
         scheduler: ResourceScheduler,
         pipeline_executor: Optional[PipelineExecutor] = None,
         complexity_gate: Optional[ComplexityGate] = None,
+        projects: Optional[CoworkProjects] = None,
+        project_locks: Optional[ProjectLocks] = None,
     ) -> None:
         self._queue = queue
         self._manager = manager
@@ -49,6 +52,8 @@ class Worker:
         self._scheduler = scheduler
         self._pipeline_executor = pipeline_executor
         self._complexity_gate = complexity_gate
+        self._projects = projects
+        self._project_locks = project_locks
         self._task: Optional[asyncio.Task] = None
         self._state = "stopped"  # stopped | idle | running
         self._active_job_id: Optional[str] = None
@@ -101,6 +106,8 @@ class Worker:
         self._state = "running"
         self._active_job_id = job_id
         agent_result = None
+        project_lock_held = False
+        project_dir: Optional[object] = None
         try:
             classification = self._task_router.classify(job.message)
             logger.info(
@@ -175,9 +182,19 @@ class Worker:
                 },
             )
 
-            workspace = await self._workspace_manager.create_workspace(
-                job.user_id, job_id
-            )
+            if job.project_id:
+                if self._projects is None or self._project_locks is None:
+                    raise RuntimeError("Cowork project support is not configured")
+                if not self._projects.owns(job.user_id, job.project_id):
+                    await self._fail(job, error=f"project_not_found: {job.project_id}")
+                    return
+                project_dir = self._projects.ensure_dir(job.user_id, job.project_id)
+                project_lock_held = self._project_locks.acquire(job.user_id, job.project_id)
+                workspace = project_dir
+            else:
+                workspace = await self._workspace_manager.create_workspace(
+                    job.user_id, job_id
+                )
             use_pipeline = bool(
                 self._pipeline_executor is not None
                 and self._complexity_gate is not None
@@ -227,6 +244,8 @@ class Worker:
             await self._finish_agent_job(job, agent_result)
         finally:
             await self._release_resources(job_id)
+            if project_lock_held and job.project_id and self._project_locks is not None:
+                self._project_locks.release(job.user_id, job.project_id)
             self._active_job_id = None
             self._state = "idle"
 
