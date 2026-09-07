@@ -665,3 +665,21 @@ model is present on Ollama (skipped otherwise).
 
 **CI**: `.github/workflows/ci.yml` runs the full backend suite (plus the
 frontend typecheck/tests/build) on every push and pull request.
+
+## Multi-model pipeline (current)
+
+- `app/services/pipeline.py` decomposes complex multi-capability requests
+  (gate: coding+document, coding+math, …) into capability stages run on
+  different local models. `app/services/capability_router.py` maps a capability
+  to an enabled model with fallback to `general`. The planner capability is
+  server-allowlisted; plans are validated before execution.
+- Env: `PIPELINE_ENABLED` (default true), planner capability, max stages/
+  iterations/tool calls, attempts, truncation caps. Sandbox enabled by default
+  (`SANDBOX_ENABLED=true`); `.env` and `.env.example` are updated.
+- The agent enforces, on the standalone path, that coding tasks run code and
+  document-creation tasks generate a document. `task_router.py` routes only
+  explicit file-processing verbs to `document`; `config/models.yaml` enables
+  `document` and adds an optional (disabled) `math` model.
+- Run: `\.venv\Scripts\python -m uvicorn app.main:app` (ensure `python-docx` is
+  installed in the venv and Docker is up for code execution). Tests:
+  `pytest` (full suite green, incl. `tests/test_pipeline.py`).

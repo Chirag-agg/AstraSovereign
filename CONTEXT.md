@@ -1313,3 +1313,90 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   `X-Role: admin` boundary). Applied UI refinements (sidebar row layout + hover
   actions, scroll fade, brand anchor, composer glow, assistant card, console
   accent). 330 backend + 46 frontend tests passing.
+
+### Post-Phase 11 — SIH Workbench Adoption, Real-Data UI, and Multi-Model Pipelines (current)
+
+> Phased numbering is retired; commits no longer carry phase numbers. This block
+> is the authoritative memory for the most recent body of work.
+
+#### UI: SIH-style workbench adopted (frontend)
+- The polished SIH/POC React UI was ported into the Next.js app and is served at
+  `/preview` (client-only, `dynamic ssr:false`). It is a single operator cockpit:
+  Agent Chat, Live Logs, Model Routing, Knowledge Base, Vault, and Code Sandbox,
+  plus a right rail (Audit / Network / Models) and login screen. Fully unbranded
+  (no Rakshaka/MRPL/Sovereign strings, marks, or storage keys anywhere); topbar
+  says "AI Workbench".
+- Ported UI lives under `frontend/src/sih/` (self-contained, relative imports) and
+  is now wired to the real backend — no demo data in the main flows:
+  - Agent Chat submits real `POST /api/chat` jobs, polls ~1.1s, and reveals live
+    steps (plan / tools / final) with the routed model; artifacts download the
+    real generated file; uploads are ingested into the KB first; final answers
+    render as Markdown; follow-ups carry session context (attached docs + last
+    answer) so chained prompts keep working.
+  - Knowledge Base lists/uploads/deletes real documents (chunks, status,
+    `/health` index totals); Vault lists real artifacts with real downloads;
+    Live Logs, Model Routing (real `/api/admin/models` registry + routing trace),
+    the right rail (real sovereignty/health/models), and the Sandbox (real
+    runs: submit → terminal stream → pass/fail) all read live backend data.
+- New frontend deps: `tailwindcss` v4 (+ `@tailwindcss/postcss`, imported at the
+  top of `globals.css`), `lucide-react`, `jszip`. `docx` retained for Word
+  exports; Excel/PPTX deliverables are generated client-side with a small
+  JSZip-based OOXML writer (exceljs/pptxgenjs dropped — they cannot bundle in
+  Next because of `node:*` requires; `next.config.mjs` stubs the node: scheme).
+- `Login.tsx` dev sign-in gate (sessionStorage `sovereign.session`) added at `/`;
+  `/admin` console unchanged and unbranded to "Operations console". Design tokens
+  refreshed to a neutral sage-on-black palette with light-theme support.
+- Frontend suite: 63 tests pass; `tsc` clean; `next build` succeeds.
+
+#### Backend: reliability + multi-model pipelines
+- Code sandbox now enabled by default (`sandbox_enabled: bool = True`; `.env` and
+  `.env.example` updated). python-docx is in requirements; the backend must run
+  from `backend/.venv`.
+- Agent hardening in `agent.py`: coding tasks cannot finish without a real
+  `code_execution` call; document-creation requests cannot finish without a real
+  `document_generation` call (both steered, bounded, and gated to the standalone
+  single-model path via `enforce_contracts`). Worker re-fetches the job after
+  classification so `task_type`/`model` are accurate at execution time.
+- `task_router.py` only classifies explicit file-processing verbs to the reserved
+  `document` type; `config/models.yaml` enables `document` → `qwen2.5:7b` and adds
+  an optional disabled `math` entry (`qwen2.5-math:7b`). `document_generation`
+  accepts per-section `sources`.
+- NEW **multi-model pipeline** (`app/services/pipeline.py` +
+  `capability_router.py`):
+  - Capability allowlist is server-side fixed:
+    `{reasoning, math, coding, document, vision}`; the planner may not invent
+    capabilities.
+  - Flow: Worker (TaskRouter → ModelRouter) → `ComplexityGate` (only genuinely
+    multi-capability requests, e.g. coding+document or coding+math) →
+    `Planner` (reasoning-model LLM plan, validated against the allowlist and
+    resolvable enabled models, with deterministic fallback templates) →
+    `PipelineExecutor`.
+  - Each stage runs its own bounded agent session on a **different** local model
+    chosen by capability (`CapabilityRouter`: capability match → general → any
+    enabled; never a silent crash). Prior stage outputs are chained with explicit
+    truncation markers (`pipeline_max_stage_output_chars`/
+    `pipeline_max_context_chars`). Stage resources are allocated
+    (`<job_id>:<stage>`) and released one at a time. Retries happen only when a
+    stage failed before any tool side effect. The whole plan is validated before
+    any stage executes.
+  - Trace gains `stage_started`/`stage_completed`/`stage_retry`/
+    `pipeline_completed` entries carrying stage/label/capability/model/attempt;
+    the UI renders each stage as a step with its model chip (also visible in the
+    admin job trace).
+  - Config: `PIPELINE_ENABLED`, `PIPELINE_PLANNER_CAPABILITY`,
+    `PIPELINE_MAX_STAGES`, `PIPELINE_STAGE_MAX_ITERATIONS`,
+    `PIPELINE_STAGE_MAX_TOOL_CALLS`, `PIPELINE_ATTEMPTS`,
+    `PIPELINE_MIN_PROMPT_CHARS`, `PIPELINE_MAX_STAGE_OUTPUT_CHARS`,
+    `PIPELINE_MAX_CONTEXT_CHARS`.
+- Tests: `backend/tests/test_pipeline.py` (gate, allowlist validation, capability
+  router fallback, planner fallback, end-to-end coding+document run). Full
+  backend suite green (incl. preserved single-model paths); frontend 63/63.
+
+#### Docs
+- CONTEXT.md / README.md / frontend README / backend README updated to cover the
+  adopted UI, the `/preview` workbench, and the multi-model pipeline.
+
+#### Current / next
+- Current: UI adoption + real-data wiring + multi-model pipeline (this block).
+- Next candidates: pipeline summary card in the UI, per-stage verification
+  outputs, real math model pull + enable, and further stage templates.

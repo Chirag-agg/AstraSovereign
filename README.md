@@ -88,3 +88,27 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch flow, testing commands, an
 contribution rules. Use the issue/PR templates in `.github/`. CI
 (`.github/workflows/ci.yml`) runs the backend and frontend suites on every push
 and pull request.
+
+## What's new (current work)
+
+- **SIH-style workbench UI** adopted and served at `/preview` (login → Agent Chat,
+  Live Logs, Model Routing, Knowledge Base, Vault, Code Sandbox + right rail),
+  fully unbranded and wired to the **real** backend: live job submission/polling
+  with step timelines and model chips, Markdown answers, session-context follow-ups,
+  real document/artifact upload & download, real model registry, sovereignty and
+  sandbox runs.
+- **Multi-model pipelines**: complex multi-capability requests (e.g. coding +
+  document, coding + math) are decomposed by a local planner into capability
+  stages (reasoning → math → coding → document), each run on a different local
+  model, with prior outputs chained (truncation-marked), per-stage resource
+  allocation, and every stage visible in the UI trace.
+- **Sandbox on by default** (`SANDBOX_ENABLED=true`), agent contract enforcement
+  (code tasks must run code; doc tasks must generate a document), and the
+  `document`/`math` task models configurable in `config/models.yaml`.
+
+### Run it
+- Backend: `cd backend` then `\.venv\Scripts\python -m uvicorn app.main:app` (Ollama
+  up, Docker up for the code sandbox, models pulled).
+- Frontend: `cd frontend && npm install && npm run dev`, then open
+  `http://localhost:3000/preview` for the adopted workbench UI, or `/` for the
+  classic workspace and `/admin` for the operations console.
