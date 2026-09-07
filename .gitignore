@@ -95,6 +95,9 @@ data/audit/
 data/jobs/
 data/artifacts/
 
+# ── Cowork persistent user projects ──
+data/projects/
+
 # ── Models & AI Artifacts ──────────────────────────────────────
 models/
 *.gguf
