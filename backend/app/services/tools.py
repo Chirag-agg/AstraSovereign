@@ -217,6 +217,12 @@ class CodeExecutionTool(BaseTool):
             status = "timeout"
         else:
             summary = f"Exit code {result.exit_code} in {result.duration_ms}ms"
+            if not result.success:
+                detail = (result.stderr or "").strip()
+                if not detail:
+                    detail = (result.stdout or "").strip()
+                if detail:
+                    summary = f"{summary}\n{detail[:300]}"
             status = "completed"
         content = (
             f"exit_code={result.exit_code} timed_out={result.timed_out} "

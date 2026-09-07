@@ -256,23 +256,27 @@ class Agent:
                         "Agent stopped: model returned an empty final response",
                     )
                 # Coding tasks must be verified by actually running code in the
-                # sandbox. If the model tries to finish without a code_execution
-                # call, steer it back instead of accepting an untested answer.
-                has_run_code = any(
-                    e.get("type") == "tool_call" and e.get("tool") == "code_execution" for e in trace
+                # sandbox AND seeing it succeed. If the model tries to finish
+                # without a successful code_execution, steer it back.
+                has_run_ok = any(
+                    e.get("type") == "tool_result"
+                    and e.get("tool") == "code_execution"
+                    and e.get("ok") is True
+                    for e in trace
                 )
                 if (
                     enforce_contracts
                     and job.task_type in ("coding",)
-                    and not has_run_code
+                    and not has_run_ok
                     and iterations < max_iter
                 ):
                     history.append(
-                        "You tried to answer a coding task without running any code. This is not "
-                        "allowed: call code_execution now with "
+                        "You tried to finish a coding task without a successful sandbox run. This "
+                        "is not allowed: call code_execution with "
                         '{"language": "python", "code": "<your complete, self-contained program>"} '
-                        "(Python standard library only). Run it, inspect the real output, then reply "
-                        "final with the verified result."
+                        "(standard library or numpy), read the reported error if it fails, fix the "
+                        "code, and rerun until it exits with code 0. Then reply final with the "
+                        "verified result and the final code."
                     )
                     await self._sync(job_id, trace, stage, iterations, tool_calls)
                     continue
@@ -334,6 +338,25 @@ class Agent:
                         "status": AgentStatus.COMPLETED,
                     },
                 )
+                # If the model finished without including its code (common on
+                # small models after failed retries), attach the last code that
+                # actually ran successfully in the sandbox so the user always
+                # receives a working implementation.
+                if (
+                    enforce_contracts
+                    and job.task_type in ("coding",)
+                    and response
+                    and "```" not in response
+                ):
+                    verified = self._last_verified_code(trace)
+                    if verified:
+                        if len(verified) > 12000:
+                            verified = verified[:12000] + "\n# [truncated]"
+                        response = (
+                            f"{response}\n\n**Verified working implementation "
+                            f"(ran successfully in the local sandbox):**\n"
+                            f"```python\n{verified}\n```"
+                        )
                 return AgentResult(
                     status=AgentStatus.COMPLETED,
                     response=response,
@@ -432,6 +455,23 @@ class Agent:
             await self._sync(job_id, trace, stage, iterations, tool_calls)
 
     # ----------------------------------------------------------- helpers
+
+    @staticmethod
+    def _last_verified_code(trace: list[dict]) -> Optional[str]:
+        """Code of the last code_execution that succeeded (exit 0), if any."""
+        verified: Optional[str] = None
+        candidate: Optional[str] = None
+        for entry in trace:
+            etype = entry.get("type")
+            if etype == "tool_call" and entry.get("tool") == "code_execution":
+                args = entry.get("arguments")
+                code = args.get("code") if isinstance(args, dict) else None
+                candidate = str(code) if code else None
+            elif etype == "tool_result" and entry.get("tool") == "code_execution":
+                if entry.get("ok") is True and candidate:
+                    verified = candidate
+                candidate = None
+        return verified
 
     @staticmethod
     def _append(trace: list[dict], entry_type: str, **fields: Any) -> None:
@@ -544,9 +584,10 @@ class Agent:
             "CODING RULES:",
             "- If the request is to write, run, test or verify code, or to compute/check a numeric result, you MUST call code_execution with complete, self-contained code and report the real output you got.",
             "- Never answer with code that you have not actually run. If you have not run it yet, call code_execution first.",
-            "- Write code that works with the Python STANDARD LIBRARY ONLY (math, json, csv, statistics, etc.). Do not import numpy, scipy, pandas or any package unless the sandbox description says it is available.",
+            "- The sandbox provides Python plus numpy and pytest. Write code that uses the standard library or numpy only. Do not import scipy, pandas, tensorflow, torch or any other package unless the sandbox description says it is available.",
             "- When calling code_execution always pass {\"language\": \"python\", \"code\": \"<your full program>\"}.",
             "- If a tool call fails, read the error, fix the code and try again before giving up.",
+            "- For coding-only requests, do not call document_search or other knowledge tools unless the task actually needs them.",
             "",
             "AVAILABLE TOOLS:",
             tools_desc,

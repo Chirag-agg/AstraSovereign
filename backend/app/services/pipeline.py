@@ -1,4 +1,4 @@
-﻿"""Multi-model pipeline execution.
+"""Multi-model pipeline execution.
 
 A complex task is decomposed into an ordered list of capability stages
 (``reasoning | math | coding | document | vision``). Each stage runs its own
@@ -115,7 +115,7 @@ class Planner:
         if sig["coding"] and sig["document"]:
             items = [  # (capability, label, instruction)
                 ("reasoning", "Reasoning", "Analyse the request, decide the algorithm/approach and what the document must contain."),
-                ("coding", "Coding", "Write the code that implements the algorithm (Python standard library only) and run it to verify output."),
+                ("coding", "Coding", "Write the code that implements the algorithm (standard library or numpy) and run it to verify output."),
                 ("document", "Document generation", "Generate the final deliverable document covering the algorithm and the verified code/output."),
             ]
         elif sig["coding"] and sig["math"]:
@@ -132,7 +132,7 @@ class Planner:
         elif sig["coding"]:
             items = [
                 ("reasoning", "Reasoning", "Design the algorithm and decide how to verify it."),
-                ("coding", "Coding", "Implement the algorithm in code (Python standard library only) and run it to verify."),
+                ("coding", "Coding", "Implement the algorithm in code (standard library or numpy) and run it to verify."),
             ]
         elif sig["math"]:
             items = [
