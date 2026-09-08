@@ -20,6 +20,7 @@ import MonitoringView from "@/components/workbench/MonitoringView";
 import AuditLogsView from "@/components/workbench/AuditLogsView";
 import TeamView from "@/components/workbench/TeamView";
 import SecurityConsoleView from "@/components/workbench/SecurityConsoleView";
+import SandboxView from "@/components/workbench/SandboxView";
 import CommandPalette from "@/components/workbench/CommandPalette";
 import HomeSearchView from "@/components/workbench/HomeSearchView";
 import SystemDrawer from "@/components/SystemDrawer";
@@ -368,12 +369,15 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
         <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
           {currentSection === "home" && (
             <HomeSearchView
-              onSearchSubmit={(query) => {
-                void handleSubmit(query);
-              }}
+              user={user}
               onNavigate={(sec) => setCurrentSection(sec)}
               jobs={jobs}
               documents={documents}
+              onDownloadArtifact={(art) => void handleDownload(art)}
+              onOpenInStudio={(jobId) => {
+                setActiveJobId(jobId);
+                setCurrentSection("agent");
+              }}
             />
           )}
 
@@ -459,8 +463,8 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
             )}
           </div>
 
-          {currentSection === "models" && <ModelsView />}
-          {currentSection === "tools" && <ToolsView />}
+          {currentSection === "models" && <ModelsView health={health} />}
+          {currentSection === "tools" && <ToolsView health={health} />}
           {currentSection === "workflows" && <WorkflowsView />}
           {(currentSection === "knowledge" || currentSection === "documents") && (
             <KnowledgeBaseView
@@ -470,18 +474,26 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
               uploading={chips.some((c) => c.state === "uploading")}
             />
           )}
-          {currentSection === "files" && <FilesView />}
+          {currentSection === "files" && (
+            <FilesView
+              user={user}
+              artifacts={artifacts}
+              documents={documents}
+              onDownloadArtifact={(a) => void handleDownload(a)}
+            />
+          )}
           {currentSection === "outputs" && (
             <OutputsView
               artifacts={artifacts}
               onDownloadArtifact={(a) => void handleDownload(a)}
             />
           )}
-          {currentSection === "compute" && <ComputeView />}
-          {currentSection === "monitoring" && <MonitoringView />}
-          {currentSection === "audit" && <AuditLogsView />}
+          {currentSection === "compute" && <ComputeView health={health} />}
+          {currentSection === "monitoring" && <MonitoringView health={health} jobs={jobs} />}
+          {currentSection === "audit" && <AuditLogsView user={user} />}
+          {currentSection === "sandbox" && <SandboxView user={user} />}
           {currentSection === "team" && <TeamView />}
-          {currentSection === "settings" && <SecurityConsoleView />}
+          {currentSection === "settings" && <SecurityConsoleView health={health} />}
         </main>
       </div>
 

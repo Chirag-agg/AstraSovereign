@@ -67,11 +67,19 @@ export default function TopBar({
 
   const TABS: { id: WorkbenchSection; label: string; icon?: React.ElementType }[] = [
     { id: "home", label: "Home" },
+    { id: "coworking", label: "Coworking" },
     { id: "agent", label: "AI Assistant" },
-    { id: "documents", label: "Documents" },
-    { id: "knowledge", label: "Knowledge Base" },
-    { id: "outputs", label: "Deliverables" },
     { id: "jobs", label: "Task History" },
+    { id: "documents", label: "Documents" },
+    { id: "outputs", label: "Deliverables" },
+    { id: "files", label: "Files" },
+    { id: "models", label: "Models" },
+    { id: "tools", label: "Tools" },
+    { id: "workflows", label: "Pipelines" },
+    { id: "compute", label: "Compute" },
+    { id: "sandbox", label: "Sandbox" },
+    { id: "monitoring", label: "Health" },
+    { id: "audit", label: "Audit" },
     { id: "settings", label: "Security" },
   ];
 

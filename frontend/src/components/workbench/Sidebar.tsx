@@ -26,6 +26,11 @@ import {
   LogOut,
   FolderTree,
   Cpu,
+  GitBranch,
+  Activity,
+  ScrollText,
+  Layers,
+  Code,
 } from "lucide-react";
 import type { WorkbenchSection } from "./types";
 import type { DocumentMeta, JobSummary } from "@/lib/types";
@@ -59,11 +64,19 @@ interface NavCategory {
 
 const NAV_MAIN_ITEMS: NavSectionItem[] = [
   { id: "home", label: "Home", icon: Search },
+  { id: "coworking", label: "Coworking Space", icon: Users2 },
   { id: "agent", label: "AI Assistant", icon: Terminal },
-  { id: "documents", label: "Documents", icon: FileText },
-  { id: "knowledge", label: "Knowledge Base", icon: Library },
-  { id: "outputs", label: "Deliverables", icon: Archive },
   { id: "jobs", label: "Task History", icon: LayoutDashboard },
+  { id: "documents", label: "Documents", icon: FileText },
+  { id: "outputs", label: "Deliverables", icon: Archive },
+  { id: "files", label: "Workspace Files", icon: FolderTree },
+  { id: "models", label: "Models & Routing", icon: Layers },
+  { id: "tools", label: "Local Tools", icon: Code },
+  { id: "workflows", label: "Agent Pipelines", icon: GitBranch },
+  { id: "compute", label: "Compute & VRAM", icon: Cpu },
+  { id: "sandbox", label: "Code Sandbox", icon: Terminal },
+  { id: "monitoring", label: "System Health", icon: Activity },
+  { id: "audit", label: "Audit Evidence", icon: ScrollText },
   { id: "settings", label: "Security", icon: ShieldCheck },
 ];
 

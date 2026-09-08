@@ -14,6 +14,7 @@ export type WorkbenchSection =
   | "compute"
   | "monitoring"
   | "audit"
+  | "sandbox"
   | "team"
   | "settings";
 

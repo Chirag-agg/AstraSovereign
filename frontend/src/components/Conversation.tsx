@@ -204,7 +204,7 @@ export default function Conversation({
           )
         ) : null}
 
-        {(job.execution_trace && job.execution_trace.length > 0) || job.status === "running" ? (
+        {(job.execution_trace && job.execution_trace.length > 0) || job.status === "running" || job.status === "queued" ? (
           <div style={{ margin: "8px 0 14px" }}>
             <WorkConsole job={job} expanded={consoleOpen} onToggle={() => setConsoleOpen(!consoleOpen)} />
           </div>

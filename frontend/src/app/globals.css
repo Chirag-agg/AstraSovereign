@@ -2303,3 +2303,147 @@ body {
 .caret {
   animation: caret-blink 1s step-end infinite;
 }
+
+/* Claude / AGY Work Terminal Styles */
+.console {
+  border: 1px solid #1e293b;
+  border-radius: 14px;
+  background-color: #0b0f19;
+  color: #e2e8f0;
+  font-family: var(--mono);
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  margin: 10px 0 16px 0;
+}
+
+.console.done {
+  border-color: #1e293b;
+}
+
+.console-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background-color: #0f172a;
+  border: none;
+  border-bottom: 1px solid #1e293b;
+  color: #cbd5e1;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s;
+}
+
+.console-header:hover {
+  background-color: #1e293b;
+}
+
+.console-header .chev {
+  font-size: 9px;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+.console-header.open .chev {
+  transform: rotate(90deg);
+}
+
+.console-title {
+  color: #f1f5f9;
+  font-weight: 700;
+}
+
+.console-sub {
+  margin-left: auto;
+  font-size: 11px;
+  color: #38bdf8;
+  font-weight: 500;
+}
+
+.console-body {
+  padding: 12px 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.65;
+  color: #94a3b8;
+  background-color: #080b11;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.cline {
+  padding: 1.5px 0;
+  word-break: break-word;
+}
+
+.cline.header {
+  color: #818cf8;
+  font-weight: 600;
+  padding-bottom: 2px;
+}
+
+.cline.plan {
+  padding-left: 12px;
+  color: #cbd5e1;
+}
+
+.cline .plan-num {
+  color: #64748b;
+}
+
+.cline .dollar {
+  color: #10b981;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+.cline .cmd {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.cline .meta {
+  color: #fbbf24;
+}
+
+.cline .ok {
+  color: #34d399;
+  font-weight: 700;
+}
+
+.cline .err {
+  color: #f87171;
+  font-weight: 700;
+}
+
+.cline .warn {
+  color: #fbbf24;
+}
+
+.cline.console-final {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #1e293b;
+}
+
+@keyframes terminal-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid #fbbf24;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: terminal-spin 0.8s linear infinite;
+  margin-left: 5px;
+}
+
