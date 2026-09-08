@@ -34,11 +34,11 @@ export default function WorkConsole({
   const isRunning = job.status === "running" || job.status === "queued";
 
   return (
-    <div className="w-full my-3 rounded-2xl overflow-hidden border border-slate-800 bg-[#0a0d14] shadow-xl text-xs font-mono select-none">
+    <div className="w-full my-3 rounded-2xl overflow-hidden border border-white/60 bg-[#0a0d14] shadow-xl text-xs font-mono select-none">
       {/* Terminal Title Bar (Inspired by Claude Code & Antigravity Live Terminal) */}
       <div
         onClick={onToggle}
-        className="flex items-center justify-between px-4 py-2.5 bg-[#0f1420] border-b border-slate-800/80 cursor-pointer hover:bg-[#131929] transition-colors"
+        className="flex items-center justify-between px-4 py-2.5 bg-[#0f1420] border-b border-white/10 cursor-pointer hover:bg-[#131929] transition-colors"
       >
         {/* Left: Window Dots & Terminal Label */}
         <div className="flex items-center gap-2.5">

@@ -209,7 +209,6 @@ export default function TopBar({
     { id: "agent", label: "AI Assistant" },
     { id: "coworking", label: "Coworking" },
     { id: "sandbox", label: "Sandbox" },
-    { id: "documents", label: "Documents" },
     { id: "knowledge", label: "Knowledge Base" },
     { id: "outputs", label: "Deliverables" },
     { id: "jobs", label: "Task History" },
@@ -301,18 +300,6 @@ export default function TopBar({
                 {u.label}
               </option>
             ))}
-          </select>
-
-          {/* Dev Role Switcher */}
-          <select
-            aria-label="Development role"
-            title="Development role"
-            value={devRole}
-            onChange={(e) => onDevRoleChange(e.target.value as "user" | "admin")}
-            className="user-select hidden lg:block rounded-xl border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs font-mono text-zinc-600 transition-colors cursor-pointer focus:outline-none"
-          >
-            <option value="user">role: user</option>
-            <option value="admin">role: admin</option>
           </select>
 
           {/* Sign Out Button */}

@@ -326,36 +326,39 @@ export default function TeamView({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Add Employee button */}
-            <button
-              type="button"
-              onClick={() => {
-                setGrantAdminAccess(false);
-                setNewRole("Operator / Contributor (L1)");
-                setIsAddModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 text-sm font-semibold shadow-2xs transition-colors cursor-pointer"
-              title="Add a new standard employee"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>+ Add Employee</span>
-            </button>
+            {/* Add Employee & Admin buttons (Admin only) */}
+            {isAdmin && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGrantAdminAccess(false);
+                    setNewRole("Operator / Contributor (L1)");
+                    setIsAddModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 text-sm font-semibold shadow-2xs transition-colors cursor-pointer"
+                  title="Add a new standard employee"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>+ Add Employee</span>
+                </button>
 
-            {/* Direct Add Admin button */}
-            <button
-              type="button"
-              onClick={() => {
-                setGrantAdminAccess(true);
-                setNewRole("System Administrator");
-                setNewDept("Security & Directorate");
-                setIsAddModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 rounded-xl bg-[#7047eb] hover:bg-[#5f36dd] text-white px-4 py-2 text-sm font-semibold shadow-xs transition-colors cursor-pointer"
-              title="Add a new System Administrator"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>+ Add Admin</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGrantAdminAccess(true);
+                    setNewRole("System Administrator");
+                    setNewDept("Security & Directorate");
+                    setIsAddModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 rounded-xl bg-[#7047eb] hover:bg-[#5f36dd] text-white px-4 py-2 text-sm font-semibold shadow-xs transition-colors cursor-pointer"
+                  title="Add a new System Administrator"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>+ Add Admin</span>
+                </button>
+              </>
+            )}
 
             <button
               type="button"
@@ -385,36 +388,38 @@ export default function TeamView({
           </div>
         )}
 
-        {/* Quick Admin Action Banner */}
-        <div className="p-4 rounded-2xl bg-white border border-purple-100 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-purple-100 text-[#7047eb] flex items-center justify-center font-bold text-xs shrink-0">
-              <ShieldCheck className="w-5 h-5" />
+        {/* Quick Admin Action Banner (Admin only) */}
+        {isAdmin && (
+          <div className="p-4 rounded-2xl bg-white border border-purple-100 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-purple-100 text-[#7047eb] flex items-center justify-center font-bold text-xs shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-slate-900">Administrator &amp; Role Management</h3>
+                <p className="text-[11px] text-slate-500">
+                  You can add new personnel, designate System Administrators, and delegate tasks across all departments.
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-xs font-bold text-slate-900">Administrator &amp; Role Management</h3>
-              <p className="text-[11px] text-slate-500">
-                You can add new personnel, designate System Administrators, and delegate tasks across all departments.
-              </p>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setGrantAdminAccess(true);
-                setNewRole("System Administrator");
-                setNewDept("Security & Directorate");
-                setIsAddModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7047eb] text-xs font-bold border border-purple-200 transition-colors cursor-pointer shrink-0"
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>+ Add User as Admin</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setGrantAdminAccess(true);
+                  setNewRole("System Administrator");
+                  setNewDept("Security & Directorate");
+                  setIsAddModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7047eb] text-xs font-bold border border-purple-200 transition-colors cursor-pointer shrink-0"
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>+ Add User as Admin</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Team Table */}
         <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl flex flex-col overflow-hidden">
@@ -435,13 +440,13 @@ export default function TeamView({
                     <th className="py-3 px-5 text-center">Admin Access</th>
                     <th className="py-3 px-5 text-right">Tasks</th>
                     <th className="py-3 px-5 text-right">Active</th>
-                    <th className="py-3 px-5 text-center">Actions</th>
+                    {isAdmin && <th className="py-3 px-5 text-center">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {allUserIds.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-500 text-sm">
+                      <td colSpan={isAdmin ? 8 : 7} className="py-12 text-center text-slate-500 text-sm">
                         No team records found.
                       </td>
                     </tr>
@@ -491,17 +496,23 @@ export default function TeamView({
                           </td>
 
                           <td className="py-3 px-5">
-                            <select
-                              value={details.roleTitle}
-                              onChange={(e) => handleRoleChange(uid, e.target.value)}
-                              className="text-xs font-semibold px-2 py-1 rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-purple-500 cursor-pointer shadow-2xs"
-                            >
-                              {ROLES.map((r) => (
-                                <option key={r} value={r}>
-                                  {r}
-                                </option>
-                              ))}
-                            </select>
+                            {isAdmin ? (
+                              <select
+                                value={details.roleTitle}
+                                onChange={(e) => handleRoleChange(uid, e.target.value)}
+                                className="text-xs font-semibold px-2 py-1 rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-purple-500 cursor-pointer shadow-2xs"
+                              >
+                                {ROLES.map((r) => (
+                                  <option key={r} value={r}>
+                                    {r}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-xs font-semibold text-slate-800">
+                                {details.roleTitle}
+                              </span>
+                            )}
                           </td>
 
                           <td className="py-3 px-5">
@@ -528,7 +539,7 @@ export default function TeamView({
                                   <ShieldCheck className="w-3.5 h-3.5 text-[#7047eb]" />
                                   Admin
                                 </span>
-                                {uid !== "admin-001" && (
+                                {isAdmin && uid !== "admin-001" && (
                                   <button
                                     type="button"
                                     onClick={() => handleRevokeAdmin(uid)}
@@ -539,7 +550,7 @@ export default function TeamView({
                                   </button>
                                 )}
                               </div>
-                            ) : (
+                            ) : isAdmin ? (
                               <button
                                 type="button"
                                 onClick={() => handleMakeAdmin(uid)}
@@ -549,6 +560,8 @@ export default function TeamView({
                                 <Shield className="w-3.5 h-3.5 text-slate-400" />
                                 <span>Make Admin</span>
                               </button>
+                            ) : (
+                              <span className="text-slate-400 text-xs">—</span>
                             )}
                           </td>
 
@@ -562,19 +575,21 @@ export default function TeamView({
                             </span>
                           </td>
 
-                          <td className="py-3 px-5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedUserForTask(details.name);
-                                setTaskDept(details.department);
-                                setIsAssignTaskModalOpen(true);
-                              }}
-                              className="px-3 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7047eb] text-xs font-semibold border border-purple-200 transition-colors cursor-pointer"
-                            >
-                              Assign Task
-                            </button>
-                          </td>
+                          {isAdmin && (
+                            <td className="py-3 px-5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedUserForTask(details.name);
+                                  setTaskDept(details.department);
+                                  setIsAssignTaskModalOpen(true);
+                                }}
+                                className="px-3 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7047eb] text-xs font-semibold border border-purple-200 transition-colors cursor-pointer"
+                              >
+                                Assign Task
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       );
                     })

@@ -1,4 +1,4 @@
-﻿// Typed API client for the local workbench backend.
+// Typed API client for the local workbench backend.
 // All backend calls go through here â€” components never scatter raw fetch calls.
 
 import type {
@@ -382,3 +382,30 @@ export function coworkChat(userId: string, projectId: string, message: string): 
 export function projectHistory(userId: string, projectId: string): Promise<ProjectHistory> {
   return request<ProjectHistory>(`/api/projects/${encodeURIComponent(projectId)}/history`, {}, userId);
 }
+
+export interface SandboxRunResult {
+  success: boolean;
+  exit_code: number;
+  stdout: string;
+  stderr: string;
+  timed_out: boolean;
+  duration_ms: number;
+  error?: string | null;
+}
+
+export function runSandboxCode(
+  code: string,
+  language: string = "python",
+  stdin: string = "",
+  userId?: string,
+): Promise<SandboxRunResult> {
+  return request<SandboxRunResult>(
+    "/api/sandbox/run",
+    {
+      method: "POST",
+      body: { code, language, stdin },
+    },
+    userId,
+  );
+}
+

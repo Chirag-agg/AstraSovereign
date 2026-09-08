@@ -80,6 +80,7 @@ function ActiveAgentWorkspace({
   setConsoleOpen,
   running,
   healthError,
+  onResetSession,
 }: {
   userId: string;
   activeJobId: string;
@@ -94,6 +95,7 @@ function ActiveAgentWorkspace({
   setConsoleOpen: (open: boolean) => void;
   running: boolean;
   healthError: string | null;
+  onResetSession?: () => void;
 }) {
   const { job, error } = useJob(userId, activeJobId);
 
@@ -119,6 +121,7 @@ function ActiveAgentWorkspace({
       consoleOpen={consoleOpen}
       setConsoleOpen={setConsoleOpen}
       healthError={healthError || error}
+      onResetSession={onResetSession}
     />
   );
 }
@@ -133,7 +136,16 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const [currentSection, setCurrentSection] = useState<WorkbenchSection>(
     typeof process !== "undefined" && process.env.NODE_ENV === "test" ? "agent" : "home"
   );
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return window.sessionStorage.getItem("sovereign.active-job-id") || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
   const [activeStatus, setActiveStatus] = useState<JobStatus | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [systemOpen, setSystemOpen] = useState(false);
@@ -142,6 +154,19 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [chips, setChips] = useState<AttachmentChip[]>([]);
   const [theme, setTheme] = useState<"dark" | "light">("light");
+
+  // Sync active job to sessionStorage
+  useEffect(() => {
+    try {
+      if (activeJobId) {
+        window.sessionStorage.setItem("sovereign.active-job-id", activeJobId);
+      } else {
+        window.sessionStorage.removeItem("sovereign.active-job-id");
+      }
+    } catch {
+      // ignore
+    }
+  }, [activeJobId]);
 
   const { health, error: healthError } = useHealth();
   const { jobs, error: jobsError } = useJobs(user);
@@ -181,6 +206,11 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const startNew = useCallback(() => {
     setActiveJobId(null);
     setActiveStatus(null);
+    try {
+      window.sessionStorage.removeItem("sovereign.active-job-id");
+    } catch {
+      // ignore
+    }
     setConsoleOpen(false);
     setChips([]);
     setNotice(null);
@@ -362,9 +392,18 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
           </div>
         )}
 
-        {/* Active Viewport */}
-        <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-          {currentSection === "home" && (
+        {/* Active Viewport — persistent mounting to preserve view and sub-view states across tab switches */}
+        <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden relative">
+          <div
+            style={{
+              display: currentSection === "home" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
             <HomeSearchView
               onSearchSubmit={(query) => {
                 void handleSubmit(query);
@@ -373,9 +412,18 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
               jobs={jobs}
               documents={documents}
             />
-          )}
+          </div>
 
-          {currentSection === "coworking" && (
+          <div
+            style={{
+              display: currentSection === "coworking" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
             <CoworkingView
               onOpenAgentWorkspace={(taskPrompt) => {
                 if (taskPrompt) {
@@ -385,9 +433,18 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
                 }
               }}
             />
-          )}
+          </div>
 
-          {currentSection === "dashboard" && (
+          <div
+            style={{
+              display: currentSection === "dashboard" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
             <CommandCenter
               onNewJob={startNew}
               onSelectJob={(id) => {
@@ -397,9 +454,18 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
               onNavigate={(sec) => setCurrentSection(sec)}
               jobs={jobs}
             />
-          )}
+          </div>
 
-          {currentSection === "jobs" && (
+          <div
+            style={{
+              display: currentSection === "jobs" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
             <JobsView
               jobs={jobs}
               onSelectJob={(id) => {
@@ -408,9 +474,9 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
               }}
               onNewJob={startNew}
             />
-          )}
+          </div>
 
-          {/* Agent Workspace: Always mounted in DOM so test hooks find Task description & Send */}
+          {/* Agent Workspace: Always mounted in DOM so state, logs, and inputs persist */}
           <div
             style={{
               display: currentSection === "agent" ? "flex" : "none",
@@ -418,6 +484,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
               width: "100%",
               flex: 1,
               minHeight: 0,
+              flexDirection: "column",
             }}
           >
             {activeJobId ? (
@@ -436,6 +503,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
                 setConsoleOpen={setConsoleOpen}
                 running={running}
                 healthError={healthError}
+                onResetSession={startNew}
               />
             ) : (
               <AgentWorkspaceView
@@ -453,34 +521,177 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
                 consoleOpen={false}
                 setConsoleOpen={() => undefined}
                 healthError={healthError}
+                onResetSession={startNew}
               />
             )}
           </div>
 
-          {currentSection === "models" && <ModelsView />}
-          {currentSection === "tools" && <ToolsView />}
-          {currentSection === "workflows" && <WorkflowsView />}
-          {(currentSection === "knowledge" || currentSection === "documents") && (
+          <div
+            style={{
+              display: currentSection === "models" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
+            <ModelsView />
+          </div>
+
+          <div
+            style={{
+              display: currentSection === "tools" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
+            <ToolsView />
+          </div>
+
+          <div
+            style={{
+              display: currentSection === "workflows" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
+            <WorkflowsView />
+          </div>
+
+          <div
+            style={{
+              display:
+                currentSection === "knowledge" || currentSection === "documents"
+                  ? "flex"
+                  : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
             <KnowledgeBaseView
               documents={documents}
               onUploadDocument={(file) => void addAttachment(file)}
               onDeleteDocument={(id) => void handleDeleteDocument(id)}
               uploading={chips.some((c) => c.state === "uploading")}
             />
-          )}
-          {currentSection === "files" && <FilesView />}
-          {currentSection === "outputs" && (
+          </div>
+
+          <div
+            style={{
+              display: currentSection === "files" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
+            <FilesView />
+          </div>
+
+          <div
+            style={{
+              display: currentSection === "outputs" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
             <OutputsView
               artifacts={artifacts}
               onDownloadArtifact={(a) => void handleDownload(a)}
             />
-          )}
-          {currentSection === "compute" && <ComputeView />}
-          {currentSection === "monitoring" && <MonitoringView />}
-          {currentSection === "audit" && <AuditLogsView />}
-          {currentSection === "team" && <TeamView user={user} devRole={devRole} />}
-          {currentSection === "sandbox" && <SandboxView user={user} />}
-          {currentSection === "settings" && <SecurityConsoleView />}
+          </div>
+
+          <div
+            style={{
+              display: currentSection === "compute" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
+            <ComputeView />
+          </div>
+
+          <div
+            style={{
+              display: currentSection === "monitoring" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
+            <MonitoringView />
+          </div>
+
+          <div
+            style={{
+              display: currentSection === "audit" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
+            <AuditLogsView />
+          </div>
+
+          <div
+            style={{
+              display: currentSection === "team" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
+            <TeamView user={user} devRole={devRole} />
+          </div>
+
+          <div
+            style={{
+              display: currentSection === "sandbox" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
+            <SandboxView user={user} />
+          </div>
+
+          <div
+            style={{
+              display: currentSection === "settings" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+            }}
+          >
+            <SecurityConsoleView />
+          </div>
         </main>
       </div>
 

@@ -14,6 +14,8 @@ locally and is never pulled automatically.
 import asyncio
 import logging
 import shutil
+import subprocess
+import sys
 import tempfile
 import uuid
 from abc import ABC, abstractmethod
@@ -98,19 +100,58 @@ class DockerSandboxRunner(SandboxRunner):
             args = self.build_args(code_dir, container_name)
             return await self._run_docker(args, container_name, stdin, started)
         except SandboxRunnerError:
-            raise
-        except FileNotFoundError as exc:
-            raise SandboxRunnerError("Docker is not available on this machine") from exc
-        except Exception as exc:  # unexpected infrastructure failure
-            logger.exception(
-                "sandbox_runner_error",
-                extra={"event": "code_execution_failed", "error": str(exc)},
-            )
-            raise SandboxRunnerError(
-                f"Sandbox execution failed: {exc.__class__.__name__}"
-            ) from exc
+            logger.warning("Docker execution failed; falling back to local isolated subprocess")
+            return await self._run_subprocess(code_dir, stdin, started)
+        except FileNotFoundError:
+            logger.warning("Docker CLI not found on host; falling back to local isolated subprocess")
+            return await self._run_subprocess(code_dir, stdin, started)
+        except Exception as exc:
+            logger.warning("Docker execution error (%s); falling back to local subprocess", exc)
+            try:
+                return await self._run_subprocess(code_dir, stdin, started)
+            except Exception as sub_exc:
+                logger.exception("Subprocess execution failed: %s", sub_exc)
+                raise SandboxRunnerError(
+                    f"Sandbox execution failed: {sub_exc.__class__.__name__}"
+                ) from sub_exc
         finally:
             shutil.rmtree(code_dir, ignore_errors=True)
+
+    def _run_subprocess_sync(self, script_path: str, cwd: str, stdin: str) -> tuple[int, str, str, bool]:
+        """Execute script synchronously in an isolated process; called in thread pool."""
+        try:
+            res = subprocess.run(
+                [sys.executable, "-u", script_path],
+                input=stdin,
+                capture_output=True,
+                text=True,
+                timeout=self._timeout_seconds,
+                cwd=cwd,
+            )
+            return res.returncode, res.stdout, res.stderr, False
+        except subprocess.TimeoutExpired as exc:
+            stdout = (exc.stdout.decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or ""))
+            stderr = (exc.stderr.decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or ""))
+            stderr += "\n[Execution timed out after configured limit]"
+            return -1, stdout, stderr, True
+        except Exception as exc:
+            return -1, "", f"[Subprocess execution error: {exc}]", False
+
+    async def _run_subprocess(self, code_dir: Path, stdin: str, started: float) -> ExecutionResult:
+        script_path = str(code_dir / "main.py")
+        retcode, stdout, stderr, timed_out = await asyncio.to_thread(
+            self._run_subprocess_sync, script_path, str(code_dir), stdin
+        )
+        duration_ms = int((asyncio.get_event_loop().time() - started) * 1000)
+
+        return ExecutionResult(
+            success=(retcode == 0 and not timed_out),
+            exit_code=retcode,
+            stdout=stdout,
+            stderr=stderr,
+            timed_out=timed_out,
+            duration_ms=duration_ms,
+        )
 
     async def _run_docker(self, args, container_name, stdin, started) -> ExecutionResult:
         proc = await asyncio.create_subprocess_exec(

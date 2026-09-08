@@ -500,6 +500,32 @@ function AuditView() {
           value={eventType}
           onChange={(e) => setEventType(e.target.value)}
         />
+        <button
+          type="button"
+          onClick={() => {
+            if (!data || data.length === 0) return;
+            const report = {
+              title: "AstraSovereign System Audit Report",
+              generated_at: new Date().toISOString(),
+              total_events: data.length,
+              events: data,
+            };
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `audit-report-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+          }}
+          disabled={!data || data.length === 0}
+          className="btn btn-secondary"
+          style={{ marginLeft: "auto", cursor: "pointer", fontWeight: 600 }}
+        >
+          Download Audit Report
+        </button>
       </div>
       {error ? (
         <div className="banner banner-error" role="alert">

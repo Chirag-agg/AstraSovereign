@@ -41,14 +41,15 @@ export default function Login({
     }
     setPasswordError(null);
     setSigningIn(true);
+    const effectiveRole: DevRole = userId.startsWith("admin") ? "admin" : "user";
     try {
       window.localStorage.setItem("sovereign.active-user", userId);
-      window.localStorage.setItem("sovereign.dev-role", role);
+      window.localStorage.setItem("sovereign.dev-role", effectiveRole);
       window.sessionStorage.setItem("sovereign.session", "1");
     } catch {
       // storage unavailable
     }
-    setTimeout(() => onAuthenticated(role), 450);
+    setTimeout(() => onAuthenticated(effectiveRole), 450);
   };
 
   return (
