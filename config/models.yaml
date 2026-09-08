@@ -1,0 +1,75 @@
+# Local model registry for the Sovereign AI Workbench.
+#
+# Maps each task type to the local model that handles it. Model names must refer
+# to models already pulled into the local Ollama server (`ollama pull <model>`);
+# the backend never downloads models.
+#
+# To add a model: add a new entry (or edit an existing one) here. No code changes
+# are required. `enabled: false` entries are never selected.
+
+models:
+  general:
+    provider: ollama
+    model: qwen2.5:7b
+    enabled: true
+    capabilities:
+      - general
+      - reasoning
+      - summarization
+    resources:
+      gpu_vram_mb: 8000
+      cpu_cores: 2
+      memory_mb: 4096
+
+  coding:
+    provider: ollama
+    model: qwen2.5-coder:7b
+    enabled: true
+    capabilities:
+      - coding
+      - debugging
+      - code_review
+    resources:
+      gpu_vram_mb: 8000
+      cpu_cores: 2
+      memory_mb: 4096
+
+  # Optional math specialist for pipeline math stages. Enabled only after the
+  # model has been pulled locally (e.g. `ollama pull qwen2.5-math:7b`). While
+  # disabled, pipeline math stages fall back to the `general` model.
+  math:
+    provider: ollama
+    model: qwen2.5-math:7b
+    enabled: false
+    capabilities:
+      - math
+      - reasoning
+    resources:
+      gpu_vram_mb: 8000
+      cpu_cores: 2
+      memory_mb: 4096
+
+  document:
+    provider: ollama
+    model: qwen2.5:7b
+    enabled: true
+    capabilities:
+      - document
+      - summarization
+    resources:
+      gpu_vram_mb: 8000
+      cpu_cores: 2
+      memory_mb: 4096
+
+  vision:
+    provider: ollama
+    model: llava:7b
+    enabled: true
+    capabilities:
+      - vision
+      - image
+      - document
+    resources:
+      gpu_vram_mb: 4096
+      cpu_cores: 2
+      memory_mb: 4096

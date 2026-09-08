@@ -1,0 +1,126 @@
+# ── Environment ────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.local
+*.env
+
+# ── Python ─────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+backend/lib/
+backend/lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+pip-log.txt
+pip-delete-this-directory.txt
+.venv/
+venv/
+env/
+ENV/
+
+# ── Node.js ────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.lerna/*
+.nyc_output/
+dist/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# ── IDE / Editors ──────────────────────────────────────────────
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# ── Logs ───────────────────────────────────────────────────────
+logs/
+*.log
+*.log.*
+
+# ── User Uploads ───────────────────────────────────────────────
+data/uploads/
+
+# ── Generated Outputs (deliverables) ───────────────────────────
+data/outputs/
+*.docx
+*.xlsx
+*.pptx
+
+# ── Local Knowledge Base / Data ────────────────────────────────
+data/knowledge/
+
+# ── Job Workspaces (agent file tools) ──────────────────────────
+data/workspaces/
+
+# ── Multimodal temp images (rendered pages, cleaned after use) ──
+data/tmp/
+
+# ── Local audit trail (Phase 11, append-only JSONL) ──
+data/audit/
+
+# ── Durable store snapshots (jobs / artifact metadata) ──
+data/jobs/
+data/artifacts/
+
+# ── Cowork persistent user projects ──
+data/projects/
+
+# ── Models & AI Artifacts ──────────────────────────────────────
+models/
+*.gguf
+*.gguf.*
+*.safetensors
+*.bin
+*.onnx
+*.pt
+*.pth
+*.ckpt
+
+# ── Docker / Containers ────────────────────────────────────────
+.docker/
+*.container
+*.image
+docker-compose.override.yml
+
+# ── OS Files ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Misc ───────────────────────────────────────────────────────
+*.tmp
+*.temp
+*~

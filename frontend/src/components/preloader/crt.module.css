@@ -1,0 +1,105 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--crt-glass, #05130a);
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding: 40px 48px;
+  overflow: hidden;
+  box-sizing: border-box;
+  user-select: none;
+  cursor: pointer;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.overlayReady {
+  cursor: pointer;
+}
+
+.overlayDismissed {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.terminalContent {
+  position: relative;
+  z-index: 2;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  color: var(--crt-phosphor, #33ff66);
+  text-shadow: 0 0 6px var(--crt-phosphor, #33ff66);
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 960px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.titleLine {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+  text-shadow: 0 0 10px var(--crt-phosphor, #33ff66);
+}
+
+.logLine {
+  white-space: pre-wrap;
+  word-break: break-all;
+  letter-spacing: 0.02em;
+}
+
+.actionPrompt {
+  margin-top: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--crt-phosphor, #33ff66);
+  text-shadow: 0 0 8px var(--crt-phosphor, #33ff66);
+  display: flex;
+  align-items: center;
+}
+
+.cursor {
+  display: inline-block;
+  width: 8px;
+  height: 15px;
+  background-color: var(--crt-phosphor, #33ff66);
+  box-shadow: 0 0 6px var(--crt-phosphor, #33ff66);
+  vertical-align: middle;
+  margin-left: 4px;
+  animation: blink 0.8s steps(2, start) infinite;
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.crtVignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.85);
+  background: radial-gradient(ellipse 95% 85% at 50% 50%, transparent 60%, rgba(5, 19, 10, 0.75) 100%);
+}

@@ -1,0 +1,251 @@
+// TypeScript interfaces matching the backend API responses (Phase 1-9).
+// These mirror the FastAPI schemas exactly — the frontend never re-derives logic.
+
+export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+export type ArtifactStatus = "creating" | "completed" | "failed";
+
+export interface JobSubmitResponse {
+  job_id: string;
+  status: JobStatus;
+}
+
+export interface TraceEntry {
+  step: number;
+  type: string;
+  tool?: string;
+  arguments?: Record<string, unknown>;
+  result_summary?: string;
+  ok?: boolean;
+  response_summary?: string;
+  error?: string;
+  task_type?: string;
+  model?: string;
+  [key: string]: unknown;
+}
+
+export interface ArtifactSummary {
+  artifact_id: string;
+  job_id: string;
+  filename: string;
+  type: string;
+  size_bytes: number;
+  status: ArtifactStatus;
+  created_at: string;
+}
+
+export interface Job {
+  job_id: string;
+  user_id: string;
+  message: string;
+  task_type: string;
+  status: JobStatus;
+  priority: number;
+  created_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  model?: string | null;
+  response?: string | null;
+  error?: string | null;
+  agent_stage?: string | null;
+  iteration_count: number;
+  tool_call_count: number;
+  execution_trace: TraceEntry[];
+  resource_status: string;
+  artifacts: ArtifactSummary[];
+}
+
+export interface JobSummary {
+  job_id: string;
+  user_id: string;
+  message: string;
+  task_type: string;
+  status: JobStatus;
+  priority: number;
+  created_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  model?: string | null;
+}
+
+export interface ModelAvailability {
+  configured: string;
+  available: boolean;
+  enabled: boolean;
+}
+
+export interface GpuAllocation {
+  allocated_vram_mb: number;
+  capacity_vram_mb: number;
+}
+
+export interface ExternalConnections {
+  status: "VERIFIED_LOCAL" | "VERIFIED_EXTERNAL" | "UNKNOWN" | "NOT_TRACKED";
+  count: number;
+  blocked_attempts: number;
+  local_connections: number;
+}
+
+export interface SovereigntyStatus {
+  network_policy: string;
+  local_model_calls: number;
+  external_connections: ExternalConnections;
+  audit_logging: boolean;
+  audit_events: number;
+  sandbox_network: string;
+  ollama_endpoint: string;
+}
+
+export interface AuditEvent {
+  event_id: string;
+  timestamp: string;
+  event_type: string;
+  component: string;
+  status: string;
+  job_id?: string | null;
+  user_id?: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface SchedulerStats {
+  queued_jobs: number;
+  running_jobs: number;
+  allocated: {
+    cpu_cores: number;
+    memory_mb: number;
+    gpu: Record<string, GpuAllocation>;
+  };
+}
+
+export interface DocumentMeta {
+  document_id: string;
+  filename: string;
+  document_type: string;
+  status: string;
+  chunk_count: number;
+  created_at: string;
+  error?: string | null;
+}
+
+export interface Health {
+  status: string;
+  service: string;
+  ollama: { reachable: boolean; url: string; models?: string[]; error?: string };
+  models: Record<string, ModelAvailability>;
+  default_model: string;
+  queue_size: number;
+  jobs: Record<string, number>;
+  scheduler: SchedulerStats;
+  knowledge_base: {
+    documents: number;
+    chunks: number;
+    embedding: Record<string, unknown>;
+    vector_store: string;
+  };
+  multimodal: {
+    status: string;
+    ocr: { enabled: boolean; provider: Record<string, unknown> | null };
+    vision: {
+      model: string | null;
+      enabled: boolean;
+      available: boolean;
+      provider: Record<string, unknown>;
+      resources: Record<string, unknown>;
+    };
+  };
+  document_generation: {
+    available: boolean;
+    word: string;
+    artifacts: { artifacts: number; completed: number };
+  };
+  sovereignty: SovereigntyStatus;
+  worker: { state: string; active_job_id: string | null };
+}
+
+export const TERMINAL_JOB_STATUSES: JobStatus[] = ["completed", "failed", "cancelled"];
+
+export function isTerminalStatus(status: JobStatus): boolean {
+  return TERMINAL_JOB_STATUSES.includes(status);
+}
+
+// -------- admin / organizational (Phase 11 UX, dev-only role) --------
+
+export type DevRole = "user" | "admin";
+
+export interface AdminOverview {
+  jobs: Record<string, number>;
+  models_available: number;
+  models_configured: number;
+  ollama_reachable: boolean;
+  scheduler: SchedulerStats;
+  worker: { state: string };
+  failed_today: number;
+  audit_events: number;
+  sovereignty: SovereigntyStatus;
+}
+
+export interface AdminJobMeta {
+  job_id: string;
+  user_id: string;
+  task_type: string;
+  status: JobStatus;
+  priority: number;
+  model?: string | null;
+  created_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  duration_ms?: number | null;
+  resource_status?: string;
+  agent_stage?: string | null;
+  iteration_count?: number;
+  tool_call_count?: number;
+  error?: string | null;
+}
+
+export interface AdminJobDetail extends AdminJobMeta {
+  execution_trace: TraceEntry[];
+  artifacts: ArtifactSummary[];
+}
+
+export interface AdminUserRow {
+  user_id: string;
+  jobs: number;
+  active_jobs: number;
+  failed_jobs: number;
+  documents: number;
+  artifacts: number;
+  recent_activity?: string | null;
+}
+
+export interface AdminModelRow {
+  task_type: string;
+  provider: string;
+  model: string;
+  enabled: boolean;
+  available: boolean;
+  capabilities: string[];
+  resources: Record<string, unknown>;
+}
+
+export interface AdminResources {
+  capacity: { cpu_cores: number; memory_mb: number; gpus: { gpu_id: string; vram_mb: number }[] };
+  allocated: { job_id: string; gpu_id?: string | null; cpu_cores: number; memory_mb: number; gpu_vram_mb: number }[];
+  waiting_jobs: number;
+  running_jobs: number;
+  allocated_gpu: Record<string, GpuAllocation>;
+}
+
+export type ComponentState = "HEALTHY" | "DEGRADED" | "UNAVAILABLE" | "UNKNOWN";
+
+export interface AdminSystemHealth {
+  ollama: ComponentState;
+  models: ComponentState;
+  worker: ComponentState;
+  queue: ComponentState;
+  scheduler: ComponentState;
+  knowledge_base: ComponentState;
+  ocr: ComponentState;
+  vision: ComponentState;
+  document_generation: ComponentState;
+  audit_store: ComponentState;
+  sandbox_network: string;
+}

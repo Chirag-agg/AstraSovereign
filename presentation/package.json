@@ -1,0 +1,14 @@
+{
+  "name": "sovereign-presentation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local PPTX renderer for the AstraSovereign presentation_generation tool (PptxGenJS).",
+  "license": "MIT",
+  "type": "commonjs",
+  "scripts": {
+    "render": "node src/render.cjs"
+  },
+  "dependencies": {
+    "pptxgenjs": "^4.0.1"
+  }
+}
