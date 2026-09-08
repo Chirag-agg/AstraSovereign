@@ -11,9 +11,15 @@ import {
   Calendar,
   Layers,
   CheckCircle2,
+  Maximize2,
+  Minimize2,
+  Copy,
+  Check,
+  WrapText,
+  FileSearch,
 } from "lucide-react";
 import type { ArtifactSummary } from "@/lib/types";
-import { downloadArtifact } from "@/lib/api";
+import { downloadArtifact, getArtifactPreview } from "@/lib/api";
 
 function activeUserId(): string {
   if (typeof window === "undefined") return "user-001";
@@ -31,34 +37,82 @@ export default function OutputsView({
 }: OutputsViewProps) {
   const [previewArtifact, setPreviewArtifact] = useState<ArtifactSummary | null>(null);
   const [previewText, setPreviewText] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewType, setPreviewType] = useState<"text" | "pdf" | "image" | "docx" | "binary">("text");
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [wordWrap, setWordWrap] = useState(true);
 
   const handleOpenPreview = async (artifact: ArtifactSummary) => {
     setPreviewArtifact(artifact);
     setPreviewText(null);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
     setLoadingPreview(true);
+    setCopied(false);
 
-    const isTextual =
-      artifact.filename.endsWith(".txt") ||
-      artifact.filename.endsWith(".md") ||
-      artifact.filename.endsWith(".py") ||
-      artifact.filename.endsWith(".json") ||
-      artifact.filename.endsWith(".log") ||
-      artifact.type === "code" ||
-      artifact.type === "text";
+    const ext = artifact.filename.split(".").pop()?.toLowerCase() || "";
+    const isPdf = ext === "pdf";
+    const isImage = ["png", "jpg", "jpeg", "svg", "webp", "gif"].includes(ext);
+    const isDocx = ext === "docx";
 
-    if (isTextual) {
-      try {
+    try {
+      if (isPdf) {
+        setPreviewType("pdf");
         const { blob } = await downloadArtifact(activeUserId(), artifact.job_id, artifact.artifact_id);
-        const text = await blob.text();
-        setPreviewText(text);
-      } catch {
-        setPreviewText("Could not load preview text for this artifact.");
-      } finally {
-        setLoadingPreview(false);
+        const url = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
+        setPreviewUrl(url);
+      } else if (isImage) {
+        setPreviewType("image");
+        const { blob } = await downloadArtifact(activeUserId(), artifact.job_id, artifact.artifact_id);
+        const url = URL.createObjectURL(blob);
+        setPreviewUrl(url);
+      } else if (isDocx) {
+        setPreviewType("docx");
+        const res = await getArtifactPreview(activeUserId(), artifact.job_id, artifact.artifact_id);
+        setPreviewText(res.text);
+      } else {
+        setPreviewType("text");
+        try {
+          const res = await getArtifactPreview(activeUserId(), artifact.job_id, artifact.artifact_id);
+          if (res.text) {
+            setPreviewText(res.text);
+          } else {
+            const { blob } = await downloadArtifact(activeUserId(), artifact.job_id, artifact.artifact_id);
+            const text = await blob.text();
+            setPreviewText(text);
+          }
+        } catch {
+          const { blob } = await downloadArtifact(activeUserId(), artifact.job_id, artifact.artifact_id);
+          const text = await blob.text();
+          setPreviewText(text);
+        }
       }
-    } else {
+    } catch {
+      setPreviewText("Could not load full preview content for this file.");
+    } finally {
       setLoadingPreview(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    setPreviewArtifact(null);
+    setPreviewText(null);
+    setIsFullscreen(false);
+  };
+
+  const handleCopy = () => {
+    if (previewText) {
+      navigator.clipboard.writeText(previewText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -156,87 +210,190 @@ export default function OutputsView({
         </div>
       </div>
 
-      {/* Enterprise File Preview Modal */}
+      {/* Enterprise Full-File Preview Modal */}
       {previewArtifact && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 space-y-4 max-h-[85vh] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-purple-50 flex items-center justify-center text-[#7047eb] shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 animate-fade-in">
+          <div
+            className={`bg-white shadow-2xl border border-slate-200 flex flex-col overflow-hidden transition-all duration-200 ${
+              isFullscreen
+                ? "fixed inset-2 rounded-2xl z-50"
+                : "rounded-3xl w-[95vw] max-w-6xl h-[88vh]"
+            }`}
+          >
+            {/* Header / Toolbar */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200/80 bg-slate-50/80 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-2xl bg-purple-100 flex items-center justify-center text-[#7047eb] shrink-0 shadow-2xs">
                   <FileText className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 truncate max-w-md">
-                    {previewArtifact.filename}
-                  </h3>
-                  <span className="text-[11px] font-mono text-slate-400">
-                    Type: {previewArtifact.type || "Document"} · Job: {previewArtifact.job_id}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-slate-900 truncate max-w-sm sm:max-w-md md:max-w-lg" title={previewArtifact.filename}>
+                      {previewArtifact.filename}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-[#7047eb] border border-purple-200 uppercase tracking-wide shrink-0">
+                      {previewType}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono text-slate-400 block truncate">
+                    Job: {previewArtifact.job_id} · ID: {previewArtifact.artifact_id}
                   </span>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setPreviewArtifact(null)}
-                className="text-slate-400 hover:text-slate-700 cursor-pointer p-1 rounded-lg hover:bg-slate-100"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              {/* Action buttons */}
+              <div className="flex items-center gap-2 shrink-0">
+                {previewText && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setWordWrap(!wordWrap)}
+                      className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
+                        wordWrap
+                          ? "bg-purple-50 border-purple-200 text-[#7047eb]"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                      title="Toggle Word Wrap"
+                    >
+                      <WrapText className="w-3.5 h-3.5" />
+                      <span>Wrap</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                      title="Copy full file text"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700 font-bold">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+                  title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Preview"}
+                >
+                  {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onDownloadArtifact(previewArtifact)}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-bold shadow-xs cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Download</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="text-slate-400 hover:text-slate-700 cursor-pointer p-1.5 rounded-xl hover:bg-slate-200/60 transition-colors ml-1"
+                  title="Close preview"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            {/* Content Preview */}
-            <div className="flex-1 overflow-y-auto space-y-3 min-h-[160px]">
+            {/* Content Body: Displays the whole file */}
+            <div className="flex-1 min-h-0 overflow-hidden relative bg-slate-50 flex flex-col">
               {loadingPreview ? (
-                <div className="flex items-center justify-center py-20 text-xs text-slate-500">
-                  Loading deliverable preview...
+                <div className="flex flex-col items-center justify-center h-full text-xs text-slate-500 space-y-2">
+                  <div className="w-6 h-6 border-2 border-[#7047eb] border-t-transparent rounded-full animate-spin" />
+                  <span>Loading full file content...</span>
+                </div>
+              ) : previewType === "pdf" && previewUrl ? (
+                <div className="w-full h-full flex flex-col p-2">
+                  <iframe
+                    src={previewUrl}
+                    className="w-full h-full border-0 rounded-2xl shadow-inner bg-white"
+                    title={previewArtifact.filename}
+                  />
+                </div>
+              ) : previewType === "image" && previewUrl ? (
+                <div className="w-full h-full flex items-center justify-center p-4 overflow-auto bg-slate-900/5">
+                  <img
+                    src={previewUrl}
+                    alt={previewArtifact.filename}
+                    className="max-w-full max-h-full object-contain rounded-xl shadow-lg border border-slate-200"
+                  />
                 </div>
               ) : previewText !== null ? (
-                <div className="space-y-2">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    File Contents:
-                  </span>
-                  <pre className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 leading-relaxed overflow-x-auto whitespace-pre-wrap max-h-[400px]">
-                    {previewText}
-                  </pre>
+                <div className="w-full h-full flex flex-col bg-white overflow-hidden">
+                  {/* File Metadata Bar */}
+                  <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-100/70 text-[11px] font-mono text-slate-600 shrink-0">
+                    <span className="font-semibold text-slate-700">
+                      {previewType === "docx" ? "Word Document Content" : "Full File Source"} · {previewText.split("\n").length} lines · {previewText.trim().split(/\s+/).filter(Boolean).length} words
+                    </span>
+                    <span className="text-slate-400">Complete File Preview</span>
+                  </div>
+
+                  {/* Complete Text with Line Numbers */}
+                  <div className="flex-1 overflow-auto flex min-h-0 p-4 font-mono text-xs bg-slate-950 text-slate-100">
+                    {/* Line numbers */}
+                    <div className="select-none pr-4 text-right text-slate-600 font-mono text-xs border-r border-slate-800 shrink-0 leading-relaxed">
+                      {previewText.split("\n").map((_, i) => (
+                        <div key={i}>{i + 1}</div>
+                      ))}
+                    </div>
+
+                    {/* Source content */}
+                    <pre
+                      className={`pl-4 font-mono text-xs text-slate-200 leading-relaxed select-text flex-1 overflow-x-auto ${
+                        wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"
+                      }`}
+                    >
+                      {previewText}
+                    </pre>
+                  </div>
                 </div>
               ) : (
-                <div className="py-12 px-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-center space-y-3">
-                  <FileCode className="w-10 h-10 text-[#7047eb] mx-auto opacity-70" />
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-800">
-                      Binary / Formatted Deliverable ({previewArtifact.type || "Document"})
-                    </h4>
-                    <p className="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto">
-                      This deliverable is compiled in an air-gapped binary format (e.g. Word .docx or presentation file). You can download it directly below to open in your desktop office suite.
-                    </p>
-                  </div>
+                <div className="py-20 px-6 text-center space-y-3 m-auto">
+                  <FileCode className="w-12 h-12 text-[#7047eb] mx-auto opacity-70" />
+                  <h4 className="text-sm font-bold text-slate-800">
+                    Air-Gapped Binary Deliverable ({previewArtifact.type || "Document"})
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    This file is compiled in a binary format. You can download the complete deliverable below to view it with your local desktop application.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onDownloadArtifact(previewArtifact)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-bold shadow-xs cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download File</span>
+                  </button>
                 </div>
               )}
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100 shrink-0">
-              <span className="text-xs text-slate-400">
-                Verified on-premise deliverable
+            <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 bg-white shrink-0">
+              <span className="text-xs text-slate-400 font-medium">
+                Verified sovereign on-premise deliverable
               </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPreviewArtifact(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDownloadArtifact(previewArtifact)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-bold shadow-xs cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download Deliverable</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                Close Preview
+              </button>
             </div>
           </div>
         </div>
