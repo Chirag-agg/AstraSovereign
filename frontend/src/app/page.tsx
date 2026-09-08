@@ -20,10 +20,12 @@ import MonitoringView from "@/components/workbench/MonitoringView";
 import AuditLogsView from "@/components/workbench/AuditLogsView";
 import TeamView from "@/components/workbench/TeamView";
 import SecurityConsoleView from "@/components/workbench/SecurityConsoleView";
+import SandboxView from "@/components/workbench/SandboxView";
 import CommandPalette from "@/components/workbench/CommandPalette";
 import HomeSearchView from "@/components/workbench/HomeSearchView";
 import SystemDrawer from "@/components/SystemDrawer";
 import Login from "@/components/Login";
+import LandingPage from "@/components/LandingPage";
 
 import {
   ApiError,
@@ -126,11 +128,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const [user, setUser] = useActiveUser();
   const [devRole, setDevRole] = useDevRole();
 
-  useEffect(() => {
-    if (devRole === "admin") {
-      router.replace("/admin");
-    }
-  }, [devRole, router]);
+  // Admin users have full access to the Sovereign workbench with AI Assistant, Sandbox, and Team management.
 
   const [currentSection, setCurrentSection] = useState<WorkbenchSection>(
     typeof process !== "undefined" && process.env.NODE_ENV === "test" ? "agent" : "home"
@@ -480,7 +478,8 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
           {currentSection === "compute" && <ComputeView />}
           {currentSection === "monitoring" && <MonitoringView />}
           {currentSection === "audit" && <AuditLogsView />}
-          {currentSection === "team" && <TeamView />}
+          {currentSection === "team" && <TeamView user={user} devRole={devRole} />}
+          {currentSection === "sandbox" && <SandboxView user={user} />}
           {currentSection === "settings" && <SecurityConsoleView />}
         </main>
       </div>
@@ -507,6 +506,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
 export default function WorkbenchPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
 
   useEffect(() => {
     try {
@@ -517,16 +517,19 @@ export default function WorkbenchPage() {
   }, []);
 
   if (!authed) {
-    return (
-      <Login
-        onAuthenticated={(role) => {
-          setAuthed(true);
-          if (role === "admin") {
-            router.replace("/admin");
-          }
-        }}
-      />
-    );
+    if (showLogin) {
+      return (
+        <Login
+          onBack={() => setShowLogin(false)}
+          onAuthenticated={(role) => {
+            setAuthed(true);
+            // Admin remains inside the full Sovereign Workbench with full AI Assistant, Sandbox, and Admin tools!
+          }}
+        />
+      );
+    }
+
+    return <LandingPage onEnter={() => setShowLogin(true)} />;
   }
 
   const signOut = () => {
@@ -536,6 +539,7 @@ export default function WorkbenchPage() {
       // ignore
     }
     setAuthed(false);
+    setShowLogin(false);
   };
 
   return <WorkbenchWorkspace onSignOut={signOut} />;

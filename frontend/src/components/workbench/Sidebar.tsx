@@ -26,6 +26,12 @@ import {
   LogOut,
   FolderTree,
   Cpu,
+  Users,
+  Layers,
+  Code,
+  GitBranch,
+  Activity,
+  ScrollText,
 } from "lucide-react";
 import type { WorkbenchSection } from "./types";
 import type { DocumentMeta, JobSummary } from "@/lib/types";
@@ -59,11 +65,21 @@ interface NavCategory {
 
 const NAV_MAIN_ITEMS: NavSectionItem[] = [
   { id: "home", label: "Home", icon: Search },
+  { id: "coworking", label: "Coworking Space", icon: Users2 },
   { id: "agent", label: "AI Assistant", icon: Terminal },
+  { id: "sandbox", label: "Code Sandbox", icon: Code },
+  { id: "jobs", label: "Task History", icon: LayoutDashboard },
   { id: "documents", label: "Documents", icon: FileText },
   { id: "knowledge", label: "Knowledge Base", icon: Library },
   { id: "outputs", label: "Deliverables", icon: Archive },
-  { id: "jobs", label: "Task History", icon: LayoutDashboard },
+  { id: "files", label: "Workspace Files", icon: FolderTree },
+  { id: "models", label: "Models & Routing", icon: Layers },
+  { id: "tools", label: "Local Tools", icon: Code },
+  { id: "workflows", label: "Agent Pipelines", icon: GitBranch },
+  { id: "compute", label: "Compute & VRAM", icon: Cpu },
+  { id: "monitoring", label: "System Health", icon: Activity },
+  { id: "audit", label: "Audit Trail", icon: ScrollText },
+  { id: "team", label: "Team & Roles", icon: Users },
   { id: "settings", label: "Security", icon: ShieldCheck },
 ];
 
@@ -115,15 +131,15 @@ export default function Sidebar({
         }`}
         aria-label="Workspace Navigation"
       >
-        {/* Brand & Collapse Header (Matching 'Insight Scope' in Reference Image) */}
+        {/* Brand & Collapse Header (AstraSovereign) */}
         <div className="flex h-14 items-center justify-between px-4 border-b border-zinc-100 bg-white">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white shadow-xs font-bold text-sm">
-              <span className="tracking-tighter">IS</span>
+              <span className="tracking-tighter">AS</span>
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-extrabold text-zinc-900 tracking-tight leading-tight">
-                Insight Scope
+                AstraSovereign
               </span>
               <span className="text-[10px] font-semibold text-purple-600 tracking-wide uppercase">
                 Sovereign OS

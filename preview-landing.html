@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AstraSovereign - Luminous Modern Enterprise Showcase</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Inter & JetBrains Mono Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            sovereign: {
+              DEFAULT: '#7047eb',
+              50: '#f5f3ff',
+              100: '#ede9fe',
+              200: '#ddd6fe',
+              500: '#7047eb',
+              600: '#5e38d6',
+              700: '#4c26b8',
+              900: '#2e1065',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Luminous Cyber Matrix Subtle Grid on Light Background */
+    .luminous-grid {
+      background-size: 28px 28px;
+      background-image: 
+        radial-gradient(circle, rgba(112, 71, 235, 0.10) 1.2px, transparent 1.2px);
+    }
+
+    /* Soft Studio Glow */
+    .studio-glow {
+      box-shadow: 0 20px 60px -15px rgba(112, 71, 235, 0.12), 0 0 0 1px rgba(112, 71, 235, 0.08);
+    }
+    .card-lift {
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .card-lift:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 25px 50px -12px rgba(112, 71, 235, 0.15), 0 0 0 1px rgba(112, 71, 235, 0.15);
+    }
+
+    /* Terminal scanline effect */
+    .scanline {
+      background: linear-gradient(
+        to bottom,
+        rgba(255,255,255,0),
+        rgba(255,255,255,0) 50%,
+        rgba(0, 0, 0, 0.25) 50%,
+        rgba(0, 0, 0, 0.25)
+      );
+      background-size: 100% 4px;
+    }
+  </style>
+</head>
+<body class="bg-[#eef1f6] text-slate-900 font-sans min-h-screen relative overflow-x-hidden selection:bg-[#7047eb] selection:text-white">
+
+  <!-- Ambient Light Studio Blooms (Matching Main Workbench Palette) -->
+  <div class="fixed top-0 left-1/4 w-[600px] h-[600px] bg-purple-200/50 rounded-full blur-[130px] pointer-events-none -translate-y-1/2"></div>
+  <div class="fixed top-1/3 right-10 w-[550px] h-[550px] bg-indigo-200/40 rounded-full blur-[140px] pointer-events-none"></div>
+  <div class="fixed bottom-0 left-1/3 w-[500px] h-[500px] bg-emerald-100/40 rounded-full blur-[130px] pointer-events-none"></div>
+
+  <!-- Background Luminous Matrix Pattern -->
+  <div class="fixed inset-0 luminous-grid opacity-70 pointer-events-none z-0"></div>
+
+  <!-- Real-Time Defense Vitals Bar (Clean White Monospace Strip) -->
+  <div class="relative z-50 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-4 py-2 text-[11px] font-mono flex items-center justify-between overflow-x-auto gap-4 scrollbar-none shadow-2xs">
+    <div class="flex items-center gap-3 shrink-0">
+      <span class="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide shadow-2xs">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+        DEFENSE AIR-GAP ACTIVE
+      </span>
+      <span class="text-slate-300 hidden sm:inline">|</span>
+      <span class="text-slate-600 hidden sm:inline">EGRESS: <strong class="text-emerald-700">0.00 BYTES (BLOCKED)</strong></span>
+    </div>
+
+    <div class="flex items-center gap-4 shrink-0 text-slate-600">
+      <div class="flex items-center gap-1.5">
+        <span class="text-slate-400">GPU:</span>
+        <span class="text-slate-800 font-semibold">NVIDIA RTX 4090</span>
+        <span class="text-[#7047eb] font-semibold bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md text-[10px]">14.2 / 24 GB VRAM</span>
+      </div>
+      <span class="text-slate-300 hidden md:inline">·</span>
+      <div class="hidden md:flex items-center gap-1.5">
+        <span class="text-slate-400">LOOPBACK:</span>
+        <span class="text-emerald-700 font-semibold">0.08 ms</span>
+      </div>
+      <span class="text-slate-300 hidden lg:inline">·</span>
+      <div class="hidden lg:flex items-center gap-1.5">
+        <span class="text-slate-400">SANDBOX:</span>
+        <span class="text-purple-700 font-semibold font-mono bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">--network none</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Primary Sticky Header (Matches AstraSovereign Workbench Header) -->
+  <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 px-6 sm:px-12 h-16 flex items-center justify-between shadow-xs">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white flex items-center justify-center font-extrabold text-sm shadow-md">
+        <span>AS</span>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-base font-extrabold text-slate-900 tracking-tight">AstraSovereign</span>
+          <span class="text-[10px] font-mono font-bold text-[#7047eb] bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md">v2.4 AIR-GAP</span>
+        </div>
+        <span class="block text-[10.5px] text-slate-500 font-medium -mt-0.5">On-Premise Defense Intelligence Platform</span>
+      </div>
+    </div>
+
+    <!-- Right Header Navigation -->
+    <div class="flex items-center gap-3">
+      <a href="#models" class="hidden md:inline-flex text-xs font-semibold text-slate-600 hover:text-[#7047eb] transition-colors px-3 py-1.5">
+        Offline Models
+      </a>
+      <a href="#architecture" class="hidden md:inline-flex text-xs font-semibold text-slate-600 hover:text-[#7047eb] transition-colors px-3 py-1.5">
+        Architecture
+      </a>
+      <button onclick="openSignInModal()" class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] active:bg-[#4c26b8] text-white text-xs font-bold shadow-md hover:shadow-purple-500/25 transition-all cursor-pointer transform hover:-translate-y-0.5">
+        <span>Sign In to Portal</span>
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Hero Main Content -->
+  <main class="relative z-10 max-w-6xl mx-auto px-6 pt-12 pb-24 space-y-16">
+
+    <!-- Hero Title & Subtext -->
+    <div class="text-center space-y-6 max-w-4xl mx-auto">
+      <!-- Tag Pill -->
+      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-purple-200 text-purple-900 text-xs font-bold shadow-xs">
+        <span class="w-2 h-2 rounded-full bg-[#7047eb] animate-ping"></span>
+        <span>100% ON-PREMISE AIR-GAPPED WORKBENCH</span>
+        <span class="text-slate-300">|</span>
+        <span class="text-slate-600 font-semibold">ZERO DATA EGRESS</span>
+      </div>
+
+      <h1 class="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.12] text-slate-900">
+        The Sovereign AI Workbench for <span class="text-transparent bg-clip-text bg-gradient-to-r from-[#7047eb] via-[#855bf0] to-[#502bbd]">Confidential Enterprise</span> Operations
+      </h1>
+
+      <p class="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto font-medium leading-relaxed">
+        Multi-model agent pipelines, Docker-isolated code execution sandboxes, offline RapidOCR, and L1–L4 clearance sign-offs running entirely inside your perimeter.
+      </p>
+
+      <!-- CTA Buttons -->
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
+        <button onclick="openSignInModal()" class="w-full sm:w-auto flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-[#7047eb] hover:bg-[#5e38d6] text-white font-extrabold text-sm shadow-xl hover:shadow-2xl hover:shadow-purple-500/30 transition-all transform hover:-translate-y-0.5 cursor-pointer">
+          <svg class="w-4 h-4 text-purple-200" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
+          <span>Launch Sovereign Workbench</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+        </button>
+
+        <a href="#interactive-terminal" class="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm shadow-xs transition-all cursor-pointer">
+          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+          <span>Verify Air-Gap Terminal</span>
+        </a>
+      </div>
+
+      <!-- Supported Local Models Strip (Clean Light Badges) -->
+      <div id="models" class="pt-4 flex flex-wrap items-center justify-center gap-2 text-xs font-mono text-slate-600">
+        <span class="text-slate-400 font-semibold mr-1">OFFLINE ROSTER:</span>
+        <span class="px-3 py-1 rounded-xl bg-white border border-slate-200 text-slate-800 font-semibold shadow-2xs">Llama 3.3 (8B/70B)</span>
+        <span class="px-3 py-1 rounded-xl bg-purple-50 border border-purple-200 text-purple-800 font-bold shadow-2xs">Qwen 2.5 Coder</span>
+        <span class="px-3 py-1 rounded-xl bg-white border border-slate-200 text-slate-800 font-semibold shadow-2xs">DeepSeek R1</span>
+        <span class="px-3 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold shadow-2xs">Docker Sandbox</span>
+        <span class="px-3 py-1 rounded-xl bg-white border border-slate-200 text-slate-800 font-semibold shadow-2xs">RapidOCR Engine</span>
+      </div>
+    </div>
+
+    <!-- Live "Try a Sovereign Prompt" Simulator (Clean White Card) -->
+    <div class="max-w-3xl mx-auto bg-white/95 backdrop-blur-md rounded-3xl p-6 border border-slate-200/90 shadow-xl studio-glow space-y-4">
+      <div class="flex items-center justify-between text-xs border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2 font-bold text-slate-800">
+          <div class="w-6 h-6 rounded-lg bg-purple-100 text-[#7047eb] flex items-center justify-center font-bold">
+            ⚡
+          </div>
+          <span>Interactive Sovereign Prompt Simulator</span>
+        </div>
+        <span class="text-[11px] font-mono text-[#7047eb] bg-purple-50 px-2.5 py-0.5 rounded-full font-bold border border-purple-200">
+          Local RTX 4090 Simulation
+        </span>
+      </div>
+
+      <!-- Preset Clickable Prompts -->
+      <div class="flex flex-wrap gap-2 text-xs">
+        <button onclick="simulatePrompt('audit')" class="prompt-btn px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-slate-700 text-left transition-all cursor-pointer font-medium">
+          📜 Audit container network isolation
+        </button>
+        <button onclick="simulatePrompt('contract')" class="prompt-btn px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-slate-700 text-left transition-all cursor-pointer font-medium">
+          ⚖️ Review defense contract liabilities
+        </button>
+        <button onclick="simulatePrompt('code')" class="prompt-btn px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-slate-700 text-left transition-all cursor-pointer font-medium">
+          ⚡ Execute Python sandbox benchmark
+        </button>
+      </div>
+
+      <!-- Output Display Box -->
+      <div id="sim-output-box" class="p-4 rounded-2xl bg-slate-900 border border-slate-800 font-mono text-xs space-y-2 text-slate-200 shadow-inner">
+        <div class="flex items-center justify-between text-[11px] text-slate-400 pb-1.5 border-b border-slate-800">
+          <span id="sim-route-label" class="text-purple-400 font-semibold">Route: Direct Local GPU</span>
+          <span id="sim-time-label" class="text-emerald-400 font-semibold">0.00ms latency</span>
+        </div>
+        <div id="sim-content" class="text-slate-300 leading-relaxed min-h-[48px]">
+          Click any sample prompt above to simulate the deterministic local model router and air-gap verification engine.
+        </div>
+      </div>
+    </div>
+
+    <!-- Interactive Mission Control Terminal (Tabbed Defense Terminal) -->
+    <div id="interactive-terminal" class="max-w-4xl mx-auto rounded-3xl border border-slate-800 bg-[#0a0e17] shadow-2xl overflow-hidden font-mono text-xs">
+      
+      <!-- Top Window Title Bar -->
+      <div class="flex flex-wrap items-center justify-between px-5 py-3.5 bg-[#0f1422] border-b border-slate-800 gap-3">
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded-full bg-rose-500/90 inline-block"></span>
+            <span class="w-3 h-3 rounded-full bg-amber-400/90 inline-block"></span>
+            <span class="w-3 h-3 rounded-full bg-emerald-400/90 inline-block"></span>
+          </div>
+          <span class="text-slate-300 font-bold tracking-tight">astra-sovereign://mission-control</span>
+        </div>
+
+        <!-- Terminal Subsystem Tabs -->
+        <div class="flex items-center gap-1 bg-[#06080e] p-1 rounded-xl border border-slate-800">
+          <button onclick="switchTab('sentinel')" id="tab-sentinel" class="tab-btn px-3 py-1 rounded-lg text-xs font-semibold bg-purple-900/60 text-purple-200 border border-purple-500/40 cursor-pointer">
+            🛡️ Air-Gap Sentinel
+          </button>
+          <button onclick="switchTab('sandbox')" id="tab-sandbox" class="tab-btn px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 cursor-pointer">
+            ⚡ Docker Sandbox
+          </button>
+          <button onclick="switchTab('router')" id="tab-router" class="tab-btn px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 cursor-pointer">
+            🧠 Neural Router
+          </button>
+          <button onclick="switchTab('audit')" id="tab-audit" class="tab-btn px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 cursor-pointer">
+            📜 Audit Chain
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab Content 1: Air-Gap Sentinel -->
+      <div id="content-sentinel" class="terminal-content p-6 space-y-2.5 text-slate-300 leading-relaxed bg-[#070b12] scanline">
+        <div class="text-purple-400 font-bold">┌── [AIR-GAP-SENTINEL] :: PHYSICAL ISOLATION VERIFICATION</div>
+        <div class="pl-4 text-emerald-400">✓ [NET_POLICY] STRICT_LOCAL_ONLY enforced (iptables DROP 0.0.0.0/0)</div>
+        <div class="pl-4 text-emerald-400">✓ [SOCKET_INSPECT] Outbound external connections: 0 (Loopback 127.0.0.1 only)</div>
+        <div class="pl-4 text-emerald-400">✓ [DNS_CHECK] No external nameservers mapped; Cloud ping rejected with code ENETUNREACH</div>
+        <div class="pl-4 text-emerald-400">✓ [HARDWARE_BIND] Model inference locked to local PCIe NVLink bus</div>
+        <div class="pl-4 text-purple-300">✓ [ENCRYPTION] Ephemeral scratch vectors AES-256 encrypted at rest</div>
+        <div class="text-purple-400 font-bold pt-1">└── CONCLUSION: VERIFIED IMMUNE TO CLOUD EXFILTRATION (0 BYTES EGRESS)</div>
+      </div>
+
+      <!-- Tab Content 2: Docker Sandbox (Hidden by default) -->
+      <div id="content-sandbox" class="terminal-content hidden p-6 space-y-2.5 text-slate-300 leading-relaxed bg-[#070b12] scanline">
+        <div class="text-amber-400 font-bold">┌── [SANDBOX-ENGINE] :: DOCKER CONTAINER RUNTIME INVOCATION</div>
+        <div class="pl-4 text-slate-400">$ docker run --rm -i --network none --memory 512m --cpus 2.0 alpine:sovereign-python</div>
+        <div class="pl-4 text-cyan-400">> Container initialized: c-9817e94f (Network: DISABLED)</div>
+        <div class="pl-4 text-emerald-400">> Executing untrusted user payload: script_variance_calc.py ...</div>
+        <div class="pl-4 text-slate-200">> [STDOUT] Calculation complete. Variance index: 0.0412. Execution time: 184ms.</div>
+        <div class="pl-4 text-emerald-400">> Process exited with code 0. Container ephemeral storage wiped automatically.</div>
+        <div class="text-amber-400 font-bold pt-1">└── STATUS: 100% CONTAINER ISOLATION VERIFIED (READ-ONLY HOST FS)</div>
+      </div>
+
+      <!-- Tab Content 3: Neural Router (Hidden by default) -->
+      <div id="content-router" class="terminal-content hidden p-6 space-y-2.5 text-slate-300 leading-relaxed bg-[#070b12] scanline">
+        <div class="text-cyan-400 font-bold">┌── [DYNAMIC-ROUTER] :: DETERMINISTIC WORKLOAD ROUTING MATRIX</div>
+        <div class="pl-4 text-slate-300">• Reasoning / Complex Logic ──► <span class="text-purple-300 font-bold">llama3:8b-instruct-q4_K_M</span> (VRAM: 5.6 GB)</div>
+        <div class="pl-4 text-slate-300">• Software Engineering / SQL ──► <span class="text-cyan-300 font-bold">qwen2.5-coder:7b</span> (VRAM: 4.8 GB)</div>
+        <div class="pl-4 text-slate-300">• Scanned Document / OCR ───► <span class="text-amber-300 font-bold">llava:7b + RapidOCR Engine</span> (VRAM: 5.1 GB)</div>
+        <div class="pl-4 text-slate-300">• Deep Chain-of-Thought ────► <span class="text-emerald-300 font-bold">deepseek-r1:8b</span> (Deterministic local quant)</div>
+        <div class="text-cyan-400 font-bold pt-1">└── AVERAGE LOCAL DISPATCH LATENCY: 0.42ms (NO CLOUD TRIPS)</div>
+      </div>
+
+      <!-- Tab Content 4: Audit Chain (Hidden by default) -->
+      <div id="content-audit" class="terminal-content hidden p-6 space-y-2.5 text-slate-300 leading-relaxed bg-[#070b12] scanline">
+        <div class="text-emerald-400 font-bold">┌── [AUDIT-CHAIN] :: TAMPER-EVIDENT CRYPTOGRAPHIC LOG RECORD</div>
+        <div class="pl-4 text-slate-400">{"timestamp": "2026-09-08T22:30:00Z", "actor": "user-001 (Legal Lead)", "action": "JOB_CREATED"}</div>
+        <div class="pl-4 text-slate-400">{"timestamp": "2026-09-08T22:30:01Z", "model": "llama3:8b", "hash": "sha256:7f83b165...e92"}</div>
+        <div class="pl-4 text-slate-400">{"timestamp": "2026-09-08T22:30:04Z", "clearance": "L3_DEPT_LEAD_SIGNOFF", "verified": true}</div>
+        <div class="pl-4 text-emerald-400">✓ Cryptographic hash chain validation: ALL 1,492 RECORDS INTACT</div>
+        <div class="text-emerald-400 font-bold pt-1">└── EXPORT FORMATS READY: CSV (COMPLIANCE) &amp; CRYPTO-JSONL</div>
+      </div>
+    </div>
+
+    <!-- Feature Pillars (Crisp White Enterprise Cards) -->
+    <div id="architecture" class="space-y-8">
+      <div class="text-center space-y-2">
+        <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          Defense-Grade Architecture Stack
+        </h2>
+        <p class="text-xs sm:text-sm text-slate-500 font-medium">
+          Engineered for strict confidentiality and air-gapped sovereign execution.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Card 1 -->
+        <div class="bg-white rounded-3xl p-7 border border-slate-200/80 shadow-xs card-lift space-y-3">
+          <div class="w-12 h-12 rounded-2xl bg-purple-50 text-[#7047eb] flex items-center justify-center font-bold text-xl">
+            ⚡
+          </div>
+          <h3 class="text-base font-bold text-slate-900">Multi-Model Local Routing</h3>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Deterministic rule-based task classifier that instantly allocates coding, reasoning, and document OCR tasks to your dedicated on-premise models without external calls.
+          </p>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="bg-white rounded-3xl p-7 border border-slate-200/80 shadow-xs card-lift space-y-3">
+          <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-xl">
+            👥
+          </div>
+          <h3 class="text-base font-bold text-slate-900">L1–L4 Clearance Hierarchy</h3>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Multi-tier sign-off protocol. Admins dispatch cross-department tasks, managers delegate to juniors, and deliverables require L1 to L4 authorization sign-offs.
+          </p>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="bg-white rounded-3xl p-7 border border-slate-200/80 shadow-xs card-lift space-y-3">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xl">
+            🔒
+          </div>
+          <h3 class="text-base font-bold text-slate-900">Isolated Docker Sandbox</h3>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Generated code executes inside ephemeral Docker containers with disabled networking (<code class="text-emerald-700 font-bold">--network none</code>), 512MB RAM ceiling, and auto-cleanup.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metrics Row (Crisp White Block) -->
+    <div class="rounded-3xl bg-white border border-slate-200/80 p-8 shadow-xs">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-center divide-y md:divide-y-0 md:divide-x divide-slate-100">
+        <div class="space-y-1">
+          <span class="text-3xl sm:text-4xl font-black text-slate-900">0 BYTES</span>
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cloud Data Egress</p>
+        </div>
+        <div class="space-y-1 pt-4 md:pt-0">
+          <span class="text-3xl sm:text-4xl font-black text-[#7047eb]">100%</span>
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Air-Gapped Local</p>
+        </div>
+        <div class="space-y-1 pt-4 md:pt-0">
+          <span class="text-3xl sm:text-4xl font-black text-slate-900">L1–L4</span>
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Clearance Tiers</p>
+        </div>
+        <div class="space-y-1 pt-4 md:pt-0">
+          <span class="text-3xl sm:text-4xl font-black text-emerald-600">Local RAG</span>
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Encrypted Vectors</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Launch Banner (Vibrant Sovereign Purple) -->
+    <div class="rounded-3xl bg-gradient-to-r from-[#7047eb] to-[#9d7cfc] p-8 sm:p-12 text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-6">
+      <div class="space-y-2 text-center sm:text-left">
+        <h3 class="text-2xl sm:text-3xl font-extrabold tracking-tight">
+          Ready to enter the Sovereign Workbench?
+        </h3>
+        <p class="text-sm text-purple-100 max-w-xl">
+          Authenticate with your department credentials to access the local AI Assistant, Code Sandbox, and Coworking space.
+        </p>
+      </div>
+
+      <button onclick="openSignInModal()" class="px-8 py-4 rounded-2xl bg-white text-[#7047eb] font-extrabold text-sm hover:bg-purple-50 shadow-xl transition-all cursor-pointer shrink-0 transform hover:-translate-y-0.5">
+        Authenticate &amp; Enter
+      </button>
+    </div>
+  </main>
+
+  <!-- Interactive Sign In Modal Preview -->
+  <div id="signin-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 hidden">
+    <div class="w-full max-w-md bg-white rounded-3xl p-7 border border-slate-200 shadow-2xl space-y-6 text-slate-800">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-[#7047eb] text-white flex items-center justify-center font-bold text-xs">
+            AS
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">Sovereign Sign-In</h3>
+            <p class="text-[11px] text-slate-500">Air-Gapped Access Gateway</p>
+          </div>
+        </div>
+        <button onclick="closeSignInModal()" class="text-slate-400 hover:text-slate-700 p-1 cursor-pointer">✕</button>
+      </div>
+
+      <div class="space-y-3.5 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Department User Account</label>
+          <select class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-purple-500">
+            <option>Security Officer &amp; Admin (admin-001)</option>
+            <option>Senior Legal Counsel (user-001)</option>
+            <option>Lead Financial Analyst (user-002)</option>
+            <option>Chief Compliance Auditor (user-003)</option>
+            <option>Supply Operations Specialist (user-004)</option>
+            <option>Infrastructure &amp; AI Lead (user-005)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Security Passkey</label>
+          <input type="password" value="sovereign2026" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-mono focus:outline-none focus:border-purple-500" />
+        </div>
+
+        <button onclick="alert('Access Granted! In the live app, this enters the full Sovereign Workbench with AI Assistant & Sandbox.')" class="w-full py-2.5 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white font-bold text-xs shadow-md transition-colors cursor-pointer mt-2">
+          Verify Clearance &amp; Enter
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Interactive JavaScript Logic -->
+  <script>
+    // Tab switcher in Mission Control
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-purple-900/60', 'text-purple-200', 'border', 'border-purple-500/40');
+        btn.classList.add('text-slate-400');
+      });
+      document.getElementById('tab-' + tabId).classList.add('bg-purple-900/60', 'text-purple-200', 'border', 'border-purple-500/40');
+      document.getElementById('tab-' + tabId).classList.remove('text-slate-400');
+
+      document.querySelectorAll('.terminal-content').forEach(c => c.classList.add('hidden'));
+      document.getElementById('content-' + tabId).classList.remove('hidden');
+    }
+
+    // Prompt simulation tester
+    function simulatePrompt(type) {
+      const content = document.getElementById('sim-content');
+      const route = document.getElementById('sim-route-label');
+      const time = document.getElementById('sim-time-label');
+
+      if (type === 'audit') {
+        route.innerText = 'Route: llama3:8b (SecOps Policy) · Air-Gap Verified';
+        time.innerText = 'Execution: 0.12s · 0 bytes egress';
+        content.innerHTML = '<span class="text-emerald-400 font-semibold">[VERIFIED SAFE]</span> Container runtime inspection complete. Sockets bound strictly to loopback 127.0.0.1. No external egress detected across all active threads.';
+      } else if (type === 'contract') {
+        route.innerText = 'Route: llama3:8b + RapidOCR (Legal Corpus) · Offline';
+        time.innerText = 'Execution: 0.28s · 0 bytes egress';
+        content.innerHTML = '<span class="text-purple-300 font-semibold">[LEGAL CLAUSE ANALYSIS]</span> Identified limitation of liability in Section 14.2 capped at 100% of aggregate fees. Intellectual property ownership remains sovereign with no third-party sub-licensing.';
+      } else if (type === 'code') {
+        route.innerText = 'Route: qwen2.5-coder:7b ──► Docker Sandbox (--network none)';
+        time.innerText = 'Execution: 0.18s · 0 bytes egress';
+        content.innerHTML = '<span class="text-cyan-400 font-semibold">[SANDBOX RUN]</span> Executed Python isolated simulation inside ephemeral container. All 4 benchmark tests passed. Root filesystem mounted read-only.';
+      }
+    }
+
+    // Modal controls
+    function openSignInModal() {
+      document.getElementById('signin-modal').classList.remove('hidden');
+    }
+    function closeSignInModal() {
+      document.getElementById('signin-modal').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>

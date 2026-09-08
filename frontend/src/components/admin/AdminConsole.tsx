@@ -641,10 +641,10 @@ export default function AdminConsole() {
         <div className="admin-top bg-white border-b border-slate-200/80 px-6 h-16 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white shadow-xs font-bold text-xs">
-              <span>IS</span>
+              <span>AS</span>
             </div>
             <div className="brand">
-              <span className="text-slate-900 font-extrabold text-sm tracking-tight">Insight Scope</span>
+              <span className="text-slate-900 font-extrabold text-sm tracking-tight">AstraSovereign</span>
               <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
                 Operations console
               </span>
@@ -681,10 +681,10 @@ export default function AdminConsole() {
       <div className="admin-top bg-white border-b border-slate-200/80 px-6 h-16 flex items-center justify-between shadow-xs shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white shadow-xs font-bold text-xs">
-            <span>IS</span>
+            <span>AS</span>
           </div>
           <div className="brand">
-            <span className="text-slate-900 font-extrabold text-sm tracking-tight">Insight Scope</span>
+            <span className="text-slate-900 font-extrabold text-sm tracking-tight">AstraSovereign</span>
             <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
               Operations console
             </span>

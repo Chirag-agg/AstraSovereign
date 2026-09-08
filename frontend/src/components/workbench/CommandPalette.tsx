@@ -19,6 +19,7 @@ import {
   Settings,
   Plus,
   Shield,
+  Users,
   X,
 } from "lucide-react";
 import type { WorkbenchSection } from "./types";
@@ -169,6 +170,26 @@ export default function CommandPalette({
       icon: ScrollText,
       action: () => {
         onSelectSection("audit");
+        onClose();
+      },
+    },
+    {
+      id: "nav-coworking",
+      label: "Go to Coworking Space & Authorization",
+      category: "Navigation",
+      icon: Users,
+      action: () => {
+        onSelectSection("coworking");
+        onClose();
+      },
+    },
+    {
+      id: "nav-sandbox",
+      label: "Go to Code Execution Sandbox (Docker)",
+      category: "Navigation",
+      icon: Terminal,
+      action: () => {
+        onSelectSection("sandbox");
         onClose();
       },
     },

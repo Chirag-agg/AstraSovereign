@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { ScrollText, RefreshCw, AlertCircle } from "lucide-react";
+import { ScrollText, RefreshCw, AlertCircle, Download, FileText, CheckCircle2 } from "lucide-react";
 import { getAudit } from "@/lib/api";
 import type { AuditEvent } from "@/lib/types";
 
 function activeUserId(): string {
+  if (typeof window === "undefined") return "user-001";
   return window.localStorage.getItem("sovereign.active-user") || "user-001";
 }
 
@@ -44,6 +45,7 @@ export default function AuditLogsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -68,6 +70,52 @@ export default function AuditLogsView() {
     ? events
     : events.filter((e) => e.status === statusFilter);
 
+  const triggerBlobDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setDownloadSuccess(`Downloaded ${filename}`);
+    setTimeout(() => setDownloadSuccess(null), 4000);
+  };
+
+  const handleDownloadJSON = () => {
+    const dataToExport = {
+      system: "AstraSovereign",
+      export_timestamp: new Date().toISOString(),
+      user: activeUserId(),
+      total_events: filtered.length,
+      air_gap_policy: "STRICT_VERIFIED",
+      events: filtered,
+    };
+    const jsonStr = JSON.stringify(dataToExport, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const dateStr = new Date().toISOString().slice(0, 10);
+    triggerBlobDownload(blob, `AstraSovereign-Audit-Report-${dateStr}.json`);
+  };
+
+  const handleDownloadCSV = () => {
+    const headers = ["Timestamp", "Event ID", "Event Type", "Component", "Status", "Job ID", "User ID", "Metadata"];
+    const rows = filtered.map((e) => [
+      `"${e.timestamp || ""}"`,
+      `"${e.event_id || ""}"`,
+      `"${e.event_type || ""}"`,
+      `"${e.component || ""}"`,
+      `"${e.status || ""}"`,
+      `"${e.job_id || ""}"`,
+      `"${e.user_id || ""}"`,
+      `"${JSON.stringify(e.metadata || {}).replace(/"/g, '""')}"`,
+    ]);
+    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const dateStr = new Date().toISOString().slice(0, 10);
+    triggerBlobDownload(blob, `AstraSovereign-Audit-Report-${dateStr}.csv`);
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
@@ -77,20 +125,51 @@ export default function AuditLogsView() {
               Audit Trail
             </h1>
             <p className="text-sm text-slate-600 font-medium mt-1 leading-relaxed">
-              Track all system actions and events
+              Tamper-evident verification, immutable execution trail, and downloadable regulatory audit logs
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors cursor-pointer disabled:opacity-60"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            <span>Refresh</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadCSV}
+              disabled={filtered.length === 0}
+              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+              title="Download Audit Report as CSV spreadsheet"
+            >
+              <Download className="w-3.5 h-3.5 text-[#7047eb]" />
+              <span>Export CSV</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadJSON}
+              disabled={filtered.length === 0}
+              className="flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 px-3.5 py-2 text-xs font-semibold text-[#7047eb] transition-all cursor-pointer shadow-xs disabled:opacity-50"
+              title="Download Audit Report as JSON file"
+            >
+              <FileText className="w-3.5 h-3.5 text-[#7047eb]" />
+              <span>Export JSON</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void load()}
+              disabled={loading}
+              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors cursor-pointer disabled:opacity-60"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
+
+        {downloadSuccess && (
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-xs font-semibold animate-fade-in shadow-xs">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{downloadSuccess}</span>
+          </div>
+        )}
 
         {error && (
           <div className="flex items-center gap-2 bg-rose-50 border border-rose-200/80 text-rose-700 rounded-xl px-4 py-3 text-sm font-medium">
