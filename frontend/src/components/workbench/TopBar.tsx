@@ -99,7 +99,11 @@ export default function TopBar({
           </button>
 
           <div className="flex items-center gap-2 truncate">
-            <span className="text-[13.5px] font-semibold text-zinc-800 tracking-tight truncate">
+            <span className="text-[13px] font-extrabold text-zinc-900 tracking-tight hidden sm:inline">
+              AstraSovereign
+            </span>
+            <span className="text-zinc-300 hidden sm:inline">•</span>
+            <span className="text-[13px] font-semibold text-zinc-600 tracking-tight truncate">
               {timeString || "12:00 PM"}
             </span>
           </div>

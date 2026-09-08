@@ -49,11 +49,11 @@ export default function Login({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white shadow-md font-bold text-base">
-              <span>IS</span>
+              <span>AS</span>
             </div>
             <div>
               <span className="block text-base font-extrabold text-slate-900 tracking-tight leading-tight">
-                Insight Scope
+                AstraSovereign
               </span>
               <span className="block text-[11px] font-semibold text-purple-600 tracking-wide uppercase">
                 Sovereign OS

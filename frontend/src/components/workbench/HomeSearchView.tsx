@@ -166,6 +166,12 @@ export default function HomeSearchView({
           <div className="xl:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] flex flex-col justify-between space-y-4">
             <div className="space-y-3">
               <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100/80">
+                    AstraSovereign
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-medium">Air-Gapped Workspace</span>
+                </div>
                 <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
                   What would you like assistance with today?
                 </h1>

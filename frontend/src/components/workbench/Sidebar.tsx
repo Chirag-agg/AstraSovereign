@@ -132,11 +132,11 @@ export default function Sidebar({
         <div className="flex h-14 items-center justify-between px-4 border-b border-zinc-100 bg-white">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white shadow-xs font-bold text-sm">
-              <span className="tracking-tighter">IS</span>
+              <span className="tracking-tighter">AS</span>
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-extrabold text-zinc-900 tracking-tight leading-tight">
-                Insight Scope
+                AstraSovereign
               </span>
               <span className="text-[10px] font-semibold text-purple-600 tracking-wide uppercase">
                 Sovereign OS
