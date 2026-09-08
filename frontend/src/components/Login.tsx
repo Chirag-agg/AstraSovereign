@@ -17,8 +17,10 @@ const USER_ACCOUNTS = [
  */
 export default function Login({
   onAuthenticated,
+  onBack,
 }: {
   onAuthenticated: (role: DevRole) => void;
+  onBack?: () => void;
 }) {
   const [userId, setUserId] = useState(USER_ACCOUNTS[0].id);
   const [role, setRole] = useState<DevRole>("user");
@@ -45,6 +47,15 @@ export default function Login({
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-200/30 rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-md bg-white rounded-2xl p-7 md:p-8 shadow-[0_20px_60px_rgba(112,71,235,0.06)] border border-slate-200/80 relative z-10 space-y-6">
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-sm font-medium text-slate-500 hover:text-slate-800"
+          >
+            ← Back
+          </button>
+        ) : null}
         {/* Brand Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">

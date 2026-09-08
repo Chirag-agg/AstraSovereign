@@ -15,6 +15,7 @@ export type WorkbenchSection =
   | "monitoring"
   | "audit"
   | "team"
+  | "sandbox"
   | "settings";
 
 export type AuthorizationLevel =

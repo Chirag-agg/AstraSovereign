@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
+from fastapi.responses import FileResponse
 
 from app.api.deps import get_user_id
 from app.services.document_ingestion import (
@@ -127,6 +128,95 @@ async def get_document(
     return _metadata(doc)
 
 
+@router.get("/{document_id}/content")
+async def get_document_content(
+    document_id: str,
+    request: Request,
+    user_id: str = Depends(get_user_id),
+) -> dict:
+    """Retrieve the full text content and metadata of a knowledge base document."""
+    knowledge_base = request.app.state.knowledge_base
+    doc = await knowledge_base.get_document(user_id, document_id)
+    if doc is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "document_not_found", "message": "Document not found."},
+        )
+
+    uploads_root = Path(request.app.state.settings.uploads_root)
+    user_dir = uploads_root / WorkspaceManager.safe_component(user_id)
+    file_path = user_dir / doc.filename
+
+    # Retrieve all indexed chunks for this document to reconstruct full text
+    store = knowledge_base._store
+    raw_data = await store._load(user_id)
+    chunks = [c for c in raw_data.get("chunks", []) if c.get("document_id") == document_id]
+    chunks.sort(key=lambda c: (c.get("page") or 0, c.get("chunk_id", "")))
+    extracted_text = "\n\n".join(c.get("text", "").strip() for c in chunks if c.get("text"))
+
+    # If raw file exists and is text/markdown/code, read directly for pristine formatting
+    raw_text = None
+    if file_path.exists() and doc.document_type in ("txt", "md", "text"):
+        try:
+            raw_text = file_path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            raw_text = None
+
+    return {
+        "document_id": doc.document_id,
+        "filename": doc.filename,
+        "document_type": doc.document_type,
+        "status": doc.status,
+        "chunk_count": doc.chunk_count,
+        "has_file": file_path.exists(),
+        "text": raw_text or extracted_text or "",
+        "size_bytes": file_path.stat().st_size if file_path.exists() else 0,
+    }
+
+
+@router.get("/{document_id}/file")
+async def get_document_raw_file(
+    document_id: str,
+    request: Request,
+    user_id: str = Depends(get_user_id),
+) -> FileResponse:
+    """Serve the raw uploaded document file for in-browser PDF, image, and document preview."""
+    knowledge_base = request.app.state.knowledge_base
+    doc = await knowledge_base.get_document(user_id, document_id)
+    if doc is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "document_not_found", "message": "Document not found."},
+        )
+
+    uploads_root = Path(request.app.state.settings.uploads_root)
+    user_dir = uploads_root / WorkspaceManager.safe_component(user_id)
+    file_path = user_dir / doc.filename
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "file_not_found", "message": "Raw file not found on disk."},
+        )
+
+    ext = doc.filename.split(".")[-1].lower() if "." in doc.filename else doc.document_type
+    media_type = {
+        "pdf": "application/pdf",
+        "png": "image/png",
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "txt": "text/plain",
+        "md": "text/markdown",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }.get(ext, "application/octet-stream")
+
+    return FileResponse(
+        file_path,
+        filename=doc.filename,
+        media_type=media_type,
+        content_disposition_type="inline",
+    )
+
+
 @router.delete("/{document_id}")
 async def delete_document(
     document_id: str,
@@ -141,3 +231,4 @@ async def delete_document(
             detail={"error": "document_not_found", "message": "Document not found."},
         )
     return {"document_id": document_id, "deleted": True}
+

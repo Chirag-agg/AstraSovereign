@@ -1,140 +1,194 @@
-# Sovereign On-Premise Agentic AI Workbench
+# AstraSovereign: On-Premise Sovereign AI Workbench
 
-A completely **self-hosted, air-gapped** AI workbench for confidential industrial and
-government work. Everything runs locally — models, tools, knowledge base, and document
-generation — with no external AI APIs and no data leaving the machine or network.
+A completely **self-hosted, air-gapped** AI workbench engineered for high-security industrial, defense, legal, financial, and governmental operations. Everything runs strictly locally — open-weight models, dynamic task routers, agent tools, document intelligence, isolated code sandboxes, and native office deliverables — with **zero cloud APIs, zero telemetry, and zero data leaving the local network**.
 
-## High-Level Goals
+---
 
-- **Multiple open-weight models, run locally** — LLMs, vision, embeddings, and OCR
-  hosted on-premise (no cloud inference).
-- **Automatic, configurable model selection** — a model router chooses the right local
-  model for each task based on configuration, not hardcoded logic.
-- **Local tools** — process documents and images, execute code in an isolated sandbox,
-  and search a local knowledge base (RAG).
-- **Office deliverable generation** — produce native Word (`.docx`), Excel (`.xlsx`),
-  and PowerPoint (`.pptx`) outputs.
-- **Full auditability** — every major action is logged.
-- **Security first** — air-gapped by design; data never leaves the local machine/network.
+## 🔒 Hard Constraints & Sovereign Principles
 
-## Layout
+- **Zero Cloud APIs**: No data or inference requests ever leave the on-premise hardware.
+- **Strict Egress Lockdown**: Outbound network connections outside local loopback and the configured Ollama host are blocked at the transport layer (`0 bytes egress`).
+- **Multi-Model Orchestration**: Dynamic task routing across local open-weight LLMs, coding models, and multimodal vision backends (Ollama).
+- **Multi-Tier Authorization (L1–L4)**: Cryptographic, hierarchical sign-off protocols governing confidential deliverables.
+- **Isolated Code Sandbox**: Ephemeral Docker containers running untrusted code with `--network none`, read-only roots, and no host filesystem mounts.
+- **Tamper-Evident Auditing**: Immutable append-only audit trail logging every model call, tool invocation, and clearance event.
+
+---
+
+## 🏛️ System Architecture
 
 ```
-├── backend/          FastAPI backend (Phase 9: office deliverable generation)
-├── frontend/         Next.js + React + TypeScript workbench (Phase 10)
-├── config/           models.yaml — task type → model registry (+ resource requirements)
-├── data/
-│   ├── uploads/      User uploads (not committed)
-│   ├── outputs/      Generated deliverables (not committed)
-│   ├── knowledge/    Per-user local vector stores (not committed)
-│   ├── workspaces/   Per-job agent workspaces (not committed)
-│   └── tmp/          Rendered page images (cleaned after use, not committed)
-├── logs/             Audit logs (not committed)
-└── docker/           Sandbox images / config (planned)
+AstraSovereign/
+├── backend/
+│   ├── app/
+│   │   ├── api/            # REST API (chat, jobs, documents, artifacts, audit, admin, cowork)
+│   │   ├── services/       # Ollama, Task Router, Model Registry, Agent Loop, Sandbox, OCR, RAG
+│   │   ├── config.py       # Pydantic environment configuration (.env)
+│   │   └── main.py         # FastAPI application entrypoint (app.main:app)
+│   ├── requirements.txt    # Production Python dependencies
+│   └── tests/              # Pytest unit and integration test suite
+├── frontend/
+│   ├── src/
+│   │   ├── app/            # Next.js 14 App Router (pages: /, /admin, /cowork)
+│   │   ├── components/     # LandingPage, Login, TopBar, Sidebar, WorkConsole, Workbench views
+│   │   └── lib/            # Typed API client, polling hooks, types
+│   ├── package.json        # Next.js, React, Tailwind CSS, Lucide icons
+│   └── vitest.config.ts    # Frontend testing suite
+├── config/
+│   └── models.yaml         # Config-driven task-type to local model mappings & VRAM limits
+└── data/                   # Git-ignored local storage (uploads, workspaces, vectors, audit logs)
 ```
 
-See [CONTEXT.md](CONTEXT.md) for the authoritative project state and phase plan.
+---
 
-## Backend
+## 🌟 Core Features & Modules
 
-The backend is a FastAPI service that communicates **only** with local services
-(a local Ollama server and, when enabled, a local Docker daemon). Requests become
-**jobs** processed asynchronously by a background worker (`POST /api/chat`
-returns a `job_id` immediately). Each job is classified by task type, routed to a
-config-driven model (`config/models.yaml`), scheduled against declared resource
-capacity, and executed by a **local agent** that can call workspace-scoped tools
-(`list_files`, `read_file`, `write_file`), run generated code in an **isolated
-Docker sandbox**, search the user's **local knowledge base** of ingested
-documents (`document_search`) for grounded, source-cited answers, analyze
-**scanned PDFs and images** with fully local OCR + a local vision model
-(`document_vision`), and generate **real Word deliverables** from structured
-findings (`document_generation`) that users can list and download securely.
-Multi-user safe via an `X-User-ID` header. See [`backend/README.md`](backend/README.md)
-for setup, configuration, and usage.
+### 1. Modern Public Landing Page & Passkey Authentication
+- **Public Hero Portal**: Sleek dark/light theme with interactive terminal verification preview, defense-grade capability cards, and live air-gap status.
+- **Secure Authentication**: Passkey/password verification with role-based identity switching (`admin-001`, `user-001` to `user-005`) and instant session persistence.
 
-## Frontend
+### 2. Customizable Top Bar for Workers
+- **Custom Tab Pinning**: Clicking the **`+`** icon on the top navigation bar allows workers to pin custom workspace views (e.g. *Air-Gap OCR*, *Finance Audit*, *Docker Sandbox*, *Team Roster*) directly into their horizontal tab bar.
+- **Client Persistence**: Custom tabs persist across sessions in `localStorage`.
 
-A single-page **local workbench** (`frontend/`, Next.js + React + TypeScript)
-that operates the backend: submit tasks, watch job states and the agent
-execution trace, inspect model/resource status, upload documents, and download
-generated artifacts — with a visible `LOCAL / SOVEREIGN` indicator backed by
-`/health`. Dev user selector (`user-001`…`user-005`) via `X-User-ID`; no
-authentication. See [`frontend/README.md`](frontend/README.md).
+### 3. Role Hierarchy & Task Delegation
+- **System Administrators (`admin-001`)**:
+  - Unrestricted cross-department work order dispatching across all 6 departments.
+  - Staff onboarding via the **`+ Add Employee`** modal.
+  - Granular security clearance and role delegation (`L1` to `L4`).
+- **Department Managers & Leads (`user-001`, `user-002`, `user-003`, `user-005`)**:
+  - Authorized to delegate work orders to junior specialists and operators within their specific department.
+  - Review and sign off on completed deliverables.
+- **Junior Operators & Contributors (`user-004`)**:
+  - Work execution, self-assigned drafts, and deliverable submission for managerial authorization.
 
-## Status
+### 4. Department Coworking Space & L1–L4 Sign-Off Workflows
+- **Hierarchical Clearance Badges**:
+  - `L1: Contributor` (Operator task completion)
+  - `L2: Reviewer` (Specialist technical check)
+  - `L3: Dept Lead` (Department Head sign-off)
+  - `L4: Sovereign Officer` (Cryptographic air-gap release)
+- **Deliverable Submissions**: Attach Word (`.docx`), Excel (`.xlsx`), or PDF files with memos routed up the authorization chain.
+- **Monthly Analytics Chart**: Track completed vs. in-progress deliverables across departments.
+- **Active Staff Directory**: Real-time presence indicators and immutable live authorization feeds.
 
-**Current phase: Phase 11 — Sovereignty Hardening, Audit Evidence, Workbench UX &
-Organizational User/Admin split.** The platform now has two experiences: a
-conversation-first **User workspace** (`/`) with a terminal-like Work Console,
-and a **development Admin/operations console** (`/admin`) fed by `/api/admin/*`
-(overview, workloads, users, models, resources, knowledge, audit, sovereignty,
-system). A clearly dev-only User/Admin role switch selects the experience; the
-backend enforces the admin boundary independently (`X-Role: admin`) and never
-exposes user messages or document contents to admins. Sovereignty remains
-verified (NetworkGuard + audit trail). Phases are built incrementally, one at a
-time.
+### 5. Conversational Assistant for Non-Technical Users
+- **Home Page Inline Chatbot**: Non-technical team members can type natural-language requests into the Home prompt box and receive formatted answers directly below the search bar without navigating into the technical workspace.
+- **Features**: Live step indicators, clean text rendering, one-click copy, conversation history, and an *"Open in Technical AI Assistant"* jump button for power users.
 
-## Documentation
+### 6. Claude Code / Antigravity Live Terminal
+- **Real-Time Technical Stream**: Designed after modern live engineering terminals (macOS traffic dots, live process timers, air-gap tags).
+- **Execution Tracking**: Shows model routing, stage decomposition, live command invocations (`$ tool:exec`), duration counters, and terminal status pills (`RUNNING`, `DONE`, `FAILED`).
 
-- [CONTEXT.md](CONTEXT.md) — authoritative project state, phases, and decisions
-- [Developer onboarding runbook](docs/ONBOARDING.md) — clone → running demo in ~30 min
-- [Cleanup / retention policy](docs/CLEANUP.md) — age-based local data cleanup
-- [Sovereignty, audit & network evidence](docs/SOVEREIGNTY.md) — what is enforced,
-  what is verified, dependency review, how to inspect the audit trail
+### 7. Isolated Docker Code Execution Sandbox
+- **Zero-Egress Container Runtime**: Executes model-generated Python code in short-lived, isolated Docker containers with `--network none` and read-only filesystems.
+- **Terminal Streaming**: Real-time console logs, execution presets, and automatic container teardown on completion or timeout.
 
-## Contributing
+### 8. Local Document Intelligence & OCR
+- **Offline Multimodal Vision**: Scanned PDF pages and images rendered via `pypdfium2` and normalized with Pillow.
+- **RapidOCR Engine**: Fully local OCR extraction with bounding box coordinates and confidence scoring.
+- **Encrypted Local RAG**: Deterministic text chunking and local embeddings (`nomic-embed-text` / `bge-large`) backed by a per-user cosine vector store.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch flow, testing commands, and
-contribution rules. Use the issue/PR templates in `.github/`. CI
-(`.github/workflows/ci.yml`) runs the backend and frontend suites on every push
-and pull request.
+### 9. Native Office Deliverables (.docx, .xlsx, .pptx)
+- **Word Generation (`.docx`)**: Structured documents with formatted headings, tables, bulleted lists, and citations via `python-docx`.
+- **PowerPoint Generation (`.pptx`)**: Multi-slide executive briefings created using `PptxGenJS`.
+- **Excel Ledgers (`.xlsx`)**: Structured calculation sheets with formulas.
 
-## What's new (current work)
+### 10. Regulatory Compliance & Downloadable Audit Reports
+- **Immutable JSONL Audit Trail**: Every request, model call, tool execution, and deliverable sign-off is logged with metadata and cryptographic IDs.
+- **One-Click Exports**: Download filtered or full audit reports in **`Export CSV`** or **`Export JSON`** formats for compliance inspections.
 
-- **SIH-style workbench UI** adopted and served at `/preview` (login → Agent Chat,
-  Live Logs, Model Routing, Knowledge Base, Vault, Code Sandbox + right rail),
-  fully unbranded and wired to the **real** backend: live job submission/polling
-  with step timelines and model chips, Markdown answers, session-context follow-ups,
-  real document/artifact upload & download, real model registry, sovereignty and
-  sandbox runs.
-- **Multi-model pipelines**: complex multi-capability requests (e.g. coding +
-  document, coding + math) are decomposed by a local planner into capability
-  stages (reasoning → math → coding → document), each run on a different local
-  model, with prior outputs chained (truncation-marked), per-stage resource
-  allocation, and every stage visible in the UI trace.
-- **Sandbox on by default** (`SANDBOX_ENABLED=true`), agent contract enforcement
-  (code tasks must run code; doc tasks must generate a document), and the
-  `document`/`math` task models configurable in `config/models.yaml`.
+---
 
-### Run it
-- Backend: `cd backend` then `\.venv\Scripts\python -m uvicorn app.main:app` (Ollama
-  up, Docker up for the code sandbox, models pulled).
-- Frontend: `cd frontend && npm install && npm run dev`, then open
-  `http://localhost:3000/preview` for the adopted workbench UI, or `/` for the
-  classic workspace and `/admin` for the operations console.
+## 🚀 Quickstart Guide
 
-## Cowork (persistent project AI-IDE)
+### Prerequisites
+1. **Python 3.11+** (Python 3.12 or 3.13 recommended)
+2. **Node.js 18+** (Node 20 or 22 recommended)
+3. **Ollama** installed locally (`http://localhost:11434`) with desired models:
+   ```bash
+   ollama pull qwen2.5:7b
+   ollama pull qwen2.5-coder:7b
+   ollama pull llama3:latest
+   ollama pull llava:7b
+   ```
+4. **Docker Desktop** (optional, required only for Phase 5 code sandbox execution)
 
-- `/cowork` — create a project, chat with the agent inside it, browse and edit the
-  real files it writes (all local), and watch live agent reasoning/steps.
-- Requests run through the same jobs/pipeline machinery but execute against the
-  project folder, so files persist turn to turn. Backend APIs:
-  `/api/projects`, `/api/projects/{id}/files|file`, `/api/cowork/chat`,
-  `/api/projects/{id}/history`.
+---
 
-### Quick demo (Cowork)
-1. Backend up (venv uvicorn) + Ollama + Docker; frontend `npm run dev`.
-2. Open `http://localhost:3000/cowork`, sign in, create a project.
-3. Ask: "Build a small Python CLI in this project and run it in the sandbox." —
-   watch files appear in the tree, execution steps stream, and a verified
-   implementation come back.
-4. Ask a follow-up: "Add CSV support" — the agent reads the files from step 3
-   and edits them in place. Files, decisions and summaries persist per project.
+### Step 1: Start the Backend Service
 
-## Local PowerPoint generation
+```powershell
+# Navigate to the backend directory
+cd backend
 
-Ask the agent to "create a PowerPoint / slides / deck" — it calls the local
-`presentation_generation` tool (PptxGenJS renderer under `presentation/`, install
-with `cd presentation && npm install`) and produces an editable `.pptx` artifact
-(title/content/bullets/two-column/table/sources slides, local themes). Fully
-offline; Presenton (Apache-2.0) used only as a planning/layout reference.
+# Activate your virtual environment (or create with python -m venv venv)
+.\venv\Scripts\Activate.ps1
+
+# Install backend dependencies
+pip install -r requirements.txt
+
+# Start the FastAPI Uvicorn server on port 8000
+python -m uvicorn app.main:app --reload --port 8000
+```
+
+*The backend health endpoint is available at `http://localhost:8000/health`.*
+
+---
+
+### Step 2: Start the Frontend Workbench
+
+In a separate terminal:
+
+```powershell
+# Navigate to the frontend directory
+cd frontend
+
+# Install Node dependencies
+npm install
+
+# Start the Next.js development server on port 3000
+npm run dev
+```
+
+*Open your browser and navigate to **`http://localhost:3000`**.*
+
+---
+
+## 🔑 Pre-Configured Department Profiles
+
+For testing and demonstration, pre-configured roles are available at login:
+
+| User ID | Name | Department | Role & Clearance | Task Assignment Scope |
+| :--- | :--- | :--- | :--- | :--- |
+| **`admin-001`** | Security Officer & Admin | Security & Directorate | System Administrator (`L4`) | **Full Cross-Department Allocation** |
+| **`user-001`** | Senior Legal Counsel | Legal & Contracts | Department Lead (`L3`) | **Legal Junior Staff Delegation** |
+| **`user-002`** | Lead Financial Analyst | Finance & Accounting | Finance Lead (`L4`) | **Finance Junior Staff Delegation** |
+| **`user-003`** | Chief Compliance Auditor | HR & Compliance | Compliance Lead (`L2`) | **Compliance Delegation** |
+| **`user-004`** | Supply Operations Specialist | Operations & Supply | Operations Specialist (`L1`) | **Operator Self-Assignment Drafts** |
+| **`user-005`** | Infrastructure Lead | AI & Engineering | AI Architect (`L4`) | **Engineering Delegation** |
+
+> **Default Passkey**: `sovereign2026`
+
+---
+
+## 🧪 Verification & Testing
+
+### Frontend Typecheck & Build:
+```powershell
+cd frontend
+npm run typecheck
+npm run build
+```
+
+### Backend Test Suite:
+```powershell
+cd backend
+pytest tests/
+```
+
+---
+
+## 📄 License & Confidentiality
+
+This software is designed exclusively for on-premise, air-gapped sovereign installations. No components communicate with public internet services.

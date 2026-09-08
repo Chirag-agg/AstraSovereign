@@ -44,6 +44,7 @@ interface AgentWorkspaceViewProps {
   consoleOpen: boolean;
   setConsoleOpen: (open: boolean) => void;
   healthError: string | null;
+  onResetSession?: () => void;
 }
 
 const TREE_ITEMS = [
@@ -88,6 +89,7 @@ export default function AgentWorkspaceView({
   consoleOpen,
   setConsoleOpen,
   healthError,
+  onResetSession,
 }: AgentWorkspaceViewProps) {
   const [selectedFile, setSelectedFile] = useState("prompts/procurement_review.prompt");
   const [selectedModel, setSelectedModel] = useState("Qwen 2.5 14B");
@@ -182,7 +184,7 @@ export default function AgentWorkspaceView({
             {activeJobId && (
               <>
                 <span className="text-slate-300">·</span>
-                <span className="truncate max-w-[280px] font-mono text-slate-500 font-medium">
+                <span className="truncate max-w-[240px] font-mono text-slate-500 font-medium">
                   {activeJob?.job_id || activeJobId}
                 </span>
               </>
@@ -190,6 +192,18 @@ export default function AgentWorkspaceView({
           </div>
 
           <div className="flex items-center gap-2 text-xs">
+            {onResetSession && activeJobId && (
+              <button
+                type="button"
+                onClick={onResetSession}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-xs font-semibold transition-colors cursor-pointer mr-1"
+                title="Reset session and start a new task"
+              >
+                <RefreshCw className="w-3 h-3 text-slate-400" />
+                <span>Reset Session</span>
+              </button>
+            )}
+
             {running ? (
               <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-[#7047eb] border border-purple-200">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#7047eb] animate-pulse" />
@@ -236,14 +250,14 @@ export default function AgentWorkspaceView({
         </div>
 
         {/* Task Output */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-white">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
               Output
             </span>
             {activeJob?.model && (
-              <span className="text-[11px] font-medium text-slate-400">
-                Model: <span className="text-slate-600">{activeJob.model}</span>
+              <span className="text-xs font-medium text-slate-400">
+                Model: <span className="text-slate-700 font-semibold">{activeJob.model}</span>
               </span>
             )}
           </div>

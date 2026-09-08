@@ -1,4 +1,4 @@
-﻿// Typed API client for the local workbench backend.
+// Typed API client for the local workbench backend.
 // All backend calls go through here â€” components never scatter raw fetch calls.
 
 import type {
@@ -312,6 +312,54 @@ export async function downloadArtifact(
   return { blob, filename };
 }
 
+export interface DocumentContentResult {
+  document_id: string;
+  filename: string;
+  document_type: string;
+  status: string;
+  chunk_count: number;
+  has_file: boolean;
+  text: string;
+  size_bytes: number;
+}
+
+export function getDocumentContent(userId: string, documentId: string): Promise<DocumentContentResult> {
+  return request<DocumentContentResult>(`/api/documents/${encodeURIComponent(documentId)}/content`, {}, userId);
+}
+
+export async function getDocumentFileBlob(userId: string, documentId: string): Promise<{ blob: Blob; filename: string }> {
+  let response: Response;
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/api/documents/${encodeURIComponent(documentId)}/file`,
+      { headers: { "X-User-ID": userId }, cache: "no-store" }
+    );
+  } catch {
+    throw new ApiError(0, "Backend unreachable");
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, "Failed to load document file");
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  const filename = match ? match[1] : "document";
+  return { blob, filename };
+}
+
+export interface ArtifactPreviewResult {
+  artifact_id: string;
+  filename: string;
+  type: string;
+  job_id: string;
+  size_bytes: number;
+  text: string;
+}
+
+export function getArtifactPreview(userId: string, jobId: string, artifactId: string): Promise<ArtifactPreviewResult> {
+  return request<ArtifactPreviewResult>(`/api/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(artifactId)}/preview`, {}, userId);
+}
+
 
 // -------------------------------------------------------------- cowork
 
@@ -382,3 +430,30 @@ export function coworkChat(userId: string, projectId: string, message: string): 
 export function projectHistory(userId: string, projectId: string): Promise<ProjectHistory> {
   return request<ProjectHistory>(`/api/projects/${encodeURIComponent(projectId)}/history`, {}, userId);
 }
+
+export interface SandboxRunResult {
+  success: boolean;
+  exit_code: number;
+  stdout: string;
+  stderr: string;
+  timed_out: boolean;
+  duration_ms: number;
+  error?: string | null;
+}
+
+export function runSandboxCode(
+  code: string,
+  language: string = "python",
+  stdin: string = "",
+  userId?: string,
+): Promise<SandboxRunResult> {
+  return request<SandboxRunResult>(
+    "/api/sandbox/run",
+    {
+      method: "POST",
+      body: { code, language, stdin },
+    },
+    userId,
+  );
+}
+

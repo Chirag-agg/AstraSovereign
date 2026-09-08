@@ -26,6 +26,7 @@ from app.api.documents import router as documents_router
 from app.api.health import router as health_router
 from app.api.projects import router as projects_router
 from app.api.jobs import router as jobs_router
+from app.api.sandbox import router as sandbox_router
 from app.config import Settings, get_settings
 from app.schemas.resources import GpuInfo, ResourceCapacity, ResourceRequirements
 from app.services.agent import Agent
@@ -297,6 +298,7 @@ def create_app(
         )
     )
 
+    runner = None
     if settings.sandbox_enabled:
         runner = sandbox_runner or DockerSandboxRunner(
             image=settings.sandbox_python_image,
@@ -463,6 +465,7 @@ def create_app(
     app.state.document_generator = document_generator
     app.state.audit_store = audit_store
     app.state.network_guard = network_guard
+    app.state.sandbox_runner = runner
 
     cors_origins = [
         origin.strip()
@@ -486,6 +489,7 @@ def create_app(
     app.include_router(audit_router)
     app.include_router(admin_router)
     app.include_router(projects_router)
+    app.include_router(sandbox_router)
 
     return app
 

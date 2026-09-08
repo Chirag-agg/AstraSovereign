@@ -252,12 +252,12 @@ describe("Workbench page (conversation-first)", () => {
     renderPage(state);
     render(<WorkbenchPage />);
     await flush();
-    expect(screen.getByText("my task")).toBeInTheDocument();
+    expect(screen.getAllByText("my task").length).toBeGreaterThan(0);
     expect(screen.getByText("manual.txt")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Active user"), { target: { value: "user-002" } });
+    fireEvent.change(screen.getByLabelText("Active department user"), { target: { value: "user-002" } });
     await flush();
-    expect(screen.getByText("other task")).toBeInTheDocument();
+    expect(screen.getAllByText("other task").length).toBeGreaterThan(0);
     expect(screen.queryByText("my task")).not.toBeInTheDocument();
     expect(screen.queryByText("manual.txt")).not.toBeInTheDocument();
   });
@@ -299,7 +299,7 @@ describe("Workbench page (conversation-first)", () => {
     renderPage(state);
     render(<WorkbenchPage />);
     await flush();
-    expect(screen.getByText(/Backend unreachable/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Backend unreachable/).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   });
 
@@ -319,11 +319,14 @@ describe("Workbench page (conversation-first)", () => {
 
 
 describe("Workbench gate (login)", () => {
-  it("shows the login when there is no session", async () => {
+  it("shows the login when there is no session (via the landing page)", async () => {
     vi.useFakeTimers();
     window.sessionStorage.removeItem("sovereign.session");
     installFetch(() => jsonResponse({ detail: { message: "not found" } }, 404));
     render(<WorkbenchPage />);
+    await flush();
+    // The new landing page is shown first; enter the sign-in portal from it.
+    fireEvent.click(screen.getByRole("button", { name: /Sign In to Portal/i }));
     await flush();
     expect(screen.getByText("Sign in to the on-premise AI workbench")).toBeInTheDocument();
     expect(screen.queryByLabelText("Task description")).not.toBeInTheDocument();
