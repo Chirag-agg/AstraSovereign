@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   FileText,
   Upload,
   Trash2,
   Database,
+  Layers,
 } from "lucide-react";
+import { getHealth } from "@/lib/api";
 import type { DocumentMeta } from "@/lib/types";
 
 interface KnowledgeBaseViewProps {
@@ -23,6 +25,25 @@ export default function KnowledgeBaseView({
   uploading,
 }: KnowledgeBaseViewProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [chunks, setChunks] = useState<number | null>(null);
+  const [embedding, setEmbedding] = useState<string>("");
+  const [vectorStore, setVectorStore] = useState<string>("");
+
+  useEffect(() => {
+    let alive = true;
+    getHealth()
+      .then((h) => {
+        if (!alive) return;
+        setChunks(h.knowledge_base.chunks);
+        const emb = h.knowledge_base.embedding;
+        setEmbedding(typeof emb?.model === "string" ? emb.model : "");
+        setVectorStore(h.knowledge_base.vector_store);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -59,6 +80,24 @@ export default function KnowledgeBaseView({
               <Upload className="w-4 h-4" />
               <span>{uploading ? "Uploading..." : "Upload Document"}</span>
             </button>
+          </div>
+        </div>
+
+        {/* Index stats (real /health) */}
+        <div className="flex flex-wrap gap-3 text-sm">
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 flex items-center gap-2 text-slate-600">
+            <Database className="w-4 h-4 text-[#7047eb]" />
+            Documents: <span className="font-semibold text-slate-900">{documents?.length ?? 0}</span>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 flex items-center gap-2 text-slate-600">
+            <Layers className="w-4 h-4 text-[#7047eb]" />
+            Chunks embedded: <span className="font-semibold text-slate-900">{chunks ?? "—"}</span>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 flex items-center gap-2 text-slate-600">
+            Embedding: <span className="font-mono text-slate-900">{embedding || "—"}</span>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 flex items-center gap-2 text-slate-600">
+            Vector store: <span className="font-mono text-slate-900">{vectorStore || "local"}</span>
           </div>
         </div>
 
