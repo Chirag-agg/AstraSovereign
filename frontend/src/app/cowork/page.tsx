@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FolderPlus, FilePlus2, Save, RefreshCw, Trash2, Send, X, Lock, Play } from "lucide-react";
 import Login from "@/components/Login";
-import ThemeToggle from "@/components/core/theme-toggle";
 import Markdown from "@/components/Markdown";
 import { getJob } from "@/lib/api";
 import type { Job, TraceEntry } from "@/lib/types";
@@ -271,7 +270,6 @@ export default function CoworkPage() {
             <span className="h-1.5 w-1.5 rounded-full" style={{ background: locked ? "var(--warn, #d9a441)" : "var(--safe-600)" }} />
             {locked ? "agent working" : "ready"}
           </span>
-          <ThemeToggle />
           <a href="/" className="rounded-md border px-2 py-1 text-[12px]" style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)" }}>
             Chat
           </a>

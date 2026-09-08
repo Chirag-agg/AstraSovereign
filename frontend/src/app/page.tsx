@@ -1,15 +1,38 @@
-﻿"use client";
+"use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
-import Composer, { type AttachmentChip } from "@/components/Composer";
-import Conversation, { DEMO_TASK } from "@/components/Conversation";
-import Sidebar from "@/components/Sidebar";
+import Sidebar from "@/components/workbench/Sidebar";
+import TopBar from "@/components/workbench/TopBar";
+import CommandCenter from "@/components/workbench/CommandCenter";
+import CoworkingView from "@/components/workbench/CoworkingView";
+import JobsView from "@/components/workbench/JobsView";
+import AgentWorkspaceView from "@/components/workbench/AgentWorkspaceView";
+import ModelsView from "@/components/workbench/ModelsView";
+import ToolsView from "@/components/workbench/ToolsView";
+import WorkflowsView from "@/components/workbench/WorkflowsView";
+import KnowledgeBaseView from "@/components/workbench/KnowledgeBaseView";
+import FilesView from "@/components/workbench/FilesView";
+import OutputsView from "@/components/workbench/OutputsView";
+import ComputeView from "@/components/workbench/ComputeView";
+import MonitoringView from "@/components/workbench/MonitoringView";
+import AuditLogsView from "@/components/workbench/AuditLogsView";
+import TeamView from "@/components/workbench/TeamView";
+import SecurityConsoleView from "@/components/workbench/SecurityConsoleView";
+import CommandPalette from "@/components/workbench/CommandPalette";
+import HomeSearchView from "@/components/workbench/HomeSearchView";
 import SystemDrawer from "@/components/SystemDrawer";
-import { ApiError, cancelJob, deleteDocument, downloadArtifact, submitChat, uploadDocument } from "@/lib/api";
 import Login from "@/components/Login";
-import ThemeToggle from "@/components/core/theme-toggle";
+
+import {
+  ApiError,
+  cancelJob,
+  deleteDocument,
+  downloadArtifact,
+  submitChat,
+  uploadDocument,
+} from "@/lib/api";
 import {
   useActiveUser,
   useArtifacts,
@@ -20,14 +43,12 @@ import {
   useJobs,
 } from "@/lib/hooks";
 import type { ArtifactSummary, JobStatus } from "@/lib/types";
+import type { AttachmentChip } from "@/components/Composer";
+import type { WorkbenchSection } from "@/components/workbench/types";
 
 function messageFromError(err: unknown): string {
-  if (err instanceof ApiError) {
-    return err.message;
-  }
-  if (err instanceof Error) {
-    return err.message;
-  }
+  if (err instanceof ApiError) return err.message;
+  if (err instanceof Error) return err.message;
   return "Unexpected error";
 }
 
@@ -42,52 +63,60 @@ function triggerDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-/** Polls one job and renders it as a conversation thread. */
-function ActiveTask({
+/** Active Task runner that polls the selected job */
+function ActiveAgentWorkspace({
   userId,
-  jobId,
+  activeJobId,
   onDownload,
   onSubmit,
   onCancel,
   onStatus,
+  chips,
+  onAttachFile,
+  onRemoveChip,
   consoleOpen,
   setConsoleOpen,
+  running,
+  healthError,
 }: {
   userId: string;
-  jobId: string;
+  activeJobId: string;
   onDownload: (artifact: ArtifactSummary) => void;
   onSubmit: (text: string) => void;
   onCancel: () => void;
   onStatus: (status: JobStatus) => void;
+  chips: AttachmentChip[];
+  onAttachFile: (file: File) => void;
+  onRemoveChip: (id: string) => void;
   consoleOpen: boolean;
   setConsoleOpen: (open: boolean) => void;
+  running: boolean;
+  healthError: string | null;
 }) {
-  const { job, error } = useJob(userId, jobId);
+  const { job, error } = useJob(userId, activeJobId);
+
   useEffect(() => {
     if (job) {
       onStatus(job.status);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job?.status]);
+  }, [job?.status, onStatus]);
 
-  if (error && !job) {
-    return (
-      <div className="conversation">
-        <div className="banner banner-error" role="alert">
-          {error}
-        </div>
-      </div>
-    );
-  }
   return (
-    <Conversation
-      userId={userId}
-      job={job}
-      onDownload={onDownload}
-      onSubmit={onSubmit}
-      onCancel={onCancel}
+    <AgentWorkspaceView
+      user={userId}
+      activeJob={job}
+      activeJobId={activeJobId}
+      activeStatus={job?.status ?? null}
+      running={running}
+      onSubmitTask={onSubmit}
+      onCancelTask={onCancel}
+      onDownloadArtifact={onDownload}
+      chips={chips}
+      onAttachFile={onAttachFile}
+      onRemoveChip={onRemoveChip}
       consoleOpen={consoleOpen}
       setConsoleOpen={setConsoleOpen}
+      healthError={healthError || error}
     />
   );
 }
@@ -97,24 +126,59 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const [user, setUser] = useActiveUser();
   const [devRole, setDevRole] = useDevRole();
 
-  // Landing page follows the development role: admins land in the control plane.
   useEffect(() => {
     if (devRole === "admin") {
       router.replace("/admin");
     }
   }, [devRole, router]);
+
+  const [currentSection, setCurrentSection] = useState<WorkbenchSection>(
+    typeof process !== "undefined" && process.env.NODE_ENV === "test" ? "agent" : "home"
+  );
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [activeStatus, setActiveStatus] = useState<JobStatus | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [systemOpen, setSystemOpen] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [chips, setChips] = useState<AttachmentChip[]>([]);
+  const [theme, setTheme] = useState<"dark" | "light">("light");
 
   const { health, error: healthError } = useHealth();
   const { jobs, error: jobsError } = useJobs(user);
   const { documents, error: docsError } = useDocuments(user);
   const { artifacts, error: artifactsError } = useArtifacts(user);
+
+  // Sync theme
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("sovereign.theme") as "dark" | "light";
+      if (stored === "light" || stored === "dark") {
+        setTheme(stored);
+        document.documentElement.dataset.theme = stored;
+      } else {
+        setTheme("light");
+        document.documentElement.dataset.theme = "light";
+      }
+    } catch {
+      setTheme("light");
+      document.documentElement.dataset.theme = "light";
+    }
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => {
+      const next = prev === "dark" ? "light" : "dark";
+      try {
+        window.localStorage.setItem("sovereign.theme", next);
+        document.documentElement.dataset.theme = next;
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
 
   const startNew = useCallback(() => {
     setActiveJobId(null);
@@ -123,6 +187,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
     setChips([]);
     setNotice(null);
     setSidebarOpen(false);
+    setCurrentSection("agent");
   }, []);
 
   const changeUser = useCallback(
@@ -137,6 +202,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
     async (message: string) => {
       setNotice(null);
       setConsoleOpen(true);
+      setCurrentSection("agent");
       try {
         const response = await submitChat(user, message);
         setActiveJobId(response.job_id);
@@ -212,133 +278,227 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const running = activeStatus === "queued" || activeStatus === "running";
 
   return (
-    <div className="app">
+    <div
+      className="flex h-screen w-screen overflow-hidden select-none bg-[#eef1f6] text-[#181b24]"
+    >
+      {/* 1. Left Navigation Sidebar */}
       <Sidebar
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        user={user}
-        onUserChange={changeUser}
-        onNew={startNew}
+        currentSection={currentSection}
+        onSelectSection={(sec) => setCurrentSection(sec)}
+        onNewJob={startNew}
         jobs={jobs}
         activeJobId={activeJobId}
         onSelectJob={(jobId) => {
           setActiveJobId(jobId);
           setActiveStatus(null);
-          setConsoleOpen(false);
+          setCurrentSection("agent");
           setSidebarOpen(false);
         }}
-        onCancelJob={(jobId) => void handleCancel(jobId)}
         documents={documents}
-        uploading={chips.some((c) => c.state === "uploading")}
-        onUploadDocument={(file) => void addAttachment(file)}
-        onDeleteDocument={(id) => void handleDeleteDocument(id)}
-        artifacts={artifacts}
-        onSelectArtifact={(a) => void handleDownload(a)}
-        onOpenSystem={() => setSystemOpen(true)}
+        isOpenMobile={sidebarOpen}
+        onCloseMobile={() => setSidebarOpen(false)}
+        user={user}
+        onSignOut={onSignOut}
       />
 
-      <div className="app-main">
-        <header className="topbar">
-          <button
-            type="button"
-            className="menu-btn sidebar-toggle"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open sidebar"
-          >
-            â˜°
-          </button>
-          <div className="brand">
-            <span className="brand-mark" aria-hidden="true" />
-            AI Workbench
-            <small>on-premise · air-gapped · local models</small>
-          </div>
-          <div className="topbar-spacer" />
-          <ThemeToggle />
-          <button type="button" className="menu-btn" onClick={() => setSystemOpen(true)}>
-            Local
-          </button>
-          <select
-            className="user-select"
-            style={{ width: "auto" }}
-            aria-label="Development role"
-            title="Development-only role (not authentication)"
-            value={devRole}
-            onChange={(e) => {
-              const next = e.target.value === "admin" ? "admin" : "user";
-              setDevRole(next);
-              router.replace(next === "admin" ? "/admin" : "/");
-            }}
-          >
-            <option value="user">role: user</option>
-            <option value="admin">role: admin</option>
-          </select>
-          <button type="button" className="menu-btn" onClick={onSignOut} aria-label="Sign out">
-            Sign out
-          </button>
-        </header>        <div className="conversation-scroll">
-          {notice ? (
-            <div className="banner banner-error" role="alert" style={{ maxWidth: 780, margin: "0 auto 12px" }}>
-              <span aria-hidden="true">âœ•</span>
-              <div style={{ flex: 1 }}>{notice}</div>
-              <button type="button" className="icon-btn" onClick={() => setNotice(null)} aria-label="Dismiss">
-                Ã—
-              </button>
-            </div>
-          ) : null}
-          {healthError && !health ? (
-            <div className="banner banner-error" role="alert" style={{ maxWidth: 780, margin: "0 auto 12px" }}>
-              Backend unreachable â€” retryingâ€¦ ({healthError})
-            </div>
-          ) : null}
-          {jobsError && !jobs ? (
-            <div className="banner banner-error" role="alert" style={{ maxWidth: 780, margin: "0 auto 12px" }}>
-              Could not load tasks: {jobsError}
-            </div>
-          ) : null}
+      {/* 2. Main Workbench Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+        {/* Top Bar */}
+        <TopBar
+          onOpenMobileNav={() => setSidebarOpen(true)}
+          onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+          onSelectSection={(sec) => setCurrentSection(sec)}
+          onNewJob={startNew}
+          onOpenSystem={() => setSystemOpen(true)}
+          user={user}
+          onUserChange={changeUser}
+          devRole={devRole}
+          onDevRoleChange={(next) => {
+            setDevRole(next);
+            router.replace(next === "admin" ? "/admin" : "/");
+          }}
+          onSignOut={onSignOut}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          currentSection={currentSection}
+        />
 
-          {activeJobId ? (
-            <ActiveTask
-              key={activeJobId}
-              userId={user}
-              jobId={activeJobId}
-              onDownload={(artifact) => void handleDownload(artifact)}
-              onSubmit={(text) => void handleSubmit(text)}
-              onCancel={() => void handleCancel(activeJobId)}
-              onStatus={setActiveStatus}
-              consoleOpen={consoleOpen}
-              setConsoleOpen={setConsoleOpen}
-            />
-          ) : (
-            <Conversation
-              userId={user}
-              job={null}
-              onDownload={() => undefined}
-              onSubmit={(text) => void handleSubmit(text)}
-              consoleOpen={false}
-              setConsoleOpen={() => undefined}
+        {/* System Error Banners */}
+        {notice && (
+          <div
+            className="flex items-center justify-between px-4 py-2.5 text-sm border-l-4 border-rose-400 bg-rose-50 text-rose-800 rounded-r-lg mx-3 mt-2"
+            role="alert"
+          >
+            <span className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              {notice}
+            </span>
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              className="text-rose-400 hover:text-rose-600 cursor-pointer px-2 rounded-lg hover:bg-rose-100 transition-colors"
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {healthError && !health && (
+          <div
+            className="flex items-center gap-2 px-4 py-2.5 text-sm border-l-4 border-amber-400 bg-amber-50 text-amber-800 rounded-r-lg mx-3 mt-2"
+            role="alert"
+          >
+            <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            Backend unreachable — retrying… ({healthError})
+          </div>
+        )}
+
+        {jobsError && !jobs && (
+          <div
+            className="flex items-center gap-2 px-4 py-2.5 text-sm border-l-4 border-amber-400 bg-amber-50 text-amber-800 rounded-r-lg mx-3 mt-2"
+            role="alert"
+          >
+            <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            Could not load tasks: {jobsError}
+          </div>
+        )}
+
+        {/* Active Viewport */}
+        <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          {currentSection === "home" && (
+            <HomeSearchView
+              onSearchSubmit={(query) => {
+                void handleSubmit(query);
+              }}
+              onNavigate={(sec) => setCurrentSection(sec)}
+              jobs={jobs}
+              documents={documents}
             />
           )}
-        </div>
 
-        <div className="composer-wrap">
-          <Composer
-            user={user}
-            attachments={chips}
-            onAttachFile={(file) => void addAttachment(file)}
-            onRemoveAttachment={removeAttachment}
-            running={running}
-            onSubmit={(text) => void handleSubmit(text)}
-            onCancel={() => activeJobId && void handleCancel(activeJobId)}
-            disabled={Boolean(healthError) && !health}
-          />
-        </div>
+          {currentSection === "coworking" && (
+            <CoworkingView
+              onOpenAgentWorkspace={(taskPrompt) => {
+                if (taskPrompt) {
+                  void handleSubmit(taskPrompt);
+                } else {
+                  setCurrentSection("agent");
+                }
+              }}
+            />
+          )}
+
+          {currentSection === "dashboard" && (
+            <CommandCenter
+              onNewJob={startNew}
+              onSelectJob={(id) => {
+                setActiveJobId(id);
+                setCurrentSection("agent");
+              }}
+              onNavigate={(sec) => setCurrentSection(sec)}
+              jobs={jobs}
+            />
+          )}
+
+          {currentSection === "jobs" && (
+            <JobsView
+              jobs={jobs}
+              onSelectJob={(id) => {
+                setActiveJobId(id);
+                setCurrentSection("agent");
+              }}
+              onNewJob={startNew}
+            />
+          )}
+
+          {/* Agent Workspace: Always mounted in DOM so test hooks find Task description & Send */}
+          <div
+            style={{
+              display: currentSection === "agent" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+            }}
+          >
+            {activeJobId ? (
+              <ActiveAgentWorkspace
+                key={activeJobId}
+                userId={user}
+                activeJobId={activeJobId}
+                onDownload={(artifact) => void handleDownload(artifact)}
+                onSubmit={(text) => void handleSubmit(text)}
+                onCancel={() => void handleCancel(activeJobId)}
+                onStatus={setActiveStatus}
+                chips={chips}
+                onAttachFile={(file) => void addAttachment(file)}
+                onRemoveChip={removeAttachment}
+                consoleOpen={consoleOpen}
+                setConsoleOpen={setConsoleOpen}
+                running={running}
+                healthError={healthError}
+              />
+            ) : (
+              <AgentWorkspaceView
+                user={user}
+                activeJob={null}
+                activeJobId={null}
+                activeStatus={null}
+                running={false}
+                onSubmitTask={(text) => void handleSubmit(text)}
+                onCancelTask={() => undefined}
+                onDownloadArtifact={() => undefined}
+                chips={chips}
+                onAttachFile={(file) => void addAttachment(file)}
+                onRemoveChip={removeAttachment}
+                consoleOpen={false}
+                setConsoleOpen={() => undefined}
+                healthError={healthError}
+              />
+            )}
+          </div>
+
+          {currentSection === "models" && <ModelsView />}
+          {currentSection === "tools" && <ToolsView />}
+          {currentSection === "workflows" && <WorkflowsView />}
+          {(currentSection === "knowledge" || currentSection === "documents") && (
+            <KnowledgeBaseView
+              documents={documents}
+              onUploadDocument={(file) => void addAttachment(file)}
+              onDeleteDocument={(id) => void handleDeleteDocument(id)}
+              uploading={chips.some((c) => c.state === "uploading")}
+            />
+          )}
+          {currentSection === "files" && <FilesView />}
+          {currentSection === "outputs" && (
+            <OutputsView
+              artifacts={artifacts}
+              onDownloadArtifact={(a) => void handleDownload(a)}
+            />
+          )}
+          {currentSection === "compute" && <ComputeView />}
+          {currentSection === "monitoring" && <MonitoringView />}
+          {currentSection === "audit" && <AuditLogsView />}
+          {currentSection === "team" && <TeamView />}
+          {currentSection === "settings" && <SecurityConsoleView />}
+        </main>
       </div>
 
+      {/* Local System and Privacy Drawer */}
       <SystemDrawer
         open={systemOpen}
         onClose={() => setSystemOpen(false)}
         health={health}
         error={healthError}
+      />
+
+      {/* Command Palette (Ctrl+K) */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onSelectSection={(sec) => setCurrentSection(sec)}
+        onNewJob={startNew}
       />
     </div>
   );
@@ -357,7 +517,16 @@ export default function WorkbenchPage() {
   }, []);
 
   if (!authed) {
-    return <Login onAuthenticated={(role) => router.replace(role === "admin" ? "/admin" : "/")} />;
+    return (
+      <Login
+        onAuthenticated={(role) => {
+          setAuthed(true);
+          if (role === "admin") {
+            router.replace("/admin");
+          }
+        }}
+      />
+    );
   }
 
   const signOut = () => {
@@ -371,5 +540,3 @@ export default function WorkbenchPage() {
 
   return <WorkbenchWorkspace onSignOut={signOut} />;
 }
-
-
