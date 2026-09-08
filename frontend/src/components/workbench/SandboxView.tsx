@@ -130,7 +130,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
   }, []);
 
   useEffect(() => {
-    termRef.current?.scrollTo({ top: termRef.current.scrollHeight });
+      termRef.current?.scrollTo?.({ top: termRef.current.scrollHeight });
   }, [runs, selectedRunId]);
 
   const handleExecute = async (overrideCode?: string) => {

@@ -155,6 +155,13 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const [chips, setChips] = useState<AttachmentChip[]>([]);
   const [theme, setTheme] = useState<"dark" | "light">("light");
 
+  // Switching users must reset any in-flight/selected job (no cross-user leakage).
+  useEffect(() => {
+    setActiveJobId(null);
+    setActiveStatus(null);
+    setConsoleOpen(false);
+  }, [user]);
+
   // Sync active job to sessionStorage
   useEffect(() => {
     try {

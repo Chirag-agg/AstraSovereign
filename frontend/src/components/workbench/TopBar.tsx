@@ -262,6 +262,7 @@ export default function TopBar({
           <button
             type="button"
             onClick={onOpenSystem}
+            aria-label="Local"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 transition-colors cursor-pointer shadow-2xs"
             title="Local Air-Gap Sovereignty Status"
           >

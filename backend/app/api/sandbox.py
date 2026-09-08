@@ -1,12 +1,13 @@
-"""HTTP API: direct sandbox code execution."""
+"""HTTP API: direct sandbox code execution (dev/sandbox UI)."""
 
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from app.services.sandbox_runner import DockerSandboxRunner, ExecutionResult, SandboxRunnerError
+from app.api.deps import get_user_id
+from app.services.sandbox_runner import ExecutionResult, SandboxRunnerError
 
 logger = logging.getLogger("app.api.sandbox")
 
@@ -30,18 +31,18 @@ class SandboxRunResponse(BaseModel):
 
 
 @router.post("/run", response_model=SandboxRunResponse)
-async def run_code(body: SandboxRunRequest, request: Request) -> SandboxRunResponse:
-    """Execute code in the local sovereign sandbox."""
+async def run_code(
+    body: SandboxRunRequest,
+    request: Request,
+    user_id: str = Depends(get_user_id),
+) -> SandboxRunResponse:
+    """Execute code in the local sandbox. Only enabled when the sandbox is on."""
     runner = getattr(request.app.state, "sandbox_runner", None)
     if runner is None:
-        settings = request.app.state.settings
-        runner = DockerSandboxRunner(
-            image=settings.sandbox_python_image,
-            timeout_seconds=settings.sandbox_timeout_seconds,
-            cpu_limit=settings.sandbox_cpu_limit,
-            memory_limit=settings.sandbox_memory_limit,
+        raise HTTPException(
+            status_code=503,
+            detail="Sandbox is disabled (SANDBOX_ENABLED=false).",
         )
-
     try:
         result: ExecutionResult = await runner.run(
             code=body.code,
@@ -68,5 +69,8 @@ async def run_code(body: SandboxRunRequest, request: Request) -> SandboxRunRespo
             error=str(exc),
         )
     except Exception as exc:
-        logger.exception("Unexpected error during sandbox run")
+        logger.exception(
+            "sandbox_run_unexpected",
+            extra={"event": "sandbox_run_failed", "user_id": user_id},
+        )
         raise HTTPException(status_code=500, detail=str(exc))
