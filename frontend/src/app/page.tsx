@@ -279,7 +279,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
 
   return (
     <div
-      className="flex h-screen w-screen overflow-hidden select-none bg-[#eef1f6] text-[#181b24]"
+      className="flex h-screen w-screen overflow-hidden bg-[#eef1f6] text-[#181b24]"
     >
       {/* 1. Left Navigation Sidebar */}
       <Sidebar
