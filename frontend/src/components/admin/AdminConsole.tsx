@@ -17,7 +17,6 @@ import {
   getAdminUsers,
 } from "@/lib/api";
 import AnimatedNumber from "@/components/core/animated-number";
-import ThemeToggle from "@/components/core/theme-toggle";
 import { useDevRole, usePolling } from "@/lib/hooks";
 import type {
   AdminJobDetail,
@@ -41,15 +40,15 @@ const SECTIONS = [
 type Section = (typeof SECTIONS)[number];
 
 const SECTION_TITLES: Record<Section, { title: string; sub: string }> = {
-  overview: { title: "Platform overview", sub: "Is the AI platform healthy right now?" },
-  workloads: { title: "Workloads", sub: "All organizational jobs and queue state." },
-  users: { title: "Users", sub: "Operational metadata per development user." },
-  models: { title: "Models", sub: "Registry: providers, availability, resources." },
-  resources: { title: "Resources", sub: "Capacity and live allocation." },
-  knowledge: { title: "Knowledge base", sub: "Ingestion and embedding health." },
-  audit: { title: "Audit", sub: "Non-sensitive platform audit trail." },
-  sovereignty: { title: "Sovereignty", sub: "Verified local-only operation." },
-  system: { title: "System health", sub: "Component states (dev view)." },
+  overview: { title: "Platform overview", sub: "Platform status, active workloads, and system health." },
+  workloads: { title: "Workloads", sub: "Organizational tasks, status queue, and job executions." },
+  users: { title: "Users", sub: "Department user accounts, documents, and activity metrics." },
+  models: { title: "Models", sub: "Model registry, provider status, and allocated compute resources." },
+  resources: { title: "Resources", sub: "Real-time compute capacity and hardware allocation." },
+  knowledge: { title: "Knowledge base", sub: "Indexed documents, embedding models, and vector stores." },
+  audit: { title: "Audit", sub: "Platform compliance logs and security audit trail." },
+  sovereignty: { title: "Sovereignty", sub: "Verified on-premise operation and air-gap network status." },
+  system: { title: "System health", sub: "Component diagnostics and microservice health checks." },
 };
 
 function StateBadge({ state }: { state: string }) {
@@ -611,8 +610,7 @@ function SystemView() {
 function RoleSwitch({ role, onChange }: { role: DevRole; onChange: (r: DevRole) => void }) {
   return (
     <select
-      className="user-select"
-      style={{ width: "auto" }}
+      className="px-3 py-1.5 rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-700 cursor-pointer focus:outline-none focus:border-purple-500 shadow-xs"
       aria-label="Development role"
       value={role}
       onChange={(e) => onChange(e.target.value as DevRole)}
@@ -639,29 +637,38 @@ export default function AdminConsole() {
 
   if (role !== "admin") {
     return (
-      <div className="admin">
-        <div className="admin-top">
-          <div className="brand">
-            <span className="brand-mark" aria-hidden="true" />
-            Operations console
+      <div className="admin bg-[#eef1f6] min-h-screen">
+        <div className="admin-top bg-white border-b border-slate-200/80 px-6 h-16 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white shadow-xs font-bold text-xs">
+              <span>IS</span>
+            </div>
+            <div className="brand">
+              <span className="text-slate-900 font-extrabold text-sm tracking-tight">Insight Scope</span>
+              <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+                Operations console
+              </span>
+            </div>
           </div>
-          <span className="dev-note">development — not authentication</span>
         </div>
-        <div className="dev-gate">
-          <h2>Operations console</h2>
-          <p style={{ color: "var(--text-2)" }}>
-            This area is the platform operations console for administrators.
+        <div className="max-w-md mx-auto my-20 p-8 bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] text-center space-y-4">
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Operations console</h2>
+          <p className="text-xs text-slate-500">
+            This area provides platform operations, system diagnostics, and workload management for administrators.
           </p>
-          <div className="warn-box">
-            The switch below is a <strong>development-only</strong> role selection, not
-            production authentication. The backend independently enforces the admin
-            boundary on /api/admin/* and never exposes users&apos; private messages or
-            document contents.
+          <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-100 text-xs text-purple-900 font-medium text-left">
+            Select the <strong>Admin</strong> role below to open the console.
           </div>
-          <RoleSwitch role={role} onChange={changeRole} />
-          <button type="button" className="btn btn-ghost" onClick={() => router.push("/")}>
-            ← Back to my work
-          </button>
+          <div className="pt-2 flex flex-col items-center gap-3">
+            <RoleSwitch role={role} onChange={changeRole} />
+            <button
+              type="button"
+              className="text-xs font-semibold text-purple-700 hover:text-purple-900 transition-colors cursor-pointer"
+              onClick={() => router.push("/")}
+            >
+              ← Back to user workspace
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -670,45 +677,74 @@ export default function AdminConsole() {
   const title = SECTION_TITLES[section] ?? SECTION_TITLES.overview;
 
   return (
-    <div className="admin">
-      <div className="admin-top">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true" />
-          Operations console
+    <div className="admin bg-[#eef1f6] min-h-screen flex flex-col">
+      <div className="admin-top bg-white border-b border-slate-200/80 px-6 h-16 flex items-center justify-between shadow-xs shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white shadow-xs font-bold text-xs">
+            <span>IS</span>
+          </div>
+          <div className="brand">
+            <span className="text-slate-900 font-extrabold text-sm tracking-tight">Insight Scope</span>
+            <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+              Operations console
+            </span>
+          </div>
         </div>
-        <span className="dev-note">development admin</span>
         <div className="topbar-spacer" />
-        <ThemeToggle />
-        <RoleSwitch role={role} onChange={changeRole} />
-        <Link href="/" className="menu-btn">
-          User workspace
-        </Link>
+        <div className="flex items-center gap-3">
+          <RoleSwitch role={role} onChange={changeRole} />
+          <Link
+            href="/"
+            className="menu-btn flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-200 text-xs font-semibold text-slate-700 hover:text-purple-700 transition-colors shadow-xs"
+          >
+            <span>User workspace</span>
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
       </div>
-      <div className="admin-body">
-        <nav className="admin-nav" aria-label="Admin sections">
-          <div className="nav-head">Operations</div>
+      <div className="admin-body flex flex-1 min-h-0">
+        <nav
+          className="admin-nav w-60 bg-white border-r border-slate-200/80 p-4 space-y-1 shrink-0 overflow-y-auto"
+          aria-label="Admin sections"
+        >
+          <div className="nav-head text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2">
+            Operations
+          </div>
           {SECTIONS.map((s) => (
             <Link
               key={s}
               href={`/admin/${s}`}
-              className={section === s ? "nav-item active" : "nav-item"}
+              className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                section === s
+                  ? "bg-[#7047eb] text-white shadow-sm font-bold"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              }`}
             >
               {s.charAt(0).toUpperCase() + s.slice(1)}
             </Link>
           ))}
         </nav>
-        <main className="admin-content" aria-label="Admin content">
-          <h2>{title.title}</h2>
-          <p className="sub">{title.sub}</p>
-          {section === "overview" ? <OverviewView /> : null}
-          {section === "workloads" ? <WorkloadsView /> : null}
-          {section === "users" ? <UsersView /> : null}
-          {section === "models" ? <ModelsView /> : null}
-          {section === "resources" ? <ResourcesView /> : null}
-          {section === "knowledge" ? <KnowledgeView /> : null}
-          {section === "audit" ? <AuditView /> : null}
-          {section === "sovereignty" ? <SovereigntyView /> : null}
-          {section === "system" ? <SystemView /> : null}
+        <main
+          className="admin-content flex-1 overflow-y-auto p-6 lg:p-8 bg-[#eef1f6] min-w-0 min-h-0"
+          aria-label="Admin content"
+        >
+          <div className="max-w-[1500px] mx-auto space-y-6">
+            <div className="mb-6">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                {title.title}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">{title.sub}</p>
+            </div>
+            {section === "overview" ? <OverviewView /> : null}
+            {section === "workloads" ? <WorkloadsView /> : null}
+            {section === "users" ? <UsersView /> : null}
+            {section === "models" ? <ModelsView /> : null}
+            {section === "resources" ? <ResourcesView /> : null}
+            {section === "knowledge" ? <KnowledgeView /> : null}
+            {section === "audit" ? <AuditView /> : null}
+            {section === "sovereignty" ? <SovereigntyView /> : null}
+            {section === "system" ? <SystemView /> : null}
+          </div>
         </main>
       </div>
     </div>
