@@ -693,3 +693,14 @@ frontend typecheck/tests/build) on every push and pull request.
   folder. Mutation lock -> 409 while a project job runs.
 - Settings: `COWORK_PROJECTS_ROOT`, `COWORK_FILE_MAX_BYTES`. Run the demo from the
   root README "Quick demo (Cowork)".
+
+## Local PowerPoint generation (presentation_generation)
+
+- Local PptxGenJS renderer under `../presentation/` (Node). Install once:
+  `cd presentation && npm install`.
+- Agent tool `presentation_generation` produces editable `.pptx` decks into the job
+  workspace artifacts; themes executive/technical/report/general; slide types
+  title/content/bullets/two-column/table/sources. Fully offline.
+- Tests: `pytest tests/test_presentation.py` (real renderer runs when node + deps
+  are present). Presenton (Apache-2.0) referenced for planning/layout concepts only;
+  PptxGenJS (MIT) used for rendering.

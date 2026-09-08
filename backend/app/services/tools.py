@@ -12,6 +12,7 @@ has to local OCR + vision analysis of the user's scanned/image documents.
 registered with the ArtifactStore.
 """
 
+import asyncio
 import logging
 import re
 import time
@@ -20,16 +21,18 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.schemas.artifact import Artifact, ArtifactStatus
 from app.schemas.document_content import DocumentContent, DocumentSection
+from app.schemas.presentation import PresentationContent
 from app.schemas.resources import ResourceRequirements
 from app.services.artifact_store import ArtifactStore
 from app.services.document_generator import (
     DocumentGenerationError,
     DocumentGenerator,
 )
+from app.services.presentation_renderer import PresentationRenderError
 from app.services.knowledge_base import KnowledgeBase
 from app.services.log_context import get_job_context
 from app.services.multimodal import MultimodalError, MultimodalService
@@ -719,3 +722,222 @@ def _cleanup_partial(path: Path) -> None:
             path.unlink()
     except OSError:
         pass
+
+
+class PresentationGenerationTool(BaseTool):
+    """Generate editable PowerPoint (.pptx) decks via the local PptxGenJS renderer.
+
+    The only gateway the agent has to presentation generation. Content is a
+    validated AstraSovereign PresentationContent (never PptxGenJS/Presenton
+    objects). Artifacts are written only under ``<workspace>/artifacts/`` and
+    registered with the ArtifactStore after validation.
+    """
+
+    name = "presentation_generation"
+    description = (
+        "Generate an editable PowerPoint (.pptx) presentation from structured "
+        "content. Arguments: type ('pptx'), filename (must end .pptx), title, "
+        "optional subtitle/theme/document_type, and slides — each slide has "
+        "type (title|content|bullets|two-column|table|sources), title, content/"
+        "bullets/columns/table/sources. Returns artifact metadata."
+    )
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "type": {"type": "string"},
+            "filename": {"type": "string"},
+            "title": {"type": "string"},
+            "subtitle": {"type": "string"},
+            "theme": {"type": "string"},
+            "document_type": {"type": "string"},
+            "slides": {"type": "array", "items": {"type": "object"}},
+        },
+        "required": ["type", "filename", "title", "slides"],
+        "additionalProperties": False,
+    }
+
+    def __init__(
+        self,
+        renderer,
+        artifact_store: ArtifactStore,
+        scheduler: ResourceScheduler,
+        requirements: Optional[ResourceRequirements] = None,
+        wait_rounds: int = 5,
+    ) -> None:
+        self._renderer = renderer
+        self._store = artifact_store
+        self._scheduler = scheduler
+        self._requirements = requirements or ResourceRequirements(
+            cpu_cores=1.0, memory_mb=1024
+        )
+        self._wait_rounds = max(wait_rounds, 1)
+
+    async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
+        ctx = get_job_context()
+        user_id = ctx.get("user_id")
+        job_id = ctx.get("job_id")
+        if not user_id:
+            raise ToolError("presentation_generation requires a user context")
+        if not job_id:
+            raise ToolError("presentation_generation requires a job context")
+
+        doc_type = str(arguments["type"]).strip().lower()
+        if doc_type != "pptx":
+            raise ToolError(
+                f"unsupported presentation type '{doc_type}'; supported: pptx"
+            )
+        filename = _validate_artifact_filename(arguments["filename"], doc_type)
+        if not filename.lower().endswith(".pptx"):
+            raise ToolError("presentation artifacts must use the '.pptx' extension")
+
+        try:
+            content = PresentationContent.model_validate(
+                {
+                    "title": arguments.get("title") or "Presentation",
+                    "subtitle": arguments.get("subtitle", ""),
+                    "theme": arguments.get("theme", "general"),
+                    "slides": arguments.get("slides") or [],
+                }
+            )
+        except ValidationError as exc:
+            raise ToolError(f"invalid presentation content: {exc}") from exc
+
+        artifacts_dir = self._resolve_artifacts_dir(workspace)
+        target = artifacts_dir / filename
+        artifact_id = f"art-{uuid.uuid4().hex[:12]}"
+        artifact = await self._store.create(
+            Artifact(
+                artifact_id=artifact_id,
+                job_id=job_id,
+                user_id=user_id,
+                filename=filename,
+                type="pptx",
+                path=str(target),
+                status=ArtifactStatus.CREATING,
+            )
+        )
+
+        start = time.monotonic()
+        logger.info(
+            "presentation_generation_started",
+            extra={
+                "event": "presentation_generation_started",
+                "job_id": job_id,
+                "user_id": user_id,
+                "artifact_id": artifact_id,
+                "slide_count": len(content.slides),
+                "file_name": filename,
+            },
+        )
+
+        try:
+            generated = await self._generate(job_id, user_id, content, artifacts_dir, filename)
+        except PresentationRenderError as exc:
+            await self._store.update(
+                artifact_id, status=ArtifactStatus.FAILED, size_bytes=0
+            )
+            _cleanup_partial(target)
+            duration_ms = int((time.monotonic() - start) * 1000)
+            logger.error(
+                "presentation_generation_failed",
+                extra={
+                    "event": "presentation_generation_failed",
+                    "job_id": job_id,
+                    "user_id": user_id,
+                    "artifact_id": artifact_id,
+                    "slide_count": len(content.slides),
+                    "file_name": filename,
+                    "duration_ms": duration_ms,
+                    "status": ArtifactStatus.FAILED,
+                    "error": str(exc),
+                },
+            )
+            raise ToolError(f"presentation_generation failed: {exc}") from exc
+
+        await self._store.update(
+            artifact_id,
+            status=ArtifactStatus.COMPLETED,
+            size_bytes=generated.size_bytes,
+            path=str(generated.path),
+        )
+        duration_ms = int((time.monotonic() - start) * 1000)
+        logger.info(
+            "presentation_generation_completed",
+            extra={
+                "event": "presentation_generation_completed",
+                "job_id": job_id,
+                "user_id": user_id,
+                "artifact_id": artifact_id,
+                "slide_count": generated.slide_count,
+                "file_name": filename,
+                "size_bytes": generated.size_bytes,
+                "duration_ms": duration_ms,
+                "status": ArtifactStatus.COMPLETED,
+            },
+        )
+        logger.info(
+            "artifact_created",
+            extra={
+                "event": "artifact_created",
+                "job_id": job_id,
+                "user_id": user_id,
+                "artifact_id": artifact_id,
+                "document_type": "pptx",
+                "file_name": filename,
+                "status": ArtifactStatus.COMPLETED,
+            },
+        )
+
+        content_lines = [
+            f"Generated PowerPoint artifact '{filename}' for job {job_id}.",
+            f"Artifact ID: {artifact_id}",
+            f"Type: pptx",
+            f"Filename: {filename}",
+            f"Slides: {generated.slide_count}",
+            f"Size: {generated.size_bytes} bytes",
+            f"Status: {ArtifactStatus.COMPLETED}",
+            "The deck contains editable text boxes and tables (no images).",
+        ]
+        return ToolResult(
+            ok=True,
+            summary=f"Generated PowerPoint artifact '{filename}' "
+            f"({generated.slide_count} slides, {generated.size_bytes} bytes)",
+            content="\n".join(content_lines),
+        )
+
+    @staticmethod
+    def _resolve_artifacts_dir(workspace: Path) -> Path:
+        try:
+            artifacts_dir = resolve_within_workspace(workspace, "artifacts")
+        except WorkspaceError as exc:
+            raise ToolError(str(exc)) from exc
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        return artifacts_dir
+
+    async def _generate(self, job_id, user_id, content, output_dir, filename):
+        if self._requirements.is_empty:
+            return await asyncio.to_thread(
+                self._renderer.generate, content, output_dir, filename
+            )
+        sub_key = f"{job_id}:pptgen"
+        for _ in range(self._wait_rounds + 1):
+            decision = await self._scheduler.request(
+                sub_key, user_id, "presentation_generation", self._requirements
+            )
+            if decision.decision == "grant":
+                try:
+                    return await asyncio.to_thread(
+                        self._renderer.generate, content, output_dir, filename
+                    )
+                finally:
+                    await self._scheduler.release(sub_key)
+            if decision.decision == "reject":
+                await self._scheduler.cancel(sub_key)
+                raise PresentationRenderError(
+                    f"presentation generation resources rejected: {decision.reason}"
+                )
+            await self._scheduler.wait_until_available(timeout=1.0)
+        await self._scheduler.cancel(sub_key)
+        raise PresentationRenderError(
+            "presentation generation resources not available within the wait limit"
+        )

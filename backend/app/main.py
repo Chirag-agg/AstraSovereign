@@ -37,6 +37,7 @@ from app.services.embedding import EmbeddingProvider, OllamaEmbeddingProvider
 from app.services.job_manager import JobManager
 from app.services.capability_router import CapabilityRouter
 from app.services.context import ContextManager
+from app.services.presentation_renderer import NodePresentationRenderer
 from app.services.job_queue import JobQueue
 from app.services.job_store import InMemoryJobStore
 from app.services.knowledge_base import KnowledgeBase
@@ -59,6 +60,7 @@ from app.services.tools import (
     DocumentSearchTool,
     DocumentVisionTool,
     ListFilesTool,
+    PresentationGenerationTool,
     ReadFileTool,
     WriteFileTool,
 )
@@ -236,6 +238,7 @@ def create_app(
     vision_provider: Optional[VisionProvider] = None,
     cowork_projects: Optional[CoworkProjects] = None,
     cowork_locks: Optional[ProjectLocks] = None,
+    presentation_renderer=None,
 ) -> FastAPI:
     """Build the FastAPI application.
 
@@ -345,6 +348,18 @@ def create_app(
     tools.append(
         DocumentGenerationTool(
             generator=document_generator,
+            artifact_store=artifact_store,
+            scheduler=scheduler,
+        )
+    )
+    presentation_renderer = presentation_renderer or NodePresentationRenderer(
+        node_command=settings.presentation_node_command,
+        script_path=settings.presentation_renderer_script,
+        timeout_seconds=settings.presentation_timeout_seconds,
+    )
+    tools.append(
+        PresentationGenerationTool(
+            renderer=presentation_renderer,
             artifact_store=artifact_store,
             scheduler=scheduler,
         )

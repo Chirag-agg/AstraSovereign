@@ -1422,3 +1422,37 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 - Integration tests: `test_cowork.py`, `test_cowork_context.py`,
   `test_cowork_e2e.py` (build -> inspect -> modify -> run in sandbox -> doc
   generation into the project).
+
+### Local PowerPoint generation (Presenton-inspired planning + PptxGenJS)
+- Renderer: small offline Node component `presentation/` (PptxGenJS, MIT). `src/render.cjs`
+  reads a JSON presentation model (`--in`) and writes an editable `.pptx` (`--out`).
+  Themes are fully local palettes: executive / technical / report / general. Slide
+  types: title, content, bullets, two-column, table, sources. No images, no network.
+- Backend model: `schemas/presentation.py` (AstraSovereign-owned intermediate model;
+  the agent never sees PptxGenJS/Presenton objects). Tool: `presentation_generation`
+  in the ToolRegistry validates the model, registers a `pptx` ArtifactStore artifact
+  (creating -> completed/failed), requests a small CPU/memory allocation through the
+  ResourceScheduler (`<job>:pptgen`), invokes the local renderer, then validates the
+  package (zip + [Content_Types].xml + ppt/presentation.xml + expected slide parts)
+  before registering the artifact. Workspace/path containment is reused; traversal
+  filenames and malformed content fail cleanly without artifacts.
+- Wiring: `app/services/presentation_renderer.py` (NodePresentationRenderer +
+  FakePresentationRenderer for tests + `validate_pptx`). `create_app()` gains a
+  `presentation_renderer` seam. Pipeline capability allowlist now includes
+  `presentation`; agent prompt documents how to call presentation_generation and to
+  close decks with a Sources slide. Audit events PRESENTATION_GENERATION_STARTED/
+  COMPLETED/FAILED mapped metadata-only.
+- Reference/attribution: Presenton (github.com/presenton/presenton, Apache-2.0) was
+  inspected for planning/layout/theme concepts only — NO Presenton code is copied.
+  PptxGenJS (github.com/gitbrent/PptxGenJS, MIT) is the local renderer. Both fully
+  offline; no cloud/image/template providers are used.
+- Frontend: no changes needed; `.pptx` artifacts appear in the existing artifact
+  lists/downloads naturally.
+- Tests: `backend/tests/test_presentation.py` — content validation, package
+  validation, fake + real node renderer, agent -> tool end-to-end artifact, secure
+  download + ownership, traversal rejection, malformed-slide failure. Word
+  generation is unchanged and its tests still pass. Full backend suite green.
+- Known limitations / next: renderer emits text/table slides only (no images by
+  design); pipeline stage for presentation not yet exercised end-to-end against a
+  real model; deeper layout control (auto columns from content density, per-slide
+  theme accent) and a real model-driven industrial demo are next steps.

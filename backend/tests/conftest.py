@@ -424,6 +424,7 @@ def client_factory(app_settings, test_models):
         vision_provider=None,
         project_root=None,
         file_max_bytes=1_000_000,
+        presentation_renderer=None,
     ):
         registry = build_registry(models if models is not None else test_models)
         updates = {}
@@ -442,6 +443,7 @@ def client_factory(app_settings, test_models):
             embedding_provider=embedding_provider or FakeEmbeddingProvider(),
             ocr_provider=ocr_provider or FakeOCRProvider(),
             vision_provider=vision_provider,
+            presentation_renderer=presentation_renderer,
         )
         return TestClient(app)
 

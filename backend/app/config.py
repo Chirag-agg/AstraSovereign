@@ -125,6 +125,13 @@ class Settings(BaseSettings):
     cowork_projects_root: str = str(REPO_ROOT / "data" / "projects")
     cowork_file_max_bytes: int = 1_000_000
     cowork_tree_max_entries: int = 500
+
+    # Local PowerPoint rendering via the PptxGenJS node script (presentation/).
+    presentation_renderer_script: str = str(
+        REPO_ROOT / "presentation" / "src" / "render.cjs"
+    )
+    presentation_node_command: str = "node"
+    presentation_timeout_seconds: float = 90.0
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

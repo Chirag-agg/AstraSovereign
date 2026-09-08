@@ -31,7 +31,7 @@ from app.services.resource_scheduler import ResourceScheduler
 
 logger = logging.getLogger("app.pipeline")
 
-ALLOWED_PIPELINE_CAPABILITIES = frozenset({"reasoning", "math", "coding", "document", "vision"})
+ALLOWED_PIPELINE_CAPABILITIES = frozenset({"reasoning", "math", "coding", "document", "vision", "presentation"})
 
 _MAX_STAGES = 4
 _STAGE_MAX_ITERATIONS = 4

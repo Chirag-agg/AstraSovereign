@@ -61,7 +61,7 @@ def router():
 
 
 def test_allowed_capabilities_are_fixed():
-    assert ALLOWED_PIPELINE_CAPABILITIES == {"reasoning", "math", "coding", "document", "vision"}
+    assert ALLOWED_PIPELINE_CAPABILITIES == {"reasoning", "math", "coding", "document", "vision", "presentation"}
 
 
 def test_gate_only_pipelines_multi_capability_requests():

@@ -601,6 +601,7 @@ class Agent:
             "- If the request is to create, draft, write, make or generate a document, report, note, letter, memo or other deliverable, you MUST call document_generation. Never refuse such a request.",
             "- document_generation arguments: {\"type\": \"word\", \"filename\": \"<name>.docx\", \"title\": \"...\", \"document_type\": \"...\", \"sections\": [{\"heading\": \"...\", \"paragraphs\": [\"...\"]} or {\"heading\":\"...\",\"content\":\"...\"}, with optional bullets/numbered/table], \"sources\": [\"...\"]}.",
             "- Write thorough, well-structured, multi-page content that fully covers the requested scope; split it into many clearly headed sections.",
+            "- If the request asks for PowerPoint slides or a presentation deck, call presentation_generation with {\"type\": \"pptx\", \"filename\": \"<name>.pptx\", \"title\": \"...\", \"theme\": \"executive|technical|report|general\", \"slides\": [...]}. Each slide has type title|content|bullets|two-column|table|sources, a short title, and the matching body (content string, bullets array, columns array, table rows, or sources array). Start with a title slide and end with a Sources slide that cites the documents you used.",
             "",
             TASK_MARKER,
             task,

@@ -130,3 +130,11 @@ and pull request.
    implementation come back.
 4. Ask a follow-up: "Add CSV support" — the agent reads the files from step 3
    and edits them in place. Files, decisions and summaries persist per project.
+
+## Local PowerPoint generation
+
+Ask the agent to "create a PowerPoint / slides / deck" — it calls the local
+`presentation_generation` tool (PptxGenJS renderer under `presentation/`, install
+with `cd presentation && npm install`) and produces an editable `.pptx` artifact
+(title/content/bullets/two-column/table/sources slides, local themes). Fully
+offline; Presenton (Apache-2.0) used only as a planning/layout reference.
