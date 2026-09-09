@@ -42,6 +42,7 @@ export interface CoworkingTask {
     size: string;
   };
   notes?: string;
+  assignedBy?: string;
 }
 
 export interface Coworker {
