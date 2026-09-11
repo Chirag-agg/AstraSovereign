@@ -189,6 +189,39 @@ async def preview_artifact(
 
 
 
+@router.get("/{job_id}/files")
+async def list_job_files(
+    job_id: str,
+    request: Request,
+    user_id: str = Depends(get_user_id),
+) -> dict:
+    """List the real files in the caller's job workspace (owner-scoped)."""
+    manager = request.app.state.job_manager
+    try:
+        await manager.get_job(user_id, job_id)
+    except (JobNotFoundError, JobPermissionError):
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    workspace = request.app.state.workspace_manager.workspace_path(user_id, job_id)
+    entries: list[dict] = []
+    if workspace.is_dir():
+        for path in sorted(workspace.rglob("*")):
+            if len(entries) >= 500:
+                break
+            if path.is_symlink():
+                continue
+            rel = path.relative_to(workspace).as_posix()
+            if path.is_dir():
+                entries.append({"name": path.name, "path": rel, "kind": "dir", "size": None})
+            elif path.is_file():
+                try:
+                    size = path.stat().st_size
+                except OSError:
+                    size = None
+                entries.append({"name": path.name, "path": rel, "kind": "file", "size": size})
+    return {"job_id": job_id, "files": entries}
+
+
 @router.get("", response_model=list[JobSummary])
 async def list_jobs(
     request: Request,

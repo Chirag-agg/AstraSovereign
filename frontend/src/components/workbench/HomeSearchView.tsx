@@ -25,13 +25,14 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { submitChat, getJob } from "@/lib/api";
-import type { DocumentMeta, JobSummary, Job } from "@/lib/types";
+import type { ArtifactSummary, DocumentMeta, JobSummary, Job } from "@/lib/types";
 
 interface HomeSearchViewProps {
   onSearchSubmit: (query: string) => void;
   onNavigate: (section: any) => void;
   jobs: JobSummary[] | null;
   documents?: DocumentMeta[] | null;
+  onDownloadArtifact: (artifact: ArtifactSummary) => void;
 }
 
 interface HomeChatMessage {
@@ -43,6 +44,7 @@ interface HomeChatMessage {
   step?: string;
   model?: string;
   jobId?: string;
+  artifacts?: ArtifactSummary[];
 }
 
 const SAMPLE_QUERIES = [
@@ -100,6 +102,7 @@ export default function HomeSearchView({
   onNavigate,
   jobs,
   documents,
+  onDownloadArtifact,
 }: HomeSearchViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [messages, setMessages] = useState<HomeChatMessage[]>([]);
@@ -142,6 +145,7 @@ export default function HomeSearchView({
                     text: job.response || "Task completed successfully.",
                     status: "completed",
                     model: job.model || "AstraSovereign Local",
+                    artifacts: job.artifacts || [],
                   }
                 : m,
             ),
@@ -438,6 +442,31 @@ export default function HomeSearchView({
                           {msg.text}
                         </div>
                       )}
+
+                      {/* Generated deliverables (Download) */}
+                      {msg.status === "completed" && msg.artifacts && msg.artifacts.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 pt-3">
+                          {msg.artifacts.map((a) => (
+                            <div
+                              key={a.artifact_id}
+                              className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                              <span className="truncate max-w-[220px] font-medium">{a.filename}</span>
+                              <span className="text-emerald-600/70">· {a.type}</span>
+                              <button
+                                type="button"
+                                onClick={() => onDownloadArtifact(a)}
+                                className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:text-emerald-900 transition-colors cursor-pointer"
+                                title="Download"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                Download
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
 
                       {/* Technical IDE Jump Button */}
                       {msg.status === "completed" && (

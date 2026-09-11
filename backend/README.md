@@ -704,3 +704,16 @@ frontend typecheck/tests/build) on every push and pull request.
 - Tests: `pytest tests/test_presentation.py` (real renderer runs when node + deps
   are present). Presenton (Apache-2.0) referenced for planning/layout concepts only;
   PptxGenJS (MIT) used for rendering.
+
+## Current feature surface (authoritative)
+
+Endpoints include: `/api/chat`, `/api/jobs` (+ artifact download/preview,
+`/{job_id}/files`), `/api/documents` (+ content/raw file), `/api/artifacts`,
+`/api/audit`, `/api/sovereignty`, `/api/health`, `/api/projects`,
+`/api/cowork/chat`, `/api/workspace/files`, `/api/sandbox/run`, and `/api/admin/*`.
+
+Pipeline capabilities: reasoning, math, coding, document, vision, presentation.
+Tools include document_search, document_vision, code_execution (Docker sandbox),
+document_generation (Word), presentation_generation (PptxGenJS), and workspace
+file ops. See `app/services/pipeline.py`, `app/services/tools.py`,
+`app/services/sandbox_runner.py`, `app/services/network_guard.py`.

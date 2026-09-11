@@ -599,6 +599,7 @@ class Agent:
             "",
             "WRITING RULES:",
             "- When the request is to write, create, draft or summarize a report, essay, article or summary about a general topic (with or without a target word count), produce the complete text directly in your final response and respect any requested length. Do not refuse because there are no uploaded documents.",
+            "- If a specific word count is requested (for example \"500 words\"), write at least that many words of real content. A title and a short introduction are NOT enough — cover the full topic with multiple paragraphs until the length is met.",
             "- If a file deliverable is also requested (a Word/PowerPoint document), call the matching generation tool with the full text as its content.",
             "",
             "DOCUMENT GENERATION RULES:",

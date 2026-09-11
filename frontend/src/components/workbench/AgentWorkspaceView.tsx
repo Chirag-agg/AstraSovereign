@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Folder,
   FolderOpen,
@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import Composer, { type AttachmentChip } from "@/components/Composer";
 import type { ArtifactSummary, Job, JobStatus } from "@/lib/types";
+import { listJobFiles, listUserWorkspaceFiles } from "@/lib/api";
+import type { JobWorkspaceFile } from "@/lib/api";
 import Conversation, { DEMO_TASK } from "@/components/Conversation";
 import WorkConsole from "@/components/WorkConsole";
 
@@ -47,33 +49,6 @@ interface AgentWorkspaceViewProps {
   onResetSession?: () => void;
 }
 
-const TREE_ITEMS = [
-  {
-    folder: "prompts/",
-    files: ["procurement_review.prompt", "compliance_audit.prompt", "data_classify.prompt"],
-  },
-  {
-    folder: "datasets/",
-    files: ["contracts_2026/", "inspection_logs/", "refinery_standards/"],
-  },
-  {
-    folder: "models/",
-    files: ["qwen-2.5-14b-instruct.gguf", "llama-3.1-8b.gguf", "bge-large-en-v1.5.bin"],
-  },
-  {
-    folder: "agents/",
-    files: ["document_analysis.agent", "code_sandbox.agent", "compliance_auditor.agent"],
-  },
-  {
-    folder: "workflows/",
-    files: ["doc_pipeline.flow", "report_generator.flow"],
-  },
-  {
-    folder: "logs/",
-    files: ["execution_trace.log", "sandbox_container.log", "audit_events.log"],
-  },
-];
-
 export default function AgentWorkspaceView({
   user,
   activeJob,
@@ -91,7 +66,8 @@ export default function AgentWorkspaceView({
   healthError,
   onResetSession,
 }: AgentWorkspaceViewProps) {
-  const [selectedFile, setSelectedFile] = useState("prompts/procurement_review.prompt");
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [workspaceFiles, setWorkspaceFiles] = useState<JobWorkspaceFile[]>([]);
   const [selectedModel, setSelectedModel] = useState("Qwen 2.5 14B");
   const [temperature, setTemperature] = useState(0.7);
   const [contextWindow, setContextWindow] = useState("32,768");
@@ -105,6 +81,33 @@ export default function AgentWorkspaceView({
 
   const [promptText, setPromptText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load the real files in the active job's workspace (or the user's workspace
+  // root when no job is selected).
+  useEffect(() => {
+    let alive = true;
+    if (!activeJobId) {
+      setSelectedFile(null);
+      listUserWorkspaceFiles(user)
+        .then((res) => {
+          if (alive) setWorkspaceFiles(res.files);
+        })
+        .catch(() => {
+          if (alive) setWorkspaceFiles([]);
+        });
+      return;
+    }
+    listJobFiles(user, activeJobId)
+      .then((res) => {
+        if (alive) setWorkspaceFiles(res.files);
+      })
+      .catch(() => {
+        if (alive) setWorkspaceFiles([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [activeJobId, user]);
 
   const handleSend = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -137,40 +140,64 @@ export default function AgentWorkspaceView({
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 text-xs space-y-3">
-          {TREE_ITEMS.map((item) => (
-            <div key={item.folder} className="space-y-0.5">
-              <div className="flex items-center gap-1.5 px-2 py-1 text-zinc-500 font-semibold text-[11.5px]">
-                <FolderOpen className="w-3.5 h-3.5 text-[#7047eb]" />
-                <span>{item.folder}</span>
-              </div>
-              <div className="pl-4 space-y-0.5">
-                {item.files.map((file) => {
-                  const fullPath = `${item.folder}${file}`;
-                  const isSelected = selectedFile === fullPath;
-                  return (
-                    <button
-                      key={file}
-                      type="button"
-                      onClick={() => {
-                        setSelectedFile(fullPath);
-                        if (file.endsWith(".prompt") && !promptText) {
-                          setPromptText(DEMO_TASK);
-                        }
-                      }}
-                      className={`flex w-full items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-left transition-colors cursor-pointer truncate font-medium text-xs ${
-                        isSelected
-                          ? "bg-[#ede9fe] text-[#6d28d9] font-bold"
-                          : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100/70"
-                      }`}
-                    >
-                      <FileCode className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
-                      <span className="truncate">{file}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+          {!activeJobId ? (
+            workspaceFiles.length === 0 ? (
+              <p className="px-2 py-2 text-zinc-400">Workspace is empty.</p>
+            ) : (
+              <>
+                <p className="px-2 py-1 text-zinc-500 font-semibold text-[11.5px]">workspaces/{user}</p>
+                <div className="space-y-0.5">
+                  {workspaceFiles.map((file) => {
+                    const isSelected = selectedFile === file.path;
+                    const Icon = file.kind === "dir" ? FolderOpen : FileCode;
+                    return (
+                      <button
+                        key={file.path}
+                        type="button"
+                        onClick={() => setSelectedFile(file.path)}
+                        className={`flex w-full items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-left transition-colors cursor-pointer truncate font-medium text-xs ${
+                          isSelected
+                            ? "bg-[#ede9fe] text-[#6d28d9] font-bold"
+                            : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100/70"
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
+                        <span className="truncate">{file.path}</span>
+                        {file.kind === "file" && file.size !== null ? (
+                          <span className="ml-auto text-[10px] text-zinc-400 font-mono">{file.size} B</span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )
+          ) : workspaceFiles.length === 0 ? (
+            <p className="px-2 py-2 text-zinc-400">This task's workspace has no files yet.</p>
+          ) : (
+            workspaceFiles.map((file) => {
+              const isSelected = selectedFile === file.path;
+              const Icon = file.kind === "dir" ? FolderOpen : FileCode;
+              return (
+                <button
+                  key={file.path}
+                  type="button"
+                  onClick={() => setSelectedFile(file.path)}
+                  className={`flex w-full items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-left transition-colors cursor-pointer truncate font-medium text-xs ${
+                    isSelected
+                      ? "bg-[#ede9fe] text-[#6d28d9] font-bold"
+                      : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100/70"
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
+                  <span className="truncate">{file.path}</span>
+                  {file.kind === "file" && file.size !== null ? (
+                    <span className="ml-auto text-[10px] text-zinc-400 font-mono">{file.size} B</span>
+                  ) : null}
+                </button>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -221,6 +248,31 @@ export default function AgentWorkspaceView({
             )}
           </div>
         </div>
+
+        {/* Generated deliverables (also shown inline, not just in Deliverables) */}
+        {activeJob && activeJob.artifacts && activeJob.artifacts.length > 0 ? (
+          <div className="shrink-0 flex flex-wrap gap-2 px-4 py-3 border-b border-zinc-200/80 bg-white">
+            {activeJob.artifacts.map((a) => (
+              <div
+                key={a.artifact_id}
+                className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800"
+              >
+                <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="truncate max-w-[220px] font-medium">{a.filename}</span>
+                <span className="text-emerald-600/70">· {a.type}</span>
+                <button
+                  type="button"
+                  onClick={() => onDownloadArtifact(a)}
+                  className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:text-emerald-900 transition-colors cursor-pointer"
+                  title="Download"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         {/* Task Editor & Composer */}
         <div

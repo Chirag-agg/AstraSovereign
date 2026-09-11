@@ -418,6 +418,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
               onNavigate={(sec) => setCurrentSection(sec)}
               jobs={jobs}
               documents={documents}
+              onDownloadArtifact={(a) => void handleDownload(a)}
             />
           </div>
 

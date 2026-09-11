@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.admin import router as admin_router
 from app.api.artifacts import router as artifacts_router
 from app.api.audit import router as audit_router
+from app.api.workspace import router as workspace_router
 from app.api.chat import router as chat_router
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
@@ -489,6 +490,7 @@ def create_app(
     app.include_router(audit_router)
     app.include_router(admin_router)
     app.include_router(projects_router)
+    app.include_router(workspace_router)
     app.include_router(sandbox_router)
 
     return app

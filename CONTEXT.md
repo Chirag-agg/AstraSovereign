@@ -1456,3 +1456,10 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   design); pipeline stage for presentation not yet exercised end-to-end against a
   real model; deeper layout control (auto columns from content density, per-slide
   theme accent) and a real model-driven industrial demo are next steps.
+
+#### UI consolidation (latest)
+- Removed the old ported SIH preview (`frontend/src/sih/` and the `/preview`
+  route) and the root `preview-landing.html`. The unified workbench at `/`
+  (Landing → dashboard with AI Assistant, real Workspace Files, Sandbox, etc.),
+  `/cowork` (project IDE), and `/admin` (operations console) are now the UI.
+- Docs/README updated to reflect every current feature.

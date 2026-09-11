@@ -192,3 +192,59 @@ pytest tests/
 ## 📄 License & Confidentiality
 
 This software is designed exclusively for on-premise, air-gapped sovereign installations. No components communicate with public internet services.
+
+---
+
+## Current project state (authoritative)
+
+> The marketing copy above describes the vision; this section is the accurate,
+> up-to-date description of what actually ships in this repository.
+
+### Stack
+- **Backend**: FastAPI + Uvicorn + Pydantic-settings (Python). Local model runtime: Ollama.
+- **Frontend**: Next.js 16 (Turbopack) + React + TypeScript + Tailwind CSS v4 + lucide-react.
+- **PowerPoint renderer**: local Node/PptxGenJS component under `presentation/`.
+
+### Pages (routes)
+- `/` — Landing page → sign-in → the unified workbench with sections:
+  Home, Coworking Space, AI Assistant (with real **Workspace Files** from the job
+  workspace), Code Sandbox, Task History, Knowledge Base, Deliverables,
+  Models & Routing, Local Tools, Agent Pipelines, Compute & VRAM, System Health,
+  Audit Trail, Team & Roles, Security.
+- `/cowork` — persistent project IDE (files, editor, chat, live execution).
+- `/admin` — operations console (admin role).
+
+### Backend features
+- Jobs: `JobManager`/queue/worker with typed lifecycle (queued→running→completed/
+  failed/cancelled), cancellation, per-user isolation, durable snapshots.
+- Routing: `TaskRouter` (rule-based) → `ModelRouter`/`CapabilityRouter` (config
+  from `config/models.yaml`). Multi-model **pipeline** decomposes complex requests
+  into capability stages (reasoning, math, coding, document, vision, presentation),
+  each on a different local model.
+- Agent + ToolRegistry tools: `list_files/read_file/write_file`,
+  `document_search` (RAG KB), `document_vision` (local OCR+vision),
+  `code_execution` (isolated Docker sandbox, `--network none`),
+  `document_generation` (Word .docx), `presentation_generation` (PptxGenJS .pptx).
+- `ResourceScheduler` (CPU/memory/GPU accounting), `ArtifactStore` + secure
+  artifact download, `NetworkGuard` (default-deny external egress) + sovereignty
+  reporting, append-only audit trail, `RapidOCR` + Ollama vision, per-user
+  knowledge base, Cowork projects + persistent context manager, `POST /api/sandbox/run`
+  (user-scoped, 503 when sandbox disabled), artifact/document preview endpoints,
+  and a dev admin API (`/api/admin/*`).
+
+### Running it
+- Backend: `cd backend` then `\.venv\Scripts\python -m uvicorn app.main:app`
+  (Ollama up; Docker up for code sandbox; `cd presentation && npm install` for
+  PowerPoint generation).
+- Frontend: `cd frontend && npm install && npm run dev` → http://localhost:3000.
+
+### Tests & checks
+- Backend: `pytest` (full suite, incl. sandbox docker-marked, cowork, presentation).
+- Frontend: `npm run typecheck`, `npm test` (63), `npm run build`.
+- CI runs backend pytest + frontend typecheck/tests/build on every push.
+
+### Notes
+- `/preview` and the old ported `sih/` preview UI were removed in favor of the
+  unified workbench.
+- The repository shows a high TypeScript percentage because the frontend is a
+  large TypeScript codebase, not because of stale/duplicate pages.
