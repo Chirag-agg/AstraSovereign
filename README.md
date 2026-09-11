@@ -184,9 +184,6 @@ Open http://localhost:3000.
 
 ## Notes
 
-- The repository shows a high TypeScript percentage because the frontend is a
-  large TypeScript codebase. It is not caused by stale or duplicate pages; the
-  legacy preview UI has been removed.
 - Small-model profile: `qwen3:1.7b` (general/document), `qwen2.5-coder:3b`
   (coding), optional `qwen2.5-math:1.5b` (math), `nomic-embed-text` (embeddings),
   and a vision model of your choice - all configurable in `config/models.yaml`.
