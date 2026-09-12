@@ -22,8 +22,7 @@ models:
       - general
       - reasoning
       - summarization
-    fallback_to:
-      - qwen2.5-coder:3b
+    fallback_to: []
     resources:
       gpu_vram_mb: 4096
       cpu_cores: 2
@@ -31,7 +30,7 @@ models:
 
   coding:
     provider: ollama
-    model: qwen2.5-coder:3b
+    model: llama3.1:latest
     enabled: true
     capabilities:
       - coding
@@ -61,17 +60,16 @@ models:
 
   document:
     provider: ollama
-    model: qwen2.5-coder:3b
+    model: llama3.1:latest
     enabled: true
     capabilities:
       - document
       - summarization
-    fallback_to:
-      - llama3.1:latest
+    fallback_to: []
     resources:
-      gpu_vram_mb: 2048
+      gpu_vram_mb: 4096
       cpu_cores: 2
-      memory_mb: 2048
+      memory_mb: 4096
 
   # Vision has no valid smaller peer: an empty chain means it fails cleanly if
   # the model is missing rather than producing confident nonsense from a
@@ -83,7 +81,6 @@ models:
     capabilities:
       - vision
       - image
-      - document
     fallback_to: []
     resources:
       gpu_vram_mb: 4096
@@ -99,7 +96,7 @@ model_capabilities:
       - coding
       - debugging
       - code_review
-    tools: true
+    tools: false
   qwen2.5-coder:7b:
     capabilities:
       - coding
@@ -117,8 +114,7 @@ model_capabilities:
     capabilities:
       - vision
       - image
-      - document
-    tools: true
+    tools: false
   qwen2.5-math:1.5b:
     capabilities:
       - math

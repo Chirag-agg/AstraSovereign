@@ -144,7 +144,15 @@ class Agent:
                 )
 
             iterations += 1
-            prompt = self._build_prompt(task_text, model, history)
+            history_block = (
+                "\n\nOBSERVATIONS FROM EARLIER TOOL CALLS:\n" + "\n".join(history)
+                if history
+                else ""
+            )
+            messages = [
+                {"role": "system", "content": self._system_prompt()},
+                {"role": "user", "content": f"{task_text}{history_block}"},
+            ]
 
             model_call_start = time.monotonic()
             logger.info(
@@ -158,7 +166,7 @@ class Agent:
             )
             try:
                 raw, native_calls, _model_used = await self._model.chat(
-                    [{"role": "system", "content": prompt}],
+                    messages,
                     model=model,
                     tools=self._tools.schemas(),
                 )
@@ -579,7 +587,7 @@ class Agent:
             )
         return f"Tool '{tool_name}' result: {result.summary}"
 
-    def _build_prompt(self, task: str, model: str, history: list[str]) -> str:
+    def _system_prompt(self) -> str:
         tools_desc = "\n".join(
             f"- {t['name']}: {t['description']} (schema: {json.dumps(t['input_schema'])})"
             for t in self._tools.describe()
@@ -620,11 +628,7 @@ class Agent:
             "- Write thorough, well-structured, multi-page content that fully covers the requested scope; split it into many clearly headed sections.",
             "- If the request asks for PowerPoint slides or a presentation deck, call presentation_generation with {\"type\": \"pptx\", \"filename\": \"<name>.pptx\", \"title\": \"...\", \"theme\": \"executive|technical|report|general\", \"slides\": [...]}. Each slide has type title|content|bullets|two-column|table|sources, a short title, and the matching body (content string, bullets array, columns array, table rows, or sources array). Start with a title slide and end with a Sources slide that cites the documents you used. Each slide may also carry short speaker notes in \"notes\".",
             "",
-            TASK_MARKER,
-            task,
         ]
-        if history:
-            lines += ["", "TOOL HISTORY:", *history]
         return "\n".join(lines)
 
     def _parse_decision(

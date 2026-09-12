@@ -63,3 +63,16 @@ backend\.venv\Scripts\python.exe tests\hard_scenario_01\run_scenario.py
 
 The fixtures are generated (gitignored) and the results land in `bench/results/`
 (gitignored).
+
+## Run series — do not read as regression
+
+| Run | Path exercised | Score | Note |
+|---|---|---|---|
+| 2026-09-12 (queue) | worker + single agent | 3/20 | scored points for fabricated corrosion rates and a note built from nothing |
+| 2026-09-12 (node-direct) | `NodeAgent` in-process | 0/20 | produced nothing, and said why: explicit `node_degraded` (no vision tool, no search) |
+
+The score went **down** because the node engine refuses to produce ungrounded
+deliverables. An honest 0 that names the failure is the right direction from a 3
+that fabricated; read the trace, not just the number. Subsequent entries in
+`bench/results/` should record the same path and note so the series is legible.
+

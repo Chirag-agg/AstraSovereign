@@ -26,6 +26,15 @@ logger = logging.getLogger("app.model_registry")
 SUPPORTED_PROVIDERS = ("ollama",)
 MAX_FALLBACK_DEPTH = 2
 
+# Capabilities whose assigned model runs the agent loop with the tools API. A
+# model assigned to any of these MUST declare tools: true, or the backend refuses
+# to start — otherwise a tool node degrades mid-demo instead of failing at config
+# load. (The vision model is invoked *inside* document_vision, so "vision" is not
+# here.)
+TOOL_INVOKING_CAPABILITIES = frozenset(
+    {"general", "reasoning", "math", "document", "coding", "debugging", "code_review"}
+)
+
 
 class ModelConfig(BaseModel):
     """A single configured model entry for one task type."""
@@ -53,6 +62,7 @@ class ModelRegistry:
         self._models = dict(models)
         self._model_capabilities = dict(model_capabilities or {})
         self._validate_fallback_chains()
+        self._validate_tool_capabilities()
 
     @classmethod
     def from_file(cls, path: Union[str, Path]) -> "ModelRegistry":
@@ -161,9 +171,30 @@ class ModelRegistry:
                         f"'{task_type}' fallback target '{target}' does not support tool calling"
                     )
 
+    def _validate_tool_capabilities(self) -> None:
+        """A model assigned to a tool-invoking capability must declare tools support.
+
+        Checked at load: a model that declares ``tools: false`` (e.g. a
+        code-completion model that emits calls as prose, or a vision model) must
+        not be assigned to an agent capability, or every tool node degrades at
+        run time instead of the misconfiguration failing at startup.
+        """
+        index = self._capability_index()
+        for task_type, config in self._models.items():
+            if not config.enabled:
+                continue
+            if not TOOL_INVOKING_CAPABILITIES.intersection(config.capabilities):
+                continue
+            spec = index.get(config.model)
+            if spec is not None and not spec["tools"]:
+                raise ModelConfigError(
+                    f"'{task_type}' is assigned model '{config.model}', which is declared "
+                    "tools: false, but the task needs tool calling. Assign a tool-capable "
+                    "model or declare the model's tool support accurately."
+                )
+
     def get(self, task_type: str) -> Optional[ModelConfig]:
         return self._models.get(task_type)
-
     def task_types(self) -> list[str]:
         return sorted(self._models)
 
