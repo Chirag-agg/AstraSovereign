@@ -10,56 +10,55 @@
 models:
   general:
     provider: ollama
-    model: qwen2.5:7b
+    model: qwen2.5-coder:3b
     enabled: true
     capabilities:
       - general
       - reasoning
       - summarization
     resources:
-      gpu_vram_mb: 8000
+      gpu_vram_mb: 2048
       cpu_cores: 2
-      memory_mb: 4096
+      memory_mb: 2048
 
   coding:
     provider: ollama
-    model: qwen2.5-coder:7b
+    model: qwen2.5-coder:3b
     enabled: true
     capabilities:
       - coding
       - debugging
       - code_review
     resources:
-      gpu_vram_mb: 8000
+      gpu_vram_mb: 4096
       cpu_cores: 2
       memory_mb: 4096
 
-  # Optional math specialist for pipeline math stages. Enabled only after the
-  # model has been pulled locally (e.g. `ollama pull qwen2.5-math:7b`). While
-  # disabled, pipeline math stages fall back to the `general` model.
+  # Optional math specialist. Disabled by default; while disabled, pipeline math
+  # stages fall back to the `general` model instead of failing.
   math:
     provider: ollama
-    model: qwen2.5-math:7b
+    model: qwen2.5-math:1.5b
     enabled: false
     capabilities:
       - math
       - reasoning
     resources:
-      gpu_vram_mb: 8000
+      gpu_vram_mb: 2048
       cpu_cores: 2
-      memory_mb: 4096
+      memory_mb: 2048
 
   document:
     provider: ollama
-    model: qwen2.5:7b
+    model: qwen2.5-coder:3b
     enabled: true
     capabilities:
       - document
       - summarization
     resources:
-      gpu_vram_mb: 8000
+      gpu_vram_mb: 2048
       cpu_cores: 2
-      memory_mb: 4096
+      memory_mb: 2048
 
   vision:
     provider: ollama
@@ -73,3 +72,4 @@ models:
       gpu_vram_mb: 4096
       cpu_cores: 2
       memory_mb: 4096
+
