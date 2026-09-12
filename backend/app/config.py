@@ -135,6 +135,11 @@ class Settings(BaseSettings):
 
     # Durable SQLite store (jobs, artifact metadata, hash-chained audit).
     database_path: str = str(REPO_ROOT / "data" / "astra.db")
+
+    # Model fallback: follow each entry's declared `fallback_to` chain when the
+    # configured model is unavailable. Disable for benchmarks (bench/ forces it
+    # off) so routing effectiveness is measured without silent substitution.
+    model_fallback_enabled: bool = True
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

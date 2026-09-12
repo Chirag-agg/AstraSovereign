@@ -9,7 +9,7 @@ so there is never more than one active model request at a time.
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Callable, Optional
 
 from app.schemas.job import Job, JobStatus
 from app.services.agent import Agent, AgentStatus
@@ -43,6 +43,9 @@ class Worker:
         projects: Optional[CoworkProjects] = None,
         project_locks: Optional[ProjectLocks] = None,
         context_manager: Optional[ContextManager] = None,
+        available_models: Optional[set[str]] = None,
+        availability_provider: Optional[Callable[[], Optional[set[str]]]] = None,
+        fallback_enabled: bool = True,
     ) -> None:
         self._queue = queue
         self._manager = manager
@@ -57,6 +60,9 @@ class Worker:
         self._projects = projects
         self._project_locks = project_locks
         self._context_manager = context_manager
+        self._available_models = set(available_models) if available_models is not None else None
+        self._availability_provider = availability_provider
+        self._fallback_enabled = fallback_enabled
         self._task: Optional[asyncio.Task] = None
         self._state = "stopped"  # stopped | idle | running
         self._active_job_id: Optional[str] = None
@@ -129,8 +135,28 @@ class Worker:
             )
 
             routing = self._model_router.resolve(
-                classification.task_type, classification.reason
+                classification.task_type,
+                classification.reason,
+                available_models=(
+                    self._availability_provider()
+                    if self._availability_provider is not None
+                    else self._available_models
+                ),
+                fallback_enabled=self._fallback_enabled,
             )
+            if routing.fallback_active:
+                logger.info(
+                    "model_fallback",
+                    extra={
+                        "event": "model_fallback",
+                        "job_id": job_id,
+                        "user_id": job.user_id,
+                        "task_type": routing.task_type,
+                        "requested": routing.requested_model,
+                        "actual": routing.model,
+                        "fallback_reason": "model_unavailable",
+                    },
+                )
             logger.info(
                 "model_selected",
                 extra={
@@ -139,6 +165,8 @@ class Worker:
                     "user_id": job.user_id,
                     "task_type": routing.task_type,
                     "model": routing.model,
+                    "requested_model": routing.requested_model,
+                    "fallback_active": routing.fallback_active,
                 },
             )
             await self._manager.update_job(

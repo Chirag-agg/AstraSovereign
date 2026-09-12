@@ -36,6 +36,8 @@ def test_health_ok(client):
     assert body["models"]["vision"]["available"] is False
     assert body["models"]["vision"]["enabled"] is False
     assert body["models_missing"] == []
+    assert body["models_resolved"]["general"]["effective"] == "test-model"
+    assert body["models_resolved"]["general"]["fallback_active"] is False
 
 
 def test_health_reports_ollama_down(client_factory):

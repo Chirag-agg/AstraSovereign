@@ -35,6 +35,7 @@ EVENT_TYPE_MAP = {
     "job_completed": "JOB_COMPLETED",
     "job_failed": "JOB_FAILED",
     "model_selected": "MODEL_SELECTED",
+    "model_fallback": "MODEL_FALLBACK",
     "model_call_started": "MODEL_CALL_STARTED",
     "model_call_completed": "MODEL_CALL_COMPLETED",
     "tool_call_started": "TOOL_CALL_STARTED",
@@ -63,6 +64,9 @@ EVENT_TYPE_MAP = {
 _SAFE_METADATA_KEYS = {
     "model",
     "task_type",
+    "requested",
+    "actual",
+    "fallback_reason",
     "tool",
     "page",
     "provider",

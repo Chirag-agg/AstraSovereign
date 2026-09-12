@@ -2,6 +2,14 @@
 
 Loads ``config/models.yaml`` and exposes typed model entries. Model names come
 only from configuration; routing logic never hardcodes a model name.
+
+Fallback chains (``fallback_to``) are declared per entry and validated at load:
+
+- at most two hops, no cycles, and never the primary model itself;
+- every fallback target must satisfy the entry's declared capabilities and
+  support tool calling (a text-only model must never silently serve a vision or
+  agent/ tool task);
+- an invalid chain refuses startup instead of surprising at routing time.
 """
 
 import logging
@@ -16,6 +24,7 @@ from app.schemas.resources import ResourceRequirements
 logger = logging.getLogger("app.model_registry")
 
 SUPPORTED_PROVIDERS = ("ollama",)
+MAX_FALLBACK_DEPTH = 2
 
 
 class ModelConfig(BaseModel):
@@ -26,6 +35,7 @@ class ModelConfig(BaseModel):
     enabled: bool = True
     capabilities: list[str] = []
     resources: ResourceRequirements = ResourceRequirements()
+    fallback_to: list[str] = []
 
 
 class ModelConfigError(Exception):
@@ -35,8 +45,14 @@ class ModelConfigError(Exception):
 class ModelRegistry:
     """Holds validated model configuration keyed by task type."""
 
-    def __init__(self, models: dict[str, ModelConfig]) -> None:
+    def __init__(
+        self,
+        models: dict[str, ModelConfig],
+        model_capabilities: Optional[dict[str, dict]] = None,
+    ) -> None:
         self._models = dict(models)
+        self._model_capabilities = dict(model_capabilities or {})
+        self._validate_fallback_chains()
 
     @classmethod
     def from_file(cls, path: Union[str, Path]) -> "ModelRegistry":
@@ -54,6 +70,12 @@ class ModelRegistry:
         raw_models = raw.get("models")
         if not isinstance(raw_models, dict):
             raise ModelConfigError(f"Expected a top-level 'models' mapping in {config_path}")
+
+        raw_capabilities = raw.get("model_capabilities") or {}
+        if not isinstance(raw_capabilities, dict):
+            raise ModelConfigError(
+                f"Expected 'model_capabilities' to be a mapping in {config_path}"
+            )
 
         models: dict[str, ModelConfig] = {}
         for task_type, entry in raw_models.items():
@@ -74,7 +96,7 @@ class ModelRegistry:
                 )
             models[task_type] = config
 
-        registry = cls(models=models)
+        registry = cls(models=models, model_capabilities=raw_capabilities)
         logger.info(
             "registry_loaded",
             extra={
@@ -85,6 +107,59 @@ class ModelRegistry:
             },
         )
         return registry
+
+    # ------------------------------------------------------------ capabilities
+
+    def _capability_index(self) -> dict[str, dict]:
+        """model name -> {capabilities, tools}; explicit config overrides derived."""
+        index: dict[str, dict] = {}
+        for config in self._models.values():
+            index[config.model] = {
+                "capabilities": list(config.capabilities),
+                "tools": True,
+            }
+        for model, spec in self._model_capabilities.items():
+            if not isinstance(spec, dict):
+                continue
+            index[model] = {
+                "capabilities": list(spec.get("capabilities", [])),
+                "tools": bool(spec.get("tools", True)),
+            }
+        return index
+
+    def _validate_fallback_chains(self) -> None:
+        index = self._capability_index()
+        for task_type, config in self._models.items():
+            chain = config.fallback_to
+            if not chain:
+                continue
+            if len(chain) > MAX_FALLBACK_DEPTH:
+                raise ModelConfigError(
+                    f"'{task_type}' fallback_to has {len(chain)} hops; max is {MAX_FALLBACK_DEPTH}"
+                )
+            if len(set(chain)) != len(chain):
+                raise ModelConfigError(f"'{task_type}' fallback_to contains duplicates")
+            if config.model in chain:
+                raise ModelConfigError(
+                    f"'{task_type}' fallback_to must not include its own model '{config.model}'"
+                )
+            for target in chain:
+                spec = index.get(target)
+                if spec is None:
+                    raise ModelConfigError(
+                        f"'{task_type}' fallback target '{target}' is not declared "
+                        "in model_capabilities or as another entry's model"
+                    )
+                missing = [c for c in config.capabilities if c not in spec["capabilities"]]
+                if missing:
+                    raise ModelConfigError(
+                        f"'{task_type}' fallback target '{target}' lacks capability "
+                        f"{missing} required by '{task_type}'"
+                    )
+                if not spec["tools"]:
+                    raise ModelConfigError(
+                        f"'{task_type}' fallback target '{target}' does not support tool calling"
+                    )
 
     def get(self, task_type: str) -> Optional[ModelConfig]:
         return self._models.get(task_type)
@@ -99,6 +174,15 @@ class ModelRegistry:
         ordered by config file order; callers apply their own fallback policy.
         """
         return [c for c in self._models.values() if c.enabled and capability in c.capabilities]
+
+    def candidates(self, task_type: str) -> list[str]:
+        """The declared candidate set: primary first, then the fallback chain."""
+        config = self._models.get(task_type)
+        if config is None:
+            return []
+        return [config.model, *config.fallback_to]
+
+    # ------------------------------------------------------------ availability
 
     def availability(self, available_models: Optional[set[str]]) -> dict[str, dict]:
         """Report per-task-type configured/enabled/available flags.
@@ -127,3 +211,41 @@ class ModelRegistry:
             for task_type, config in self._models.items()
             if config.enabled and config.model not in available
         ]
+
+    def resolved_availability(
+        self,
+        available_models: Optional[set[str]],
+        fallback_enabled: bool = True,
+    ) -> dict[str, dict]:
+        """Per-task-type resolved state, walking the declared fallback chains.
+
+        Reports the effective model that would actually run, so substitutions are
+        visible at startup/preflight rather than mid-job.
+        """
+        available = set(available_models or set())
+        resolved: dict[str, dict] = {}
+        for task_type, config in self._models.items():
+            chain = [config.model, *config.fallback_to]
+            if not config.enabled:
+                resolved[task_type] = {
+                    "configured": config.model,
+                    "effective": None,
+                    "available": False,
+                    "enabled": False,
+                    "fallback_active": False,
+                    "chain": chain,
+                }
+                continue
+            if fallback_enabled:
+                effective = next((m for m in chain if m in available), None)
+            else:
+                effective = config.model if config.model in available else None
+            resolved[task_type] = {
+                "configured": config.model,
+                "effective": effective,
+                "available": config.model in available,
+                "enabled": True,
+                "fallback_active": effective is not None and effective != config.model,
+                "chain": chain,
+            }
+        return resolved

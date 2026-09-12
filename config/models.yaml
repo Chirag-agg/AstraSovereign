@@ -4,8 +4,14 @@
 # to models already pulled into the local Ollama server (`ollama pull <model>`);
 # the backend never downloads models.
 #
-# To add a model: add a new entry (or edit an existing one) here. No code changes
-# are required. `enabled: false` entries are never selected.
+# `fallback_to` declares an explicit, bounded substitution chain (max 2 hops).
+# Every fallback target must satisfy the entry's declared capabilities and
+# support tool calling, otherwise the backend refuses to start. Fallback is
+# enabled by default (MODEL_FALLBACK_ENABLED) but can be disabled for benchmarks.
+#
+# `model_capabilities` declares what each model can do so chains can be
+# validated at load; entries that are another task's primary model inherit that
+# entry's capabilities unless overridden here.
 
 models:
   general:
@@ -16,6 +22,8 @@ models:
       - general
       - reasoning
       - summarization
+    fallback_to:
+      - llama3.1:latest
     resources:
       gpu_vram_mb: 2048
       cpu_cores: 2
@@ -29,6 +37,8 @@ models:
       - coding
       - debugging
       - code_review
+    fallback_to:
+      - qwen2.5-coder:7b
     resources:
       gpu_vram_mb: 4096
       cpu_cores: 2
@@ -43,6 +53,7 @@ models:
     capabilities:
       - math
       - reasoning
+    fallback_to: []
     resources:
       gpu_vram_mb: 2048
       cpu_cores: 2
@@ -55,11 +66,16 @@ models:
     capabilities:
       - document
       - summarization
+    fallback_to:
+      - llama3.1:latest
     resources:
       gpu_vram_mb: 2048
       cpu_cores: 2
       memory_mb: 2048
 
+  # Vision has no valid smaller peer: an empty chain means it fails cleanly if
+  # the model is missing rather than producing confident nonsense from a
+  # text-only model.
   vision:
     provider: ollama
     model: llava:7b
@@ -68,8 +84,43 @@ models:
       - vision
       - image
       - document
+    fallback_to: []
     resources:
       gpu_vram_mb: 4096
       cpu_cores: 2
       memory_mb: 4096
 
+model_capabilities:
+  qwen2.5-coder:3b:
+    capabilities:
+      - general
+      - reasoning
+      - summarization
+      - coding
+      - debugging
+      - code_review
+    tools: true
+  qwen2.5-coder:7b:
+    capabilities:
+      - coding
+      - debugging
+      - code_review
+    tools: true
+  llama3.1:latest:
+    capabilities:
+      - general
+      - reasoning
+      - summarization
+      - document
+    tools: true
+  llava:7b:
+    capabilities:
+      - vision
+      - image
+      - document
+    tools: true
+  qwen2.5-math:1.5b:
+    capabilities:
+      - math
+      - reasoning
+    tools: true
