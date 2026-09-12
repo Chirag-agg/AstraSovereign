@@ -332,7 +332,10 @@ Implemented and working locally (backend + frontend + local models + Docker):
   persistent context manager.
 - Frontend: Landing + unified workbench at `/`, project IDE at `/cowork`,
   operations console at `/admin`. The legacy `/preview` UI was removed.
-- Tests: backend `pytest` (367 passed) and frontend typecheck + 63 tests + build.
+- Tests: backend `pytest` (374 passed) and frontend typecheck + 63 tests + build.
+- SQLite job updates are flat: 200 status updates measured at ~0.27 ms/update with
+  1 job and ~0.25 ms/update with 200 jobs (0.93x) - the old full-table rewrite is
+  gone.
 
 Phase-by-phase history is in `docs/HISTORY.md`.
 
@@ -358,6 +361,11 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   Legacy JSON/JSONL data was migrated with
   `python -m app.services.import_legacy`; `GET /api/audit/verify` reports the
   chain status. The `InMemory*` stores remain only as pure test doubles.
+- **Known latency wrinkle:** the audit store uses its own connection, so a
+  synchronous `append()` on the event loop can wait behind a job/artifact write
+  for up to `busy_timeout` (5s). WAL writes are sub-millisecond, so this is not
+  expected to matter at demo scale. If event-loop stalls are ever observed, the
+  fix is to queue audit appends off the loop rather than writing them inline.
 - Single worker, FIFO, no priority scheduling. Task classification is
   keyword-based and may misclassify ambiguous prose.
 - **Excel deliverable generation and `.xlsx` ingestion are not implemented.** Word

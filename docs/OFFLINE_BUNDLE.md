@@ -56,7 +56,18 @@ ollama list
 - `backend/.env` (created from `backend/.env.example`); set `OLLAMA_BASE_URL`,
   `DEFAULT_MODEL`, and the sandbox settings for the target machine.
 
-## 6. Verification checklist
+## 6. Demo history backup
+
+The SQLite database holds job, artifact, and audit history and is gitignored.
+Back it up (and restore it) like any other bundle artifact:
+
+```
+sqlite3 data/astra.db ".backup 'offline/astra-backup.db'"
+# restore:
+#   stop the backend, replace data/astra.db, restart
+```
+
+## 7. Verification checklist
 
 - `ollama list` shows the three models.
 - `docker images` shows `workbench-sandbox:py312`.
