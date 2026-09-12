@@ -93,7 +93,7 @@ class DockerSandboxRunner(SandboxRunner):
 
         code_dir = Path(tempfile.mkdtemp(prefix="sovereign-sandbox-"))
         container_name = f"sandbox-{uuid.uuid4().hex[:12]}"
-        started = asyncio.get_event_loop().time()
+        started = asyncio.get_running_loop().time()
         try:
             (code_dir / "main.py").write_text(code, encoding="utf-8")
             args = self.build_args(code_dir, container_name)
@@ -131,7 +131,7 @@ class DockerSandboxRunner(SandboxRunner):
             stdout_b, stderr_b = b"", b"[timed out]"
             await self._force_cleanup(container_name, proc)
 
-        duration_ms = int((asyncio.get_event_loop().time() - started) * 1000)
+        duration_ms = int((asyncio.get_running_loop().time() - started) * 1000)
         if proc.returncode is None:
             await proc.wait()
 
