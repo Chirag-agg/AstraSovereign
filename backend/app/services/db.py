@@ -19,11 +19,12 @@ import threading
 from pathlib import Path
 from typing import Union
 
-_connections: dict[str, sqlite3.Connection] = {}
+_connections: dict[tuple[str, str], sqlite3.Connection] = {}
 _connections_guard = threading.Lock()
 
 # Audit writes happen on the event loop; job/artifact writes happen in worker
-# threads. Keep the two paths on separate locks so neither blocks the other.
+# threads. They use separate connections AND separate locks so neither blocks
+# the other (two writers against one file, with WAL + busy_timeout).
 audit_lock = threading.Lock()
 jobs_lock = threading.Lock()
 
@@ -70,41 +71,68 @@ def _key(path: Union[str, Path]) -> str:
     return str(Path(path).resolve())
 
 
-def get_connection(path: Union[str, Path]) -> sqlite3.Connection:
-    """Return (creating if needed) the shared connection for ``path``."""
-    key = _key(path)
+def _open(path: str) -> sqlite3.Connection:
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=5000")
+    return conn
+
+
+def _connection(path: Union[str, Path], role: str) -> sqlite3.Connection:
+    file_key = _key(path)
+    key = (role, file_key)
     with _connections_guard:
         conn = _connections.get(key)
         if conn is None:
-            Path(key).parent.mkdir(parents=True, exist_ok=True)
-            conn = sqlite3.connect(key, check_same_thread=False)
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=NORMAL")
-            conn.execute("PRAGMA foreign_keys=ON")
-            conn.execute("PRAGMA busy_timeout=5000")
+            conn = _open(file_key)
             _connections[key] = conn
         return conn
 
 
+def get_connection(path: Union[str, Path]) -> sqlite3.Connection:
+    """Shared connection for job and artifact stores."""
+    return _connection(path, "jobs")
+
+
+def get_audit_connection(path: Union[str, Path]) -> sqlite3.Connection:
+    """Dedicated connection for the audit store (separate writer and lock)."""
+    return _connection(path, "audit")
+
+
 def close_connection(path: Union[str, Path]) -> None:
-    """Close and drop the cached connection (used by restart tests)."""
-    key = _key(path)
+    """Close and drop the cached connections (used by restart tests)."""
+    file_key = _key(path)
     with _connections_guard:
-        conn = _connections.pop(key, None)
-        if conn is not None:
-            conn.close()
+        for role in ("jobs", "audit"):
+            conn = _connections.pop((role, file_key), None)
+            if conn is not None:
+                conn.close()
     with _init_guard:
-        _initialized.discard(key)
+        _initialized.discard(f"jobs:{file_key}")
+        _initialized.discard(f"audit:{file_key}")
 
 
-def init_schema(conn: sqlite3.Connection) -> None:
-    """Create tables/indexes once per database connection."""
+def init_schema(conn: sqlite3.Connection, role: str = "jobs") -> None:
+    """Create tables/indexes once per database connection.
+
+    Serialized under both write locks: ``executescript`` implicitly commits on
+    this connection, so letting it run while another thread holds an open
+    transaction on the same connection produces
+    ``cannot commit - no transaction is active``.
+    """
     row = conn.execute("PRAGMA database_list").fetchone()
-    key = _key(row[2]) if row and row[2] else f"conn-{id(conn)}"
+    file_key = _key(row[2]) if row and row[2] else f"conn-{id(conn)}"
+    key = f"{role}:{file_key}"
     with _init_guard:
         if key in _initialized:
             return
-        conn.executescript(_SCHEMA)
-        conn.commit()
-        _initialized.add(key)
+        with jobs_lock, audit_lock:
+            if key in _initialized:
+                return
+            conn.executescript(_SCHEMA)
+            conn.commit()
+            _initialized.add(key)

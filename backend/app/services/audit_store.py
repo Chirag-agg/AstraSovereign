@@ -206,8 +206,8 @@ class SqliteAuditStore(AuditStore):
             self.configure(path)
 
     def configure(self, path: str) -> None:
-        self._conn = db.get_connection(path)
-        db.init_schema(self._conn)
+        self._conn = db.get_audit_connection(path)
+        db.init_schema(self._conn, role="audit")
 
     @staticmethod
     def _canonical(event: AuditEvent) -> str:

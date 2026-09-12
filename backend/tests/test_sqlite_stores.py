@@ -122,3 +122,28 @@ def test_concurrent_audit_appends_verify(tmp_path):
     assert store.stats()["events"] == 50
     assert store.list(limit=500)[0].event_id.startswith("evt-")
     assert store.verify_chain() == (True, None)
+
+
+def test_jobs_and_audit_write_concurrently(tmp_path):
+    """Audit and job writes use separate connections/locks; both must survive
+    concurrent access to the same database file (regression for the CI failure
+    'cannot commit - no transaction is active')."""
+    path = str(tmp_path / "test.db")
+    jobs = SqliteJobStore(path)
+    audit = SqliteAuditStore(path)
+    created = run(jobs.create(_job()))
+
+    async def update_job(i):
+        await jobs.update(created.job_id, model=f"m{i}", priority=i)
+
+    async def append_audit(i):
+        await asyncio.to_thread(audit.append, _event(i))
+
+    async def main():
+        writers = [update_job(i) for i in range(50)] + [append_audit(i) for i in range(50)]
+        await asyncio.gather(*writers)
+
+    run(main())
+    assert audit.stats()["events"] == 50
+    assert audit.verify_chain() == (True, None)
+    assert run(jobs.get(created.job_id)).model == "m49"
