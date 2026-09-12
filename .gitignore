@@ -95,6 +95,11 @@ data/audit/
 data/jobs/
 data/artifacts/
 
+# ── Durable SQLite database ──
+data/astra.db
+data/astra.db-wal
+data/astra.db-shm
+
 # ── Cowork persistent user projects ──
 data/projects/
 
