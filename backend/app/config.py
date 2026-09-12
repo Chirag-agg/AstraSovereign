@@ -132,6 +132,9 @@ class Settings(BaseSettings):
     )
     presentation_node_command: str = "node"
     presentation_timeout_seconds: float = 90.0
+
+    # Durable SQLite store (jobs, artifact metadata, hash-chained audit).
+    database_path: str = str(REPO_ROOT / "data" / "astra.db")
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
