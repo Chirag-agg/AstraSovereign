@@ -135,3 +135,19 @@ def test_docker_missing_image_fails_cleanly():
     runner = DockerSandboxRunner(image="python:definitely-not-present-image", timeout_seconds=5.0)
     with pytest.raises(SandboxRunnerError, match="not available locally"):
         run("print(1)", runner=runner)
+
+
+def test_docker_fork_bomb_contained():
+    result = run("import os\nwhile True:\n    os.fork()\n", timeout_seconds=8.0)
+    assert result.success is False
+    assert result.duration_ms < 60000
+    assert sandbox_containers() == []
+
+
+def test_docker_memory_limit_returns_clear_error():
+    runner = DockerSandboxRunner(memory_limit="64m", timeout_seconds=20.0)
+    code = "chunks = []\nwhile True:\n    chunks.append(bytearray(16 * 1024 * 1024))\n"
+    result = run(code, runner=runner)
+    assert result.success is False
+    assert result.error == "Execution exceeded the memory limit"
+    assert "memory limit" in result.stderr
