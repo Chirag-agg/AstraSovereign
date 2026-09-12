@@ -191,83 +191,6 @@ class AuditStore(ABC):
         raise NotImplementedError
 
 
-class JsonlAuditStore(AuditStore):
-    """Append-only JSONL store on the local filesystem.
-
-    ``configure(root)`` points the store at ``<root>/audit.jsonl`` and loads any
-    existing lines (restart-safe). Writes are serialized by a ``threading.Lock``.
-    """
-
-    def __init__(self) -> None:
-        self._path: Optional[Path] = None
-        self._events: list[AuditEvent] = []
-        self._lock = threading.Lock()
-
-    @property
-    def path(self) -> Optional[Path]:
-        return self._path
-
-    def configure(self, root: str) -> None:
-        with self._lock:
-            path = Path(root) / "audit.jsonl"
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self._events = []
-            self._path = path
-            if path.exists():
-                for line in path.read_text(encoding="utf-8").splitlines():
-                    if not line.strip():
-                        continue
-                    try:
-                        self._events.append(AuditEvent(**json.loads(line)))
-                    except (ValueError, TypeError):
-                        continue  # tolerate a corrupt line; never crash startup
-
-    def reset(self) -> None:
-        with self._lock:
-            self._events = []
-            self._path = None
-
-    def append(self, event: AuditEvent) -> None:
-        with self._lock:
-            self._events.append(event)
-            if self._path is not None:
-                try:
-                    with self._path.open("a", encoding="utf-8") as fh:
-                        fh.write(json.dumps(event.model_dump(mode="json")) + "\n")
-                except OSError:
-                    logger.warning(
-                        "audit_append_error",
-                        extra={"event": "audit_append_error", "error": "cannot write audit file"},
-                    )
-
-    def list(
-        self,
-        user_id: Optional[str] = None,
-        job_id: Optional[str] = None,
-        limit: int = 100,
-        offset: int = 0,
-    ) -> list[AuditEvent]:
-        with self._lock:
-            events = list(self._events)
-        if user_id is not None:
-            events = [e for e in events if e.user_id == user_id]
-        if job_id is not None:
-            events = [e for e in events if e.job_id == job_id]
-        events.sort(key=lambda e: (e.timestamp, e.event_id), reverse=True)
-        return events[offset : offset + max(limit, 0)]
-
-    def count_by_type(self, event_type: str) -> int:
-        with self._lock:
-            return sum(1 for e in self._events if e.event_type == event_type)
-
-    def stats(self) -> dict:
-        with self._lock:
-            by_type: dict[str, int] = {}
-            for e in self._events:
-                by_type[e.event_type] = by_type.get(e.event_type, 0) + 1
-            return {"events": len(self._events), "by_type": by_type}
-
-
 class SqliteAuditStore(AuditStore):
     """Durable, hash-chained audit store backed by SQLite.
 
@@ -398,7 +321,7 @@ class AuditLogHandler(logging.Handler):
             pass
 
 
-_default_store: AuditStore = JsonlAuditStore()
+_default_store: AuditStore = SqliteAuditStore()
 _audit_handler: Optional[AuditLogHandler] = None
 _audit_handler_installed = False
 

@@ -353,9 +353,11 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   "Execution exceeded the memory limit". The image `workbench-sandbox:py312`
   (numpy, pandas, openpyxl, pytest) must exist locally and be shipped offline
   (see `docs/OFFLINE_BUNDLE.md`).
-- **Stores are in-memory with JSON snapshots** (full-table rewrite on every
-  mutation); the audit trail is append-only JSONL with no hash chaining. Durable
-  SQLite stores and a hash-chained audit are Task B (in progress).
+- **Stores are durable SQLite** (`data/astra.db`, WAL, `busy_timeout=5000`):
+  `SqliteJobStore`, `SqliteArtifactStore`, and a hash-chained `SqliteAuditStore`.
+  Legacy JSON/JSONL data was migrated with
+  `python -m app.services.import_legacy`; `GET /api/audit/verify` reports the
+  chain status. The `InMemory*` stores remain only as pure test doubles.
 - Single worker, FIFO, no priority scheduling. Task classification is
   keyword-based and may misclassify ambiguous prose.
 - **Excel deliverable generation and `.xlsx` ingestion are not implemented.** Word
@@ -374,12 +376,9 @@ Phase-by-phase history is in `docs/HISTORY.md`.
 
 ## Next Steps
 
-1. **Task B (current):** SQLite-backed `JobStore`, `ArtifactStore`, and
-   `AuditStore`, with a hash-chained audit and `GET /api/audit/verify`, plus a
-   legacy-data import CLI.
-2. Availability-aware model routing fallback, startup preflight, and a UI banner
+1. Availability-aware model routing fallback, startup preflight, and a UI banner
    for missing models (so a missing model can never break a demo).
-3. Excel: `.xlsx` generation, spreadsheet read/compute, and `.xlsx` ingestion.
-4. A live network/egress monitor in the UI to make the zero-egress claim visible.
-5. A guided demo runner and a router-decision card.
-6. Keep `CONTEXT.md` current; move any new history to `docs/HISTORY.md`.
+2. Excel: `.xlsx` generation, spreadsheet read/compute, and `.xlsx` ingestion.
+3. A live network/egress monitor in the UI to make the zero-egress claim visible.
+4. A guided demo runner and a router-decision card.
+5. Keep `CONTEXT.md` current; move any new history to `docs/HISTORY.md`.
