@@ -181,6 +181,15 @@ async def lifespan(app: FastAPI):
             },
         )
         missing = registry.missing_models(available)
+        resolved = registry.resolved_availability(
+            available, app.state.settings.model_fallback_enabled
+        )
+        substitutions = [
+            f"{task}: {state['configured']} MISSING -> will use {state['effective']}"
+            for task, state in resolved.items()
+            if state["fallback_active"]
+        ]
+        app.state.model_availability["models"] = available
         if missing:
             logger.warning(
                 "model_preflight",
@@ -188,12 +197,18 @@ async def lifespan(app: FastAPI):
                     "event": "model_preflight",
                     "reachable": True,
                     "missing": [f"{m['task_type']}:{m['model']}" for m in missing],
+                    "substitutions": substitutions,
                 },
             )
         else:
             logger.info(
                 "model_preflight",
-                extra={"event": "model_preflight", "reachable": True, "missing": []},
+                extra={
+                    "event": "model_preflight",
+                    "reachable": True,
+                    "missing": [],
+                    "substitutions": [],
+                },
             )
 
     logger.info(
@@ -427,6 +442,8 @@ def create_app(
     )
     project_locks = cowork_locks or ProjectLocks()
     context_manager = ContextManager(projects)
+    # Filled by the lifespan preflight; None means "availability unknown".
+    model_availability: dict[str, Optional[set[str]]] = {"models": None}
 
     worker = Worker(
         queue=job_queue,
@@ -442,6 +459,8 @@ def create_app(
         projects=projects,
         project_locks=project_locks,
         context_manager=context_manager,
+        availability_provider=lambda: model_availability["models"],
+        fallback_enabled=settings.model_fallback_enabled,
     )
 
     app = FastAPI(
@@ -464,6 +483,7 @@ def create_app(
     app.state.job_manager = job_manager
     app.state.job_queue = job_queue
     app.state.worker = worker
+    app.state.model_availability = model_availability
     app.state.model_registry = model_registry
     app.state.task_router = task_router
     app.state.model_router = model_router

@@ -70,6 +70,9 @@ async def health(request: Request) -> dict:
         "ollama": ollama,
         "models": registry.availability(available_models),
         "models_missing": registry.missing_models(available_models),
+        "models_resolved": registry.resolved_availability(
+            available_models, settings.model_fallback_enabled
+        ),
         "default_model": settings.default_model,
         "queue_size": queue.qsize(),
         "jobs": job_stats,
