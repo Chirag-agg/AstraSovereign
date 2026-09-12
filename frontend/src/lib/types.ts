@@ -132,6 +132,18 @@ export interface Health {
   ollama: { reachable: boolean; url: string; models?: string[]; error?: string };
   models: Record<string, ModelAvailability>;
   default_model: string;
+  models_missing?: { task_type: string; model: string }[];
+  models_resolved?: Record<
+    string,
+    {
+      configured: string;
+      effective: string | null;
+      available: boolean;
+      enabled: boolean;
+      fallback_active: boolean;
+      chain: string[];
+    }
+  >;
   queue_size: number;
   jobs: Record<string, number>;
   scheduler: SchedulerStats;
