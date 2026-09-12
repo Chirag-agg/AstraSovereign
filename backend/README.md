@@ -415,7 +415,8 @@ Agent → structured content → document_generation tool → Word generator →
 `XlsxDocumentGenerator`): a structured intermediate representation
 (`DocumentContent`) is converted locally. `python-docx` produces `.docx` (title,
 subtitle, headings, paragraphs, bullet/numbered lists, tables, workspace images,
-an optional `Sources` section, a static footer, and an optional formal
+an optional `Sources` section, an A4 page size, a footer of optional
+`classification` plus live page numbers, and an optional formal
 `approval` block with a signature table); `openpyxl` produces `.xlsx` (one
 worksheet per section table, real `=` formulas, sources sheet). Generation is
 deterministic; output is validated by reopening before success is reported.

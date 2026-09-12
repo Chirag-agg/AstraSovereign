@@ -1079,3 +1079,30 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   spans at least 85% of the actual slide width (read from `ppt/presentation.xml`),
   and that a slide with notes emits a `notesSlide` part with the note text.
   Backend 407 passed; frontend typecheck + 64 tests.
+
+#### Deliverable consistency + office polish (fix/deliverable-consistency)
+- Manual inspection of all three Tank 204 deliverables (docx/xlsx/pptx) caught
+  three different verdicts for the same reading: Course 3 (11.2 mm vs 12.0 mm)
+  was "Monitor" in the docx, "FAIL" in the xlsx and omitted from the pptx. The
+  cause was authoring three independent payloads, so the fix is a binding
+  constraint: one structured findings object (readings/limits, margin and status
+  computed once in code) feeds every generator; no generator restates a verdict.
+  Documented in `CONTEXT.md` for the week 5 scan → findings → approval-note chain.
+- Word: A4 page size; removed the redundant "Approval Note" Heading 1 (the title
+  carries it); findings/approval layout now orders recommendation + signature
+  block after the findings sections; footer is optional `classification` plus a
+  live "Page X of Y" (PAGE/NUMPAGES fields), replacing the hardcoded marketing
+  line. `DocumentContent.classification` added and threaded through the tool and
+  prompt.
+- Excel: measured values and numeric formulas format to `0.0`; summary rows are
+  labelled ("Min reading"/"Min margin"/"Failures") and the failure count no longer
+  sits unlabelled under the Status column; the sources sheet gains a "Reference"
+  header, width and freeze.
+- QA: regenerated all three from one findings source and verified programmatically
+  that every course verdict matches across docx, xlsx and pptx
+  (Course 1 PASS, Course 2 FAIL, Course 3 FAIL, Course 4 PASS).
+- Note recorded in `CONTEXT.md`: openpyxl writes no cached formula results
+  (`data_only=True` → None); the preview intentionally shows formula strings and
+  no LibreOffice recalculation dependency will be added.
+- Tests updated for the changed footer/heading (explicit), plus new A4, number
+  format, sources-sheet and approval-ordering assertions.

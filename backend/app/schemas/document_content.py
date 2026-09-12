@@ -62,13 +62,14 @@ class DocumentContent(BaseModel):
     document_type: str = "document"
     title: str = ""
     subtitle: str = ""
+    classification: str = ""
     sections: list[DocumentSection] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list)
     approval: Optional[ApprovalNote] = None
 
     def char_count(self) -> int:
         """Approximate total text length (used to bound content size)."""
-        count = len(self.title) + len(self.subtitle)
+        count = len(self.title) + len(self.subtitle) + len(self.classification)
         for section in self.sections:
             count += len(section.heading)
             count += sum(len(item) for item in section.paragraphs)

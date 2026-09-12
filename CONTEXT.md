@@ -332,18 +332,38 @@ models, and provides an agentic pipeline that:
   `generator=` still works for single-generator tests.
 - **Approval notes (docx)**: an optional `approval` object (reference number,
   date, originator, department, subject, background, recommendation, and
-  `signatures[]`) on `document_generation` triggers a formal layout. Without it
-  the generic report layout is unchanged, so existing callers/tests are
-  unaffected.
+  `signatures[]`) on `document_generation` triggers a formal layout: metadata
+  table, background, then the findings sections, then recommendation and the
+  signature block. Word documents are A4 and carry a footer of optional
+  `classification` plus live "Page X of Y" fields (the old hardcoded marketing
+  footer was removed). Without `approval` the generic report layout is unchanged.
 - **Document images**: `DocumentSection.images` (`DocumentImage {path, caption,
   width_inches}`). The tool resolves every path with `resolve_within_workspace`
   and rejects absolute/traversal/absent paths and non-png/jpg/jpeg before
   generation; `add_picture()` embeds the image with an optional italic caption.
-- **Excel generator**: `XlsxDocumentGenerator` (openpyxl, now a backend
-  dependency) writes one worksheet per section table, treats `=`-prefixed cells
-  as real formulas, preserves leading-zero IDs as text, fixes workbook
-  timestamps for determinism, and validates by reopening. Artifact type
-  `excel`, download media type `spreadsheetml.sheet`, and preview reads cells.
+- **Excel generator**: `XlsxDocumentGenerator` (openpyxl) writes one worksheet
+  per section table, treats `=`-prefixed cells as real formulas, preserves
+  leading-zero IDs as text, formats measured values and numeric formulas to
+  `0.0`, freezes the header row, sizes columns, gives the sources sheet a
+  "Reference" header, fixes workbook timestamps for determinism, and validates by
+  reopening. Artifact type `excel`, download media type `spreadsheetml.sheet`,
+  preview reads cells.
+- **One findings object → all deliverables (binding constraint)**: the agent
+  must produce a single structured findings object (readings + limits, with
+  margins and statuses computed once in code) and every generator must render
+  that same object. No generator may restate a verdict. This exists because the
+  first manual pass authored three separate payloads and they disagreed: the same
+  reading (Course 3, 11.2 mm vs a 12.0 mm limit) was "Monitor" in the docx,
+  "FAIL" in the xlsx and omitted from the pptx. Week 5's scan → findings →
+  approval-note chain must build the findings object first and feed all three
+  deliverables from it, with a verifier test that asserts docx/xlsx/pptx verdicts
+  match.
+- **xlsx formula caching (do not "fix" with LibreOffice)**: openpyxl writes
+  formula strings with no cached result, so `data_only=True` returns `None`. The
+  artifact preview deliberately reads `data_only=False` and shows the formula
+  text, which is honest. Do not add headless LibreOffice or any recalculation
+  dependency to populate cached values — it is heavyweight on an air-gapped box
+  for a cosmetic gain.
 
 ---
 

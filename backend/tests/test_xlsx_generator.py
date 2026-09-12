@@ -94,7 +94,43 @@ def test_xlsx_sources_sheet(tmp_path):
     generated = run(XlsxDocumentGenerator().generate(content, tmp_path, "src.xlsx"))
     workbook = load(generated.path)
     assert "Sources" in workbook.sheetnames
-    assert workbook["Sources"]["A1"].value == "report.pdf, p.1"
+    sheet = workbook["Sources"]
+    assert sheet["A1"].value == "Reference"
+    assert sheet["A2"].value == "report.pdf, p.1"
+
+
+def test_xlsx_formats_measured_values_to_one_decimal(tmp_path):
+    content = DocumentContent(
+        title="T",
+        sections=[
+            DocumentSection(
+                heading="Readings",
+                table=[
+                    ["Location", "Reading (mm)", "Limit (mm)", "Margin (mm)", "Status"],
+                    ["Tank 204", "10.9", "12.0", "=B2-C2", '=IF(D2>=0,"PASS","FAIL")'],
+                ],
+            )
+        ],
+    )
+    generated = run(XlsxDocumentGenerator().generate(content, tmp_path, "t.xlsx"))
+    sheet = load(generated.path)["Readings"]
+    assert sheet["B2"].number_format == "0.0"  # measured value
+    assert sheet["C2"].number_format == "0.0"  # limit value
+    assert sheet["D2"].number_format == "0.0"  # numeric formula (margin)
+    assert sheet["E2"].number_format != "0.0"  # text formula (IF) stays general
+
+
+def test_xlsx_sources_sheet_has_header_width_and_freeze(tmp_path):
+    content = DocumentContent(
+        title="T",
+        sections=[DocumentSection(heading="T", table=[["a"], ["1"]])],
+        sources=["SOP-09, p.12"],
+    )
+    generated = run(XlsxDocumentGenerator().generate(content, tmp_path, "src.xlsx"))
+    sheet = load(generated.path)["Sources"]
+    assert sheet["A1"].value == "Reference"
+    assert sheet.column_dimensions["A"].width == 30
+    assert sheet.freeze_panes == "A2"
 
 
 def test_xlsx_text_fallback_without_tables(tmp_path):
@@ -130,3 +166,24 @@ def test_xlsx_is_deterministic(tmp_path):
     first = run(generator.generate(content, tmp_path, "a.xlsx"))
     second = run(generator.generate(content, tmp_path, "b.xlsx"))
     assert first.path.read_bytes() == second.path.read_bytes()
+
+
+def test_xlsx_freezes_header_and_sizes_columns(tmp_path):
+    content = DocumentContent(
+        title="T",
+        sections=[
+            DocumentSection(
+                heading="Readings",
+                table=[
+                    ["Location", "Reading (mm)", "Limit (mm)", "Margin (mm)"],
+                    ["Tank 204", "10.9", "12.0", "=B2-C2"],
+                ],
+            )
+        ],
+    )
+    generated = run(XlsxDocumentGenerator().generate(content, tmp_path, "t.xlsx"))
+    sheet = load(generated.path)["Readings"]
+    assert sheet.freeze_panes == "A2"
+    assert sheet.column_dimensions["A"].width >= len("Location")
+    # formula text is ignored when sizing, so computed columns stay tidy
+    assert sheet.column_dimensions["D"].width <= 30

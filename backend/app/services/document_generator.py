@@ -24,8 +24,6 @@ from app.schemas.document_content import (
 
 logger = logging.getLogger("app.document_generator")
 
-FOOTER_TEXT = "Generated locally by the Sovereign On-Premise AI Workbench."
-
 
 class DocumentGenerationError(Exception):
     """A document could not be generated or validated."""
@@ -71,6 +69,11 @@ class WordDocumentGenerator(DocumentGenerator):
 
         try:
             doc = Document()
+            from docx.shared import Mm
+
+            for page_section in doc.sections:
+                page_section.page_width = Mm(210)  # A4
+                page_section.page_height = Mm(297)
             if content.title:
                 doc.add_heading(content.title, level=0)
             if content.subtitle:
@@ -79,19 +82,22 @@ class WordDocumentGenerator(DocumentGenerator):
                 run.italic = True
 
             if content.approval is not None:
-                self._add_approval(doc, content.approval)
+                self._add_approval_header(doc, content.approval)
 
             for section in content.sections:
                 self._add_section(doc, section)
+
+            # The recommendation and signature block close an approval note, after
+            # any findings sections, so the document reads in the right order.
+            if content.approval is not None:
+                self._add_approval_footer(doc, content.approval)
 
             if content.sources:
                 doc.add_heading("Sources", level=1)
                 for source in content.sources:
                     doc.add_paragraph(source, style="List Number")
 
-            footer = doc.sections[0].footer
-            footer_paragraph = footer.paragraphs[0]
-            footer_paragraph.text = FOOTER_TEXT
+            self._set_footer(doc, content.classification)
 
             doc.save(str(target))
         except DocumentGenerationError:
@@ -133,9 +139,8 @@ class WordDocumentGenerator(DocumentGenerator):
         path.write_bytes(buffer.getvalue())
 
     @staticmethod
-    def _add_approval(doc, approval) -> None:
-        """Render the formal approval-note block (header, body, signatures)."""
-        doc.add_heading("Approval Note", level=1)
+    def _add_approval_header(doc, approval) -> None:
+        """Render the approval-note metadata table and background."""
         header_rows = [
             ("Reference No.", approval.reference_number),
             ("Date", approval.date),
@@ -152,6 +157,10 @@ class WordDocumentGenerator(DocumentGenerator):
         if approval.background:
             doc.add_heading("Background", level=1)
             doc.add_paragraph(approval.background)
+
+    @staticmethod
+    def _add_approval_footer(doc, approval) -> None:
+        """Render the recommendation and signature block that close the note."""
         if approval.recommendation:
             doc.add_heading("Recommendation", level=1)
             doc.add_paragraph(approval.recommendation)
@@ -167,6 +176,41 @@ class WordDocumentGenerator(DocumentGenerator):
             signature_table.cell(row_index, 1).text = signature.designation
             signature_table.cell(row_index, 2).text = ""  # signed by hand
             signature_table.cell(row_index, 3).text = signature.date
+
+    @staticmethod
+    def _set_footer(doc, classification: str) -> None:
+        """Write the footer: optional classification marking and "Page X of Y".
+
+        A marketing line has no place on a formal approval note, so the footer
+        carries the classification (when supplied) and live PAGE/NUMPAGES fields.
+        """
+        footer_paragraph = doc.sections[0].footer.paragraphs[0]
+        footer_paragraph.text = ""
+        if classification:
+            classification_run = footer_paragraph.add_run(classification)
+            classification_run.bold = True
+            footer_paragraph.add_run("    |    ")
+        footer_paragraph.add_run("Page ")
+        WordDocumentGenerator._add_field(footer_paragraph, "PAGE")
+        footer_paragraph.add_run(" of ")
+        WordDocumentGenerator._add_field(footer_paragraph, "NUMPAGES")
+
+    @staticmethod
+    def _add_field(paragraph, field_name: str) -> None:
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+
+        run = paragraph.add_run()
+        begin = OxmlElement("w:fldChar")
+        begin.set(qn("w:fldCharType"), "begin")
+        instruction = OxmlElement("w:instrText")
+        instruction.set(qn("xml:space"), "preserve")
+        instruction.text = field_name
+        end = OxmlElement("w:fldChar")
+        end.set(qn("w:fldCharType"), "end")
+        run._r.append(begin)
+        run._r.append(instruction)
+        run._r.append(end)
 
     @staticmethod
     def _add_section(doc, section: DocumentSection) -> None:
@@ -262,6 +306,7 @@ class XlsxDocumentGenerator(DocumentGenerator):
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font
+            from openpyxl.utils import get_column_letter
         except ImportError as exc:
             raise DocumentGenerationError(
                 "openpyxl is not installed (Excel generation unavailable)"
@@ -286,11 +331,37 @@ class XlsxDocumentGenerator(DocumentGenerator):
                     )
                     for row_index, row in enumerate(section.table, start=1):
                         for col_index, cell in enumerate(row, start=1):
-                            sheet.cell(row=row_index, column=col_index).value = _coerce_cell(
-                                str(cell)
+                            target_cell = sheet.cell(row=row_index, column=col_index)
+                            target_cell.value = _coerce_cell(str(cell))
+                            value = target_cell.value
+                            # Show measured values and numeric formulas (margin,
+                            # MIN) to one decimal. Text formulas (IF/COUNTIF) keep
+                            # the general format so they never show "2.0".
+                            is_numeric_value = isinstance(value, float)
+                            is_numeric_formula = (
+                                isinstance(value, str)
+                                and value.startswith("=")
+                                and '"' not in value
                             )
+                            if is_numeric_value or is_numeric_formula:
+                                target_cell.number_format = "0.0"
                     for col_index in range(1, max(len(row) for row in section.table) + 1):
                         sheet.cell(row=1, column=col_index).font = Font(bold=True)
+                    # Freeze the header row and size columns to the widest text
+                    # (formula strings are ignored so computed columns stay tidy).
+                    column_count = max(len(row) for row in section.table)
+                    sheet.freeze_panes = "A2"
+                    for col_index in range(1, column_count + 1):
+                        longest = 0
+                        for row_index in range(1, len(section.table) + 1):
+                            value = sheet.cell(row=row_index, column=col_index).value
+                            text = "" if value is None else str(value)
+                            if text.startswith("="):
+                                continue
+                            longest = max(longest, len(text))
+                        sheet.column_dimensions[get_column_letter(col_index)].width = min(
+                            max(longest + 2, 8), 30
+                        )
             else:
                 sheet = workbook.active
                 sheet.title = _sheet_name(content.title or "Sheet", used_names)
@@ -307,8 +378,13 @@ class XlsxDocumentGenerator(DocumentGenerator):
 
             if content.sources:
                 sheet = workbook.create_sheet(title=_sheet_name("Sources", used_names))
-                for row_index, source in enumerate(content.sources, start=1):
+                reference_header = sheet.cell(row=1, column=1)
+                reference_header.value = "Reference"
+                reference_header.font = Font(bold=True)
+                for row_index, source in enumerate(content.sources, start=2):
                     sheet.cell(row=row_index, column=1).value = source
+                sheet.column_dimensions["A"].width = 30
+                sheet.freeze_panes = "A2"
 
             workbook.save(str(target))
         except DocumentGenerationError:

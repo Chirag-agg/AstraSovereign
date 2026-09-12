@@ -349,8 +349,11 @@ def test_tool_approval_note_renders_fields(tmp_path):
 
     doc = Document(str(tmp_path / "artifacts" / "approval_note.docx"))
     texts = [paragraph.text for paragraph in doc.paragraphs]
-    for heading in ("Approval Note", "Background", "Recommendation", "Approval"):
+    for heading in ("Background", "Recommendation", "Approval"):
         assert heading in texts
+    # the title already carries "Approval Note"; there is no duplicate heading
+    assert texts[0] == "Inspection Approval Note"
+    assert "Approval Note" not in texts
     table_cells = [
         cell.text for table in doc.tables for row in table.rows for cell in row.cells
     ]

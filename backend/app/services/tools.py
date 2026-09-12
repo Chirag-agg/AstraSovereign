@@ -623,6 +623,7 @@ class DocumentGenerationTool(BaseTool):
             "document_type": {"type": "string"},
             "sections": {"type": "array", "items": {"type": "object"}},
             "sources": {"type": "array", "items": {"type": "string"}},
+            "classification": {"type": "string"},
             "approval": {"type": "object"},
         },
         "required": ["type", "filename", "title", "sections"],
@@ -697,9 +698,14 @@ class DocumentGenerationTool(BaseTool):
         approval_raw = arguments.get("approval")
         approval = _validate_approval(approval_raw) if approval_raw is not None else None
 
+        classification = arguments.get("classification", "")
+        if not isinstance(classification, str):
+            raise ToolError("classification must be a string")
+
         content = DocumentContent(
             document_type=document_label,
             title=title,
+            classification=classification.strip(),
             sections=sections,
             sources=[source.strip() for source in sources_raw],
             approval=approval,
