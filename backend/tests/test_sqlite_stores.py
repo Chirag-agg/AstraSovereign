@@ -146,4 +146,11 @@ def test_jobs_and_audit_write_concurrently(tmp_path):
     run(main())
     assert audit.stats()["events"] == 50
     assert audit.verify_chain() == (True, None)
-    assert run(jobs.get(created.job_id)).model == "m49"
+    # Job updates are offloaded to a thread pool, so the last of the 50 gathered
+    # writers is not deterministic. Assert instead that the surviving write is one
+    # of them and is internally consistent (no torn/lost update) rather than a
+    # fixed winner, which made this test flaky under CI contention.
+    final = run(jobs.get(created.job_id))
+    assert final.model.startswith("m")
+    assert final.priority == int(final.model[1:])
+    assert 0 <= final.priority < 50
