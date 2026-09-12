@@ -33,7 +33,11 @@ from app.schemas.resources import GpuInfo, ResourceCapacity, ResourceRequirement
 from app.services.agent import Agent
 from app.services.artifact_store import ArtifactStore, SqliteArtifactStore
 from app.services.audit_store import SqliteAuditStore, ensure_audit_handler, set_audit_store
-from app.services.document_generator import DocumentGenerator, WordDocumentGenerator
+from app.services.document_generator import (
+    DocumentGenerator,
+    WordDocumentGenerator,
+    XlsxDocumentGenerator,
+)
 from app.services.document_preparer import DocumentPreparer
 from app.services.embedding import EmbeddingProvider, OllamaEmbeddingProvider
 from app.services.job_manager import JobManager
@@ -377,10 +381,13 @@ def create_app(
         tools.append(DocumentVisionTool(multimodal=multimodal))
 
     artifact_store = SqliteArtifactStore(settings.database_path)
-    document_generator = WordDocumentGenerator()
+    document_generators = {
+        "word": WordDocumentGenerator(),
+        "excel": XlsxDocumentGenerator(),
+    }
     tools.append(
         DocumentGenerationTool(
-            generator=document_generator,
+            generators=document_generators,
             artifact_store=artifact_store,
             scheduler=scheduler,
         )
@@ -498,7 +505,7 @@ def create_app(
     app.state.embedding_provider = embedding
     app.state.multimodal_service = multimodal
     app.state.artifact_store = artifact_store
-    app.state.document_generator = document_generator
+    app.state.document_generator = document_generators
     app.state.audit_store = audit_store
     app.state.network_guard = network_guard
     app.state.sandbox_runner = runner

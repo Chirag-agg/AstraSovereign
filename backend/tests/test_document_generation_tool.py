@@ -14,13 +14,14 @@ from app.services.document_generator import (
     DocumentGenerationError,
     DocumentGenerator,
     WordDocumentGenerator,
+    XlsxDocumentGenerator,
 )
 from app.services.log_context import set_job_context
 from app.services.resource_provider import InMemoryResourceProvider
 from app.services.resource_scheduler import InMemoryResourceScheduler
 from app.services.tool_registry import ToolRegistry
 from app.services.tools import DocumentGenerationTool, ToolError
-from tests.conftest import default_capacity
+from tests.conftest import default_capacity, make_png
 
 VALID_ARGS = {
     "type": "word",
@@ -45,13 +46,23 @@ def make_tool(tmp_path, requirements=None, capacity=None, generator=None, wait_r
     scheduler = InMemoryResourceScheduler(
         InMemoryResourceProvider(capacity or default_capacity())
     )
-    tool = DocumentGenerationTool(
-        generator=generator or WordDocumentGenerator(),
-        artifact_store=store,
-        scheduler=scheduler,
-        requirements=requirements,
-        wait_rounds=wait_rounds,
-    )
+    common = {
+        "artifact_store": store,
+        "scheduler": scheduler,
+        "requirements": requirements,
+        "wait_rounds": wait_rounds,
+    }
+    if generator is not None:
+        tool = DocumentGenerationTool(generator=generator, **common)
+    else:
+        # Mirror production wiring: one tool fronting the word + excel generators.
+        tool = DocumentGenerationTool(
+            generators={
+                "word": WordDocumentGenerator(),
+                "excel": XlsxDocumentGenerator(),
+            },
+            **common,
+        )
     return tool, store, scheduler
 
 
@@ -127,10 +138,14 @@ def test_tool_supports_content_string_sections(tmp_path):
 
 
 def test_tool_rejects_unsupported_type(tmp_path):
+    # `excel` is now a supported type (see test_tool_generates_excel_artifact);
+    # `pdf` remains unsupported.
     tool, _store, _scheduler = make_tool(tmp_path)
     set_job_context(user_id="user-001", job_id="job-t3")
     with pytest.raises(ToolError, match="unsupported document type"):
-        run(tool.execute(tmp_path, {**VALID_ARGS, "type": "excel"}))
+        run(tool.execute(tmp_path, {**VALID_ARGS, "type": "pdf"}))
+    with pytest.raises(ToolError, match="supported: excel, word"):
+        run(tool.execute(tmp_path, {**VALID_ARGS, "type": "pdf"}))
 
 
 def test_tool_rejects_invalid_filenames(tmp_path):
@@ -254,3 +269,169 @@ def test_no_sensitive_content_in_logs(tmp_path, caplog):
     assert "document_generation_started" in record_text
     assert "document_generation_completed" in record_text
     assert "artifact_created" in record_text
+
+
+# ------------------------------------------------------------------ excel
+
+EXCEL_ARGS = {
+    "type": "excel",
+    "filename": "findings.xlsx",
+    "title": "Inspection Findings",
+    "document_type": "spreadsheet",
+    "sections": [
+        {
+            "heading": "Readings",
+            "table": [
+                ["Item", "Value"],
+                ["Course 2", "10.9"],
+                ["Course 3", "11.2"],
+                ["Total", "=SUM(B2:B3)"],
+            ],
+        }
+    ],
+    "sources": ["inspection_report.pdf, page 1"],
+}
+
+
+def test_tool_generates_excel_artifact(tmp_path):
+    tool, store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-x1")
+    result = run(tool.execute(tmp_path, EXCEL_ARGS))
+    assert result.ok
+
+    artifact_file = tmp_path / "artifacts" / "findings.xlsx"
+    assert artifact_file.is_file()
+    artifacts = run(store.list_for_job("job-x1"))
+    assert artifacts[0].type == "excel"
+    assert artifacts[0].status == ArtifactStatus.COMPLETED
+
+    from openpyxl import load_workbook
+
+    sheet = load_workbook(artifact_file)["Readings"]
+    assert sheet["B2"].value == 10.9
+    assert sheet["B4"].value == "=SUM(B2:B3)"
+    assert sheet["B4"].data_type == "f"
+
+
+def test_tool_rejects_excel_extension_mismatch(tmp_path):
+    tool, _store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-x2")
+    with pytest.raises(ToolError, match=".xlsx"):
+        run(tool.execute(tmp_path, {**EXCEL_ARGS, "filename": "findings.docx"}))
+
+
+# --------------------------------------------------------- approval notes
+
+APPROVAL_ARGS = {
+    **VALID_ARGS,
+    "approval": {
+        "reference_number": "MRPL/OPS/2026/014",
+        "date": "2026-08-16",
+        "originator": "A. Kumar",
+        "department": "Mechanical Maintenance",
+        "subject": "Seal replacement approval - cooling water pump",
+        "background": "Vibration and seal leakage were observed during inspection.",
+        "recommendation": "Approve seal replacement at the next shutdown.",
+        "signatures": [
+            {"name": "R. Nair", "designation": "Plant Manager", "date": "2026-08-17"},
+        ],
+    },
+}
+
+
+def test_tool_approval_note_renders_fields(tmp_path):
+    tool, _store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-a1")
+    result = run(tool.execute(tmp_path, APPROVAL_ARGS))
+    assert result.ok
+
+    from docx import Document
+
+    doc = Document(str(tmp_path / "artifacts" / "approval_note.docx"))
+    texts = [paragraph.text for paragraph in doc.paragraphs]
+    for heading in ("Approval Note", "Background", "Recommendation", "Approval"):
+        assert heading in texts
+    table_cells = [
+        cell.text for table in doc.tables for row in table.rows for cell in row.cells
+    ]
+    assert "MRPL/OPS/2026/014" in table_cells
+    assert "Mechanical Maintenance" in table_cells
+    assert "R. Nair" in table_cells
+    assert "Plant Manager" in table_cells
+
+
+def test_tool_rejects_malformed_approval(tmp_path):
+    tool, _store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-a2")
+    with pytest.raises(ToolError, match="unknown approval field"):
+        run(tool.execute(tmp_path, {**APPROVAL_ARGS, "approval": {"bogus": 1}}))
+    with pytest.raises(ToolError, match="must be a string"):
+        run(tool.execute(tmp_path, {**APPROVAL_ARGS, "approval": {"date": 2026}}))
+    with pytest.raises(ToolError, match="signatures"):
+        run(tool.execute(tmp_path, {**APPROVAL_ARGS, "approval": {"signatures": "none"}}))
+
+
+# ----------------------------------------------------------------- images
+
+
+def test_tool_embeds_workspace_image(tmp_path):
+    make_png(tmp_path / "crop.png", ["P&ID detail"])
+    tool, _store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-i1")
+    args = {
+        "type": "word",
+        "filename": "with_image.docx",
+        "title": "Citation Crop",
+        "sections": [
+            {
+                "heading": "Evidence",
+                "images": [
+                    {"path": "crop.png", "caption": "P&ID citation crop", "width_inches": 4}
+                ],
+            }
+        ],
+    }
+    result = run(tool.execute(tmp_path, args))
+    assert result.ok
+
+    from docx import Document
+
+    doc = Document(str(tmp_path / "artifacts" / "with_image.docx"))
+    assert len(doc.inline_shapes) == 1
+    assert any(paragraph.text == "P&ID citation crop" for paragraph in doc.paragraphs)
+
+
+def test_tool_rejects_image_outside_workspace(tmp_path):
+    tool, _store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-i2")
+    args = {
+        "type": "word",
+        "filename": "x.docx",
+        "title": "X",
+        "sections": [{"images": [{"path": "../secret.png"}]}],
+    }
+    with pytest.raises(ToolError, match="escapes|Absolute"):
+        run(tool.execute(tmp_path, args))
+
+
+def test_tool_rejects_missing_or_bad_image(tmp_path):
+    tool, _store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-i3")
+    missing = {
+        "type": "word",
+        "filename": "x.docx",
+        "title": "X",
+        "sections": [{"images": [{"path": "missing.png"}]}],
+    }
+    with pytest.raises(ToolError, match="not found"):
+        run(tool.execute(tmp_path, missing))
+
+    (tmp_path / "bad.gif").write_bytes(b"GIF89a")
+    unsupported = {
+        "type": "word",
+        "filename": "x.docx",
+        "title": "X",
+        "sections": [{"images": [{"path": "bad.gif"}]}],
+    }
+    with pytest.raises(ToolError, match="unsupported image type"):
+        run(tool.execute(tmp_path, unsupported))

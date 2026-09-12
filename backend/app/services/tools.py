@@ -24,7 +24,13 @@ from typing import Any, Optional
 from pydantic import BaseModel, ValidationError
 
 from app.schemas.artifact import Artifact, ArtifactStatus
-from app.schemas.document_content import DocumentContent, DocumentSection
+from app.schemas.document_content import (
+    ApprovalNote,
+    ApprovalSignature,
+    DocumentContent,
+    DocumentImage,
+    DocumentSection,
+)
 from app.schemas.presentation import PresentationContent
 from app.schemas.resources import ResourceRequirements
 from app.services.artifact_store import ArtifactStore
@@ -418,7 +424,26 @@ def _format_vision_analysis(analysis) -> str:
 
 
 _FILENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]*$")
-_SECTION_KEYS = {"heading", "content", "paragraphs", "bullets", "numbered", "table", "sources"}
+_SECTION_KEYS = {
+    "heading",
+    "content",
+    "paragraphs",
+    "bullets",
+    "numbered",
+    "table",
+    "sources",
+    "images",
+}
+_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg"}
+_APPROVAL_STRING_FIELDS = (
+    "reference_number",
+    "date",
+    "originator",
+    "department",
+    "subject",
+    "background",
+    "recommendation",
+)
 _MAX_DOCUMENT_CHARS = 200_000
 
 
@@ -432,7 +457,79 @@ def _validate_artifact_filename(filename: Any, doc_type: str) -> str:
     suffix = Path(filename).suffix.lower()
     if doc_type == "word" and suffix != ".docx":
         raise ToolError("word artifacts must use the '.docx' extension")
+    if doc_type == "excel" and suffix != ".xlsx":
+        raise ToolError("excel artifacts must use the '.xlsx' extension")
     return filename
+
+
+def _validate_document_image(raw: Any) -> DocumentImage:
+    if not isinstance(raw, dict):
+        raise ToolError("each image must be an object")
+    unknown = set(raw) - {"path", "caption", "width_inches"}
+    if unknown:
+        raise ToolError(f"unknown image field(s): {', '.join(sorted(unknown))}")
+    path = raw.get("path")
+    if not isinstance(path, str) or not path.strip():
+        raise ToolError("image 'path' must be a non-empty string")
+    caption = raw.get("caption", "")
+    if not isinstance(caption, str):
+        raise ToolError("image 'caption' must be a string")
+    width = raw.get("width_inches")
+    if width is not None and (
+        isinstance(width, bool)
+        or not isinstance(width, (int, float))
+        or width <= 0
+        or width > 10
+    ):
+        raise ToolError("image 'width_inches' must be a number between 0 and 10")
+    return DocumentImage(path=path.strip(), caption=caption, width_inches=width)
+
+
+def _validate_approval(raw: Any) -> ApprovalNote:
+    if not isinstance(raw, dict):
+        raise ToolError("approval must be an object")
+    allowed = set(_APPROVAL_STRING_FIELDS) | {"signatures"}
+    unknown = set(raw) - allowed
+    if unknown:
+        raise ToolError(f"unknown approval field(s): {', '.join(sorted(unknown))}")
+    values: dict[str, str] = {}
+    for field in _APPROVAL_STRING_FIELDS:
+        value = raw.get(field, "")
+        if not isinstance(value, str):
+            raise ToolError(f"approval '{field}' must be a string")
+        values[field] = value
+    signatures_raw = raw.get("signatures", [])
+    if not isinstance(signatures_raw, list):
+        raise ToolError("approval 'signatures' must be an array")
+    signatures = []
+    for entry in signatures_raw:
+        if not isinstance(entry, dict):
+            raise ToolError("each approval signature must be an object")
+        unknown_entry = set(entry) - {"name", "designation", "date"}
+        if unknown_entry:
+            raise ToolError(
+                f"unknown signature field(s): {', '.join(sorted(unknown_entry))}"
+            )
+        signature_values = {}
+        for field in ("name", "designation", "date"):
+            value = entry.get(field, "")
+            if not isinstance(value, str):
+                raise ToolError(f"signature '{field}' must be a string")
+            signature_values[field] = value
+        signatures.append(ApprovalSignature(**signature_values))
+    return ApprovalNote(**values, signatures=signatures)
+
+
+def _resolve_workspace_image(workspace: Path, path: str) -> Path:
+    if Path(path).suffix.lower() not in _IMAGE_SUFFIXES:
+        raise ToolError(f"unsupported image type in '{path}' (png/jpg/jpeg only)")
+    try:
+        resolved = resolve_within_workspace(workspace, path)
+    except WorkspaceError as exc:
+        raise ToolError(str(exc)) from exc
+    if not resolved.is_file():
+        raise ToolError(f"image not found in the job workspace: {path}")
+    return resolved
 
 
 def _validate_document_section(raw: Any) -> DocumentSection:
@@ -479,9 +576,15 @@ def _validate_document_section(raw: Any) -> DocumentSection:
     ):
         raise ToolError("section 'table' must be an array of arrays of strings")
 
-    if not (heading or paragraphs or bullets or numbered or table):
+    images_raw = raw.get("images", [])
+    if not isinstance(images_raw, list):
+        raise ToolError("section 'images' must be an array")
+    images = [_validate_document_image(image) for image in images_raw]
+
+    if not (heading or paragraphs or bullets or numbered or table or images):
         raise ToolError(
-            "each section needs at least one of heading/content/paragraphs/bullets/numbered/table"
+            "each section needs at least one of heading/content/paragraphs/bullets/"
+            "numbered/table/images"
         )
     return DocumentSection(
         heading=heading,
@@ -489,25 +592,27 @@ def _validate_document_section(raw: Any) -> DocumentSection:
         bullets=bullets,
         numbered=numbered,
         table=table,
+        images=images,
     )
 
 
 class DocumentGenerationTool(BaseTool):
-    """Generate deliverable documents (Word .docx) from structured content.
+    """Generate deliverable documents (Word .docx, Excel .xlsx) from content.
 
     The only gateway the agent has to document generation. Artifacts are written
     only inside the job workspace's ``artifacts/`` directory and registered with
     the ArtifactStore so they can be listed and downloaded securely. Content is
     validated before generation; unsupported types, unsafe filenames, malformed
-    sections, and oversized content are rejected.
+    sections, out-of-workspace images, and oversized content are rejected.
     """
 
     name = "document_generation"
     description = (
-        "Generate a deliverable document from structured content. Currently "
-        "supports Word (.docx). Arguments: type ('word'), filename, title, "
-        "sections (each with heading/content/paragraphs/bullets/numbered/table), "
-        "and optional sources. Returns artifact metadata."
+        "Generate a deliverable document from structured content. Supports Word "
+        "(.docx) and Excel (.xlsx). Arguments: type ('word'|'excel'), filename, "
+        "title, sections (each with heading/content/paragraphs/bullets/numbered/"
+        "table/images), optional sources, and optional approval (formal "
+        "approval-note fields). Returns artifact metadata."
     )
     input_schema = {
         "type": "object",
@@ -518,6 +623,7 @@ class DocumentGenerationTool(BaseTool):
             "document_type": {"type": "string"},
             "sections": {"type": "array", "items": {"type": "object"}},
             "sources": {"type": "array", "items": {"type": "string"}},
+            "approval": {"type": "object"},
         },
         "required": ["type", "filename", "title", "sections"],
         "additionalProperties": False,
@@ -525,19 +631,32 @@ class DocumentGenerationTool(BaseTool):
 
     def __init__(
         self,
-        generator: DocumentGenerator,
         artifact_store: ArtifactStore,
         scheduler: ResourceScheduler,
+        generator: Optional[DocumentGenerator] = None,
         requirements: Optional[ResourceRequirements] = None,
         wait_rounds: int = 5,
+        generators: Optional[dict[str, DocumentGenerator]] = None,
     ) -> None:
-        self._generator = generator
+        if generators is None:
+            if generator is None:
+                raise TypeError(
+                    "DocumentGenerationTool requires a generator or generators"
+                )
+            generators = {
+                doc_type: generator for doc_type in generator.supported_types
+            }
+        self._generators = dict(generators)
         self._store = artifact_store
         self._scheduler = scheduler
         self._requirements = requirements or ResourceRequirements(
             cpu_cores=1.0, memory_mb=512
         )
         self._wait_rounds = max(wait_rounds, 1)
+
+    @property
+    def supported_types(self) -> tuple[str, ...]:
+        return tuple(sorted(self._generators))
 
     async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
         ctx = get_job_context()
@@ -549,11 +668,12 @@ class DocumentGenerationTool(BaseTool):
             raise ToolError("document_generation requires a job context")
 
         doc_type = str(arguments["type"]).strip().lower()
-        if doc_type not in self._generator.supported_types:
+        if doc_type not in self._generators:
             raise ToolError(
                 f"unsupported document type '{doc_type}'; "
-                f"supported: {', '.join(self._generator.supported_types)}"
+                f"supported: {', '.join(self.supported_types)}"
             )
+        generator = self._generators[doc_type]
 
         filename = _validate_artifact_filename(arguments["filename"], doc_type)
         title = str(arguments["title"]).strip()
@@ -564,17 +684,25 @@ class DocumentGenerationTool(BaseTool):
         sections = [
             _validate_document_section(raw) for raw in arguments["sections"]
         ]
+        for section in sections:
+            for image in section.images:
+                image.path = str(_resolve_workspace_image(workspace, image.path))
+
         sources_raw = arguments.get("sources") or []
         if not isinstance(sources_raw, list) or not all(
             isinstance(source, str) and source.strip() for source in sources_raw
         ):
             raise ToolError("sources must be an array of non-empty strings")
 
+        approval_raw = arguments.get("approval")
+        approval = _validate_approval(approval_raw) if approval_raw is not None else None
+
         content = DocumentContent(
             document_type=document_label,
             title=title,
             sections=sections,
             sources=[source.strip() for source in sources_raw],
+            approval=approval,
         )
         if content.char_count() > _MAX_DOCUMENT_CHARS:
             raise ToolError(
@@ -622,7 +750,9 @@ class DocumentGenerationTool(BaseTool):
         )
 
         try:
-            generated = await self._generate(job_id, user_id, content, artifacts_dir, filename)
+            generated = await self._generate(
+                job_id, user_id, content, artifacts_dir, filename, generator
+            )
         except DocumentGenerationError as exc:
             await self._store.update(
                 artifact_id, status=ArtifactStatus.FAILED, size_bytes=0
@@ -691,9 +821,9 @@ class DocumentGenerationTool(BaseTool):
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         return artifacts_dir
 
-    async def _generate(self, job_id, user_id, content, output_dir, filename):
+    async def _generate(self, job_id, user_id, content, output_dir, filename, generator):
         if self._requirements.is_empty:
-            return await self._generator.generate(content, output_dir, filename)
+            return await generator.generate(content, output_dir, filename)
         sub_key = f"{job_id}:docgen"
         for _ in range(self._wait_rounds + 1):
             decision = await self._scheduler.request(
@@ -701,7 +831,7 @@ class DocumentGenerationTool(BaseTool):
             )
             if decision.decision == "grant":
                 try:
-                    return await self._generator.generate(content, output_dir, filename)
+                    return await generator.generate(content, output_dir, filename)
                 finally:
                     await self._scheduler.release(sub_key)
             if decision.decision == "reject":

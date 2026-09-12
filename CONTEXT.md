@@ -313,6 +313,31 @@ models, and provides an agentic pipeline that:
   the `X-Role: admin` header; a real identity layer must replace both later.
   Platform administration and confidential content access remain separate
   concepts (admins get operational metadata, not private content).
+- **Offline Node vendoring**: the presentation renderer's full PptxGenJS
+  dependency closure is committed under `presentation/node_modules` (pinned
+  exactly `4.0.1`) so a fresh air-gapped checkout renders decks with no npm
+  registry. `presentation/scripts/install-offline.cjs` verifies the closure
+  offline; `docs/OFFLINE_BUNDLE.md` was validated from an index-only export with
+  no `npm install`. A `node`-marked test runs the real `render.cjs` and *fails*
+  (not skips) if the vendored tree is missing.
+- **Document generator dispatch**: `DocumentGenerationTool` holds a
+  `{type: generator}` map (`word`, `excel`) selected by the `type` argument, so
+  the frozen `DocumentGenerator.generate()` signature is unchanged. Passing
+  `generator=` still works for single-generator tests.
+- **Approval notes (docx)**: an optional `approval` object (reference number,
+  date, originator, department, subject, background, recommendation, and
+  `signatures[]`) on `document_generation` triggers a formal layout. Without it
+  the generic report layout is unchanged, so existing callers/tests are
+  unaffected.
+- **Document images**: `DocumentSection.images` (`DocumentImage {path, caption,
+  width_inches}`). The tool resolves every path with `resolve_within_workspace`
+  and rejects absolute/traversal/absent paths and non-png/jpg/jpeg before
+  generation; `add_picture()` embeds the image with an optional italic caption.
+- **Excel generator**: `XlsxDocumentGenerator` (openpyxl, now a backend
+  dependency) writes one worksheet per section table, treats `=`-prefixed cells
+  as real formulas, preserves leading-zero IDs as text, fixes workbook
+  timestamps for determinism, and validates by reopening. Artifact type
+  `excel`, download media type `spreadsheetml.sheet`, and preview reads cells.
 
 ---
 
@@ -325,14 +350,19 @@ Implemented and working locally (backend + frontend + local models + Docker):
   document, vision, presentation).
 - Agent tool runtime: `list_files`/`read_file`/`write_file`, `document_search`
   (local RAG), `document_vision` (RapidOCR + Ollama vision), `code_execution`
-  (isolated Docker sandbox), `document_generation` (Word), `presentation_generation`
-  (PptxGenJS). See `README.md` for the full surface.
+  (isolated Docker sandbox), `document_generation` (Word `.docx` + Excel `.xlsx`,
+  formal approval notes with signature blocks, workspace images),
+  `presentation_generation` (PptxGenJS). See `README.md` for the full surface.
 - Resource scheduler, ArtifactStore + secure downloads, NetworkGuard + sovereignty
   reporting, append-only audit, per-user knowledge base, Cowork projects with a
   persistent context manager.
-- Frontend: Landing + unified workbench at `/`, project IDE at `/cowork`,
+- Frontend: Landing + unified workbench at `/`, project cowork IDE at `/cowork`,
   operations console at `/admin`. The legacy `/preview` UI was removed.
-- Tests: backend `pytest` (374 passed) and frontend typecheck + 63 tests + build.
+- Offline deck generation is self-contained: the full PptxGenJS dependency
+  closure is vendored under `presentation/node_modules` (pinned `4.0.1`) and the
+  real `render.cjs` is covered by a `node`-marked integration test; see
+  `docs/OFFLINE_BUNDLE.md`.
+- Tests: backend `pytest` (404 passed) and frontend typecheck + 64 tests + build.
 - SQLite job updates are flat: 200 status updates measured at ~0.27 ms/update with
   1 job and ~0.25 ms/update with 200 jobs (0.93x) - the old full-table rewrite is
   gone.
@@ -381,9 +411,13 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   fix is to queue audit appends off the loop rather than writing them inline.
 - Single worker, FIFO, no priority scheduling. Task classification is
   keyword-based and may misclassify ambiguous prose.
-- **Excel deliverable generation and `.xlsx` ingestion are not implemented.** Word
-  and PowerPoint generation exist; the sandbox image already includes
-  pandas/openpyxl.
+- **Excel generation is implemented**: `.xlsx` via openpyxl with real `=`
+  formulas, one worksheet per section table, sources sheet, and deterministic
+  output. Word now also supports formal approval notes (reference/date/originator/
+  department/subject/background/recommendation + signature block) and
+  workspace-contained images (`add_picture`). **Spreadsheet read/compute and
+  `.xlsx` ingestion are still not implemented**; the sandbox image already
+  includes pandas/openpyxl.
 - **Network proof is application-layer only** (`NetworkGuard`); there is no
   OS-level packet capture.
 - Frontend polls (no streaming); the dev role switch is not authentication; and
@@ -399,7 +433,8 @@ Phase-by-phase history is in `docs/HISTORY.md`.
 
 1. Policy engine: classification-gated routing that filters the `RoutingDecision`
    candidate set before fallback (fallback must never select around a denial).
-2. Excel: `.xlsx` generation, spreadsheet read/compute, and `.xlsx` ingestion.
+2. Excel: spreadsheet read/compute and `.xlsx` ingestion (`.xlsx` generation,
+   approval notes, and Word images are done).
 3. A live network/egress monitor in the UI to make the zero-egress claim visible.
 4. A guided demo runner and a router-decision card.
 5. Benchmark suite (runs with `MODEL_FALLBACK_ENABLED=false`) scoring routing

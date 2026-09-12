@@ -1034,3 +1034,34 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
   (Landing â†’ dashboard with AI Assistant, real Workspace Files, Sandbox, etc.),
   `/cowork` (project IDE), and `/admin` (operations console) are now the UI.
 - Docs/README updated to reflect every current feature.
+
+### Offline deck vendoring + office deliverables (Word/Excel)
+- Offline PptxGenJS: the full runtime dependency closure (19 pure-JS packages,
+  pinned `pptxgenjs@4.0.1`) is committed under `presentation/node_modules` and
+  un-ignored in `.gitignore`; `presentation/scripts/install-offline.cjs` verifies
+  it without npm or network. Validated from an index-only export (clean-clone
+  stand-in) with no `npm install`: the check passed and a real deck rendered with
+  the expected slides and title text.
+- Real-renderer coverage: a new `node` marker + `test_presentation_renderer_node.py`
+  runs the actual `render.cjs`, asserts slide parts and title/bullet text, and
+  fails (does not skip) when the vendored tree is missing, so CI can no longer be
+  green with a dead deck generator. `validate_pptx` now accepts at least the
+  expected slide count; the render payload goes to a temp dir so a crash cannot
+  leave document content in the artifacts folder.
+- Word deliverables: an optional `approval` object renders a formal approval note
+  (reference/date/originator/department/subject/background/recommendation +
+  signature table); `DocumentSection.images` embeds workspace-contained
+  png/jpg/jpeg via `add_picture()` with optional captions (absolute/traversal/
+  absent paths rejected).
+- Excel deliverables: `XlsxDocumentGenerator` (openpyxl, added to backend
+  requirements) writes one worksheet per section table, treats `=`-prefixed cells
+  as real formulas, preserves leading-zero IDs as text, adds a sources sheet,
+  fixes timestamps for determinism, and validates by reopening. The
+  `document_generation` tool now holds a `{word, excel}` generator map selected
+  by `type`; artifact download serves the xlsx media type and preview reads cells.
+- Tests: `test_xlsx_generator.py`, plus approval/image/excel cases in
+  `test_document_generation_tool.py` and a frontend ArtifactCard label test.
+  Backend 404 passed; frontend typecheck + 64 tests + build.
+- Known limitations / next: `.xlsx` ingestion and spreadsheet read/compute are
+  not implemented; policy-engine candidate filtering and a live egress monitor
+  remain sequenced after ingestion.

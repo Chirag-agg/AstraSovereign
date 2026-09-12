@@ -15,11 +15,20 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const TYPE_LABELS: Record<string, string> = {
+  word: "Word document",
+  excel: "Excel workbook",
+  pptx: "PowerPoint deck",
+};
+
+const TYPE_ICONS: Record<string, string> = {
+  word: "W",
+  excel: "X",
+  pptx: "P",
+};
+
 export function artifactTypeLabel(type: string): string {
-  if (type === "word") {
-    return "Word document";
-  }
-  return type;
+  return TYPE_LABELS[type] ?? type;
 }
 
 export default function ArtifactCard({
@@ -32,7 +41,7 @@ export default function ArtifactCard({
   return (
     <div className="artifact-card" role="group" aria-label={`Artifact ${artifact.filename}`}>
       <div className="artifact-icon" aria-hidden="true">
-        {artifact.type === "word" ? "W" : "F"}
+        {TYPE_ICONS[artifact.type] ?? "F"}
       </div>
       <div className="artifact-main">
         <div className="artifact-name" title={artifact.filename}>
