@@ -46,6 +46,10 @@ class AgentResult(BaseModel):
     error: Optional[str] = None
     iterations: int = 0
     tool_calls: int = 0
+    # How many turns fell back to the hand-rolled JSON envelope instead of native
+    # tool calling. Expiry signal: if this stays 0 across the demo models, delete
+    # the legacy parser before freeze.
+    legacy_envelope_used: int = 0
 
 
 class AgentError(Exception):
@@ -90,6 +94,7 @@ class Agent:
         task_text = job.message if task_text is None else task_text
         iterations = 0
         tool_calls = 0
+        legacy_envelope_used = 0
         stage = "planning"
         max_iter = max_iterations if max_iterations is not None else self._max_iterations
         max_calls = max_tool_calls if max_tool_calls is not None else self._max_tool_calls
@@ -239,6 +244,9 @@ class Agent:
                 )
                 await self._sync(job_id, trace, stage, iterations, tool_calls)
                 continue
+            if decision.get("legacy"):
+                legacy_envelope_used += 1
+                self._append(trace, "legacy_envelope_used", count=legacy_envelope_used)
             if await self._is_cancelled(job_id):
                 return await self._cancelled(
                     job_id, user_id, job.task_type, model, trace, iterations, tool_calls
@@ -364,6 +372,7 @@ class Agent:
                     response=response,
                     iterations=iterations,
                     tool_calls=tool_calls,
+                    legacy_envelope_used=legacy_envelope_used,
                 )
 
             # type == "tool_call"
@@ -641,10 +650,10 @@ class Agent:
         if isinstance(parsed, dict):
             if isinstance(parsed.get("response"), str):
                 # Models may emit {"response": "..."} in JSON mode.
-                return {"type": "final", "response": parsed["response"], "reasoning": parsed.get("reasoning")}
+                return {"type": "final", "response": parsed["response"], "reasoning": parsed.get("reasoning"), "legacy": True}
             dtype = parsed.get("type")
             if dtype == "final":
-                return {"type": "final", "response": parsed.get("response"), "reasoning": parsed.get("reasoning")}
+                return {"type": "final", "response": parsed.get("response"), "reasoning": parsed.get("reasoning"), "legacy": True}
             if dtype == "tool_call":
                 tool = parsed.get("tool")
                 arguments = parsed.get("arguments")
@@ -657,6 +666,7 @@ class Agent:
                     "tool": tool,
                     "arguments": arguments,
                     "reasoning": parsed.get("reasoning"),
+                    "legacy": True,
                 }
             # Tolerate models that supply the tool name under "tool" while
             # omitting or garbling "type" (they intended a tool call).
@@ -670,6 +680,7 @@ class Agent:
                     "tool": tool,
                     "arguments": arguments,
                     "reasoning": parsed.get("reasoning"),
+                    "legacy": True,
                 }
             raise AgentError(f"Unknown decision type '{dtype}'")
         # Non-JSON output: treat the raw text as a plain-text final response.

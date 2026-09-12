@@ -70,6 +70,20 @@ def test_native_tool_call_with_object_arguments(tmp_path):
     assert result.response == "Read it: key finding"
     assert tool_calls_in(final.execution_trace) == ["read_file"]
     assert result.tool_calls == 1
+    assert result.legacy_envelope_used == 0
+
+
+def test_legacy_envelope_fallback_is_counted(tmp_path):
+    """A model that ignores the tools API and emits the old envelope still works,
+    and the fallback is counted so it can be expired once unused."""
+    handler = make_native_chat_handler(
+        [{"content": '{"type":"final","response":"legacy answer"}'}]
+    )
+    result, final = run_agent(handler, "hi", tmp_path)
+    assert result.status == "completed"
+    assert result.response == "legacy answer"
+    assert result.legacy_envelope_used == 1
+    assert any(entry["type"] == "legacy_envelope_used" for entry in final.execution_trace)
 
 
 def test_native_tool_call_with_string_arguments(tmp_path):
