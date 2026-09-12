@@ -57,9 +57,9 @@ class DockerSandboxRunner(SandboxRunner):
     def __init__(
         self,
         image: str = "python:3.12-alpine",
-        timeout_seconds: float = 10.0,
+        timeout_seconds: float = 30.0,
         cpu_limit: str = "0.5",
-        memory_limit: str = "128m",
+        memory_limit: str = "512m",
     ) -> None:
         self._image = image
         self._timeout_seconds = timeout_seconds
@@ -75,6 +75,7 @@ class DockerSandboxRunner(SandboxRunner):
             "--network", "none",
             "--cpus", self._cpu_limit,
             "--memory", self._memory_limit,
+            "--pids-limit", "128",
             "--read-only",
             "--cap-drop", "ALL",
             "--security-opt", "no-new-privileges",
