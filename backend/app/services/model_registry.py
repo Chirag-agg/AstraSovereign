@@ -115,3 +115,15 @@ class ModelRegistry:
             }
             for task_type, config in self._models.items()
         }
+
+    def missing_models(self, available_models: Optional[set[str]]) -> list[dict]:
+        """Enabled task types whose configured model is not pulled locally.
+
+        Config-driven only; the backend never auto-pulls a model.
+        """
+        available = set(available_models or set())
+        return [
+            {"task_type": task_type, "model": config.model}
+            for task_type, config in self._models.items()
+            if config.enabled and config.model not in available
+        ]

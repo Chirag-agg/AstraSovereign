@@ -30,6 +30,8 @@ export default function ModelsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const missing = rows.filter((r) => r.enabled && !r.available);
+
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
@@ -59,6 +61,22 @@ export default function ModelsView() {
         {error ? (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600" role="alert">
             {error}
+          </div>
+        ) : null}
+
+        {missing.length > 0 ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
+            <p className="font-semibold">Preflight: {missing.length} enabled model(s) are not pulled locally</p>
+            <ul className="mt-1 list-disc pl-5">
+              {missing.map((m) => (
+                <li key={m.task_type}>
+                  <span className="font-medium">{m.task_type}</span> needs{" "}
+                  <code className="font-mono">{m.model}</code> - run{" "}
+                  <code className="font-mono">ollama pull {m.model}</code> or edit{" "}
+                  <code className="font-mono">config/models.yaml</code>. The backend never auto-pulls.
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
 

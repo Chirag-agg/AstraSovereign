@@ -35,6 +35,7 @@ def test_health_ok(client):
     assert body["models"]["document"]["enabled"] is False
     assert body["models"]["vision"]["available"] is False
     assert body["models"]["vision"]["enabled"] is False
+    assert body["models_missing"] == []
 
 
 def test_health_reports_ollama_down(client_factory):
@@ -85,3 +86,25 @@ def test_cors_allows_frontend_origin(client):
 def test_cors_rejects_unknown_origin(client):
     resp = client.get("/health", headers={"Origin": "http://evil.example"})
     assert resp.headers.get("access-control-allow-origin") is None
+
+
+def test_health_preflight_reports_missing_models(client_factory, success_ollama_handler):
+    models = {
+        "general": {
+            "provider": "ollama",
+            "model": "ghost-model",
+            "enabled": True,
+            "capabilities": ["general", "reasoning"],
+        },
+        "coding": {
+            "provider": "ollama",
+            "model": "coder-model",
+            "enabled": True,
+            "capabilities": ["coding"],
+        },
+    }
+    with client_factory(success_ollama_handler, models=models) as c:
+        body = c.get("/health").json()
+        assert body["models"]["general"]["available"] is False
+        assert body["models"]["coding"]["available"] is True
+        assert body["models_missing"] == [{"task_type": "general", "model": "ghost-model"}]

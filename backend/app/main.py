@@ -180,6 +180,21 @@ async def lifespan(app: FastAPI):
                 "availability": registry.availability(available),
             },
         )
+        missing = registry.missing_models(available)
+        if missing:
+            logger.warning(
+                "model_preflight",
+                extra={
+                    "event": "model_preflight",
+                    "reachable": True,
+                    "missing": [f"{m['task_type']}:{m['model']}" for m in missing],
+                },
+            )
+        else:
+            logger.info(
+                "model_preflight",
+                extra={"event": "model_preflight", "reachable": True, "missing": []},
+            )
 
     logger.info(
         "application_startup",

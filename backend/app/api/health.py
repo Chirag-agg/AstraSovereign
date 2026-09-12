@@ -69,6 +69,7 @@ async def health(request: Request) -> dict:
         "service": "sovereign-backend",
         "ollama": ollama,
         "models": registry.availability(available_models),
+        "models_missing": registry.missing_models(available_models),
         "default_model": settings.default_model,
         "queue_size": queue.qsize(),
         "jobs": job_stats,
