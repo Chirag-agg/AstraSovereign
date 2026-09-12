@@ -126,22 +126,25 @@ def test_content_text_fills_the_wide_slide(tmp_path):
     )
 
 
+NOTED_SLIDES = [
+    pytest.param({"type": "title", "title": "T", "content": "c"}, id="title"),
+    pytest.param({"type": "content", "title": "T", "content": "c"}, id="content"),
+    pytest.param({"type": "bullets", "title": "T", "bullets": ["b"]}, id="bullets"),
+    pytest.param({"type": "two-column", "title": "T", "columns": ["a", "b"]}, id="two-column"),
+    pytest.param({"type": "table", "title": "T", "table": [["h1", "h2"], ["v1", "v2"]]}, id="table"),
+    pytest.param({"type": "sources", "title": "T", "sources": ["s"]}, id="sources"),
+]
+
+
+@pytest.mark.parametrize("slide", NOTED_SLIDES)
 @pytest.mark.node
 @pytest.mark.skipif(not node_ready(), reason="Node.js runtime not available")
-def test_speaker_notes_are_written(tmp_path):
+def test_speaker_notes_are_written_for_every_slide_type(tmp_path, slide):
+    """Notes must survive for all six slide types, not just some renderers."""
+    marker = f"Speaker note marker {slide['type']}"
     renderer = NodePresentationRenderer(script_path=str(SCRIPT))
     content = PresentationContent.model_validate(
-        {
-            "title": "Notes",
-            "slides": [
-                {
-                    "type": "content",
-                    "title": "With notes",
-                    "content": "Body",
-                    "notes": "Speaker note marker XYZ",
-                }
-            ],
-        }
+        {"title": "Notes", "slides": [{**slide, "notes": marker}]}
     )
     generated = renderer.generate(content, tmp_path, "notes.pptx")
 
@@ -153,4 +156,4 @@ def test_speaker_notes_are_written(tmp_path):
         ]
         assert notes_parts, "renderer produced no notes slide for a slide with notes"
         notes_text = "".join(package.read(name).decode("utf-8") for name in notes_parts)
-    assert "Speaker note marker XYZ" in notes_text
+    assert marker in notes_text
