@@ -88,9 +88,9 @@ class NodeAgent:
         agent,
         capability_router: CapabilityRouter,
         registry=None,
-        extract_iterations: int = 4,
-        compute_iterations: int = 4,
-        draft_iterations: int = 6,
+        extract_iterations: int = 10,
+        compute_iterations: int = 6,
+        draft_iterations: int = 8,
     ) -> None:
         self._agent = agent
         self._router = capability_router

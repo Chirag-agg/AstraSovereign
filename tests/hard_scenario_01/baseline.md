@@ -70,6 +70,7 @@ The fixtures are generated (gitignored) and the results land in `bench/results/`
 |---|---|---|---|
 | 2026-09-12 (queue) | worker + single agent | 3/20 | scored points for fabricated corrosion rates and a note built from nothing |
 | 2026-09-12 (node-direct) | `NodeAgent` in-process | 0/20 | produced nothing, and said why: explicit `node_degraded` (no vision tool, no search) |
+| 2026-09-12 (node-direct v2) | per-node tool scoping + system/user split | 0/20 | retrieve in scope (no generator misuse); extract fires `document_search` but never chains to `document_vision`, so no findings |
 
 The score went **down** because the node engine refuses to produce ungrounded
 deliverables. An honest 0 that names the failure is the right direction from a 3
