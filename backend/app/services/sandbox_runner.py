@@ -147,6 +147,22 @@ class DockerSandboxRunner(SandboxRunner):
                 f"Sandbox container failed to start: {self._shorten(stderr_text)}"
             )
 
+        if not timed_out and returncode == 137:
+            limit_message = "Execution exceeded the memory limit"
+            return ExecutionResult(
+                success=False,
+                exit_code=returncode,
+                stdout=stdout_b.decode("utf-8", errors="replace"),
+                stderr=(
+                    stderr_b.decode("utf-8", errors="replace").rstrip()
+                    + "\n"
+                    + limit_message
+                ).strip(),
+                timed_out=False,
+                duration_ms=duration_ms,
+                error=limit_message,
+            )
+
         return ExecutionResult(
             success=(returncode == 0 and not timed_out),
             exit_code=returncode,
