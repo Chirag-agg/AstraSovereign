@@ -2,7 +2,10 @@
 
 from app.schemas.findings import FindingsObject, TankGeometry, ThicknessReading
 from app.services.findings import (
+    REASON_INCOMPLETE,
+    REASON_NO_BASELINE,
     assess,
+    degraded_result,
     latest_two,
     minimal_thickness_mm,
     traceability_violations,
@@ -71,3 +74,26 @@ def test_minimal_thickness_requires_complete_geometry():
         joint_efficiency=0.85,
     )
     assert minimal_thickness_mm(findings) == 11.36
+
+
+def test_refer_reason_codes_distinguish_baseline_from_incomplete():
+    findings = findings_with(
+        [ThicknessReading(course="C5", value_mm=11.6, survey_date="2026-08-15")]
+    )
+    from_baseline = assess(findings, min_thickness_mm=11.36, alert_thickness_mm=12.36)
+    assert from_baseline.courses[0].status == "REFER"
+    assert from_baseline.courses[0].reason_code == REASON_NO_BASELINE
+
+    incomplete = degraded_result(findings, 11.36, 12.36)
+    assert incomplete.courses[0].status == "REFER"
+    assert incomplete.courses[0].reason_code == REASON_INCOMPLETE
+    assert incomplete.courses[0].reason_code != from_baseline.courses[0].reason_code
+
+
+def test_missing_status_is_a_traceability_violation():
+    findings = findings_with(
+        [ThicknessReading(course="C4", value_mm=12.8, survey_date="2026-08-15")]
+    )
+    result = assess(findings, min_thickness_mm=11.36, alert_thickness_mm=12.36)
+    result.courses[0].status = ""
+    assert traceability_violations(findings, result) == ["C4"]

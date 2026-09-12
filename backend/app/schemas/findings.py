@@ -53,6 +53,9 @@ class CourseAssessment(BaseModel):
     remaining_life_years: Optional[float] = None
     next_inspection_years: Optional[float] = None
     status: str = ""  # OK | ALERT | REPAIR_REQUIRED | REFER
+    # Machine-readable reason, distinct from the human string: a missing baseline
+    # is a legitimate finding; an incomplete assessment is a system limitation.
+    reason_code: str = ""
     reason: str = ""
 
 

@@ -16,6 +16,11 @@ from app.schemas.findings import (
     ThicknessReading,
 )
 
+# Reason codes: a missing baseline is a defensible engineering finding, while an
+# incomplete assessment is a system limitation. Same status, different cause.
+REASON_NO_BASELINE = "REFER_NO_BASELINE"
+REASON_INCOMPLETE = "REFER_ASSESSMENT_INCOMPLETE"
+
 
 def _as_date(value: Optional[str]) -> Optional[date]:
     if not value:
@@ -80,6 +85,7 @@ def assess(
                 CourseAssessment(
                     course=course,
                     status="REFER",
+                    reason_code=REASON_NO_BASELINE,
                     reason=(
                         "fewer than two dated readings; corrosion rate not assumed "
                         "(referred for engineering review)"
@@ -95,6 +101,7 @@ def assess(
                     course=course,
                     current_mm=current.value_mm,
                     status="REFER",
+                    reason_code=REASON_NO_BASELINE,
                     reason="survey dates are not increasing",
                 )
             )
@@ -134,10 +141,45 @@ def assess(
 def traceability_violations(
     findings: FindingsObject, result: AssessmentResult
 ) -> list[str]:
-    """Courses carrying a numeric rate without two dated readings backing it."""
-    return [
-        assessment.course
-        for assessment in result.courses
-        if assessment.corrosion_rate_mm_per_year is not None
-        and latest_two(findings, assessment.course) is None
-    ]
+    """Courses with an unsupported rate OR a missing status.
+
+    A missing status would render as a blank cell in the approval note (which
+    reads as "no finding"), so it is a violation too — not just a rate without
+    two dated readings.
+    """
+    violations = []
+    for assessment in result.courses:
+        if not assessment.status:
+            violations.append(assessment.course)
+        elif (
+            assessment.corrosion_rate_mm_per_year is not None
+            and latest_two(findings, assessment.course) is None
+        ):
+            violations.append(assessment.course)
+    return violations
+
+
+def degraded_result(
+    findings: FindingsObject,
+    min_thickness_mm: Optional[float],
+    alert_thickness_mm: Optional[float],
+) -> AssessmentResult:
+    """Assessment for an exhausted compute budget.
+
+    Every unresolved course is ``REFER`` with :data:`REASON_INCOMPLETE`, never an
+    absent field, so ``draft`` can distinguish "no baseline" (a finding) from
+    "assessment incomplete" (a system limitation).
+    """
+    return AssessmentResult(
+        min_thickness_mm=min_thickness_mm,
+        alert_thickness_mm=alert_thickness_mm,
+        courses=[
+            CourseAssessment(
+                course=course,
+                status="REFER",
+                reason_code=REASON_INCOMPLETE,
+                reason="assessment incomplete: compute iteration budget exhausted",
+            )
+            for course in sorted({reading.course for reading in findings.readings})
+        ],
+    )
