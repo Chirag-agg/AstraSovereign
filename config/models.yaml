@@ -16,18 +16,18 @@
 models:
   general:
     provider: ollama
-    model: qwen2.5-coder:3b
+    model: llama3.1:latest
     enabled: true
     capabilities:
       - general
       - reasoning
       - summarization
     fallback_to:
-      - llama3.1:latest
+      - qwen2.5-coder:3b
     resources:
-      gpu_vram_mb: 2048
+      gpu_vram_mb: 4096
       cpu_cores: 2
-      memory_mb: 2048
+      memory_mb: 4096
 
   coding:
     provider: ollama

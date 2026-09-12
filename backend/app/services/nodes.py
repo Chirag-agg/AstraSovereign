@@ -35,9 +35,12 @@ _DOC_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Capability each node asks the router for at entry.
+# Capability each node asks the router for at entry. ``extract`` needs a
+# tool-capable text model to orchestrate reads; the vision model is invoked by
+# the ``document_vision`` tool, not as the node's own model (llava rejects the
+# tools API with HTTP 400).
 NODE_CAPABILITY = {
-    "extract": "vision",
+    "extract": "document",
     "retrieve": "document",
     "compute": "coding",
     "draft": "general",
@@ -92,6 +95,7 @@ class NodeAgent:
         # Exposed for the verifier / tests: the typed objects the sequence produced.
         self.last_findings: Optional[FindingsObject] = None
         self.last_assessment: Optional[AssessmentResult] = None
+        self.last_retrieval: str = ""
 
     def _route(self, capability: str) -> tuple[str, float, str]:
         """Model, confidence and runner-up for a capability (recorded per node)."""
@@ -126,6 +130,7 @@ class NodeAgent:
         cursor, findings = await self._run_extract(job, workspace, task, trace, cursor, attempt_docs)
         # --- retrieve --------------------------------------------------------
         cursor, retrieval = await self._run_retrieve(job, workspace, task, trace, cursor, attempt_docs)
+        self.last_retrieval = retrieval
         # --- compute ---------------------------------------------------------
         cursor, assessment, degraded = await self._run_compute(
             job, workspace, task, trace, cursor, findings, retrieval
@@ -158,12 +163,14 @@ class NodeAgent:
         self._node_started(trace, "extract", model, confidence, runner_up)
         instruction = (
             "Extract a single JSON findings object from the attached documents/images. "
-            "Read scanned pages with document_vision and cite document_id/page. "
+            "You MUST call document_vision on the scanned pages and the nameplate before "
+            "answering; do not answer from memory. Cite document_id/page. "
             'Output STRICT JSON: {"tank":"","procedure":"","geometry":{"diameter_m":null,'
             '"fill_height_m":null,"specific_gravity":null,"allowable_stress_mpa":null,'
             '"joint_efficiency":null},"readings":[{"course":"","value_mm":0.0,'
             '"survey_date":"YYYY-MM-DD","source":""}]}. Include every reading with its survey date.'
         )
+        start = len(trace)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
             task_text=f"{instruction}\n\nREQUEST:\n{task}",
@@ -171,7 +178,15 @@ class NodeAgent:
             append_start=False, enforce_contracts=False,
         )
         cursor += result.iterations
+        invoked = [
+            entry.get("tool")
+            for entry in trace[start:]
+            if entry.get("type") == "tool_call"
+        ]
         findings = _extract_findings(result.response)
+        if not invoked:
+            self._node_degraded(trace, "extract", "no document tool was invoked")
+            return cursor, None
         if findings is None or not findings.readings:
             self._node_degraded(trace, "extract", "no typed findings were produced")
             return cursor, None
@@ -185,10 +200,11 @@ class NodeAgent:
         model, confidence, runner_up = self._route("retrieve")
         self._node_started(trace, "retrieve", model, confidence, runner_up)
         instruction = (
-            "Retrieve the governing procedure from the local knowledge base with "
-            "document_search. Prefer the current revision and cite document and page. "
-            "Output short passages only, no deliverable."
+            "You MUST call document_search before answering. Retrieve the governing "
+            "procedure from the local knowledge base, prefer the current revision, and "
+            "cite document and page. Output short passages only, no deliverable."
         )
+        start = len(trace)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
             task_text=f"{instruction}\n\nREQUEST:\n{task}",
@@ -196,6 +212,13 @@ class NodeAgent:
             append_start=False, enforce_contracts=False,
         )
         cursor += result.iterations
+        searched = any(
+            entry.get("type") == "tool_call" and entry.get("tool") == "document_search"
+            for entry in trace[start:]
+        )
+        if not searched:
+            self._node_degraded(trace, "retrieve", "document_search was not invoked")
+            return cursor, ""
         self._node_completed(trace, "retrieve", ok=result.status == AgentStatus.COMPLETED)
         return cursor, result.response or ""
 

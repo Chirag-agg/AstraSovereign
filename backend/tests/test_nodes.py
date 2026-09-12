@@ -45,6 +45,14 @@ class FakeAgent:
 
     async def run(self, job, **kwargs):
         self.calls.append(kwargs)
+        task = kwargs.get("task_text", "")
+        trace = kwargs.get("trace")
+        if trace is not None:
+            # simulate the tool use each node must perform
+            if "document_vision" in task:
+                trace.append({"step": len(trace) + 1, "type": "tool_call", "tool": "document_vision"})
+            elif "document_search" in task:
+                trace.append({"step": len(trace) + 1, "type": "tool_call", "tool": "document_search"})
         if not self.results:
             return AgentResult(status=AgentStatus.COMPLETED, response="done", iterations=1)
         return self.results.pop(0)
@@ -102,7 +110,7 @@ def test_sequence_routes_four_models_and_compute_sees_typed_object():
     trace = recorded["trace"]
     started = {entry["node"]: entry["model"] for entry in trace if entry["type"] == "node_started"}
     assert started == {
-        "extract": "vision-model",
+        "extract": "doc-model",
         "retrieve": "doc-model",
         "compute": "coder-model",
         "draft": "general-model",
