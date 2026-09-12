@@ -31,8 +31,8 @@ from app.api.sandbox import router as sandbox_router
 from app.config import Settings, get_settings
 from app.schemas.resources import GpuInfo, ResourceCapacity, ResourceRequirements
 from app.services.agent import Agent
-from app.services.artifact_store import ArtifactStore, InMemoryArtifactStore
-from app.services.audit_store import ensure_audit_handler, get_audit_store
+from app.services.artifact_store import ArtifactStore, SqliteArtifactStore
+from app.services.audit_store import SqliteAuditStore, ensure_audit_handler, set_audit_store
 from app.services.document_generator import DocumentGenerator, WordDocumentGenerator
 from app.services.document_preparer import DocumentPreparer
 from app.services.embedding import EmbeddingProvider, OllamaEmbeddingProvider
@@ -41,7 +41,7 @@ from app.services.capability_router import CapabilityRouter
 from app.services.context import ContextManager
 from app.services.presentation_renderer import NodePresentationRenderer
 from app.services.job_queue import JobQueue
-from app.services.job_store import InMemoryJobStore
+from app.services.job_store import SqliteJobStore
 from app.services.knowledge_base import KnowledgeBase
 from app.services.model_registry import ModelRegistry
 from app.services.model_router import ModelRouter
@@ -250,8 +250,8 @@ def create_app(
     """
     settings = settings or get_settings()
     setup_logging(settings)
-    audit_store = get_audit_store()
-    audit_store.configure(settings.audit_root)
+    audit_store = SqliteAuditStore(settings.database_path)
+    set_audit_store(audit_store)
     ensure_audit_handler()
 
     if not settings.default_model:
@@ -346,7 +346,7 @@ def create_app(
     if vision_config is not None:
         tools.append(DocumentVisionTool(multimodal=multimodal))
 
-    artifact_store = InMemoryArtifactStore(settings.artifact_store_root)
+    artifact_store = SqliteArtifactStore(settings.database_path)
     document_generator = WordDocumentGenerator()
     tools.append(
         DocumentGenerationTool(
@@ -371,7 +371,7 @@ def create_app(
     tool_registry = ToolRegistry(tools)
     workspace_manager = WorkspaceManager(root=settings.workspaces_root)
 
-    store = InMemoryJobStore(settings.job_store_root)
+    store = SqliteJobStore(settings.database_path)
     job_manager = JobManager(store=store, default_model=settings.default_model)
     job_queue = JobQueue()
     agent = Agent(

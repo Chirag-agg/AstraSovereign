@@ -10,7 +10,9 @@ from app.schemas.audit import AuditEvent
 from app.services.audit_store import (
     EVENT_TYPE_MAP,
     JsonlAuditStore,
+    SqliteAuditStore,
     get_audit_store,
+    set_audit_store,
 )
 
 
@@ -92,8 +94,8 @@ def test_audit_pagination(tmp_path):
 
 
 def test_sensitive_payload_excluded_from_metadata(tmp_path, caplog):
-    store = get_audit_store()
-    store.configure(str(tmp_path))  # resets the singleton store to this test's file
+    store = SqliteAuditStore(str(tmp_path / "astra.db"))  # this test's database
+    set_audit_store(store)
     secret = "TOP-SECRET-PROMPT-CONTENT"
     with caplog.at_level(logging.INFO, logger="app.audit_test"):
         logging.getLogger("app.audit_test").info(
@@ -135,7 +137,7 @@ def test_log_event_mapping_covers_expected_types():
 
 
 def test_get_audit_store_is_configured_singleton(tmp_path):
-    get_audit_store().configure(str(tmp_path))
+    set_audit_store(SqliteAuditStore(str(tmp_path / "astra.db")))
     get_audit_store().append(make_event("JOB_CREATED", "job-1", "user-001"))
     assert get_audit_store().stats()["events"] == 1
-    get_audit_store().reset()
+    set_audit_store(JsonlAuditStore())  # restore a clean default for other tests

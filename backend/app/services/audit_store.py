@@ -12,8 +12,10 @@ Sovereignty rules:
 """
 
 import asyncio
+import hashlib
 import json
 import logging
+import sqlite3
 import threading
 import uuid
 from abc import ABC, abstractmethod
@@ -22,6 +24,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.schemas.audit import AuditEvent
+from app.services import db
 
 logger = logging.getLogger("app.audit_store")
 
@@ -265,6 +268,122 @@ class JsonlAuditStore(AuditStore):
             return {"events": len(self._events), "by_type": by_type}
 
 
+class SqliteAuditStore(AuditStore):
+    """Durable, hash-chained audit store backed by SQLite.
+
+    ``configure(path)`` treats its argument as the database path. ``append`` is
+    synchronous (the ABC is synchronous and appends run from a logging handler on
+    the event loop), guarded by the audit-specific write lock so appends are
+    strictly serialized and the chain stays consistent.
+    """
+
+    def __init__(self, path: Optional[str] = None) -> None:
+        self._conn: Optional[sqlite3.Connection] = None
+        if path:
+            self.configure(path)
+
+    def configure(self, path: str) -> None:
+        self._conn = db.get_connection(path)
+        db.init_schema(self._conn)
+
+    @staticmethod
+    def _canonical(event: AuditEvent) -> str:
+        return json.dumps(event.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+
+    @staticmethod
+    def _row_hash(canonical: str, prev_hash: str) -> str:
+        return hashlib.sha256((canonical + prev_hash).encode("utf-8")).hexdigest()
+
+    def append(self, event: AuditEvent) -> None:
+        if self._conn is None:
+            return
+        canonical = self._canonical(event)
+        with db.audit_lock:
+            row = self._conn.execute("SELECT hash FROM audit_events ORDER BY seq DESC LIMIT 1").fetchone()
+            prev_hash = row["hash"] if row is not None else "0" * 64
+            row_hash = self._row_hash(canonical, prev_hash)
+            self._conn.execute(
+                "INSERT INTO audit_events "
+                "(timestamp, event_type, job_id, user_id, data, prev_hash, hash) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    event.timestamp.isoformat(),
+                    event.event_type,
+                    event.job_id,
+                    event.user_id,
+                    canonical,
+                    prev_hash,
+                    row_hash,
+                ),
+            )
+            self._conn.commit()
+
+    def list(
+        self,
+        user_id: Optional[str] = None,
+        job_id: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[AuditEvent]:
+        if self._conn is None:
+            return []
+        clauses = []
+        params: list[object] = []
+        if user_id is not None:
+            clauses.append("user_id = ?")
+            params.append(user_id)
+        if job_id is not None:
+            clauses.append("job_id = ?")
+            params.append(job_id)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.extend([max(limit, 0), max(offset, 0)])
+        with db.audit_lock:
+            rows = self._conn.execute(
+                f"SELECT data FROM audit_events {where} ORDER BY seq DESC LIMIT ? OFFSET ?",
+                params,
+            ).fetchall()
+        return [AuditEvent(**json.loads(row["data"])) for row in rows]
+
+    def count_by_type(self, event_type: str) -> int:
+        if self._conn is None:
+            return 0
+        with db.audit_lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) AS n FROM audit_events WHERE event_type = ?", (event_type,)
+            ).fetchone()
+        return int(row["n"])
+
+    def stats(self) -> dict:
+        if self._conn is None:
+            return {"events": 0, "by_type": {}}
+        with db.audit_lock:
+            by_type = {
+                row["event_type"]: row["n"]
+                for row in self._conn.execute(
+                    "SELECT event_type, COUNT(*) AS n FROM audit_events GROUP BY event_type"
+                ).fetchall()
+            }
+            total = self._conn.execute("SELECT COUNT(*) AS n FROM audit_events").fetchone()["n"]
+        return {"events": int(total), "by_type": by_type}
+
+    def verify_chain(self) -> tuple[bool, Optional[int]]:
+        """Walk every row recomputing hashes. Returns (intact, first_bad_seq)."""
+        if self._conn is None:
+            return (True, None)
+        with db.audit_lock:
+            rows = self._conn.execute(
+                "SELECT seq, data, prev_hash, hash FROM audit_events ORDER BY seq ASC"
+            ).fetchall()
+        prev_hash = "0" * 64
+        for row in rows:
+            if row["prev_hash"] != prev_hash:
+                return (False, int(row["seq"]))
+            if self._row_hash(row["data"], prev_hash) != row["hash"]:
+                return (False, int(row["seq"]))
+            prev_hash = row["hash"]
+        return (True, None)
+
+
 class AuditLogHandler(logging.Handler):
     """Routes structured log events into the audit store."""
 
@@ -279,7 +398,7 @@ class AuditLogHandler(logging.Handler):
             pass
 
 
-_default_store = JsonlAuditStore()
+_default_store: AuditStore = JsonlAuditStore()
 _audit_handler: Optional[AuditLogHandler] = None
 _audit_handler_installed = False
 
@@ -299,8 +418,14 @@ _AUDIT_LOGGERS = (
 )
 
 
-def get_audit_store() -> JsonlAuditStore:
+def get_audit_store() -> AuditStore:
     return _default_store
+
+
+def set_audit_store(store: AuditStore) -> None:
+    """Replace the process-wide audit store (wiring seam)."""
+    global _default_store
+    _default_store = store
 
 
 def ensure_audit_handler() -> None:
