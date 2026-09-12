@@ -32,12 +32,21 @@ pip install --no-index --find-links offline/wheels -r backend/requirements.txt
 
 ## 3. Node dependencies and frontend build
 
+The presentation renderer's full PptxGenJS dependency closure is committed under
+`presentation/node_modules`, so deck generation needs no npm registry on the
+air-gapped machine. Verify the vendored tree in place (no network, no npm):
+
 ```
-cd presentation && npm ci --cache ../offline/npm-cache --prefer-offline
-cd ../frontend  && npm ci --cache ../offline/npm-cache --prefer-offline && npm run build
+node presentation/scripts/install-offline.cjs
 ```
 
-Ship `presentation/node_modules` (or the npm cache) and the built `frontend/.next`.
+The frontend still needs npm to build. Build it on a connected machine and ship
+the output:
+
+```
+cd frontend && npm ci && npm run build
+# ship frontend/.next (and frontend/node_modules if the target runs `next start`)
+```
 
 ## 4. Local models (Ollama)
 
@@ -72,5 +81,8 @@ sqlite3 data/astra.db ".backup 'offline/astra-backup.db'"
 - `ollama list` shows the three models.
 - `docker images` shows `workbench-sandbox:py312`.
 - The sandbox import check above prints `ok`.
+- `node presentation/scripts/install-offline.cjs` prints `{"ok":true,...}`.
+- A deck renders with only local Node deps:
+  `node presentation/src/render.cjs --in offline/sample-deck.json --out offline/sample-deck.pptx`.
 - Backend starts and `/health` reports Ollama reachable and the models available.
 - Frontend starts and a chat job completes.

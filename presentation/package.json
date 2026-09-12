@@ -6,9 +6,10 @@
   "license": "MIT",
   "type": "commonjs",
   "scripts": {
-    "render": "node src/render.cjs"
+    "render": "node src/render.cjs",
+    "install:offline": "node scripts/install-offline.cjs"
   },
   "dependencies": {
-    "pptxgenjs": "^4.0.1"
+    "pptxgenjs": "4.0.1"
   }
 }

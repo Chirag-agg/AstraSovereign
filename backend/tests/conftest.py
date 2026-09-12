@@ -89,6 +89,16 @@ def docker_ready() -> bool:
         return False
 
 
+def node_ready() -> bool:
+    """True when the Node.js runtime is available for the real PPTX renderer.
+
+    Deliberately does not check the vendored ``presentation/node_modules`` tree:
+    that tree is committed, so its absence is a packaging regression the
+    ``node``-marked test must fail on rather than silently skip.
+    """
+    return shutil.which("node") is not None
+
+
 class FakeSandboxRunner:
     """Scriptable sandbox runner for deterministic tests (no Docker required)."""
 

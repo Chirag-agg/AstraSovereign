@@ -10,14 +10,16 @@ Two renderer implementations share one interface:
   minimal PPTX (used in tests; no Node dependency).
 
 Validation always runs after a write: file exists, non-zero, is a ZIP/OpenXML
-package, has ``[Content_Types].xml`` + ``ppt/presentation.xml``, and contains
-exactly the expected number of slide parts.
+package, has ``[Content_Types].xml`` + ``ppt/presentation.xml``, and contains at
+least the expected number of slide parts (a renderer may add layout, divider, or
+template slides; it must never drop content slides).
 """
 
 import json
 import logging
 import shutil
 import subprocess
+import tempfile
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,7 +50,12 @@ def _slide_part_count(package: zipfile.ZipFile) -> int:
 
 
 def validate_pptx(path: Path, expected_slides: int) -> int:
-    """Validate a PPTX package; returns the number of slide parts found."""
+    """Validate a PPTX package; returns the number of slide parts found.
+
+    A renderer may legitimately emit more slide parts than the content model
+    declared (layout/divider/template slides), so the check is "at least the
+    expected number" — content slides must never be silently dropped.
+    """
     if not path.exists():
         raise PresentationRenderError("presentation file was not created")
     if path.stat().st_size == 0:
@@ -65,9 +72,9 @@ def validate_pptx(path: Path, expected_slides: int) -> int:
             slides = _slide_part_count(package)
     except (OSError, zipfile.BadZipFile) as exc:
         raise PresentationRenderError(f"presentation is not a valid zip/OpenXML package: {exc}") from exc
-    if slides != expected_slides:
+    if slides < expected_slides:
         raise PresentationRenderError(
-            f"expected {expected_slides} slides but found {slides} slide parts"
+            f"expected at least {expected_slides} slides but found {slides} slide parts"
         )
     return slides
 
@@ -98,24 +105,27 @@ class NodePresentationRenderer:
             )
         output_dir.mkdir(parents=True, exist_ok=True)
         target = output_dir / filename
-        payload_path = output_dir / f".render-{filename}.json"
         try:
-            payload_path.write_text(
-                json.dumps(content.model_dump(), ensure_ascii=False), encoding="utf-8"
-            )
-            proc = subprocess.run(
-                [
-                    self._node,
-                    self._script,
-                    "--in",
-                    str(payload_path),
-                    "--out",
-                    str(target),
-                ],
-                capture_output=True,
-                text=True,
-                timeout=self._timeout,
-            )
+            # The render payload is document content and must never linger in the
+            # artifacts directory if the process crashes mid-render.
+            with tempfile.TemporaryDirectory(prefix="astra-render-") as tmp_dir:
+                payload_path = Path(tmp_dir) / "content.json"
+                payload_path.write_text(
+                    json.dumps(content.model_dump(), ensure_ascii=False), encoding="utf-8"
+                )
+                proc = subprocess.run(
+                    [
+                        self._node,
+                        self._script,
+                        "--in",
+                        str(payload_path),
+                        "--out",
+                        str(target),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=self._timeout,
+                )
             if proc.returncode != 0:
                 detail = (proc.stderr or "").strip()[-1500:]
                 raise PresentationRenderError(
@@ -129,11 +139,6 @@ class NodePresentationRenderer:
             )
         except subprocess.TimeoutExpired as exc:
             raise PresentationRenderError("local renderer timed out") from exc
-        finally:
-            try:
-                payload_path.unlink(missing_ok=True)
-            except OSError:
-                pass
 
 
 class FakePresentationRenderer:

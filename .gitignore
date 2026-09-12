@@ -129,3 +129,10 @@ desktop.ini
 *.tmp
 *.temp
 *~
+
+# ── Vendored offline Node deps (PptxGenJS presentation renderer) ──
+# The presentation renderer must work on an air-gapped machine with no npm
+# registry, so its full runtime dependency closure is committed. These negations
+# come last so they win over the generic `node_modules/` and `dist/` rules above.
+!presentation/node_modules/
+!presentation/node_modules/**

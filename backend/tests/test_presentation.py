@@ -1,9 +1,10 @@
 """Tests for local PowerPoint generation (presentation_generation tool).
 
 Covers content validation, the intermediate model, PPTX package validation,
-renderer behaviour (fake + real node renderer when available), artifact
-creation/ownership/download, workspace containment, resource release, and an
-end-to-end Agent -> tool run. The existing Word pipeline is untouched.
+the fake renderer, artifact creation/ownership/download, workspace containment,
+resource release, and an end-to-end Agent -> tool run. The real vendored Node
+renderer is exercised in ``test_presentation_renderer_node.py``. The existing
+Word pipeline is untouched.
 """
 
 import json
@@ -14,7 +15,6 @@ from pydantic import ValidationError
 from app.schemas.presentation import PresentationContent, SlideContent
 from app.services.presentation_renderer import (
     FakePresentationRenderer,
-    NodePresentationRenderer,
     PresentationRenderError,
     validate_pptx,
 )
@@ -93,32 +93,17 @@ def test_validate_pptx_rejects_invalid(tmp_path):
         validate_pptx(bogus, 2)
 
 
-# ------------------------------------------------------------ node renderer
-
-NODE_PRESENT = pytest.mark.skipif(
-    not __import__("shutil").which("node"),
-    reason="node not available",
-)
+# --------------------------------------------------------- validation rules
 
 
-@NODE_PRESENT
-def test_node_renderer_real_pptx(tmp_path):
-    import shutil
-    from pathlib import Path
-
-    script = Path(__file__).resolve().parents[2] / "presentation" / "src" / "render.cjs"
-    if not script.is_file() or not (script.parent.parent / "node_modules" / "pptxgenjs").is_dir():
-        pytest.skip("pptxgenjs not installed in presentation/")
-    renderer = NodePresentationRenderer(script_path=str(script))
+def test_validate_pptx_accepts_at_least_expected_slides(tmp_path):
+    renderer = FakePresentationRenderer()
     content = PresentationContent.model_validate({"title": "X", "slides": SLIDES})
-    generated = renderer.generate(content, tmp_path, "real.pptx")
-    assert generated.slide_count == 4
-    assert generated.path.stat().st_size > 0
-    with __import__("zipfile").ZipFile(generated.path) as zf:
-        names = zf.namelist()
-        assert "[Content_Types].xml" in names and "ppt/presentation.xml" in names
-        slide_parts = [n for n in names if n.startswith("ppt/slides/slide") and n.endswith(".xml")]
-        assert len(slide_parts) == 4
+    generated = renderer.generate(content, tmp_path, "deck.pptx")
+    # extra layout/divider/template slides are allowed; dropped content is not
+    assert validate_pptx(generated.path, 3) == 4
+    with pytest.raises(PresentationRenderError):
+        validate_pptx(generated.path, 5)
 
 
 # -------------------------------------------------------------- agent -> tool
