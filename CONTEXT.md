@@ -444,6 +444,17 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   workspace-contained images (`add_picture`). **Spreadsheet read/compute and
   `.xlsx` ingestion are still not implemented**; the sandbox image already
   includes pandas/openpyxl.
+- **Hard Scenario 01 baseline (2026-09-12): 3/20, not finale-ready.** The API 653
+  Tank 204 fitness-for-service scenario lives in `tests/hard_scenario_01/`
+  (fixtures, `verify.py`, `run_scenario.py`, `make_golden.py`) and records to
+  `bench/results/`. First run: the job used only the `general` model (no vision,
+  document or coding model), read none of the readings or nameplate geometry,
+  cited the superseded SOP-09 **Rev 2** alongside Rev 3, invented `10 mm/year`
+  corrosion rates, and produced one of three deliverables (no xlsx, no pptx). The
+  automatic fail was not tripped (Course 5 was never mentioned) but the same class
+  of fabrication appeared on other courses. Full failure list:
+  `bench/results/*_hard_scenario_01_findings.md`. `constants.py` is provisional and
+  must be validated against the real MRPL standard before scores are trusted.
 - **Network proof is application-layer only** (`NetworkGuard`); there is no
   OS-level packet capture.
 - Frontend polls (no streaming); the dev role switch is not authentication; and
@@ -457,12 +468,18 @@ Phase-by-phase history is in `docs/HISTORY.md`.
 
 ## Next Steps
 
-1. Policy engine: classification-gated routing that filters the `RoutingDecision`
+1. Ingestion week, in this order (derived from the Hard Scenario 01 failure list):
+   a. **Extraction/vision first**: route scanned reports and the nameplate to
+      `document_vision` (or a findings extractor) and ground every number in
+      OCR/vision output; define the ingest → findings contract.
+   b. **Retrieval ranking second**: record supersession at ingestion and never
+      surface or cite a superseded revision when the current one exists.
+   c. **Grounded computation and planning third**: one findings object → sandbox
+      calculation → all three deliverables; reject ungrounded numbers.
+2. Policy engine: classification-gated routing that filters the `RoutingDecision`
    candidate set before fallback (fallback must never select around a denial).
-2. Excel: spreadsheet read/compute and `.xlsx` ingestion (`.xlsx` generation,
-   approval notes, and Word images are done).
-3. A live network/egress monitor in the UI to make the zero-egress claim visible.
-4. A guided demo runner and a router-decision card.
-5. Benchmark suite (runs with `MODEL_FALLBACK_ENABLED=false`) scoring routing
-   effectiveness against an always-largest-model baseline.
+3. Excel: spreadsheet read/compute and `.xlsx` ingestion.
+4. Live network/egress monitor in the UI; guided demo runner and router-decision
+   card; benchmark suite expansion.
+5. Generalise the Hard Scenario auto-fail ("no invented number") to every course.
 6. Keep `CONTEXT.md` current; move any new history to `docs/HISTORY.md`.
