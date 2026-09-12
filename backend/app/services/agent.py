@@ -86,6 +86,7 @@ class Agent:
         max_tool_calls: Optional[int] = None,
         append_start: bool = True,
         enforce_contracts: bool = True,
+        tool_names: Optional[set[str]] = None,
     ) -> AgentResult:
         job_id = job.job_id
         user_id = job.user_id
@@ -98,6 +99,7 @@ class Agent:
         stage = "planning"
         max_iter = max_iterations if max_iterations is not None else self._max_iterations
         max_calls = max_tool_calls if max_tool_calls is not None else self._max_tool_calls
+        allowed_tools = set(tool_names) if tool_names is not None else None
 
         if append_start:
             self._append(trace, "agent_started", task_type=job.task_type, model=model)
@@ -168,7 +170,7 @@ class Agent:
                 raw, native_calls, _model_used = await self._model.chat(
                     messages,
                     model=model,
-                    tools=self._tools.schemas(),
+                    tools=self._schemas_for(allowed_tools),
                 )
             except OllamaServiceError as exc:
                 logger.error(
@@ -427,6 +429,21 @@ class Agent:
                 },
             )
 
+            if allowed_tools is not None and tool_name not in allowed_tools:
+                note = (
+                    f"Tool '{tool_name}' is not available to this step. "
+                    f"Available: {', '.join(sorted(allowed_tools))}."
+                )
+                self._append(
+                    trace,
+                    "tool_result",
+                    tool=tool_name,
+                    ok=False,
+                    result_summary=self._shorten(note),
+                )
+                history.append(note)
+                await self._sync(job_id, trace, stage, iterations, tool_calls)
+                continue
             try:
                 result = await self._tools.execute(tool_name, arguments, workspace)
             except ToolError as exc:
@@ -491,6 +508,18 @@ class Agent:
                     verified = candidate
                 candidate = None
         return verified
+
+    def _schemas_for(self, allowed: Optional[set[str]]) -> list[dict]:
+        """Native tool schemas, restricted to the tools a step may use.
+
+        Per-step scoping means a model that cannot see a tool cannot misuse it —
+        the retrieve node can't call the generators, the draft node can't run
+        code — and the schema payload stays small for weaker models.
+        """
+        schemas = self._tools.schemas()
+        if allowed is None:
+            return schemas
+        return [schema for schema in schemas if schema["function"]["name"] in allowed]
 
     @staticmethod
     def _append(trace: list[dict], entry_type: str, **fields: Any) -> None:

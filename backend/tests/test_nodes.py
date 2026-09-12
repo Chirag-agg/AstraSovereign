@@ -141,6 +141,22 @@ def test_compute_budget_exhaustion_degrades_to_incomplete_refer():
     assert by_course["C2"].reason_code == "REFER_ASSESSMENT_INCOMPLETE"
 
 
+def test_nodes_scope_tools_per_step():
+    results = [
+        AgentResult(status=AgentStatus.COMPLETED, response=json.dumps(FINDINGS), iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="sop", iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="computed", iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="deliverables", iterations=1),
+    ]
+    node_agent = make_agent(results)
+    asyncio.run(node_agent.run(FakeJob(), "/workspace", task_text=FakeJob.message))
+    calls = node_agent._agent.calls
+    assert calls[0]["tool_names"] == {"document_search", "document_vision", "read_file", "list_files"}
+    assert calls[1]["tool_names"] == {"document_search"}
+    assert calls[2]["tool_names"] == {"code_execution"}
+    assert calls[3]["tool_names"] == {"document_generation", "presentation_generation"}
+
+
 def test_course_without_baseline_keeps_no_baseline_reason():
     results = [
         AgentResult(status=AgentStatus.COMPLETED, response=json.dumps(FINDINGS), iterations=1),

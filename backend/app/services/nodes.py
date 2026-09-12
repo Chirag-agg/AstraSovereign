@@ -46,6 +46,15 @@ NODE_CAPABILITY = {
     "draft": "general",
 }
 
+# Tools each node may see. A node cannot misuse a tool it cannot see, which is
+# more robust than instruction wording on small models.
+NODE_TOOLS = {
+    "extract": {"document_search", "document_vision", "read_file", "list_files"},
+    "retrieve": {"document_search"},
+    "compute": {"code_execution"},
+    "draft": {"document_generation", "presentation_generation"},
+}
+
 
 def _mentions_documents(task: str) -> bool:
     return bool(_DOC_RE.search(task or ""))
@@ -163,8 +172,9 @@ class NodeAgent:
         self._node_started(trace, "extract", model, confidence, runner_up)
         instruction = (
             "Extract a single JSON findings object from the attached documents/images. "
-            "You MUST call document_vision on the scanned pages and the nameplate before "
-            "answering; do not answer from memory. Cite document_id/page. "
+            "First call document_search to obtain the document_id, then call document_vision "
+            "with {document_id, question} to read each scanned page and the nameplate; do not "
+            "answer from memory. Cite document_id/page. "
             'Output STRICT JSON: {"tank":"","procedure":"","geometry":{"diameter_m":null,'
             '"fill_height_m":null,"specific_gravity":null,"allowable_stress_mpa":null,'
             '"joint_efficiency":null},"readings":[{"course":"","value_mm":0.0,'
@@ -175,7 +185,7 @@ class NodeAgent:
             job, model=model, workspace=workspace, trace=trace,
             task_text=f"{instruction}\n\nREQUEST:\n{task}",
             max_iterations=self._budgets["extract"], max_tool_calls=8,
-            append_start=False, enforce_contracts=False,
+            append_start=False, enforce_contracts=False, tool_names=NODE_TOOLS["extract"],
         )
         cursor += result.iterations
         invoked = [
@@ -209,7 +219,7 @@ class NodeAgent:
             job, model=model, workspace=workspace, trace=trace,
             task_text=f"{instruction}\n\nREQUEST:\n{task}",
             max_iterations=self._budgets["retrieve"], max_tool_calls=4,
-            append_start=False, enforce_contracts=False,
+            append_start=False, enforce_contracts=False, tool_names=NODE_TOOLS["retrieve"],
         )
         cursor += result.iterations
         searched = any(
@@ -241,7 +251,7 @@ class NodeAgent:
             job, model=model, workspace=workspace, trace=trace,
             task_text=f"{instruction}\n\nREQUEST:\n{task}",
             max_iterations=self._budgets["compute"], max_tool_calls=6,
-            append_start=False, enforce_contracts=False,
+            append_start=False, enforce_contracts=False, tool_names=NODE_TOOLS["compute"],
         )
         cursor += result.iterations
         assessment = assess(findings, min_thickness, alert)
@@ -280,7 +290,7 @@ class NodeAgent:
             job, model=model, workspace=workspace, trace=trace,
             task_text=f"{instruction}\n\nREQUEST:\n{task}",
             max_iterations=self._budgets["draft"], max_tool_calls=10,
-            append_start=False, enforce_contracts=False,
+            append_start=False, enforce_contracts=False, tool_names=NODE_TOOLS["draft"],
         )
         cursor += result.iterations
         if result.status != AgentStatus.COMPLETED:
