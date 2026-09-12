@@ -1,0 +1,8 @@
+# Treat binary deliverables and fixtures as binary so autocrlf never rewrites them.
+*.pdf binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.docx binary
+*.xlsx binary
+*.pptx binary

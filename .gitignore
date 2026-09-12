@@ -136,3 +136,10 @@ desktop.ini
 # come last so they win over the generic `node_modules/` and `dist/` rules above.
 !presentation/node_modules/
 !presentation/node_modules/**
+
+# ── Hard Scenario 01: generated fixtures and benchmark output ───
+# The fixtures are produced by tests/hard_scenario_01/build_fixtures.py and the
+# run outputs by run_scenario.py; neither belongs in version control.
+tests/fixtures/hard_scenario_01/
+tests/hard_scenario_01/_golden/
+bench/results/
