@@ -152,8 +152,10 @@ class Agent:
                 },
             )
             try:
-                raw, _model_used = await self._model.generate(
-                    prompt, model=model, format="json"
+                raw, native_calls, _model_used = await self._model.chat(
+                    [{"role": "system", "content": prompt}],
+                    model=model,
+                    tools=self._tools.schemas(),
                 )
             except OllamaServiceError as exc:
                 logger.error(
@@ -223,7 +225,7 @@ class Agent:
             )
 
             try:
-                decision = self._parse_decision(raw)
+                decision = self._parse_decision(raw, native_calls)
             except AgentError as exc:
                 # The model produced JSON we cannot interpret (e.g. it put a tool
                 # name in "type"). Instead of killing the job with an internal
@@ -576,10 +578,8 @@ class Agent:
         lines = [
             "You are a local AI assistant for the On-Premise AI Workbench.",
             "You operate inside a sandboxed, per-job workspace and may only use the listed tools.",
-            "Respond with STRICT JSON only (no prose, no markdown fences), using exactly one of:",
-            '{"type":"final","response":"<your final answer>"}',
-            '{"type":"tool_call","tool":"<tool name>","arguments":{...}}',
-            "Only call a tool when it is necessary to answer the request.",
+            "Call the provided tools when they are necessary to answer the request.",
+            "When you have enough information, reply with your final answer as plain text.",
             "",
             "CODING RULES:",
             "- If the request is to write, run, test or verify code, or to compute/check a numeric result, you MUST call code_execution with complete, self-contained code and report the real output you got.",
@@ -618,7 +618,18 @@ class Agent:
             lines += ["", "TOOL HISTORY:", *history]
         return "\n".join(lines)
 
-    def _parse_decision(self, raw: Optional[str]) -> dict:
+    def _parse_decision(
+        self, raw: Optional[str], tool_calls: Optional[list[dict]] = None
+    ) -> dict:
+        # Native tool calling takes precedence when the model used the tools API.
+        if tool_calls:
+            call = tool_calls[0]
+            return {
+                "type": "tool_call",
+                "tool": call["name"],
+                "arguments": call["arguments"],
+                "reasoning": None,
+            }
         text = (raw or "").strip()
         if not text:
             raise AgentError("Model returned an empty response")

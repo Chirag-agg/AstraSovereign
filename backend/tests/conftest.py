@@ -188,6 +188,82 @@ def _extract_task(prompt: str) -> str:
     return prompt
 
 
+def _extract_chat_task(messages) -> str:
+    for message in reversed(messages or []):
+        content = message.get("content")
+        if content:
+            return _extract_task(str(content))
+    return ""
+
+
+def _chat_message_from_script(text: str) -> dict:
+    """Translate a scripted JSON envelope into an Ollama native chat message.
+
+    This is the adapter that lets the existing scripted tests exercise the native
+    ``/api/chat`` path without rewriting their scripts. Unknown JSON is passed
+    through as assistant content so the agent's legacy fallback (and its
+    retry-on-garbage behaviour) still applies.
+    """
+    try:
+        parsed = json.loads(text)
+    except (ValueError, json.JSONDecodeError):
+        parsed = None
+    if isinstance(parsed, dict):
+        if parsed.get("type") == "final" or (
+            isinstance(parsed.get("response"), str) and "tool" not in parsed
+        ):
+            return {"role": "assistant", "content": parsed.get("response") or ""}
+        tool = parsed.get("tool")
+        if isinstance(tool, str) and tool:
+            arguments = parsed.get("arguments")
+            if not isinstance(arguments, dict):
+                arguments = {}
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{"function": {"name": tool, "arguments": arguments}}],
+            }
+    return {"role": "assistant", "content": text}
+
+
+def make_native_chat_handler(turns, arguments_as_string: bool = False):
+    """Mock Ollama returning RAW ``/api/chat`` responses in Ollama's real shape.
+
+    ``turns`` is a list of ``{"content": str, "tool_calls": [{"name", "arguments"}]}``.
+    ``arguments_as_string`` emits ``arguments`` as a JSON string (a real variant
+    some templates produce) instead of an object.
+    """
+
+    script = list(turns)
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/tags":
+            return httpx.Response(200, json={"models": [{"name": "test-model"}]})
+        if request.url.path == "/api/chat":
+            if not script:
+                raise AssertionError("model called more times than scripted")
+            turn = script.pop(0)
+            message: dict = {"role": "assistant", "content": turn.get("content", "")}
+            if turn.get("tool_calls"):
+                message["tool_calls"] = [
+                    {
+                        "function": {
+                            "name": call["name"],
+                            "arguments": json.dumps(call["arguments"])
+                            if arguments_as_string
+                            else call["arguments"],
+                        }
+                    }
+                    for call in turn["tool_calls"]
+                ]
+            return httpx.Response(
+                200, json={"model": "test-model", "message": message}
+            )
+        return httpx.Response(404, json={"error": "not found"})
+
+    return handler
+
+
 def make_ollama_handler(available_models, delay_seconds: float = 0.0):
     """Mock Ollama: /api/tags lists ``available_models``, /api/generate replies
     only for known models (404 otherwise, matching real Ollama)."""
@@ -216,6 +292,26 @@ def make_ollama_handler(available_models, delay_seconds: float = 0.0):
                     "model": model,
                 },
             )
+        if request.url.path == "/api/chat":
+            if delay_seconds:
+                await asyncio.sleep(delay_seconds)
+            payload = json.loads(request.content)
+            model = payload.get("model")
+            if model not in available:
+                return httpx.Response(
+                    404, json={"error": f"model '{model}' not found"}
+                )
+            task = _extract_chat_task(payload.get("messages"))
+            return httpx.Response(
+                200,
+                json={
+                    "model": model,
+                    "message": {
+                        "role": "assistant",
+                        "content": f"mocked reply to: {task}",
+                    },
+                },
+            )
         return httpx.Response(404, json={"error": "not found"})
 
     return handler
@@ -242,6 +338,16 @@ def make_scripted_handler(responses, delay_seconds: float = 0.0):
                 raise AssertionError("model called more times than scripted")
             text = script.pop(0)
             return httpx.Response(200, json={"response": text, "model": "test-model"})
+        if request.url.path == "/api/chat":
+            if delay_seconds:
+                await asyncio.sleep(delay_seconds)
+            if not script:
+                raise AssertionError("model called more times than scripted")
+            text = script.pop(0)
+            return httpx.Response(
+                200,
+                json={"model": "test-model", "message": _chat_message_from_script(text)},
+            )
         return httpx.Response(404, json={"error": "not found"})
 
     return handler
@@ -273,6 +379,16 @@ def make_mutable_scripted_handler(script, delay_seconds: float = 0.0):
                 raise AssertionError("model called more times than scripted")
             text = script.pop(0)
             return httpx.Response(200, json={"response": text, "model": "test-model"})
+        if request.url.path == "/api/chat":
+            if delay_seconds:
+                await asyncio.sleep(delay_seconds)
+            if not script:
+                raise AssertionError("model called more times than scripted")
+            text = script.pop(0)
+            return httpx.Response(
+                200,
+                json={"model": "test-model", "message": _chat_message_from_script(text)},
+            )
         return httpx.Response(404, json={"error": "not found"})
 
     return handler

@@ -5,6 +5,7 @@ Ollama endpoint (``OLLAMA_BASE_URL``). No external AI services are used.
 """
 
 import base64
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -29,6 +30,34 @@ class OllamaModelNotFoundError(OllamaServiceError):
 
 class OllamaRequestError(OllamaServiceError):
     """Ollama returned a non-success response or an invalid payload."""
+
+
+def normalize_tool_calls(raw: object) -> list[dict]:
+    """Normalise Ollama native ``tool_calls`` to ``[{name, arguments, id}]``.
+
+    Ollama emits ``arguments`` as an object, but some model templates emit a JSON
+    string; both are accepted. Unparseable arguments become ``{}`` so the tool's
+    own schema validation surfaces the problem and the agent can recover.
+    """
+    normalized: list[dict] = []
+    for item in raw or []:
+        if not isinstance(item, dict):
+            continue
+        function = item.get("function") if isinstance(item.get("function"), dict) else item
+        name = function.get("name")
+        arguments = function.get("arguments")
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except (ValueError, json.JSONDecodeError):
+                arguments = {}
+        if not isinstance(arguments, dict):
+            arguments = {}
+        if isinstance(name, str) and name:
+            normalized.append(
+                {"name": name, "arguments": arguments, "id": item.get("id")}
+            )
+    return normalized
 
 
 class OllamaService:
@@ -101,6 +130,67 @@ class OllamaService:
 
         model_used = data.get("model") or model_name
         return response_text, model_used
+
+    async def chat(
+        self,
+        messages: list[dict],
+        model: Optional[str] = None,
+        tools: Optional[list[dict]] = None,
+        format: Optional[str] = None,
+    ) -> tuple[str, list[dict], str]:
+        """Native chat completion via ``/api/chat`` with optional tool schemas.
+
+        Returns ``(content, tool_calls, model_used)`` where ``tool_calls`` is a
+        normalised list of ``{name, arguments, id}``. This is the path that lets
+        the agent use Ollama's native tool calling instead of a hand-rolled JSON
+        envelope.
+        """
+        model_name = (model or self.default_model).strip()
+        if not model_name:
+            raise OllamaRequestError("No model configured (set DEFAULT_MODEL).")
+
+        payload: dict = {"model": model_name, "messages": messages, "stream": False}
+        if tools:
+            payload["tools"] = tools
+        if format:
+            payload["format"] = format
+
+        try:
+            response = await self._client.post("/api/chat", json=payload)
+        except httpx.TimeoutException as exc:
+            raise OllamaTimeoutError(
+                f"Ollama request timed out after {self.timeout_seconds}s"
+            ) from exc
+        except httpx.TransportError as exc:
+            raise OllamaUnavailableError(
+                f"Ollama is unreachable at {self.base_url}: {exc.__class__.__name__}"
+            ) from exc
+
+        if response.status_code == 404:
+            raise OllamaModelNotFoundError(
+                f"Model '{model_name}' is not available on the Ollama server at {self.base_url}."
+            )
+        if response.status_code != 200:
+            raise OllamaRequestError(
+                f"Ollama returned HTTP {response.status_code} for model '{model_name}'."
+            )
+
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise OllamaRequestError("Ollama returned an invalid (non-JSON) response.") from exc
+
+        message = data.get("message")
+        if not isinstance(message, dict):
+            raise OllamaRequestError(
+                "Ollama chat response did not contain a 'message' object."
+            )
+        content = message.get("content")
+        if not isinstance(content, str):
+            content = "" if content is None else str(content)
+        tool_calls = normalize_tool_calls(message.get("tool_calls"))
+        model_used = data.get("model") or model_name
+        return content, tool_calls, model_used
 
     async def generate_with_image(
         self,

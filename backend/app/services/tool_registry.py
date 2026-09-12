@@ -34,6 +34,23 @@ class ToolRegistry:
             for tool in self._tools.values()
         ]
 
+    def schemas(self) -> list[dict]:
+        """Ollama-native tool schemas (for ``/api/chat`` ``tools``)."""
+        schemas = []
+        for tool in self._tools.values():
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.input_schema
+                        or {"type": "object", "properties": {}},
+                    },
+                }
+            )
+        return schemas
+
     async def execute(self, name: str, arguments: dict[str, Any], workspace: Path) -> ToolResult:
         """Validate and run a tool. Deny-by-default: unknown names never run."""
         tool = self._tools.get(name)
