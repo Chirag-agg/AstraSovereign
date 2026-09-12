@@ -348,9 +348,22 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   `nomic-embed-text`. `qwen3:1.7b` is NOT usable: it returns an empty JSON object
   for the agent protocol, so jobs hit the iteration limit. `llama3.1:latest` is
   available as a larger fallback if needed.
-- **No availability-aware routing yet:** a configured but unpulled model fails the
-  job at the model call (`OllamaModelNotFoundError`). An availability-aware
-  fallback, a startup preflight, and a clear UI banner are planned.
+- **No availability-aware routing for undeclared entries:** a configured but
+  unpulled model without a `fallback_to` chain fails the job at the model call
+  (`OllamaModelNotFoundError`); startup preflight and the Models UI warn about it.
+- **Fallback (implemented):** each entry may declare a bounded `fallback_to` chain
+  (max 2 hops). Chains are validated at load - every target must satisfy the
+  entry's declared capabilities and support tool calling, with no cycles or
+  self-reference - and an invalid chain refuses startup. Fallback follows only the
+  declared chain, never an arbitrary model; substitutions are recorded on the
+  `RoutingDecision` (`requested_model`, `effective`, `candidates`,
+  `fallback_active`), emitted as a `MODEL_FALLBACK` audit event (requested,
+  actual, reason `model_unavailable`), shown in `/health.models_resolved` and the
+  Models UI, and reported by startup preflight. `MODEL_FALLBACK_ENABLED` (default
+  true) disables it; `bench/` forces it off. The shipped `models.yaml` declares
+  chains but the pulled models mean **zero active fallbacks** at preflight.
+- **Demo checklist:** run preflight before the finale and confirm zero active
+  fallbacks; fallback is disaster insurance, not the state to demo in.
 - **Sandbox (hardened):** Docker-only; the host-subprocess fallback was removed.
   `--pids-limit 128`; defaults `timeout 30s` / `memory 512m`; exit 137 reports
   "Execution exceeded the memory limit". The image `workbench-sandbox:py312`
@@ -384,9 +397,11 @@ Phase-by-phase history is in `docs/HISTORY.md`.
 
 ## Next Steps
 
-1. Availability-aware model routing fallback, startup preflight, and a UI banner
-   for missing models (so a missing model can never break a demo).
+1. Policy engine: classification-gated routing that filters the `RoutingDecision`
+   candidate set before fallback (fallback must never select around a denial).
 2. Excel: `.xlsx` generation, spreadsheet read/compute, and `.xlsx` ingestion.
 3. A live network/egress monitor in the UI to make the zero-egress claim visible.
 4. A guided demo runner and a router-decision card.
-5. Keep `CONTEXT.md` current; move any new history to `docs/HISTORY.md`.
+5. Benchmark suite (runs with `MODEL_FALLBACK_ENABLED=false`) scoring routing
+   effectiveness against an always-largest-model baseline.
+6. Keep `CONTEXT.md` current; move any new history to `docs/HISTORY.md`.

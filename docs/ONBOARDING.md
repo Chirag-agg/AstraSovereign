@@ -103,3 +103,13 @@ CI runs the same checks on every push/PR.
 
 More detail: [`backend/README.md`](../backend/README.md),
 [`frontend/README.md`](../frontend/README.md), [`CONTEXT.md`](../CONTEXT.md).
+
+## Pre-demo checklist: model preflight
+
+Before the finale, start the backend and confirm the model preflight is clean:
+
+- `/health` -> `models_missing` is empty and every `models_resolved` entry has
+  `fallback_active: false`.
+- The workbench **Models** view shows no "active fallback" banner.
+- Fallback is disaster insurance (declared chains only, logged as
+  `MODEL_FALLBACK`); the demo should run with zero active fallbacks.
