@@ -60,6 +60,15 @@ def test_presentation_content_valid():
     assert content.theme == "general"
 
 
+def test_presentation_content_carries_speaker_notes():
+    content = PresentationContent.model_validate(
+        {"title": "X", "slides": [{"type": "content", "title": "t", "notes": "hello"}]}
+    )
+    assert content.slides[0].notes == "hello"
+    with pytest.raises(ValidationError):
+        SlideContent(type="content", notes="x" * 4001)
+
+
 def test_presentation_content_rejects_bad_theme_and_types():
     with pytest.raises(ValidationError):
         PresentationContent.model_validate({"title": "X", "theme": "neon", "slides": SLIDES})

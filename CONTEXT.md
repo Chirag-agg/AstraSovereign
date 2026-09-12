@@ -320,6 +320,12 @@ models, and provides an agentic pipeline that:
   offline; `docs/OFFLINE_BUNDLE.md` was validated from an index-only export with
   no `npm install`. A `node`-marked test runs the real `render.cjs` and *fails*
   (not skips) if the vendored tree is missing.
+- **Presentation geometry + notes**: `render.cjs` derives every content block
+  from `SLIDE_W=13.33`/`MARGIN=0.6` (`CONTENT_W=12.13`), so nothing is hardcoded
+  for a narrower template (the previous `w: 9.3` left ~26% dead space on
+  `LAYOUT_WIDE`). `SlideContent.notes` carries speaker notes through to
+  PowerPoint `notesSlide` parts. A `node`-marked test asserts the widest text
+  shape spans at least 85% of the actual slide width.
 - **Document generator dispatch**: `DocumentGenerationTool` holds a
   `{type: generator}` map (`word`, `excel`) selected by the `type` argument, so
   the frozen `DocumentGenerator.generate()` signature is unchanged. Passing

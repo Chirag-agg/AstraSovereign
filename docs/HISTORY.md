@@ -1065,3 +1065,17 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 - Known limitations / next: `.xlsx` ingestion and spreadsheet read/compute are
   not implemented; policy-engine candidate filtering and a live egress monitor
   remain sequenced after ingestion.
+
+#### Presentation geometry fix + speaker notes
+- `render.cjs` set `LAYOUT_WIDE` (13.33in) but hardcoded every content block to a
+  9.3in width, leaving ~3.4in (~26%) dead space on the right of every slide while
+  the accent bar spanned 100%. All geometry is now derived from
+  `SLIDE_W`/`MARGIN`/`CONTENT_W` (including the two-column widths, table column
+  width, and bullet/sources insets); the title block moved down to `y: 2.6` for
+  better vertical centring.
+- `SlideContent.notes` now carries speaker notes through to PptxGenJS
+  `addNotes()` (previously the schema had no notes field, so they were empty).
+- The `node`-marked test now asserts the widest text shape on a content slide
+  spans at least 85% of the actual slide width (read from `ppt/presentation.xml`),
+  and that a slide with notes emits a `notesSlide` part with the note text.
+  Backend 407 passed; frontend typecheck + 64 tests.

@@ -36,6 +36,7 @@ class SlideContent(BaseModel):
     column_ratios: Optional[list[float]] = None
     table: list[list[str]] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list, max_length=80)
+    notes: str = ""
 
     @field_validator("title")
     @classmethod
@@ -49,6 +50,13 @@ class SlideContent(BaseModel):
     def _content_len(cls, value: str) -> str:
         if len(value) > 8000:
             raise ValueError("slide content is too long")
+        return value
+
+    @field_validator("notes")
+    @classmethod
+    def _notes_len(cls, value: str) -> str:
+        if len(value) > 4000:
+            raise ValueError("slide notes are too long")
         return value
 
 
