@@ -184,6 +184,13 @@ Open http://localhost:3000.
 
 ## Notes
 
-- Small-model profile: `qwen3:1.7b` (general/document), `qwen2.5-coder:3b`
-  (coding), optional `qwen2.5-math:1.5b` (math), `nomic-embed-text` (embeddings),
-  and a vision model of your choice - all configurable in `config/models.yaml`.
+- Small-model profile (all local, verified with the code sandbox and Word
+  generation): `qwen2.5-coder:3b` for general, document, and coding tasks,
+  `llava:7b` for vision, and `nomic-embed-text` for embeddings. Configure these in
+  `config/models.yaml`; `backend/.env` sets `DEFAULT_MODEL`.
+- `qwen3:1.7b` is not recommended: it does not follow the agent's strict-JSON
+  protocol (it returns an empty object), so jobs hit the iteration limit. Use a
+  model that reliably emits `{"type":"final"|"tool_call",...}`.
+- The code sandbox runs in the `workbench-sandbox:py312` Docker image (built from
+  `docker/sandbox/Dockerfile`, includes numpy, pandas, openpyxl, pytest). Rebuild
+  it with `docker build -t workbench-sandbox:py312 docker/sandbox`.
