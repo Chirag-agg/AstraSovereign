@@ -157,3 +157,15 @@ def test_speaker_notes_are_written_for_every_slide_type(tmp_path, slide):
         assert notes_parts, "renderer produced no notes slide for a slide with notes"
         notes_text = "".join(package.read(name).decode("utf-8") for name in notes_parts)
     assert marker in notes_text
+
+
+@pytest.mark.node
+@pytest.mark.skipif(not node_ready(), reason="Node.js runtime not available")
+def test_real_renderer_is_byte_deterministic(tmp_path):
+    """PptxGenJS stamps current time, so the deck must be normalized to be
+    reproducible; this only fails when someone actually asserts it."""
+    renderer = NodePresentationRenderer(script_path=str(SCRIPT))
+    content = PresentationContent.model_validate({"title": "Determinism", "slides": SLIDES})
+    first = renderer.generate(content, tmp_path, "first.pptx")
+    second = renderer.generate(content, tmp_path, "second.pptx")
+    assert first.path.read_bytes() == second.path.read_bytes()

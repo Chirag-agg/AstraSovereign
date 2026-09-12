@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 from app.schemas.presentation import PresentationContent
+from app.services.ooxml import normalize_ooxml
 
 logger = logging.getLogger("app.presentation_renderer")
 
@@ -132,6 +133,7 @@ class NodePresentationRenderer:
                     f"local renderer failed: {detail or 'unknown error'}"
                 )
             slides = validate_pptx(target, len(content.slides))
+            normalize_ooxml(target)
             return GeneratedPresentation(
                 path=target,
                 size_bytes=target.stat().st_size,

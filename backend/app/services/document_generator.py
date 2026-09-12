@@ -21,30 +21,9 @@ from app.schemas.document_content import (
     DocumentSection,
     GeneratedDocument,
 )
+from app.services.ooxml import normalize_ooxml
 
 logger = logging.getLogger("app.document_generator")
-
-
-def _normalize_zip(path: Path) -> None:
-    """Rewrite an OOXML zip with fixed entry timestamps.
-
-    python-docx and openpyxl stamp every zip entry with the current time, which
-    makes byte-identical inputs produce different files across seconds. Fixing
-    the entry timestamps makes generation deterministic (and stable in tests).
-    """
-    import io
-    import zipfile
-
-    fixed = (1980, 1, 1, 0, 0, 0)
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(path, "r") as source:
-        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as target:
-            for info in source.infolist():
-                new_info = zipfile.ZipInfo(info.filename, date_time=fixed)
-                new_info.compress_type = zipfile.ZIP_DEFLATED
-                new_info.external_attr = info.external_attr
-                target.writestr(new_info, source.read(info.filename))
-    path.write_bytes(buffer.getvalue())
 
 
 class DocumentGenerationError(Exception):
@@ -129,7 +108,7 @@ class WordDocumentGenerator(DocumentGenerator):
                 f"Word generation failed: {exc.__class__.__name__}"
             ) from exc
 
-        _normalize_zip(target)
+        normalize_ooxml(target)
         self._validate(target)
         return GeneratedDocument(
             filename=filename,
@@ -394,7 +373,7 @@ class XlsxDocumentGenerator(DocumentGenerator):
                 f"Excel generation failed: {exc.__class__.__name__}"
             ) from exc
 
-        _normalize_zip(target)
+        normalize_ooxml(target)
         self._validate(target)
         return GeneratedDocument(
             filename=filename,
