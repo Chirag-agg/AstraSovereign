@@ -25,7 +25,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import Composer, { type AttachmentChip } from "@/components/Composer";
-import type { ArtifactSummary, Job, JobStatus } from "@/lib/types";
+import type { ArtifactSummary, DocumentMeta, Job, JobStatus } from "@/lib/types";
 import { listJobFiles, listUserWorkspaceFiles } from "@/lib/api";
 import type { JobWorkspaceFile } from "@/lib/api";
 import Conversation, { DEMO_TASK } from "@/components/Conversation";
@@ -43,6 +43,10 @@ interface AgentWorkspaceViewProps {
   chips: AttachmentChip[];
   onAttachFile: (file: File) => void;
   onRemoveChip: (id: string) => void;
+  libraryDocuments: DocumentMeta[];
+  useAllDocuments: boolean;
+  onToggleUseAllDocuments: (value: boolean) => void;
+  onAttachDocument: (document: DocumentMeta) => void;
   consoleOpen: boolean;
   setConsoleOpen: (open: boolean) => void;
   healthError: string | null;
@@ -61,6 +65,10 @@ export default function AgentWorkspaceView({
   chips,
   onAttachFile,
   onRemoveChip,
+  libraryDocuments,
+  useAllDocuments,
+  onToggleUseAllDocuments,
+  onAttachDocument,
   consoleOpen,
   setConsoleOpen,
   healthError,
@@ -294,6 +302,10 @@ export default function AgentWorkspaceView({
             attachments={chips}
             onAttachFile={onAttachFile}
             onRemoveAttachment={onRemoveChip}
+            onAttachDocument={onAttachDocument}
+            libraryDocuments={libraryDocuments}
+            useAllDocuments={useAllDocuments}
+            onToggleUseAllDocuments={onToggleUseAllDocuments}
             running={running}
             onSubmit={onSubmitTask}
             onCancel={onCancelTask}
@@ -318,6 +330,7 @@ export default function AgentWorkspaceView({
           <Conversation
             userId={user}
             job={activeJob}
+            documents={libraryDocuments}
             onDownload={onDownloadArtifact}
             onSubmit={(text) => {
               setPromptText(text);

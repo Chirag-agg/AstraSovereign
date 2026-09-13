@@ -31,12 +31,30 @@ describe("api client", () => {
       expect(url).toBe("http://localhost:8000/api/chat");
       expect(init?.headers).toMatchObject({ "X-User-ID": "user-001" });
       expect(init?.headers).toMatchObject({ "Content-Type": "application/json" });
-      expect(JSON.parse(String(init?.body))).toEqual({ message: "hello" });
+      expect(JSON.parse(String(init?.body))).toEqual({
+        message: "hello",
+        document_ids: [],
+      });
       return jsonResponse({ job_id: "job-1", status: "queued" }, 202);
     });
 
     const result = await submitChat("user-001", "hello");
     expect(result).toEqual({ job_id: "job-1", status: "queued" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("submits the attached document ids with a chat", async () => {
+    const fetchMock = installFetch((url, init) => {
+      expect(url).toBe("http://localhost:8000/api/chat");
+      expect(JSON.parse(String(init?.body))).toEqual({
+        message: "compare these",
+        document_ids: ["doc-1", "doc-2"],
+      });
+      return jsonResponse({ job_id: "job-2", status: "queued" }, 202);
+    });
+
+    const result = await submitChat("user-001", "compare these", ["doc-1", "doc-2"]);
+    expect(result).toEqual({ job_id: "job-2", status: "queued" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

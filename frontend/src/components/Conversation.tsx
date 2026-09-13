@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { elapsedSeconds } from "@/lib/console";
 import { ApiError, getJobAudit } from "@/lib/api";
-import type { ArtifactSummary, Job } from "@/lib/types";
+import type { ArtifactSummary, DocumentMeta, Job } from "@/lib/types";
 import ArtifactCard from "./ArtifactCard";
 import Markdown from "./Markdown";
 import WorkConsole from "./WorkConsole";
@@ -102,6 +102,7 @@ function AuditTrail({ userId, jobId }: { userId: string; jobId: string }) {
 export default function Conversation({
   userId,
   job,
+  documents,
   onDownload,
   onSubmit,
   onCancel,
@@ -110,6 +111,7 @@ export default function Conversation({
 }: {
   userId: string;
   job: Job | null;
+  documents?: DocumentMeta[];
   onDownload: (artifact: ArtifactSummary) => void;
   onSubmit: (text: string) => void;
   onCancel?: () => void;
@@ -148,6 +150,18 @@ export default function Conversation({
     );
   }
 
+  // The documents this job actually read (job-scoped manifest), shown on the
+  // user message so the context that entered the model is visible after submit.
+  const attachedDocuments: { document_id: string; filename: string }[] = (
+    job.document_ids ?? []
+  ).map(
+    (id) =>
+      documents?.find((document) => document.document_id === id) ?? {
+        document_id: id,
+        filename: id,
+      },
+  );
+
   return (
     <div className="conversation font-mono">
       {/* user message */}
@@ -159,6 +173,21 @@ export default function Conversation({
           <span className="text-[11px] font-medium text-zinc-300">User Prompt</span>
         </div>
         <div className="text-xs text-zinc-200 leading-relaxed">{job.message}</div>
+        {attachedDocuments.length > 0 ? (
+          <div
+            className="mt-2 flex flex-wrap gap-1.5"
+            aria-label="Documents attached to this job"
+          >
+            {attachedDocuments.map((document) => (
+              <span
+                key={document.document_id}
+                className="inline-flex items-center rounded border border-zinc-700 bg-zinc-800/70 px-1.5 py-0.5 text-[10px] text-zinc-300"
+              >
+                {document.filename}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {/* assistant */}

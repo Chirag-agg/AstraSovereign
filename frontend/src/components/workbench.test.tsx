@@ -221,6 +221,94 @@ describe("Workbench page (conversation-first)", () => {
     expect(screen.getByText(/indexed/)).toBeInTheDocument();
   });
 
+  it("attaches a knowledge-base document and sends its id with the job", async () => {
+    vi.useFakeTimers();
+    window.sessionStorage.setItem("sovereign.session", "1");
+    let chatBody: Record<string, unknown> | null = null;
+    installFetch((url, init) => {
+      const path = url.replace(API, "");
+      const method = init?.method || "GET";
+      if (path === "/health") {
+        return jsonResponse(healthFixture());
+      }
+      if (path === "/api/documents") {
+        return jsonResponse([
+          documentFixture({ document_id: "doc-7", filename: "sop-09.pdf", status: "ready" }),
+        ]);
+      }
+      if (path.startsWith("/api/jobs?") || path === "/api/jobs") {
+        return jsonResponse([]);
+      }
+      if (path.includes("/api/artifacts")) {
+        return jsonResponse([]);
+      }
+      if (path === "/api/chat" && method === "POST") {
+        chatBody = JSON.parse(String(init?.body));
+        return jsonResponse({ job_id: "job-1", status: "queued" }, 202);
+      }
+      const detail = path.match(/^\/api\/jobs\/([^/]+)$/);
+      if (detail) {
+        return jsonResponse(jobFixture({ status: "queued" }));
+      }
+      return jsonResponse({ detail: { message: "not found" } }, 404);
+    });
+    render(<WorkbenchPage />);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Choose documents" }));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: /sop-09\.pdf/ }));
+    await flush();
+    await typeAndSend("compare the SOP against the report");
+    expect(chatBody).toEqual({
+      message: "compare the SOP against the report",
+      document_ids: ["doc-7"],
+    });
+  });
+
+  it("sends every ready document when 'use all documents' is enabled", async () => {
+    vi.useFakeTimers();
+    window.sessionStorage.setItem("sovereign.session", "1");
+    let chatBody: Record<string, unknown> | null = null;
+    installFetch((url, init) => {
+      const path = url.replace(API, "");
+      const method = init?.method || "GET";
+      if (path === "/health") {
+        return jsonResponse(healthFixture());
+      }
+      if (path === "/api/documents") {
+        return jsonResponse([
+          documentFixture({ document_id: "doc-7", filename: "sop-09.pdf", status: "ready" }),
+          documentFixture({ document_id: "doc-8", filename: "report.pdf", status: "ready" }),
+          documentFixture({ document_id: "doc-9", filename: "processing.pdf", status: "processing" }),
+        ]);
+      }
+      if (path.startsWith("/api/jobs?") || path === "/api/jobs") {
+        return jsonResponse([]);
+      }
+      if (path.includes("/api/artifacts")) {
+        return jsonResponse([]);
+      }
+      if (path === "/api/chat" && method === "POST") {
+        chatBody = JSON.parse(String(init?.body));
+        return jsonResponse({ job_id: "job-1", status: "queued" }, 202);
+      }
+      const detail = path.match(/^\/api\/jobs\/([^/]+)$/);
+      if (detail) {
+        return jsonResponse(jobFixture({ status: "queued" }));
+      }
+      return jsonResponse({ detail: { message: "not found" } }, 404);
+    });
+    render(<WorkbenchPage />);
+    await flush();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Use all documents" }));
+    await flush();
+    await typeAndSend("assess everything");
+    expect(chatBody).toEqual({
+      message: "assess everything",
+      document_ids: ["doc-7", "doc-8"],
+    });
+  });
+
   it("downloads an artifact from the conversation card", async () => {
     vi.useFakeTimers();
     const objectUrl = vi.fn(() => "blob:fake");

@@ -112,8 +112,16 @@ export function getHealth(): Promise<Health> {
 
 // ----------------------------------------------------------------- jobs
 
-export function submitChat(userId: string, message: string): Promise<JobSubmitResponse> {
-  return request<JobSubmitResponse>("/api/chat", { method: "POST", body: { message } }, userId);
+export function submitChat(
+  userId: string,
+  message: string,
+  documentIds: string[] = [],
+): Promise<JobSubmitResponse> {
+  return request<JobSubmitResponse>(
+    "/api/chat",
+    { method: "POST", body: { message, document_ids: documentIds } },
+    userId,
+  );
 }
 
 export function getJob(userId: string, jobId: string): Promise<Job> {

@@ -44,7 +44,7 @@ import {
   useJob,
   useJobs,
 } from "@/lib/hooks";
-import type { ArtifactSummary, JobStatus } from "@/lib/types";
+import type { ArtifactSummary, DocumentMeta, JobStatus } from "@/lib/types";
 import type { AttachmentChip } from "@/components/Composer";
 import type { WorkbenchSection } from "@/components/workbench/types";
 
@@ -76,6 +76,10 @@ function ActiveAgentWorkspace({
   chips,
   onAttachFile,
   onRemoveChip,
+  documents,
+  useAllDocuments,
+  onToggleUseAllDocuments,
+  onAttachDocument,
   consoleOpen,
   setConsoleOpen,
   running,
@@ -91,6 +95,10 @@ function ActiveAgentWorkspace({
   chips: AttachmentChip[];
   onAttachFile: (file: File) => void;
   onRemoveChip: (id: string) => void;
+  documents: DocumentMeta[];
+  useAllDocuments: boolean;
+  onToggleUseAllDocuments: (value: boolean) => void;
+  onAttachDocument: (document: DocumentMeta) => void;
   consoleOpen: boolean;
   setConsoleOpen: (open: boolean) => void;
   running: boolean;
@@ -118,6 +126,10 @@ function ActiveAgentWorkspace({
       chips={chips}
       onAttachFile={onAttachFile}
       onRemoveChip={onRemoveChip}
+      libraryDocuments={documents}
+      useAllDocuments={useAllDocuments}
+      onToggleUseAllDocuments={onToggleUseAllDocuments}
+      onAttachDocument={onAttachDocument}
       consoleOpen={consoleOpen}
       setConsoleOpen={setConsoleOpen}
       healthError={healthError || error}
@@ -153,6 +165,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [chips, setChips] = useState<AttachmentChip[]>([]);
+  const [useAllDocuments, setUseAllDocuments] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("light");
 
   // Switching users must reset any in-flight/selected job (no cross-user leakage).
@@ -238,16 +251,26 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
       setNotice(null);
       setConsoleOpen(true);
       setCurrentSection("agent");
+      // Attachments are explicit: either the ready documents chosen in the
+      // composer, or (with the toggle) every ready document in the library.
+      const readyDocuments = (documents ?? []).filter((doc) => doc.status === "ready");
+      const selected = useAllDocuments
+        ? readyDocuments.map((doc) => doc.document_id)
+        : chips
+            .filter((chip) => chip.documentId && chip.state === "ready")
+            .map((chip) => chip.documentId as string);
+      const documentIds = Array.from(new Set(selected));
       try {
-        const response = await submitChat(user, message);
+        const response = await submitChat(user, message, documentIds);
         setActiveJobId(response.job_id);
         setActiveStatus("queued");
         setChips([]);
+        setUseAllDocuments(false);
       } catch (err) {
         setNotice(`Could not start the task: ${messageFromError(err)}`);
       }
     },
-    [user],
+    [user, documents, chips, useAllDocuments],
   );
 
   const addAttachment = useCallback(
@@ -258,7 +281,13 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
         const doc = await uploadDocument(user, file);
         setChips((prev) =>
           prev.map((c) =>
-            c.id === chipId ? { ...c, state: doc.status === "ready" ? "ready" : "processing" } : c,
+            c.id === chipId
+              ? {
+                  ...c,
+                  state: doc.status === "ready" ? "ready" : "processing",
+                  documentId: doc.document_id,
+                }
+              : c,
           ),
         );
         if (doc.status === "failed") {
@@ -275,6 +304,26 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const removeAttachment = useCallback((id: string) => {
     setChips((prev) => prev.filter((c) => c.id !== id));
   }, []);
+
+  const attachDocument = useCallback(
+    (document: DocumentMeta) => {
+      setChips((prev) => {
+        if (prev.some((chip) => chip.documentId === document.document_id)) {
+          return prev;
+        }
+        return [
+          ...prev,
+          {
+            id: `doc-${document.document_id}`,
+            filename: document.filename,
+            state: document.status === "ready" ? "ready" : "processing",
+            documentId: document.document_id,
+          },
+        ];
+      });
+    },
+    [],
+  );
 
   const handleCancel = useCallback(
     async (jobId: string) => {
@@ -507,6 +556,10 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
                 chips={chips}
                 onAttachFile={(file) => void addAttachment(file)}
                 onRemoveChip={removeAttachment}
+                documents={documents ?? []}
+                useAllDocuments={useAllDocuments}
+                onToggleUseAllDocuments={setUseAllDocuments}
+                onAttachDocument={attachDocument}
                 consoleOpen={consoleOpen}
                 setConsoleOpen={setConsoleOpen}
                 running={running}
@@ -526,6 +579,10 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
                 chips={chips}
                 onAttachFile={(file) => void addAttachment(file)}
                 onRemoveChip={removeAttachment}
+                libraryDocuments={documents ?? []}
+                useAllDocuments={useAllDocuments}
+                onToggleUseAllDocuments={setUseAllDocuments}
+                onAttachDocument={attachDocument}
                 consoleOpen={false}
                 setConsoleOpen={() => undefined}
                 healthError={healthError}

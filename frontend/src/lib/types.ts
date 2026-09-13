@@ -52,6 +52,7 @@ export interface Job {
   execution_trace: TraceEntry[];
   resource_status: string;
   artifacts: ArtifactSummary[];
+  document_ids?: string[];
 }
 
 export interface JobSummary {
