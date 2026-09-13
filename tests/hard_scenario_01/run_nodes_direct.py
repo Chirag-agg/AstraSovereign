@@ -85,7 +85,19 @@ class RecordingAgent:
         return await self._inner.record_trace(*args, **kwargs)
 
 
+async def reset_user_kb(app, user_id: str) -> None:
+    """Drop the user's existing documents so a run starts from the fixtures only.
+
+    The persistent KB accumulates duplicates and unrelated documents across runs;
+    the manifest must be the job's attachments, not the whole user library.
+    """
+    kb = app.state.knowledge_base
+    for document in await kb.list_documents(user_id):
+        await kb.delete_document(user_id, document.document_id)
+
+
 async def ingest(app, user_id: str) -> None:
+    await reset_user_kb(app, user_id)
     kb = app.state.knowledge_base
     multimodal = app.state.multimodal_service
     for path in sorted(FIXTURES.glob("*")):
@@ -163,7 +175,10 @@ async def main() -> None:
     job = await app.state.job_manager.create_job(user_id=user_id, message=PROMPT)
     workspace = await app.state.workspace_manager.create_workspace(user_id, job.job_id)
     documents = await app.state.knowledge_base.list_documents(user_id)
-    manifest = build_attachment_manifest(documents)
+    fixture_names = {path.name for path in FIXTURES.glob("*")}
+    manifest = build_attachment_manifest(
+        [doc for doc in documents if doc.filename in fixture_names]
+    )
     doc_names = {item["doc_id"]: item["filename"] for item in manifest}
     print("=== ATTACHMENT MANIFEST ===")
     for entry in manifest:

@@ -106,3 +106,42 @@ a junk search query and never chains — and retrieval did not run at all this t
 
 Record: `bench/results/20260913T074930Z_hard_scenario_01_nodes.json` (gitignored).
 
+## Node-direct re-run — clean job-scoped manifest (Task C follow-up)
+
+A raw dump of the `messages` sent to `extract` and `retrieve` disproved the
+"dangling reference" hypothesis: the task text is present in the user message
+(`REQUEST: Assess Tank 204 …`), and there is no reference to a previous step.
+
+The real fault was the **manifest**. It listed *every* document the user had (65
+entries) — the fixtures duplicated many times over plus unrelated `EXPERIMENT.pdf`
+/ `quickSort.pdf` from earlier runs. The KB had accumulated duplicates before
+content-hash dedupe existed, and the manifest was assembled per user library, not
+per job. `run_nodes_direct.py` now resets the user KB and scopes the manifest to
+the job's fixtures (6 entries).
+
+Re-run 2026-09-13T08:07Z (job `job-65805ca4d679`):
+
+| node | iters | tool calls | outcome | reason |
+|---|---|---|---|---|
+| extract | 2 | `document_search` (relevant query, `top_k: "5"`) | degraded | no typed findings |
+| retrieve | 2 | `document_search` (`top_k: 3`) | **completed** | — |
+| compute | — | — | skipped | no typed findings |
+| draft | — | — | skipped | nothing grounded to draft from |
+
+Score 1/20, trap vacuous, `legacy_envelope_used = {}`.
+
+**The extract blocker is now precise:** the model sent `top_k` as the **string**
+`"5"` against an integer schema, and the tool call was rejected —
+`Argument 'top_k' must be an integer`. No results → no `document_id` → no
+`document_vision` call; the model then finalized in prose and extract degraded.
+`retrieve` sent `top_k: 3` (integer) and worked.
+
+Nameplate: a direct `document_vision` call reads the geometry via RapidOCR
+(`D 25.0 m, H 13.0 m, SG 0.85, S 137 MPa, E 0.85`); llava returned structured but
+vague observations. Week-5 decision recorded: make the vision path **OCR-first**
+with the VLM as fallback, not VLM-first.
+
+Actionable: (1) assemble the manifest per job, not per user library; (2) weak
+models emit numeric arguments as strings — coerce (or the tool rejects the call
+and the model does not recover).
+
