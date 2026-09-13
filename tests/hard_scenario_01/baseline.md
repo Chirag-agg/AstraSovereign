@@ -77,3 +77,32 @@ deliverables. An honest 0 that names the failure is the right direction from a 3
 that fabricated; read the trace, not just the number. Subsequent entries in
 `bench/results/` should record the same path and note so the series is legible.
 
+## Node-direct run — attachment manifest end to end (Task C)
+
+Run 2026-09-13T07:49Z, job `job-b5cb78dbc315`. **Score 1/20**, trap passed
+(vacuously; Course 5 was never reached). `legacy_envelope_used = {}` — native tool
+calling only, no fallback.
+
+| node | capability | model | conf | iters | tool calls | outcome | reason |
+|---|---|---|---|---|---|---|---|
+| extract | document | llama3.1:latest | 1.0 | 3 | 1 (`document_search`, query "previous reply") | degraded | no typed findings were produced |
+| retrieve | document | llama3.1:latest | 1.0 | 1 | 0 | degraded | document_search was not invoked |
+| compute | — | — | — | — | — | skipped | no typed findings to compute from |
+| draft | — | — | — | — | — | skipped | nothing grounded to draft from |
+
+**Nameplate (the point of Task A).** The manifest reached extract (extract ran
+because attachments exist), but **no `document_vision` call targeted
+`tank204_nameplate.jpg`** (`vision_targets` empty). A *direct* `document_vision`
+call on the nameplate succeeded: RapidOCR read the full geometry — **D 25.0 m,
+H 13.0 m, SG 0.85, S 137 MPa, E 0.85** — while llava's observation was vague. So
+the nameplate is readable and the vision tool works; the failure is the agent
+*choosing* to call it, not the tool or the OCR (a week-5 model/noise question,
+not plumbing).
+
+**Against the task's expectation:** expected vision-on-nameplate with the
+readings table still missing (page-2 retrieval). Actual: vision not called, and
+retrieve degraded without searching. So extract remains the gap — the model emits
+a junk search query and never chains — and retrieval did not run at all this time.
+
+Record: `bench/results/20260913T074930Z_hard_scenario_01_nodes.json` (gitignored).
+
