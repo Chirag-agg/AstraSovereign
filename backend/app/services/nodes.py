@@ -56,6 +56,10 @@ NODE_TOOLS = {
     "draft": {"document_generation", "presentation_generation"},
 }
 
+# Nodes that receive the structured attachment manifest (node input). Used by
+# the static reachability check as a producer of e.g. ``document_id``.
+NODE_INPUT_NODES = {"extract", "retrieve"}
+
 
 def _mentions_documents(task: str) -> bool:
     return bool(_DOC_RE.search(task or ""))

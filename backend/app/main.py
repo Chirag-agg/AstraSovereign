@@ -59,6 +59,8 @@ from app.services.resource_provider import InMemoryResourceProvider, LocalResour
 from app.services.resource_scheduler import InMemoryResourceScheduler
 from app.services.sandbox_runner import DockerSandboxRunner, SandboxRunner
 from app.services.task_router import TaskRouter
+from app.services.nodes import NODE_INPUT_NODES, NODE_TOOLS
+from app.services.tool_config import validate_node_tools
 from app.services.tool_registry import ToolRegistry
 from app.services.tools import (
     CodeExecutionTool,
@@ -406,6 +408,7 @@ def create_app(
     )
 
     tool_registry = ToolRegistry(tools)
+    validate_node_tools(NODE_TOOLS, NODE_INPUT_NODES, tool_registry)
     workspace_manager = WorkspaceManager(root=settings.workspaces_root)
 
     store = SqliteJobStore(settings.database_path)

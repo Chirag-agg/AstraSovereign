@@ -66,6 +66,11 @@ class BaseTool(ABC):
     name: str = ""
     description: str = ""
     input_schema: dict = {}
+    # Required arguments this tool cannot obtain from the node's own input,
+    # mapped to the sources that can satisfy them: another tool name in the same
+    # node set, or ``"node_input"`` (the attachment manifest). Checked per node
+    # set at load by ``validate_node_tools``.
+    required_sources: dict = {}
 
     @abstractmethod
     async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
@@ -374,6 +379,9 @@ class DocumentVisionTool(BaseTool):
         "required": ["document_id", "question"],
         "additionalProperties": False,
     }
+    # document_id comes either from the attachment manifest (node input) or from
+    # a document_search result; without one of those the tool is unreachable.
+    required_sources = {"document_id": {"node_input", "document_search"}}
 
     def __init__(self, multimodal: MultimodalService) -> None:
         self._multimodal = multimodal
