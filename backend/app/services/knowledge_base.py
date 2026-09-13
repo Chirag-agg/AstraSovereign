@@ -7,6 +7,7 @@ vector store are behind interfaces so both can be swapped later.
 
 import hashlib
 import logging
+import re
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -31,6 +32,24 @@ def _hash_file(path: Path) -> str:
         return hashlib.sha256(Path(path).read_bytes()).hexdigest()
     except OSError:
         return ""
+
+
+_REV_RE = re.compile(r"rev[ _-]?(\d+)", re.IGNORECASE)
+
+
+def _chunk_header(filename: str, page: Optional[int]) -> str:
+    """Indexed-text prefix carrying source metadata (D3).
+
+    Section headings are not tracked yet (structure-aware chunking is deferred),
+    so the header is document + revision + page.
+    """
+    parts = [filename]
+    revision = _REV_RE.search(filename or "")
+    if revision:
+        parts.append(f"Rev {revision.group(1)}")
+    if page is not None:
+        parts.append(f"p.{page}")
+    return f"[{' | '.join(parts)}]"
 
 
 class KnowledgeBase:
@@ -171,6 +190,8 @@ class KnowledgeBase:
         pieces = build_chunks(pages, self._chunk_size, self._chunk_overlap)
         if not pieces:
             return await self._fail_document(user_id, doc, empty_text_error)
+        for piece in pieces:
+            piece["text"] = f"{_chunk_header(doc.filename, piece.get('page'))} {piece['text']}"
         texts = [piece["text"] for piece in pieces]
         vectors = await self._embedder.embed_many(texts)
 
@@ -262,7 +283,7 @@ class KnowledgeBase:
         )
         try:
             query_vector = await self._embedder.embed(query)
-            results = await self._store.search(user_id, query_vector, top_k)
+            results = await self._store.search_hybrid(user_id, query, query_vector, top_k)
         except EmbeddingError as exc:
             logger.error(
                 "document_search_failed",

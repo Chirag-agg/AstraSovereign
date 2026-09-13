@@ -169,3 +169,31 @@ Re-run 2026-09-13T08:29Z (job in `bench/results/20260913T082903Z_…`):
 `legacy_envelope_used = {}`. The remaining extract gap is producing the typed
 findings JSON (instruction/model), not plumbing.
 
+## Retrieval eval (Task D)
+
+`tests/hard_scenario_01/retrieval_eval.py`: 20 queries against the scenario
+fixtures, scored on recall@5 and superseded-document (SOP-09 Rev 2) appearances.
+Run **before** and **after** D1–D3.
+
+| run | recall@5 | superseded appearances |
+|---|---|---|
+| baseline (dense only) | 16/20 (80%) | 10/20 |
+| after D1–D3 | **19/20 (95%)** | 14/20 |
+
+D1–D3 changes:
+- **D1** per-`(doc_id, page)` cap of 2 results, plus near-duplicate suppression
+  (drop a candidate whose cosine to an already-selected chunk exceeds 0.95).
+- **D2** BM25 over the same chunks (written, no dependency), fused with dense
+  retrieval by Reciprocal Rank Fusion (`Σ 1/(60 + rank)`).
+- **D3** each chunk's indexed text is prefixed with `[doc | Rev N | p.X]`;
+  section headings are not tracked yet (structure-aware chunking deferred).
+
+Recall improved 80% → 95%. Superseded appearances rose (10 → 14): better keyword
+matching surfaces more SOP-09 chunks including the Rev 2 distractor. Excluding
+superseded documents is the supersession-metadata work, not D. The readings table
+stays hit-or-miss — table-aware indexing is Docling, not D. The scenario score is
+expected to stay ~1–2; D is judged on the eval numbers.
+
+Records: `bench/results/*_retrieval_eval_baseline.json` and
+`*_retrieval_eval_after.json` (gitignored).
+
