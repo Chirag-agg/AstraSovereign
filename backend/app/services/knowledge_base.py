@@ -5,6 +5,7 @@ Ownership is explicit and per-user: every document and chunk is scoped to a
 vector store are behind interfaces so both can be swapped later.
 """
 
+import hashlib
 import logging
 import uuid
 from pathlib import Path
@@ -22,6 +23,14 @@ from app.services.embedding import EmbeddingError, EmbeddingProvider
 from app.services.vector_store import VectorStore
 
 logger = logging.getLogger("app.knowledge_base")
+
+
+def _hash_file(path: Path) -> str:
+    """Content hash used to deduplicate identical uploads; '' on read failure."""
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except OSError:
+        return ""
 
 
 class KnowledgeBase:
@@ -42,11 +51,22 @@ class KnowledgeBase:
     async def ingest_document(self, user_id: str, path: Path, filename: str) -> DocumentRecord:
         """Ingest a text-based document (txt/md/text-PDF). Unchanged Phase 7 path."""
         document_type = document_type_for(filename)
-        doc = await self._new_document(user_id, filename, document_type)
+        content_hash = _hash_file(path)
+        existing = await self._find_by_content_hash(user_id, content_hash)
+        if existing is not None:
+            self._log_reused(user_id, filename, existing.document_id)
+            return existing
+        doc = await self._new_document(
+            user_id, filename, document_type, {"content_hash": content_hash}
+        )
         try:
             pages = extract_document_pages(path, document_type)
             return await self._ingest_pages(
-                user_id, doc, pages, {}, "No extractable text found"
+                user_id,
+                doc,
+                pages,
+                {"content_hash": content_hash},
+                "No extractable text found",
             )
         except DocumentRequiresOCR:
             return await self._fail_document(user_id, doc, "Document requires OCR")
@@ -81,10 +101,19 @@ class KnowledgeBase:
         is produced, the document fails cleanly with ``empty_text_error``.
         """
         document_type = document_type_for(filename)
-        doc = await self._new_document(user_id, filename, document_type)
+        content_hash = _hash_file(path)
+        existing = await self._find_by_content_hash(user_id, content_hash)
+        if existing is not None:
+            self._log_reused(user_id, filename, existing.document_id)
+            return existing
+        merged_metadata = dict(metadata or {})
+        merged_metadata["content_hash"] = content_hash
+        doc = await self._new_document(
+            user_id, filename, document_type, {"content_hash": content_hash}
+        )
         try:
             return await self._ingest_pages(
-                user_id, doc, pages, metadata or {}, empty_text_error
+                user_id, doc, pages, merged_metadata, empty_text_error
             )
         except EmbeddingError as exc:
             return await self._fail_document(user_id, doc, str(exc))
@@ -103,7 +132,11 @@ class KnowledgeBase:
             )
 
     async def _new_document(
-        self, user_id: str, filename: str, document_type: str
+        self,
+        user_id: str,
+        filename: str,
+        document_type: str,
+        metadata: Optional[dict] = None,
     ) -> DocumentRecord:
         document_id = f"doc-{uuid.uuid4().hex[:12]}"
         doc = DocumentRecord(
@@ -112,6 +145,7 @@ class KnowledgeBase:
             filename=filename,
             document_type=document_type,
             status=DocumentStatus.PROCESSING,
+            metadata=metadata or {},
             source_relpath=f"{user_id}/{filename}",
         )
         await self._store.put_document(user_id, doc)
@@ -188,6 +222,32 @@ class KnowledgeBase:
             },
         )
         return doc
+
+    async def _find_by_content_hash(
+        self, user_id: str, content_hash: str
+    ) -> Optional[DocumentRecord]:
+        """Reuse a READY document with identical bytes for the same user."""
+        if not content_hash:
+            return None
+        for document in await self._store.list_documents(user_id):
+            if (
+                document.status == DocumentStatus.READY
+                and (document.metadata or {}).get("content_hash") == content_hash
+            ):
+                return document
+        return None
+
+    @staticmethod
+    def _log_reused(user_id: str, filename: str, document_id: str) -> None:
+        logger.info(
+            "document_reused",
+            extra={
+                "event": "document_reused",
+                "user_id": user_id,
+                "document_id": document_id,
+                "file_name": filename,
+            },
+        )
 
     # ------------------------------------------------------------- search
 

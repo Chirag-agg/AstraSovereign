@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from app.config import get_settings  # noqa: E402
 from app.main import create_app  # noqa: E402
+from app.services.attachments import build_attachment_manifest  # noqa: E402
 from app.services.capability_router import CapabilityRouter  # noqa: E402
 from app.services.document_ingestion import (  # noqa: E402
     IMAGE_DOCUMENT_TYPES,
@@ -66,12 +67,17 @@ async def main() -> None:
 
     job = await app.state.job_manager.create_job(user_id=user_id, message=PROMPT)
     workspace = await app.state.workspace_manager.create_workspace(user_id, job.job_id)
+    documents = await app.state.knowledge_base.list_documents(user_id)
+    manifest = build_attachment_manifest(documents)
+    print("\n=== ATTACHMENT MANIFEST ===")
+    for entry in manifest:
+        print(" ", entry)
     node_agent = NodeAgent(
         agent=app.state.agent,
         capability_router=CapabilityRouter(app.state.model_registry),
         registry=app.state.model_registry,
     )
-    result = await node_agent.run(job, workspace, task_text=PROMPT)
+    result = await node_agent.run(job, workspace, task_text=PROMPT, attachments=manifest)
 
     final = await app.state.job_manager.get_job_for_worker(job.job_id)
     trace = final.execution_trace or []

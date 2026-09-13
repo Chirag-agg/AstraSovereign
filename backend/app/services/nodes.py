@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 from app.schemas.findings import AssessmentResult, FindingsObject
 from app.services.agent import AgentResult, AgentStatus
+from app.services.attachments import render_attachment_block
 from app.services.capability_router import CapabilityRouter, CapabilityRoutingError
 from app.services.findings import (
     REASON_INCOMPLETE,
@@ -105,6 +106,7 @@ class NodeAgent:
         self.last_findings: Optional[FindingsObject] = None
         self.last_assessment: Optional[AssessmentResult] = None
         self.last_retrieval: str = ""
+        self.last_attachments: list[dict] = []
 
     def _route(self, capability: str) -> tuple[str, float, str]:
         """Model, confidence and runner-up for a capability (recorded per node)."""
@@ -127,18 +129,28 @@ class NodeAgent:
         workspace,
         lead_model: str = "",
         task_text: Optional[str] = None,
+        attachments: Optional[list[dict]] = None,
     ) -> AgentResult:
         task = task_text if task_text is not None else job.message
         trace: list[dict] = []
         findings: Optional[FindingsObject] = None
         assessment: Optional[AssessmentResult] = None
-        attempt_docs = _mentions_documents(task)
+        manifest = list(attachments or [])
+        self.last_attachments = manifest
+        attachment_block = render_attachment_block(manifest)
+        # Attachments are a reason to run extraction even if the prompt does not
+        # name a document (the nameplate image carries no indexable text).
+        attempt_docs = bool(manifest) or _mentions_documents(task)
         cursor = 0
 
         # --- extract ---------------------------------------------------------
-        cursor, findings = await self._run_extract(job, workspace, task, trace, cursor, attempt_docs)
+        cursor, findings = await self._run_extract(
+            job, workspace, task, trace, cursor, attempt_docs, attachment_block
+        )
         # --- retrieve --------------------------------------------------------
-        cursor, retrieval = await self._run_retrieve(job, workspace, task, trace, cursor, attempt_docs)
+        cursor, retrieval = await self._run_retrieve(
+            job, workspace, task, trace, cursor, attempt_docs, attachment_block
+        )
         self.last_retrieval = retrieval
         # --- compute ---------------------------------------------------------
         cursor, assessment, degraded = await self._run_compute(
@@ -164,7 +176,9 @@ class NodeAgent:
             )
         return AgentResult(status=AgentStatus.COMPLETED, response=response, iterations=cursor)
 
-    async def _run_extract(self, job, workspace, task, trace, cursor, attempt_docs):
+    async def _run_extract(
+        self, job, workspace, task, trace, cursor, attempt_docs, attachment_block
+    ):
         if not attempt_docs:
             self._skip(trace, "extract", "no documents or images referenced in the request")
             return cursor, None
@@ -181,9 +195,13 @@ class NodeAgent:
             '"survey_date":"YYYY-MM-DD","source":""}]}. Include every reading with its survey date.'
         )
         start = len(trace)
+        parts = [instruction]
+        if attachment_block:
+            parts.append(attachment_block)
+        parts.append(f"REQUEST:\n{task}")
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
-            task_text=f"{instruction}\n\nREQUEST:\n{task}",
+            task_text="\n\n".join(parts),
             max_iterations=self._budgets["extract"], max_tool_calls=8,
             append_start=False, enforce_contracts=False, tool_names=NODE_TOOLS["extract"],
         )
@@ -203,7 +221,9 @@ class NodeAgent:
         self._node_completed(trace, "extract", readings=len(findings.readings))
         return cursor, findings
 
-    async def _run_retrieve(self, job, workspace, task, trace, cursor, attempt_docs):
+    async def _run_retrieve(
+        self, job, workspace, task, trace, cursor, attempt_docs, attachment_block
+    ):
         if not attempt_docs:
             self._skip(trace, "retrieve", "no knowledge base documents referenced")
             return cursor, ""
@@ -215,9 +235,13 @@ class NodeAgent:
             "cite document and page. Output short passages only, no deliverable."
         )
         start = len(trace)
+        parts = [instruction]
+        if attachment_block:
+            parts.append(attachment_block)
+        parts.append(f"REQUEST:\n{task}")
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
-            task_text=f"{instruction}\n\nREQUEST:\n{task}",
+            task_text="\n\n".join(parts),
             max_iterations=self._budgets["retrieve"], max_tool_calls=4,
             append_start=False, enforce_contracts=False, tool_names=NODE_TOOLS["retrieve"],
         )
