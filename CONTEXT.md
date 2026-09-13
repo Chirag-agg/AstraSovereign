@@ -480,9 +480,11 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   gitignored.
 - **Compute intent relies on keyword classification (temporary).** `compute`'s
   precondition uses `TaskRouter`'s keyword `task_type == "coding"` (plus a typed
-  findings object). The planned semantic capability classifier was never built.
-  Build it as its own change (exemplar set, threshold, eval) and retire
-  `TaskRouter` in that commit, including the worker's lead-model selection —
+  findings object). A semantic nearest-exemplar classifier is now
+  built but not yet wired (`app/services/capability_classifier.py`), with a
+  four-class exemplar set and an offline eval (`bench/classifier_eval.py`):
+  35/37 (95%) held-out at threshold 0.55-0.60. The next commit wires it into the
+  worker and retires `TaskRouter` —
   which is the last thing keeping keyword routing alive. Fifth recorded miss
   (2026-09-13): the cowork turn "Change the helper so it computes 21 times 2 and
   run it." did not route to `coding`, so `compute` was skipped and the sandbox
@@ -492,7 +494,8 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   ("attachments present"), so it runs on *every* attachment job — including
   retrieval and Q&A tasks — and wastes an iteration and a model call before
   degrading (no typed findings). Named fix: the same semantic capability
-  classifier above. Two known issues now converge on that one missing component.
+  classifier above. Two known issues now converge on that one component (the
+  classifier now exists; wiring it into the worker is the shared fix).
 - **The `/cowork` composer still cannot attach documents (2026-09-13).** The
   main workbench composer now sends `document_ids`, but `coworkChat` posts only
   `{project_id, message}` and `CoworkChatRequest` has no `document_ids`, so
