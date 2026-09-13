@@ -13,12 +13,12 @@ from typing import Callable, Optional
 
 from app.schemas.job import Job, JobStatus
 from app.services.agent import Agent, AgentStatus
+from app.services.attachments import build_attachment_manifest
 from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
 from app.services.model_router import ModelRouter, ModelRoutingError
 from app.services.ollama_service import OllamaService, OllamaServiceError
 from app.services.context import ContextManager
-from app.services.pipeline import ComplexityGate, PipelineExecutor
 from app.services.projects import CoworkProjects, ProjectLocks, ProjectNotFoundError
 from app.services.resource_scheduler import ResourceScheduler
 from app.services.task_router import TaskRouter
@@ -38,8 +38,8 @@ class Worker:
         agent: Agent,
         workspace_manager: WorkspaceManager,
         scheduler: ResourceScheduler,
-        pipeline_executor: Optional[PipelineExecutor] = None,
-        complexity_gate: Optional[ComplexityGate] = None,
+        node_agent: Optional[object] = None,
+        knowledge_base: Optional[object] = None,
         projects: Optional[CoworkProjects] = None,
         project_locks: Optional[ProjectLocks] = None,
         context_manager: Optional[ContextManager] = None,
@@ -55,8 +55,8 @@ class Worker:
         self._agent = agent
         self._workspace_manager = workspace_manager
         self._scheduler = scheduler
-        self._pipeline_executor = pipeline_executor
-        self._complexity_gate = complexity_gate
+        self._node_agent = node_agent
+        self._knowledge_base = knowledge_base
         self._projects = projects
         self._project_locks = project_locks
         self._context_manager = context_manager
@@ -231,30 +231,10 @@ class Worker:
                 task_text = self._context_manager.build_request(
                     job.user_id, job.project_id, job.message
                 )
-            use_pipeline = bool(
-                self._pipeline_executor is not None
-                and self._complexity_gate is not None
-                and self._complexity_gate.should_pipeline(
-                    classification.task_type, job.message
-                )
-            )
-            if use_pipeline:
-                logger.info(
-                    "pipeline_started",
-                    extra={
-                        "event": "pipeline_started",
-                        "job_id": job_id,
-                        "user_id": job.user_id,
-                        "task_type": classification.task_type,
-                        "lead_model": routing.model,
-                    },
-                )
-                agent_result = await self._pipeline_executor.execute(
-                    job,
-                    workspace,
-                    classification.task_type,
-                    routing.model,
-                    task_text=task_text,
+            if self._node_agent is not None:
+                manifest = await self._attachment_manifest(job)
+                agent_result = await self._node_agent.run(
+                    job, workspace, task_text=task_text, attachments=manifest
                 )
             else:
                 agent_result = await self._agent.run(
@@ -322,6 +302,20 @@ class Worker:
                     )
             self._active_job_id = None
             self._state = "idle"
+
+    async def _attachment_manifest(self, job: Job) -> list[dict]:
+        """Job-scoped attachments: only the documents named on the job.
+
+        Never the user's whole library — that flooded the node input with 65
+        documents and dwarfed the instruction.
+        """
+        if self._knowledge_base is None or not job.document_ids:
+            return []
+        documents = await self._knowledge_base.list_documents(job.user_id)
+        wanted = set(job.document_ids)
+        return build_attachment_manifest(
+            [document for document in documents if document.document_id in wanted]
+        )
 
     async def _request_resources(self, job: Job, routing) -> Optional[object]:
         """Request resources until granted, rejected, or the job is cancelled.

@@ -24,6 +24,8 @@ def test_agent_calls_code_execution_and_completes(client_factory, tmp_path):
             "Compute 2+2",
         ),
         final("The result is 4.", "Verified from stdout"),
+        # draft is the only exit now; compute no longer terminates the sequence
+        final("The result is 4.", "Report the computation result"),
     ]
     runner = FakeSandboxRunner(results=[ok_result(stdout="4\n")])
     with client_factory(make_scripted_handler(script), sandbox_enabled=True, sandbox_runner=runner) as c:
@@ -50,6 +52,8 @@ def test_demo_factorial(client_factory, tmp_path):
             "The factorial of 10 is 3628800.",
             "The program printed 3628800, which is correct.",
         ),
+        # draft is the only exit now; compute no longer terminates the sequence
+        final("The factorial of 10 is 3628800.", "Report the computation result"),
     ]
     runner = FakeSandboxRunner(results=[ok_result(stdout="3628800\n")])
     with client_factory(make_scripted_handler(script), sandbox_enabled=True, sandbox_runner=runner) as c:
@@ -91,6 +95,8 @@ def test_demo_bug_fix_loop(client_factory, tmp_path):
             "Fix the division-by-zero bug",
         ),
         final("The corrected result is 15.", "The fixed program printed 15."),
+        # draft is the only exit now; compute no longer terminates the sequence
+        final("The corrected result is 15.", "Report the computation result"),
     ]
     runner = FakeSandboxRunner(
         results=[

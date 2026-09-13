@@ -93,21 +93,27 @@ def test_flagship_workflow_creates_expected_audit_trail(client_factory, test_mod
         ocr_provider=ocr,
         vision_provider=vision,
     ) as c:
-        c.post(
+        manual = c.post(
             "/api/documents",
             files={"file": ("pump_maintenance_procedure.txt", MAINTENANCE_PROCEDURE.encode(), "text/plain")},
             headers={"X-User-ID": "user-001"},
         )
+        manual_id = manual.json()["document_id"]
         scan = upload_scan(c)
 
         script.extend(
             [
-                tool_call("document_search", {"query": "pump inspection requirements", "top_k": 3}, "retrieve"),
+                # extract: vision read of the scanned page (no typed findings)
                 tool_call(
                     "document_vision",
                     {"document_id": scan["document_id"], "pages": [1], "question": "findings?"},
                     "analyze scanned page",
                 ),
+                final("Vibration 2.1 mm/s and seal leakage 3 ml/hr.", "vision read"),
+                # retrieve: procedure requirements
+                tool_call("document_search", {"query": "pump inspection requirements", "top_k": 3}, "retrieve"),
+                final("Procedure: seal leakage below 5 ml/hr; vibration below 4.5 mm/s.", "retrieved"),
+                # draft: generate the approval note (terminal node)
                 tool_call(
                     "document_generation",
                     {
@@ -126,7 +132,10 @@ def test_flagship_workflow_creates_expected_audit_trail(client_factory, test_mod
         )
         resp = c.post(
             "/api/chat",
-            json={"message": "Compare the inspection report with the procedure and create an approval note."},
+            json={
+                "message": "Compare the inspection report with the procedure and create an approval note.",
+                "document_ids": [manual_id, scan["document_id"]],
+            },
             headers={"X-User-ID": "user-001"},
         )
         job = wait_for_job(c, resp.json()["job_id"], "user-001", timeout=15)

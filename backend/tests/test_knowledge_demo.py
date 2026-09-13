@@ -68,11 +68,22 @@ def test_agent_document_search_grounded_answer(client_factory, app_settings, tes
     import json as _json
 
     script = [
+        # extract (runs because the job has attachments) locates documents and
+        # produces no structured findings — it degrades, which is expected here.
+        tool_call(
+            "document_search",
+            {"query": "cooling water pump inspection procedure", "top_k": 3},
+            "Locate the relevant documents",
+        ),
+        final("No structured findings were found.", "Nothing to extract"),
+        # retrieve: grounded passages
         tool_call(
             "document_search",
             {"query": "cooling water pump inspection procedure", "top_k": 3},
             "Retrieve the pump inspection requirements from the knowledge base",
         ),
+        final("Retrieved pump_maintenance_manual.pdf and inspection_procedure.txt.", "retrieved"),
+        # draft: the user-facing answer (terminal node)
         final(
             "According to pump_maintenance_manual.pdf and inspection_procedure.txt, "
             "cooling water pumps must be inspected every 30 days; the procedure covers "
@@ -91,7 +102,8 @@ def test_agent_document_search_grounded_answer(client_factory, app_settings, tes
                 "message": (
                     "Search the maintenance documents for the inspection procedure for "
                     "cooling water pumps and summarize the requirements."
-                )
+                ),
+                "document_ids": list(ids.values()),
             },
             headers={"X-User-ID": "user-001"},
         )
@@ -102,7 +114,7 @@ def test_agent_document_search_grounded_answer(client_factory, app_settings, tes
 
     trace = job["execution_trace"]
     tool_calls = [t for t in trace if t["type"] == "tool_call"]
-    assert [t["tool"] for t in tool_calls] == ["document_search"]
+    assert [t["tool"] for t in tool_calls] == ["document_search", "document_search"]
     assert tool_calls[0]["arguments"]["query"]
     results = [t for t in trace if t["type"] == "tool_result"]
     assert results[-1]["ok"] is True

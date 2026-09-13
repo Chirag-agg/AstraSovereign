@@ -38,6 +38,17 @@ class FakeJob:
     message = "Assess Tank 204 using the inspection reports and our SOP."
 
 
+ATTACHMENTS = [
+    {
+        "doc_id": "doc-report",
+        "filename": "inspection_report_2026.pdf",
+        "media_type": "application/pdf",
+        "kind": "scanned_pdf",
+        "pages": 4,
+    }
+]
+
+
 class FakeAgent:
     def __init__(self, results):
         self.results = list(results)
@@ -105,7 +116,9 @@ def test_sequence_routes_four_models_and_compute_sees_typed_object():
     ]
     node_agent = make_agent(results)
     recorded = _capture(node_agent)
-    result = asyncio.run(node_agent.run(FakeJob(), "/workspace", task_text=FakeJob.message))
+    result = asyncio.run(
+        node_agent.run(FakeJob(), "/workspace", task_text=FakeJob.message, attachments=ATTACHMENTS)
+    )
 
     trace = recorded["trace"]
     started = {entry["node"]: entry["model"] for entry in trace if entry["type"] == "node_started"}
@@ -135,7 +148,9 @@ def test_compute_budget_exhaustion_degrades_to_incomplete_refer():
         AgentResult(status=AgentStatus.COMPLETED, response="deliverables", iterations=1),
     ]
     node_agent = make_agent(results)
-    asyncio.run(node_agent.run(FakeJob(), "/workspace", task_text=FakeJob.message))
+    asyncio.run(
+        node_agent.run(FakeJob(), "/workspace", task_text=FakeJob.message, attachments=ATTACHMENTS)
+    )
     by_course = {course.course: course for course in node_agent.last_assessment.courses}
     assert by_course["C2"].status == "REFER"
     assert by_course["C2"].reason_code == "REFER_ASSESSMENT_INCOMPLETE"
@@ -149,12 +164,20 @@ def test_nodes_scope_tools_per_step():
         AgentResult(status=AgentStatus.COMPLETED, response="deliverables", iterations=1),
     ]
     node_agent = make_agent(results)
-    asyncio.run(node_agent.run(FakeJob(), "/workspace", task_text=FakeJob.message))
+    asyncio.run(
+        node_agent.run(FakeJob(), "/workspace", task_text=FakeJob.message, attachments=ATTACHMENTS)
+    )
     calls = node_agent._agent.calls
     assert calls[0]["tool_names"] == {"document_search", "document_vision", "read_file", "list_files"}
     assert calls[1]["tool_names"] == {"document_search"}
     assert calls[2]["tool_names"] == {"code_execution"}
-    assert calls[3]["tool_names"] == {"document_generation", "presentation_generation"}
+    assert calls[3]["tool_names"] == {
+        "document_generation",
+        "presentation_generation",
+        "list_files",
+        "read_file",
+        "write_file",
+    }
 
 
 def test_course_without_baseline_keeps_no_baseline_reason():
@@ -165,7 +188,9 @@ def test_course_without_baseline_keeps_no_baseline_reason():
         AgentResult(status=AgentStatus.COMPLETED, response="deliverables", iterations=1),
     ]
     node_agent = make_agent(results)
-    asyncio.run(node_agent.run(FakeJob(), "/workspace", task_text=FakeJob.message))
+    asyncio.run(
+        node_agent.run(FakeJob(), "/workspace", task_text=FakeJob.message, attachments=ATTACHMENTS)
+    )
     by_course = {course.course: course for course in node_agent.last_assessment.courses}
     assert by_course["C5"].status == "REFER"
     assert by_course["C5"].reason_code == "REFER_NO_BASELINE"

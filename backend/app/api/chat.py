@@ -38,6 +38,7 @@ async def chat(
         message=payload.message,
         task_type=payload.task_type,
         priority=payload.priority,
+        document_ids=payload.document_ids,
     )
     await queue.enqueue(job.job_id)
 

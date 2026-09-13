@@ -106,20 +106,6 @@ class Settings(BaseSettings):
     job_store_root: str = str(REPO_ROOT / "data" / "jobs")
     artifact_store_root: str = str(REPO_ROOT / "data" / "artifacts")
 
-    # Multi-model pipeline (decompose complex tasks into capability stages).
-    # Every capability executed by a stage must be on the server-side allowlist
-    # in ``app.services.pipeline.ALLOWED_PIPELINE_CAPABILITIES``.
-    pipeline_enabled: bool = True
-    pipeline_planner_capability: str = "reasoning"
-    pipeline_max_stages: int = 4
-    pipeline_stage_max_iterations: int = 4
-    pipeline_stage_max_tool_calls: int = 8
-    pipeline_attempts: int = 2
-    pipeline_min_prompt_chars: int = 40
-    # Hard truncation caps for stage-output chaining (never silent).
-    pipeline_max_stage_output_chars: int = 12000
-    pipeline_max_context_chars: int = 16000
-
     # Cowork: persistent per-user project workspaces (AI-IDE mode).
     cowork_enabled: bool = True
     cowork_projects_root: str = str(REPO_ROOT / "data" / "projects")

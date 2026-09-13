@@ -37,6 +37,7 @@ class JobManager:
         task_type: str = "general",
         priority: int = 0,
         project_id: Optional[str] = None,
+        document_ids: Optional[list[str]] = None,
     ) -> Job:
         job = await self._store.create(
             Job(
@@ -47,6 +48,7 @@ class JobManager:
                 model=self._default_model or None,
                 status=JobStatus.QUEUED,
                 project_id=project_id,
+                document_ids=list(document_ids or []),
             )
         )
         logger.info(

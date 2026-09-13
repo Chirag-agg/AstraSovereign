@@ -74,6 +74,7 @@ class TaskRouter:
                     "code block",
                     "code snippet",
                     "code review",
+                    "code",
                     "script",
                     "refactor",
                     "regex",

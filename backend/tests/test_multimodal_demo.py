@@ -96,20 +96,26 @@ def test_synthetic_industrial_comparison_demo(client_factory, test_models):
         )
         assert manual.status_code == 201
         assert manual.json()["status"] == "ready"
+        manual_id = manual.json()["document_id"]
         scan = upload_scan(c)
 
         script.extend(
             [
-                tool_call(
-                    "document_search",
-                    {"query": "pump maintenance inspection requirements", "top_k": 3},
-                    "Retrieve the maintenance requirements from the knowledge base",
-                ),
+                # extract: vision read of the scanned report (no typed findings)
                 tool_call(
                     "document_vision",
                     {"document_id": scan["document_id"], "pages": [1, 2], "question": "What inspection findings are visible?"},
                     "Analyze the scanned inspection report pages",
                 ),
+                final("Vibration 2.1 mm/s and seal leakage 3 ml/hr; a handwritten note flags the seal.", "Vision read"),
+                # retrieve: maintenance requirements from the KB
+                tool_call(
+                    "document_search",
+                    {"query": "pump maintenance inspection requirements", "top_k": 3},
+                    "Retrieve the maintenance requirements from the knowledge base",
+                ),
+                final("The maintenance procedure allows seal leakage below 5 ml/hr and vibration below 4.5 mm/s.", "Retrieved"),
+                # draft: the comparison answer (terminal node)
                 final(
                     "The maintenance procedure allows seal leakage below 5 ml/hr and "
                     "vibration below 4.5 mm/s (inspection every 30 days). The scanned "
@@ -127,7 +133,8 @@ def test_synthetic_industrial_comparison_demo(client_factory, test_models):
                 "message": (
                     "Compare the inspection report with the maintenance procedure and "
                     "tell me whether the inspection found anything requiring attention."
-                )
+                ),
+                "document_ids": [manual_id, scan["document_id"]],
             },
             headers={"X-User-ID": "user-001"},
         )
@@ -139,9 +146,7 @@ def test_synthetic_industrial_comparison_demo(client_factory, test_models):
     assert "seal" in job["response"].lower()
 
     tool_calls = [t["tool"] for t in job["execution_trace"] if t["type"] == "tool_call"]
-    assert tool_calls == ["document_search", "document_vision"]
-    assert tool_calls[0] == "document_search"
-    assert tool_calls[1] == "document_vision"
+    assert tool_calls == ["document_vision", "document_search"]
 
     vision_result = [
         t for t in job["execution_trace"]

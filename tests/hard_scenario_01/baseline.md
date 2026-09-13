@@ -197,3 +197,9 @@ expected to stay ~1–2; D is judged on the eval numbers.
 Records: `bench/results/*_retrieval_eval_baseline.json` and
 `*_retrieval_eval_after.json` (gitignored).
 
+> **Do not read the superseded rise (10 → 14) as a regression.** It is the
+> *correct* consequence of better keyword matching: more SOP-09 chunks are
+> retrieved, including the Rev 2 distractor. Excluding superseded documents is
+> the supersession-metadata work, tracked separately. A naive reading of the
+> series will look worse when the retrieval is actually better.
+

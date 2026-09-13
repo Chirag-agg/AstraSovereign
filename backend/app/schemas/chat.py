@@ -23,6 +23,11 @@ class ChatRequest(BaseModel):
         le=1000,
         description="Optional job priority (scheduling not implemented yet).",
     )
+    document_ids: list[str] = Field(
+        default_factory=list,
+        max_length=64,
+        description="Documents attached to this job (job-scoped retrieval context).",
+    )
 
     @field_validator("message")
     @classmethod

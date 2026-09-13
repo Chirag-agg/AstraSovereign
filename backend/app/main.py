@@ -53,13 +53,12 @@ from app.services.multimodal import MultimodalService
 from app.services.network_guard import NetworkGuard, make_guarded_transport
 from app.services.ocr_provider import OCRProvider, RapidOCREngine
 from app.services.ollama_service import OllamaService
-from app.services.pipeline import ComplexityGate, PipelineExecutor
 from app.services.projects import CoworkProjects, ProjectLocks
 from app.services.resource_provider import InMemoryResourceProvider, LocalResourceProvider
 from app.services.resource_scheduler import InMemoryResourceScheduler
 from app.services.sandbox_runner import DockerSandboxRunner, SandboxRunner
 from app.services.task_router import TaskRouter
-from app.services.nodes import NODE_INPUT_NODES, NODE_TOOLS
+from app.services.nodes import NODE_INPUT_NODES, NODE_TOOLS, NodeAgent
 from app.services.tool_config import validate_node_tools
 from app.services.tool_registry import ToolRegistry
 from app.services.tools import (
@@ -423,28 +422,11 @@ def create_app(
     )
 
     capability_router = CapabilityRouter(registry=model_registry)
-    pipeline_executor = None
-    complexity_gate = None
-    if settings.pipeline_enabled:
-        from app.services.pipeline import ComplexityGate, PipelineExecutor
-
-        complexity_gate = ComplexityGate(
-            min_prompt_chars=settings.pipeline_min_prompt_chars
-        )
-        pipeline_executor = PipelineExecutor(
-            manager=job_manager,
-            agent=agent,
-            capability_router=capability_router,
-            scheduler=scheduler,
-            ollama=ollama_service,
-            planner_capability=settings.pipeline_planner_capability,
-            max_stages=settings.pipeline_max_stages,
-            stage_max_iterations=settings.pipeline_stage_max_iterations,
-            stage_max_tool_calls=settings.pipeline_stage_max_tool_calls,
-            attempts=settings.pipeline_attempts,
-            max_stage_output_chars=settings.pipeline_max_stage_output_chars,
-            max_context_chars=settings.pipeline_max_context_chars,
-        )
+    node_agent = NodeAgent(
+        agent=agent,
+        capability_router=capability_router,
+        registry=model_registry,
+    )
 
     projects = cowork_projects or CoworkProjects(
         root=settings.cowork_projects_root,
@@ -464,8 +446,8 @@ def create_app(
         agent=agent,
         workspace_manager=workspace_manager,
         scheduler=scheduler,
-        pipeline_executor=pipeline_executor,
-        complexity_gate=complexity_gate,
+        node_agent=node_agent,
+        knowledge_base=knowledge_base,
         projects=projects,
         project_locks=project_locks,
         context_manager=context_manager,

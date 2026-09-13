@@ -52,16 +52,33 @@ def run(base_url: str, user_id: str, timeout_seconds: float) -> dict:
     health = client.get("/health")
     health.raise_for_status()
 
+    # Start from a clean user library so the run matches the direct harness.
+    existing = client.get("/api/documents")
+    if existing.status_code == 200:
+        for document in existing.json():
+            client.delete(f"/api/documents/{document['document_id']}")
+
     upload_start = time.monotonic()
     uploaded = []
+    document_ids = []
     for path in sorted(FIXTURES.glob("*")):
         with path.open("rb") as handle:
             response = client.post("/api/documents", files={"file": (path.name, handle)})
-        uploaded.append({"file": path.name, "status": response.status_code})
         response.raise_for_status()
+        metadata = response.json()
+        document_ids.append(metadata["document_id"])
+        uploaded.append(
+            {
+                "file": path.name,
+                "status": response.status_code,
+                "document_id": metadata.get("document_id"),
+            }
+        )
     upload_seconds = time.monotonic() - upload_start
 
-    submit = client.post("/api/chat", json={"message": PROMPT})
+    submit = client.post(
+        "/api/chat", json={"message": PROMPT, "document_ids": document_ids}
+    )
     submit.raise_for_status()
     job_id = submit.json()["job_id"]
 

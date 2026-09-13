@@ -372,8 +372,8 @@ models, and provides an agentic pipeline that:
 Implemented and working locally (backend + frontend + local models + Docker):
 
 - Jobs, queue, single worker, cancellation, per-user isolation, admin ops API.
-- Config-driven routing and a multi-model pipeline (reasoning, math, coding,
-  document, vision, presentation).
+- Config-driven routing and a typed agent node sequence (extract -> retrieve ->
+  compute -> draft) spanning the document, coding, and general models.
 - Agent tool runtime: `list_files`/`read_file`/`write_file`, `document_search`
   (local RAG), `document_vision` (RapidOCR + Ollama vision), `code_execution`
   (isolated Docker sandbox), `document_generation` (Word `.docx` + Excel `.xlsx`,
@@ -388,7 +388,7 @@ Implemented and working locally (backend + frontend + local models + Docker):
   closure is vendored under `presentation/node_modules` (pinned `4.0.1`) and the
   real `render.cjs` is covered by a `node`-marked integration test; see
   `docs/OFFLINE_BUNDLE.md`.
-- Tests: backend `pytest` (404 passed) and frontend typecheck + 64 tests + build.
+- Tests: backend `pytest` (448 passed) and frontend typecheck + 64 tests + build.
 - SQLite job updates are flat: 200 status updates measured at ~0.27 ms/update with
   1 job and ~0.25 ms/update with 200 jobs (0.93x) - the old full-table rewrite is
   gone.
@@ -463,6 +463,25 @@ Phase-by-phase history is in `docs/HISTORY.md`.
 - OCR/vision accuracy on dense tables, handwriting, and drawings is limited.
 - Workspace retention is manual (`docs/CLEANUP.md`); `logs/backend.log` is
   gitignored.
+- **Compute intent relies on keyword classification (temporary).** `compute`'s
+  precondition uses `TaskRouter`'s keyword `task_type == "coding"` (plus a typed
+  findings object). The planned semantic capability classifier was never built.
+  Build it as its own change (exemplar set, threshold, eval) and retire
+  `TaskRouter` in that commit, including the worker's lead-model selection —
+  which is the last thing keeping keyword routing alive.
+- **`extract` has no intent signal.** Its precondition is structural
+  ("attachments present"), so it runs on *every* attachment job — including
+  retrieval and Q&A tasks — and wastes an iteration and a model call before
+  degrading (no typed findings). Named fix: the same semantic capability
+  classifier above. Two known issues now converge on that one missing component.
+- **Frontend does not send `document_ids` (as of the node-wiring commit,
+  2026-09-13).** `submitChat` posts only `{message}` and the UI has no "documents
+  attached to this job" concept, so every document job started from the browser
+  receives an **empty job-scoped manifest** and `extract`/`retrieve` skip. This is
+  a user-visible regression for the duration: the UI previously searched the whole
+  KB implicitly and now cannot, so browser-driven document jobs do nothing. Fix
+  immediately after the wiring commit (composer attachment selection + threading
+  `document_ids` through `submitChat`).
 
 ---
 

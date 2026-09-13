@@ -26,12 +26,13 @@ def test_cowork_end_to_end_build_modify_run(client_factory, tmp_path):
     """Create a project -> agent builds a file -> user inspects it -> second
     turn modifies/verifies by running code in the sandbox -> context recorded."""
     script = [
-        # Turn 1: build a file in the project
+        # Turn 1 (general): draft writes the project file and reports.
         tool_call("write_file", {"path": "app.py", "content": "x = 1\n"}, "Create the helper file"),
         final("Created app.py with x = 1.", "done"),
-        # Turn 2: inspect then run in the sandbox
-        tool_call("read_file", {"path": "app.py"}, "Inspect the file I built"),
+        # Turn 2 (coding): compute runs the code, then draft inspects and reports.
         tool_call("code_execution", {"language": "python", "code": "print(21 * 2)"}, "Run a verification"),
+        final("42", "verified in sandbox"),
+        tool_call("read_file", {"path": "app.py"}, "Inspect the file I built"),
         final("The script prints 42.", "verified in sandbox"),
     ]
     runner = FakeSandboxRunner(results=[ok_result(stdout="42\n")])
@@ -57,7 +58,7 @@ def test_cowork_end_to_end_build_modify_run(client_factory, tmp_path):
         # turn 2: inspect + run in the sandbox
         r2 = c.post(
             "/api/cowork/chat",
-            json={"project_id": pid, "message": "Change the helper so it computes 21 times 2 and run it."},
+            json={"project_id": pid, "message": "Change the helper script so it computes 21 times 2 and run it."},
             headers=HDR,
         )
         job2 = wait_for_job(c, r2.json()["job_id"], "user-001", timeout=15)

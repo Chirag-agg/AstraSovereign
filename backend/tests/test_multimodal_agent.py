@@ -72,11 +72,21 @@ def test_agent_uses_document_vision_for_scanned_question(client_factory, test_mo
         doc_id = body["document_id"]
         script.extend(
             [
+                # extract (attachment job): vision read, no typed findings
                 tool_call(
                     "document_vision",
                     {"document_id": doc_id, "pages": [1], "question": "What does the handwritten note say?"},
                     "The report is scanned, so analyze the page image",
                 ),
+                final("No structured findings to extract.", "Vision read complete"),
+                # retrieve: knowledge-base search
+                tool_call(
+                    "document_search",
+                    {"query": "handwritten note inspection report", "top_k": 3},
+                    "Check the knowledge base",
+                ),
+                final("No relevant local documents found", "Nothing in the KB"),
+                # draft: the user-facing answer (terminal node)
                 final(
                     "The handwritten note on page 1 recommends replacing the mechanical seal.",
                     "Vision observation from the scanned page",
@@ -85,7 +95,10 @@ def test_agent_uses_document_vision_for_scanned_question(client_factory, test_mo
         )
         resp = c.post(
             "/api/chat",
-            json={"message": "What does the handwritten note on the inspection report say?"},
+            json={
+                "message": "What does the handwritten note on the inspection report say?",
+                "document_ids": [doc_id],
+            },
             headers={"X-User-ID": "user-001"},
         )
         job = wait_for_job(c, resp.json()["job_id"], "user-001", timeout=10)
@@ -93,10 +106,14 @@ def test_agent_uses_document_vision_for_scanned_question(client_factory, test_mo
     assert job["status"] == "completed"
     assert "mechanical seal" in job["response"]
     tool_calls = [t["tool"] for t in job["execution_trace"] if t["type"] == "tool_call"]
-    assert tool_calls == ["document_vision"]
-    results = [t for t in job["execution_trace"] if t["type"] == "tool_result"]
-    assert results and results[-1]["ok"] is True
-    assert "Analyzed 1 page(s)" in results[-1]["result_summary"]
+    assert tool_calls == ["document_vision", "document_search"]
+    vision_results = [
+        t
+        for t in job["execution_trace"]
+        if t["type"] == "tool_result" and t["tool"] == "document_vision"
+    ]
+    assert vision_results and vision_results[-1]["ok"] is True
+    assert "Analyzed 1 page(s)" in vision_results[-1]["result_summary"]
 
 
 def test_agent_chooses_document_search_for_text_task(client_factory, test_models):
