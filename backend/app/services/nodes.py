@@ -269,14 +269,23 @@ class NodeAgent:
         ]
         findings = _extract_findings(result.response)
         if not invoked:
-            self._node_degraded(trace, "extract", "no document tool was invoked")
+            self._node_degraded(
+                trace, "extract", "no document tool was invoked",
+                iterations=result.iterations, tool_calls=result.tool_calls,
+            )
             return cursor, None
         if findings is None or not findings.readings:
-            self._node_degraded(trace, "extract", "no typed findings were produced")
+            self._node_degraded(
+                trace, "extract", "no typed findings were produced",
+                iterations=result.iterations, tool_calls=result.tool_calls,
+            )
             if (result.response or "").strip():
                 self._node_outputs.append(result.response.strip())
             return cursor, None
-        self._node_completed(trace, "extract", readings=len(findings.readings))
+        self._node_completed(
+            trace, "extract", readings=len(findings.readings),
+            iterations=result.iterations, tool_calls=result.tool_calls,
+        )
         self._node_outputs.append(findings.model_dump_json())
         return cursor, findings
 
@@ -315,12 +324,18 @@ class NodeAgent:
             for entry in trace[start:]
         )
         if not searched:
-            self._node_degraded(trace, "retrieve", "document_search was not invoked")
+            self._node_degraded(
+                trace, "retrieve", "document_search was not invoked",
+                iterations=result.iterations, tool_calls=result.tool_calls,
+            )
             return cursor, ""
         retrieval = result.response or ""
         if retrieval.strip():
             self._node_outputs.append(retrieval.strip())
-        self._node_completed(trace, "retrieve", ok=result.status == AgentStatus.COMPLETED)
+        self._node_completed(
+            trace, "retrieve", ok=result.status == AgentStatus.COMPLETED,
+            iterations=result.iterations, tool_calls=result.tool_calls,
+        )
         return cursor, retrieval
 
     async def _run_compute(self, job, workspace, task, trace, cursor, findings, retrieval):
@@ -362,7 +377,10 @@ class NodeAgent:
             raise NodeCancelledError()
         cursor += result.iterations
         if not has_findings:
-            self._node_completed(trace, "compute", computational=True)
+            self._node_completed(
+                trace, "compute", computational=True,
+                iterations=result.iterations, tool_calls=result.tool_calls,
+            )
             if (result.response or "").strip():
                 self._node_outputs.append(result.response.strip())
             return cursor, None, False, result.response
@@ -370,12 +388,21 @@ class NodeAgent:
         degraded = result.status != AgentStatus.COMPLETED
         if degraded:
             assessment = degraded_result(findings, min_thickness, alert)
-            self._node_degraded(trace, "compute", "iteration budget exhausted")
+            self._node_degraded(
+                trace, "compute", "iteration budget exhausted",
+                iterations=result.iterations, tool_calls=result.tool_calls,
+            )
         violations = traceability_violations(findings, assessment)
         if violations:
-            self._node_degraded(trace, "compute", f"untraceable courses: {', '.join(violations)}")
+            self._node_degraded(
+                trace, "compute", f"untraceable courses: {', '.join(violations)}",
+                iterations=result.iterations, tool_calls=result.tool_calls,
+            )
             assessment = degraded_result(findings, min_thickness, alert)
-        self._node_completed(trace, "compute", courses=len(assessment.courses))
+        self._node_completed(
+            trace, "compute", courses=len(assessment.courses),
+            iterations=result.iterations, tool_calls=result.tool_calls,
+        )
         self._node_outputs.append(assessment.model_dump_json())
         return cursor, assessment, degraded, None
 
@@ -424,9 +451,15 @@ class NodeAgent:
             raise NodeCancelledError()
         cursor += result.iterations
         if result.status != AgentStatus.COMPLETED:
-            self._node_degraded(trace, "draft", result.error or "draft did not complete")
+            self._node_degraded(
+                trace, "draft", result.error or "draft did not complete",
+                iterations=result.iterations, tool_calls=result.tool_calls,
+            )
             return cursor, None
-        self._node_completed(trace, "draft")
+        self._node_completed(
+            trace, "draft",
+            iterations=result.iterations, tool_calls=result.tool_calls,
+        )
         return cursor, result.response
 
     # -- trace helpers --------------------------------------------------------
@@ -444,8 +477,8 @@ class NodeAgent:
     def _node_skipped(self, trace, key, reason):
         trace.append({"step": len(trace) + 1, "type": "node_skipped", "node": key, "reason": reason})
 
-    def _node_degraded(self, trace, key, reason):
-        trace.append({"step": len(trace) + 1, "type": "node_degraded", "node": key, "reason": reason})
+    def _node_degraded(self, trace, key, reason, **fields):
+        trace.append({"step": len(trace) + 1, "type": "node_degraded", "node": key, "reason": reason, **fields})
 
     _skip = _node_skipped
 

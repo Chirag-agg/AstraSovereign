@@ -27,6 +27,16 @@ def test_job_completes_and_releases_resources(client_factory, test_models):
         job = wait_for_job(c, resp.json()["job_id"], "user-001", timeout=10)
 
         assert job["status"] == "completed"
+        # The worker releases the allocation in its finally, just after the job
+        # reaches COMPLETED, so a single read races the release. Poll for it.
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            job = c.get(
+                f"/api/jobs/{job['job_id']}", headers={"X-User-ID": "user-001"}
+            ).json()
+            if job["resource_status"] == "released":
+                break
+            time.sleep(0.02)
         assert job["resource_status"] == "released"
         health = c.get("/health").json()
         assert health["scheduler"]["running_jobs"] == 0

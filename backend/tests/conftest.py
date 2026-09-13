@@ -34,6 +34,46 @@ DEFAULT_HEADERS = {"X-User-ID": "user-001"}
 SANDBOX_IMAGE = "python:3.12-alpine"
 
 
+def pytest_configure(config):
+    """Fail loudly when the suite runs outside the project venv.
+
+    A global interpreter typically lacks the backend runtime deps (e.g.
+    python-docx), which surfaces as a scatter of confusing test failures instead
+    of one clear error. Only enforce when a local venv exists, CI is not running,
+    and the current interpreter is demonstrably missing those deps -- so a
+    prepared alternative environment still works.
+    """
+    import importlib.util
+    import os
+    import sys
+    from pathlib import Path
+
+    if os.environ.get("CI"):
+        return
+    backend_dir = Path(__file__).resolve().parents[1]
+    venv_python = backend_dir / ".venv" / "Scripts" / "python.exe"
+    if not venv_python.exists():
+        venv_python = backend_dir / ".venv" / "bin" / "python"
+    if not venv_python.exists():
+        return
+    try:
+        using_venv = Path(sys.executable).resolve() == venv_python.resolve()
+    except OSError:
+        using_venv = False
+    if using_venv:
+        return
+    missing = [
+        name for name in ("docx", "openpyxl") if importlib.util.find_spec(name) is None
+    ]
+    if missing:
+        raise pytest.UsageError(
+            "Backend test dependencies are missing from this interpreter ("
+            + ", ".join(missing)
+            + "); run the suite with the project venv:\n"
+            r"    backend\.venv\Scripts\python.exe -m pytest"
+        )
+
+
 class FakeEmbeddingProvider(EmbeddingProvider):
     """Deterministic, keyword-overlap embedding provider for tests/demos.
 

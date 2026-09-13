@@ -49,7 +49,7 @@ _NODE_MARKERS = (
     ("retrieve", "MUST call document_search"),
     ("compute", "Compute corrosion rate"),
     ("draft", "Build ALL THREE deliverables"),
-    ("draft", "Answer the request directly"),
+    ("draft", "Answer the request using the results below"),
 )
 
 

@@ -35,6 +35,48 @@ PROMPT = (
 TERMINAL = {"completed", "failed", "cancelled"}
 
 
+def parse_nodes(trace: list) -> list:
+    """Per-node outcome from the execution trace (mirrors run_nodes_direct)."""
+    nodes: list = []
+
+    def find(name: str) -> dict:
+        for node in nodes:
+            if node["node"] == name:
+                return node
+        node = {
+            "node": name, "capability": None, "model": None, "confidence": None,
+            "runner_up": None, "tool_calls": [], "iterations": None,
+            "tool_calls_made": None, "outcome": None, "reason": "",
+        }
+        nodes.append(node)
+        return node
+
+    current = None
+    for entry in trace:
+        etype = entry.get("type")
+        if etype == "node_started":
+            current = find(entry["node"])
+            current.update(
+                capability=entry.get("capability"), model=entry.get("model"),
+                confidence=entry.get("confidence"), runner_up=entry.get("runner_up"),
+            )
+        elif etype in ("node_completed", "node_degraded"):
+            node = find(entry["node"])
+            node["outcome"] = "completed" if etype == "node_completed" else "degraded"
+            node["reason"] = entry.get("reason", "")
+            node["iterations"] = entry.get("iterations")
+            node["tool_calls_made"] = entry.get("tool_calls")
+        elif etype == "node_skipped":
+            node = find(entry["node"])
+            node["outcome"] = "skipped"
+            node["reason"] = entry.get("reason", "")
+        elif etype == "tool_call" and current is not None:
+            current["tool_calls"].append(
+                {"tool": entry.get("tool"), "arguments": entry.get("arguments")}
+            )
+    return nodes
+
+
 def run(base_url: str, user_id: str, timeout_seconds: float) -> dict:
     import constants as C
 
@@ -129,6 +171,7 @@ def run(base_url: str, user_id: str, timeout_seconds: float) -> dict:
         "auto_fail": verdict["auto_fail"],
         "passed": verdict["passed"],
         "models_used": models,
+        "nodes": parse_nodes(trace),
         "routing": [
             {"step": step.get("step"), "type": step.get("type"), "model": step.get("model")}
             for step in trace

@@ -364,6 +364,13 @@ models, and provides an agentic pipeline that:
   text, which is honest. Do not add headless LibreOffice or any recalculation
   dependency to populate cached values — it is heavyweight on an air-gapped box
   for a cosmetic gain.
+- **Job context in the workbench UI (2026-09-13)**: the composer attaches
+  documents explicitly — a knowledge-base picker plus uploads auto-selected by
+  default — with a **"Use all documents"** toggle that expands to every ready
+  document at submit. The sent message shows the job's `document_ids`, so the
+  context that entered the model stays visible (the sovereignty-story asset).
+  Empty selection means no retrieval: job-scoped and honest, with the toggle as
+  the explicit route to whole-KB search. `submitChat` sends `document_ids`.
 
 ---
 
@@ -388,7 +395,7 @@ Implemented and working locally (backend + frontend + local models + Docker):
   closure is vendored under `presentation/node_modules` (pinned `4.0.1`) and the
   real `render.cjs` is covered by a `node`-marked integration test; see
   `docs/OFFLINE_BUNDLE.md`.
-- Tests: backend `pytest` (448 passed) and frontend typecheck + 64 tests + build.
+- Tests: backend `pytest` (448 passed) and frontend typecheck + 67 tests + build.
 - SQLite job updates are flat: 200 status updates measured at ~0.27 ms/update with
   1 job and ~0.25 ms/update with 200 jobs (0.93x) - the old full-table rewrite is
   gone.
@@ -455,6 +462,14 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   of fabrication appeared on other courses. Full failure list:
   `bench/results/*_hard_scenario_01_findings.md`. `constants.py` is provisional and
   must be validated against the real MRPL standard before scores are trusted.
+  **First properly-wired run (2026-09-13):** `run_scenario.py` now passes
+  `document_ids` and records per-node capability/model/confidence/runner-up/
+  iterations/tool-calls/outcome (same shape as `run_nodes_direct.py`). Queue and
+  direct agree on every wiring field; the score is **1-6/20 across runs** because
+  the model is inconsistent — in the failing runs `extract` never reads
+  `inspection_report_2026.pdf` and degrades, so `compute` and the
+  three-deliverable `draft` skip. High variance means multiple runs per
+  configuration are required for the December series.
 - **Network proof is application-layer only** (`NetworkGuard`); there is no
   OS-level packet capture.
 - Frontend polls (no streaming); the dev role switch is not authentication; and
@@ -468,20 +483,27 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   findings object). The planned semantic capability classifier was never built.
   Build it as its own change (exemplar set, threshold, eval) and retire
   `TaskRouter` in that commit, including the worker's lead-model selection —
-  which is the last thing keeping keyword routing alive.
+  which is the last thing keeping keyword routing alive. Fifth recorded miss
+  (2026-09-13): the cowork turn "Change the helper so it computes 21 times 2 and
+  run it." did not route to `coding`, so `compute` was skipped and the sandbox
+  tool was rejected by `draft`; the test now says "helper script" to exercise the
+  coding path.
 - **`extract` has no intent signal.** Its precondition is structural
   ("attachments present"), so it runs on *every* attachment job — including
   retrieval and Q&A tasks — and wastes an iteration and a model call before
   degrading (no typed findings). Named fix: the same semantic capability
   classifier above. Two known issues now converge on that one missing component.
-- **Frontend does not send `document_ids` (as of the node-wiring commit,
-  2026-09-13).** `submitChat` posts only `{message}` and the UI has no "documents
-  attached to this job" concept, so every document job started from the browser
-  receives an **empty job-scoped manifest** and `extract`/`retrieve` skip. This is
-  a user-visible regression for the duration: the UI previously searched the whole
-  KB implicitly and now cannot, so browser-driven document jobs do nothing. Fix
-  immediately after the wiring commit (composer attachment selection + threading
-  `document_ids` through `submitChat`).
+- **The `/cowork` composer still cannot attach documents (2026-09-13).** The
+  main workbench composer now sends `document_ids`, but `coworkChat` posts only
+  `{project_id, message}` and `CoworkChatRequest` has no `document_ids`, so
+  project jobs always run with an empty job-scoped manifest.
+- **Run backend tests with the project venv.** The exact invocation, from
+  `backend/`, is `.\.venv\Scripts\python.exe -m pytest`; from the repo root,
+  `backend\.venv\Scripts\python.exe -m pytest`. A global interpreter lacks
+  `python-docx`, which shows up as ~2 Word-generation test failures rather than
+  an import error. `tests/conftest.py` now raises a clear `UsageError` in that
+  case; CI installs the deps into the runner interpreter and sets `CI`, so the
+  guard skips there.
 
 ---
 
