@@ -116,6 +116,15 @@ class Agent:
             },
         )
 
+        # A single, persistent conversation. The model must see its own tool
+        # calls and their results as *its own* history, or every turn reads as a
+        # fresh request with a wall of text appended (the model re-searches
+        # instead of chaining search -> vision).
+        messages: list[dict] = [
+            {"role": "system", "content": self._system_prompt()},
+            {"role": "user", "content": task_text},
+        ]
+
         while True:
             if await self._is_cancelled(job_id):
                 return await self._cancelled(
@@ -146,15 +155,6 @@ class Agent:
                 )
 
             iterations += 1
-            history_block = (
-                "\n\nOBSERVATIONS FROM EARLIER TOOL CALLS:\n" + "\n".join(history)
-                if history
-                else ""
-            )
-            messages = [
-                {"role": "system", "content": self._system_prompt()},
-                {"role": "user", "content": f"{task_text}{history_block}"},
-            ]
 
             model_call_start = time.monotonic()
             logger.info(
@@ -242,15 +242,18 @@ class Agent:
             try:
                 decision = self._parse_decision(raw, native_calls)
             except AgentError as exc:
-                # The model produced JSON we cannot interpret (e.g. it put a tool
-                # name in "type"). Instead of killing the job with an internal
-                # error, tell the model what it did wrong and give it another
-                # chance (bounded by max_iterations).
-                history.append(
-                    "Your previous reply was not a valid action. Reply with STRICT JSON only, "
-                    'either {"type":"final","response":"..."} or '
-                    '{"type":"tool_call","tool":"<name>","arguments":{...}}. '
-                    f"(Reason: {exc})"
+                # Tell the model what went wrong on the same channel it observes
+                # tool results on, then let it retry.
+                messages.append({"role": "assistant", "content": raw or ""})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "Your previous reply was not a valid action. Use one of the "
+                            "provided tools, or reply with your final answer as plain text. "
+                            f"(Reason: {exc})"
+                        ),
+                    }
                 )
                 await self._sync(job_id, trace, stage, iterations, tool_calls)
                 continue
@@ -290,13 +293,18 @@ class Agent:
                     and not has_run_ok
                     and iterations < max_iter
                 ):
-                    history.append(
-                        "You tried to finish a coding task without a successful sandbox run. This "
-                        "is not allowed: call code_execution with "
-                        '{"language": "python", "code": "<your complete, self-contained program>"} '
-                        "(standard library or numpy), read the reported error if it fails, fix the "
-                        "code, and rerun until it exits with code 0. Then reply final with the "
-                        "verified result and the final code."
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "You tried to finish a coding task without a successful sandbox run. "
+                                "This is not allowed: call code_execution with "
+                                '{"language": "python", "code": "<your complete, self-contained program>"} '
+                                "(standard library or numpy), read the reported error if it fails, fix the "
+                                "code, and rerun until it exits with code 0. Then reply with the final "
+                                "result and the final code."
+                            ),
+                        }
                     )
                     await self._sync(job_id, trace, stage, iterations, tool_calls)
                     continue
@@ -324,13 +332,18 @@ class Agent:
                     and not has_generated
                     and iterations < max_iter
                 ):
-                    history.append(
-                        "This request is a document-generation task, but you have not called "
-                        "document_generation. Call it now with {\"type\": \"word\", \"filename\": "
-                        "\"<name>.docx\", \"title\": \"...\", \"document_type\": \"...\", \"sections\": "
-                        "[{\"heading\": \"...\", \"content\": \"...\"} ...]}. Write long, well-structured "
-                        "content that fully covers the requested scope. Do not refuse and do not answer "
-                        "with prose alone."
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "This request is a document-generation task, but you have not called "
+                                "document_generation. Call it now with {\"type\": \"word\", \"filename\": "
+                                "\"<name>.docx\", \"title\": \"...\", \"document_type\": \"...\", \"sections\": "
+                                "[{\"heading\": \"...\", \"content\": \"...\"} ...]}. Write long, well-structured "
+                                "content that fully covers the requested scope. Do not refuse and do not "
+                                "answer with prose alone."
+                            ),
+                        }
                     )
                     await self._sync(job_id, trace, stage, iterations, tool_calls)
                     continue
@@ -385,101 +398,52 @@ class Agent:
                     legacy_envelope_used=legacy_envelope_used,
                 )
 
-            # type == "tool_call"
-            if await self._is_cancelled(job_id):
-                return await self._cancelled(
-                    job_id, user_id, job.task_type, model, trace, iterations, tool_calls
-                )
-            if tool_calls >= max_calls:
-                return await self._fail(
-                    job_id,
-                    user_id,
-                    job.task_type,
-                    model,
-                    trace,
-                    iterations,
-                    tool_calls,
-                    f"Agent stopped: reached maximum tool calls ({max_calls})",
-                )
-            tool_calls += 1
-            tool_name = decision["tool"]
-            arguments = decision["arguments"]
+            # type == "tool_call" — one assistant message may carry several calls;
+            # append them all, then one tool message per call carrying its id.
+            calls = decision["calls"]
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": raw or "",
+                    "tool_calls": [
+                        {
+                            "id": call["id"],
+                            "type": "function",
+                            "function": {
+                                "name": call["name"],
+                                "arguments": call["arguments"],
+                            },
+                        }
+                        for call in calls
+                    ],
+                }
+            )
             stage = "tool_call"
-            self._append(
-                trace,
-                "plan",
-                description=decision.get("reasoning") or f"Call tool '{tool_name}'",
-            )
-            self._append(
-                trace,
-                "tool_call",
-                tool=tool_name,
-                arguments=arguments,
-            )
-            logger.info(
-                "tool_call_started",
-                extra={
-                    "event": "tool_call_started",
-                    "job_id": job_id,
-                    "user_id": user_id,
-                    "task_type": job.task_type,
-                    "model": model,
-                    "tool": tool_name,
-                    "iteration": iterations,
-                },
-            )
-
-            if allowed_tools is not None and tool_name not in allowed_tools:
-                note = (
-                    f"Tool '{tool_name}' is not available to this step. "
-                    f"Available: {', '.join(sorted(allowed_tools))}."
-                )
-                self._append(
-                    trace,
-                    "tool_result",
-                    tool=tool_name,
-                    ok=False,
-                    result_summary=self._shorten(note),
-                )
-                history.append(note)
-                await self._sync(job_id, trace, stage, iterations, tool_calls)
-                continue
-            try:
-                result = await self._tools.execute(tool_name, arguments, workspace)
-            except ToolError as exc:
-                self._append(
-                    trace,
-                    "tool_result",
-                    tool=tool_name,
-                    ok=False,
-                    result_summary=self._shorten(str(exc)),
-                )
-                history.append(f"Tool '{tool_name}' failed: {exc}")
-                logger.error(
-                    "tool_call_failed",
-                    extra={
-                        "event": "tool_call_failed",
-                        "job_id": job_id,
-                        "user_id": user_id,
-                        "task_type": job.task_type,
-                        "model": model,
-                        "tool": tool_name,
-                        "iteration": iterations,
-                    },
-                )
-            else:
-                self._append(
-                    trace,
-                    "tool_result",
-                    tool=tool_name,
-                    ok=result.ok,
-                    result_summary=result.summary,
-                )
-                history.append(self._observation(tool_name, result))
+            for call in calls:
+                if await self._is_cancelled(job_id):
+                    return await self._cancelled(
+                        job_id, user_id, job.task_type, model, trace, iterations, tool_calls
+                    )
+                if tool_calls >= max_calls:
+                    return await self._fail(
+                        job_id,
+                        user_id,
+                        job.task_type,
+                        model,
+                        trace,
+                        iterations,
+                        tool_calls,
+                        f"Agent stopped: reached maximum tool calls ({max_calls})",
+                    )
+                tool_calls += 1
+                tool_name = call["name"]
+                arguments = call["arguments"]
+                self._append(trace, "plan", description=f"Call tool '{tool_name}'")
+                self._append(trace, "tool_call", tool=tool_name, arguments=arguments)
                 logger.info(
-                    "tool_call_completed",
+                    "tool_call_started",
                     extra={
-                        "event": "tool_call_completed",
+                        "event": "tool_call_started",
                         "job_id": job_id,
                         "user_id": user_id,
                         "task_type": job.task_type,
@@ -488,6 +452,60 @@ class Agent:
                         "iteration": iterations,
                     },
                 )
+                if allowed_tools is not None and tool_name not in allowed_tools:
+                    observation = (
+                        f"Tool '{tool_name}' is not available to this step. "
+                        f"Available: {', '.join(sorted(allowed_tools))}."
+                    )
+                    self._append(
+                        trace, "tool_result", tool=tool_name, ok=False,
+                        result_summary=self._shorten(observation),
+                    )
+                else:
+                    try:
+                        result = await self._tools.execute(tool_name, arguments, workspace)
+                    except ToolError as exc:
+                        observation = f"Tool '{tool_name}' failed: {exc}"
+                        self._append(
+                            trace, "tool_result", tool=tool_name, ok=False,
+                            result_summary=self._shorten(str(exc)),
+                        )
+                        logger.error(
+                            "tool_call_failed",
+                            extra={
+                                "event": "tool_call_failed",
+                                "job_id": job_id,
+                                "user_id": user_id,
+                                "task_type": job.task_type,
+                                "model": model,
+                                "tool": tool_name,
+                                "iteration": iterations,
+                            },
+                        )
+                    else:
+                        observation = self._observation(tool_name, result)
+                        self._append(
+                            trace, "tool_result", tool=tool_name, ok=result.ok,
+                            result_summary=result.summary,
+                        )
+                        logger.info(
+                            "tool_call_completed",
+                            extra={
+                                "event": "tool_call_completed",
+                                "job_id": job_id,
+                                "user_id": user_id,
+                                "task_type": job.task_type,
+                                "model": model,
+                                "tool": tool_name,
+                                "iteration": iterations,
+                            },
+                        )
+                # Results (and errors) come back on the tool channel, truncated
+                # but never dropped, so recovery works instead of re-calling.
+                messages.append(
+                    {"role": "tool", "tool_call_id": call["id"], "content": observation}
+                )
+                history.append(observation)
             await self._sync(job_id, trace, stage, iterations, tool_calls)
 
     # ----------------------------------------------------------- helpers
@@ -665,12 +683,17 @@ class Agent:
     ) -> dict:
         # Native tool calling takes precedence when the model used the tools API.
         if tool_calls:
-            call = tool_calls[0]
             return {
                 "type": "tool_call",
-                "tool": call["name"],
-                "arguments": call["arguments"],
-                "reasoning": None,
+                "calls": [
+                    {
+                        "id": call.get("id") or f"call_{index}",
+                        "name": call["name"],
+                        "arguments": call["arguments"],
+                    }
+                    for index, call in enumerate(tool_calls)
+                ],
+                "legacy": False,
             }
         text = (raw or "").strip()
         if not text:
@@ -681,40 +704,23 @@ class Agent:
         except (ValueError, json.JSONDecodeError):
             parsed = None
         if isinstance(parsed, dict):
-            if isinstance(parsed.get("response"), str):
-                # Models may emit {"response": "..."} in JSON mode.
-                return {"type": "final", "response": parsed["response"], "reasoning": parsed.get("reasoning"), "legacy": True}
+            if isinstance(parsed.get("response"), str) and "tool" not in parsed:
+                return {"type": "final", "response": parsed["response"], "legacy": True}
             dtype = parsed.get("type")
             if dtype == "final":
-                return {"type": "final", "response": parsed.get("response"), "reasoning": parsed.get("reasoning"), "legacy": True}
-            if dtype == "tool_call":
-                tool = parsed.get("tool")
-                arguments = parsed.get("arguments")
+                return {"type": "final", "response": parsed.get("response"), "legacy": True}
+            tool = parsed.get("tool")
+            if dtype == "tool_call" or (isinstance(tool, str) and tool and dtype != "final"):
                 if not isinstance(tool, str) or not tool:
                     raise AgentError("tool_call is missing a valid 'tool' name")
-                if not isinstance(arguments, dict):
-                    raise AgentError("tool_call 'arguments' must be an object")
-                return {
-                    "type": "tool_call",
-                    "tool": tool,
-                    "arguments": arguments,
-                    "reasoning": parsed.get("reasoning"),
-                    "legacy": True,
-                }
-            # Tolerate models that supply the tool name under "tool" while
-            # omitting or garbling "type" (they intended a tool call).
-            tool = parsed.get("tool")
-            if isinstance(tool, str) and tool and dtype != "final":
                 arguments = parsed.get("arguments")
                 if not isinstance(arguments, dict):
                     arguments = {}
                 return {
                     "type": "tool_call",
-                    "tool": tool,
-                    "arguments": arguments,
-                    "reasoning": parsed.get("reasoning"),
+                    "calls": [{"id": "call_legacy", "name": tool, "arguments": arguments}],
                     "legacy": True,
                 }
             raise AgentError(f"Unknown decision type '{dtype}'")
         # Non-JSON output: treat the raw text as a plain-text final response.
-        return {"type": "final", "response": text, "reasoning": None}
+        return {"type": "final", "response": text, "legacy": False}

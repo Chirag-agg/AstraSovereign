@@ -8,6 +8,7 @@ into the final answer.
 """
 
 import asyncio
+import json
 
 import httpx
 
@@ -119,3 +120,53 @@ def test_native_tool_call_missing_required_argument_recovers(tmp_path):
     ]
     assert failed and "Missing required argument" in failed[0]["result_summary"]
     assert "tool_call" not in (result.response or "")
+
+
+def test_tool_history_roundtrips_ids_and_parallel_calls(tmp_path):
+    """Two calls in one assistant turn must produce two tool messages carrying
+    their ids, so the next completion sees a real tool-calling history."""
+    (tmp_path / "a.txt").write_text("x", encoding="utf-8")
+    requests = []
+    script = [
+        {
+            "content": "",
+            "tool_calls": [
+                {"id": "call_1", "name": "list_files", "arguments": {}},
+                {"id": "call_2", "name": "read_file", "arguments": {"path": "a.txt"}},
+            ],
+        },
+        {"content": "done"},
+    ]
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/tags":
+            return httpx.Response(200, json={"models": [{"name": "test-model"}]})
+        if request.url.path == "/api/chat":
+            payload = json.loads(request.content)
+            requests.append(payload)
+            turn = script.pop(0)
+            message = {"role": "assistant", "content": turn.get("content", "")}
+            if turn.get("tool_calls"):
+                message["tool_calls"] = [
+                    {
+                        "id": call["id"],
+                        "function": {"name": call["name"], "arguments": call["arguments"]},
+                    }
+                    for call in turn["tool_calls"]
+                ]
+            return httpx.Response(200, json={"model": "test-model", "message": message})
+        return httpx.Response(404, json={"error": "not found"})
+
+    result, _final = run_agent(handler, "inspect", tmp_path)
+    assert result.status == "completed"
+    assert result.tool_calls == 2
+    assert len(requests) == 2
+    second_messages = requests[1]["messages"]
+    assistant = [
+        message
+        for message in second_messages
+        if message.get("role") == "assistant" and message.get("tool_calls")
+    ]
+    assert assistant and len(assistant[-1]["tool_calls"]) == 2
+    tool_messages = [message for message in second_messages if message.get("role") == "tool"]
+    assert {message["tool_call_id"] for message in tool_messages} == {"call_1", "call_2"}
