@@ -17,13 +17,37 @@ from app.services.job_manager import JobManager
 from app.services.job_store import InMemoryJobStore
 from app.services.ollama_service import OllamaService
 from app.services.tool_registry import ToolRegistry
-from app.services.tools import ListFilesTool, ReadFileTool, WriteFileTool
+from app.services.tools import (
+    BaseTool,
+    ListFilesTool,
+    ReadFileTool,
+    ToolResult,
+    WriteFileTool,
+)
 from tests.conftest import make_native_chat_handler
 
 TOOLS = ToolRegistry([ListFilesTool(), ReadFileTool(), WriteFileTool()])
 
 
-def run_agent(handler, message, workspace, max_iterations=5, max_tool_calls=5):
+class SearchStub(BaseTool):
+    name = "document_search"
+    description = "search"
+    input_schema = {
+        "type": "object",
+        "properties": {"query": {"type": "string"}, "top_k": {"type": "integer"}},
+        "required": ["query"],
+        "additionalProperties": False,
+    }
+
+    def __init__(self):
+        self.calls = []
+
+    async def execute(self, workspace, arguments):
+        self.calls.append(arguments)
+        return ToolResult(ok=True, summary=f"searched top_k={arguments.get('top_k')}")
+
+
+def run_agent(handler, message, workspace, max_iterations=5, max_tool_calls=5, tools=None):
     async def scenario():
         store = InMemoryJobStore()
         manager = JobManager(store=store, default_model="test-model")
@@ -36,7 +60,7 @@ def run_agent(handler, message, workspace, max_iterations=5, max_tool_calls=5):
         )
         agent = Agent(
             manager=manager,
-            tool_registry=TOOLS,
+            tool_registry=tools if tools is not None else TOOLS,
             model_client=service,
             max_iterations=max_iterations,
             max_tool_calls=max_tool_calls,
@@ -170,3 +194,44 @@ def test_tool_history_roundtrips_ids_and_parallel_calls(tmp_path):
     assert assistant and len(assistant[-1]["tool_calls"]) == 2
     tool_messages = [message for message in second_messages if message.get("role") == "tool"]
     assert {message["tool_call_id"] for message in tool_messages} == {"call_1", "call_2"}
+
+
+def test_string_integer_argument_is_coerced_and_recorded(tmp_path):
+    tool = SearchStub()
+    handler = make_native_chat_handler(
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    {"name": "document_search", "arguments": {"query": "x", "top_k": "5"}}
+                ],
+            },
+            {"content": "done"},
+        ]
+    )
+    result, final = run_agent(handler, "search x", tmp_path, tools=ToolRegistry([tool]))
+    assert result.status == "completed"
+    assert tool.calls == [{"query": "x", "top_k": 5}]
+    assert result.argument_coercions == 1
+    coerced = [entry for entry in final.execution_trace if entry["type"] == "tool_argument_coerced"]
+    assert coerced and coerced[0]["fields"] == ["top_k"]
+
+
+def test_rejected_tool_call_returns_as_tool_message_and_retries(tmp_path):
+    (tmp_path / "a.txt").write_text("x", encoding="utf-8")
+    handler = make_native_chat_handler(
+        [
+            {"content": "", "tool_calls": [{"name": "read_file", "arguments": {}}]},
+            {
+                "content": "",
+                "tool_calls": [{"name": "read_file", "arguments": {"path": "a.txt"}}],
+            },
+            {"content": "done"},
+        ]
+    )
+    result, final = run_agent(handler, "read the file", tmp_path)
+    assert result.status == "completed"
+    assert result.tool_calls == 2
+    results = [entry for entry in final.execution_trace if entry["type"] == "tool_result"]
+    assert [entry["ok"] for entry in results] == [False, True]
+    assert "Missing required argument" in results[0]["result_summary"]

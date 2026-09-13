@@ -77,6 +77,7 @@ class RecordingAgent:
                 "tool_calls": result.tool_calls,
                 "status": result.status,
                 "legacy_envelope_used": getattr(result, "legacy_envelope_used", 0),
+                "argument_coercions": getattr(result, "argument_coercions", 0),
             }
         )
         return result
@@ -262,6 +263,12 @@ async def main() -> None:
             legacy_by_model[call["model"]] = (
                 legacy_by_model.get(call["model"], 0) + call["legacy_envelope_used"]
             )
+    coercions_by_model: dict[str, int] = {}
+    for call in recorder.calls:
+        if call.get("argument_coercions"):
+            coercions_by_model[call["model"]] = (
+                coercions_by_model.get(call["model"], 0) + call["argument_coercions"]
+            )
 
     record = {
         "scenario": "Hard Scenario 01 (node-direct)",
@@ -276,6 +283,7 @@ async def main() -> None:
         "vision_called_on_nameplate": vision_on_nameplate,
         "nameplate_vision_result": nameplate_vision,
         "legacy_envelope_used_by_model": legacy_by_model,
+        "argument_coercions_by_model": coercions_by_model,
         "artifacts": [(a.filename, a.type, a.status) for a in artifacts],
         "response": (result.response or "")[:800],
     }
@@ -292,6 +300,7 @@ async def main() -> None:
         print("nameplate content:", nameplate_vision["content"][:600])
     print("\n=== SCORE ===", verdict["score"], "/", verdict["max"], "trap_passed:", verdict["trap_passed"])
     print("legacy_envelope_used_by_model:", legacy_by_model)
+    print("argument_coercions_by_model:", coercions_by_model)
     print("record:", record_path)
 
 

@@ -20,7 +20,7 @@ from app.schemas.job import Job, JobStatus
 from app.services.job_manager import JobManager
 from app.services.log_context import set_job_context
 from app.services.ollama_service import OllamaService, OllamaServiceError
-from app.services.tool_registry import ToolRegistry
+from app.services.tool_registry import ToolRegistry, coerce_arguments
 from app.services.tools import ToolError, ToolResult
 
 logger = logging.getLogger("app.agent")
@@ -50,6 +50,8 @@ class AgentResult(BaseModel):
     # tool calling. Expiry signal: if this stays 0 across the demo models, delete
     # the legacy parser before freeze.
     legacy_envelope_used: int = 0
+    # How many tool calls needed lenient scalar coercion (a weak-model signal).
+    argument_coercions: int = 0
 
 
 class AgentError(Exception):
@@ -96,6 +98,7 @@ class Agent:
         iterations = 0
         tool_calls = 0
         legacy_envelope_used = 0
+        argument_coercions = 0
         stage = "planning"
         max_iter = max_iterations if max_iterations is not None else self._max_iterations
         max_calls = max_tool_calls if max_tool_calls is not None else self._max_tool_calls
@@ -396,6 +399,7 @@ class Agent:
                     iterations=iterations,
                     tool_calls=tool_calls,
                     legacy_envelope_used=legacy_envelope_used,
+                    argument_coercions=argument_coercions,
                 )
 
             # type == "tool_call" — one assistant message may carry several calls;
@@ -438,6 +442,19 @@ class Agent:
                 tool_calls += 1
                 tool_name = call["name"]
                 arguments = call["arguments"]
+                tool = self._tools.get(tool_name)
+                arguments, coerced_fields = coerce_arguments(
+                    getattr(tool, "input_schema", {}) if tool is not None else {},
+                    arguments,
+                )
+                if coerced_fields:
+                    argument_coercions += 1
+                    self._append(
+                        trace,
+                        "tool_argument_coerced",
+                        tool=tool_name,
+                        fields=coerced_fields,
+                    )
                 self._append(trace, "plan", description=f"Call tool '{tool_name}'")
                 self._append(trace, "tool_call", tool=tool_name, arguments=arguments)
                 logger.info(

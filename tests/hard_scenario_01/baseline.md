@@ -145,3 +145,27 @@ Actionable: (1) assemble the manifest per job, not per user library; (2) weak
 models emit numeric arguments as strings — coerce (or the tool rejects the call
 and the model does not recover).
 
+## Node-direct run — coercion (Task C follow-up 2)
+
+Weak models emit numeric arguments as strings; `extract`'s `document_search` was
+rejected over `top_k: "5"`. Added lenient scalar coercion at the agent boundary
+(`coerce_arguments`): `"5"`→5, `"true"`→True, JSON-string arrays; non-parseable
+values still fail. Every coercion is recorded on the trace
+(`tool_argument_coerced`) and counted (`AgentResult.argument_coercions`), tallied
+by model. Verified rejection-then-retry separately: a validation error returns as
+a `tool` message and the model gets another iteration (test).
+
+Re-run 2026-09-13T08:29Z (job in `bench/results/20260913T082903Z_…`):
+
+| node | iters | tool calls | outcome | reason |
+|---|---|---|---|---|
+| extract | 4 | `document_search`, `document_vision` (nameplate), `document_vision` (2021 report) | degraded | no typed findings |
+| retrieve | 2 | `document_search` | completed | — |
+| compute | — | — | skipped | no typed findings |
+| draft | — | — | skipped | nothing grounded to draft from |
+
+**`vision called on nameplate: True`** — the Task C expectation is met. Score
+1/20, trap vacuous. `argument_coercions_by_model = {llama3.1:latest: 3}`;
+`legacy_envelope_used = {}`. The remaining extract gap is producing the typed
+findings JSON (instruction/model), not plumbing.
+

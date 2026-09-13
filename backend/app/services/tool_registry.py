@@ -4,6 +4,7 @@ The agent depends on this registry abstraction, never on individual tools, so
 future tools can be added without touching the agent loop.
 """
 
+import json
 import logging
 from pathlib import Path
 from typing import Any, Iterable, Optional
@@ -69,6 +70,47 @@ class ToolRegistry:
                 extra={"event": "tool_call_failed", "tool": name},
             )
             raise ToolError(f"Tool '{name}' failed: {exc.__class__.__name__}") from exc
+
+
+def coerce_arguments(schema: dict, arguments: Any) -> tuple[Any, list[str]]:
+    """Leniently coerce JSON-scalar strings to the schema's declared types.
+
+    A weak model emits ``"5"`` for an integer argument or ``"true"`` for a
+    boolean; rejecting the call over a quotation mark is not a safety property.
+    Returns ``(coerced, coerced_field_names)``; unparseable values are left
+    unchanged so ``validate_arguments`` still rejects them. Callers record the
+    coercion (it is a model-quality signal, not something to hide).
+    """
+    if not isinstance(arguments, dict):
+        return arguments, []
+    properties = (schema or {}).get("properties", {})
+    coerced = dict(arguments)
+    fields: list[str] = []
+    for key, value in arguments.items():
+        prop = properties.get(key)
+        if prop is None:
+            continue
+        expected = prop.get("type")
+        try:
+            if expected == "integer" and isinstance(value, str):
+                coerced[key] = int(value.strip())
+                fields.append(key)
+            elif expected == "number" and isinstance(value, str):
+                coerced[key] = float(value.strip())
+                fields.append(key)
+            elif expected == "boolean" and isinstance(value, str):
+                low = value.strip().lower()
+                if low in ("true", "false"):
+                    coerced[key] = low == "true"
+                    fields.append(key)
+            elif expected == "array" and isinstance(value, str):
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    coerced[key] = parsed
+                    fields.append(key)
+        except (ValueError, json.JSONDecodeError):
+            continue
+    return coerced, fields
 
 
 def validate_arguments(schema: dict, arguments: Any) -> None:
