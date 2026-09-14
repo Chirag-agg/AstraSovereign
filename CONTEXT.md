@@ -388,6 +388,10 @@ models, and provides an agentic pipeline that:
   document is read end to end without depending on the model to call the tool.
   Docling will implement the same extractor seam and add real table/section
   element types.
+- **`submit_findings` (2026-09-14)**: extract's typed exit is a terminal tool
+  whose schema is `FindingsObject`; the node completes only when it is accepted.
+  This is the native-tool-calling replacement for asking a model to emit JSON in
+  free text (the pattern removed with the hand-rolled envelope).
 
 ---
 
@@ -413,7 +417,7 @@ Implemented and working locally (backend + frontend + local models + Docker):
   closure is vendored under `presentation/node_modules` (pinned `4.0.1`) and the
   real `render.cjs` is covered by a `node`-marked integration test; see
   `docs/OFFLINE_BUNDLE.md`.
-- Tests: backend `pytest` (460 passed) and frontend typecheck + 67 tests + build.
+- Tests: backend `pytest` (466 passed) and frontend typecheck + 67 tests + build.
 - SQLite job updates are flat: 200 status updates measured at ~0.27 ms/update with
   1 job and ~0.25 ms/update with 200 jobs (0.93x) - the old full-table rewrite is
   gone.
@@ -517,15 +521,22 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   degrading (no typed findings). The classifier now exists and is wired, but
   `extract`'s precondition is still structural; gating it on a document-intent
   signal is the remaining use of the same capability work.
-- **`extract`'s blocker is the typed-output instruction, not the data
-  (2026-09-14).** `read_document` + whole-document injection now put the full
-  extraction — the readings table (`C1 13.4 … C5 10.4/11.6`, `C6 0.455 in`) and
-  the handwritten note — into the extract input, yet the model still does not
-  emit the `FindingsObject` JSON: it calls `document_search` (or `read_file`) and
-  finalizes prose, so `compute` and the three-deliverable `draft` skip. The data
-  gap is closed; the remaining fix is the structured-output/extraction
-  instruction (a constrained decoder or a dedicated extractor), not a new
-  capability.
+- **`extract` emits typed output via a tool (2026-09-14).** The node no longer
+  asks the model to write JSON. `submit_findings` is a tool in extract's set whose
+  schema is `FindingsObject`, and it is **terminal**: the node completes only when
+  that call is accepted (the agent steers the model back if it answers prose, and
+  a final without the call degrades with `submit_findings was not called`). A
+  malformed object returns as a tool error the model can correct. An ambiguous
+  cell (two candidate values) is carried as `candidates_mm` and the assessment
+  refers it (`REFER_AMBIGUOUS_READING`) instead of silently picking a value. With
+  the data gap (read_document + whole-document injection) and the output gap both
+  closed, the deterministic scenario completes with extract submitting findings
+  (2/20, previously 1/20 or a failed job); what remains is findings quality and
+  rendering, not structure.
+- **Ollama call timeout can fail a job (2026-09-14).** A single slow generation
+  on CPU exceeded the default 120 s `OLLAMA_TIMEOUT_SECONDS` and failed the job
+  mid-sequence. Benchmark runs use a larger value; raise it (or cap generation)
+  for the finale, and keep `BENCH_MODE`/pre-ingest in the demo checklist.
 - **Docling chosen for table extraction (2026-09-14).** Spike: `docling==2.127.0`
   (torch 2.14 CPU) runs fully offline (`HF_HUB_OFFLINE=1` + dead proxy) once
   `docling-project/docling-models` (342 MB) and `docling-project/docling-layout-heron`

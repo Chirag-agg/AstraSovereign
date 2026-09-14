@@ -203,3 +203,12 @@ Records: `bench/results/*_retrieval_eval_baseline.json` and
 > the supersession-metadata work, tracked separately. A naive reading of the
 > series will look worse when the retrieval is actually better.
 
+> **Scenario-score note (2026-09-14).** The properly-wired deterministic series
+> moved 3 -> 1 -> 2 across three different prompt points: 3 before attached
+> document content was injected, 1 after injection (the data reached a node that
+> still could not emit typed output), 2 after `submit_findings` made extract's
+> typed output a validated tool call. The 3 -> 1 step is not a regression: both
+> runs failed to build findings, and the point moved because the prompt changed.
+> `BENCH_MODE` (temperature 0) keeps each point stable, so once table extraction
+> lands, a move is attributable to it.
+

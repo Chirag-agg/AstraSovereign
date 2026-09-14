@@ -68,6 +68,7 @@ from app.services.tools import (
     DocumentSearchTool,
     DocumentVisionTool,
     ReadDocumentTool,
+    SubmitFindingsTool,
     ListFilesTool,
     PresentationGenerationTool,
     ReadFileTool,
@@ -351,6 +352,7 @@ def create_app(
             max_chars=settings.read_document_max_chars,
         )
     )
+    tools.append(SubmitFindingsTool())
 
     runner = None
     if settings.sandbox_enabled:

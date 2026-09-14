@@ -109,7 +109,7 @@ def test_flagship_workflow_creates_expected_audit_trail(client_factory, test_mod
                     {"document_id": scan["document_id"], "pages": [1], "question": "findings?"},
                     "analyze scanned page",
                 ),
-                final("Vibration 2.1 mm/s and seal leakage 3 ml/hr.", "vision read"),
+                tool_call("submit_findings", {"readings": []}, "No structured readings"),
                 # retrieve: procedure requirements
                 tool_call("document_search", {"query": "pump inspection requirements", "top_k": 3}, "retrieve"),
                 final("Procedure: seal leakage below 5 ml/hr; vibration below 4.5 mm/s.", "retrieved"),

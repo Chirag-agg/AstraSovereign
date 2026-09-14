@@ -107,7 +107,7 @@ def test_synthetic_industrial_comparison_demo(client_factory, test_models):
                     {"document_id": scan["document_id"], "pages": [1, 2], "question": "What inspection findings are visible?"},
                     "Analyze the scanned inspection report pages",
                 ),
-                final("Vibration 2.1 mm/s and seal leakage 3 ml/hr; a handwritten note flags the seal.", "Vision read"),
+                tool_call("submit_findings", {"readings": []}, "No structured readings"),
                 # retrieve: maintenance requirements from the KB
                 tool_call(
                     "document_search",
@@ -146,7 +146,7 @@ def test_synthetic_industrial_comparison_demo(client_factory, test_models):
     assert "seal" in job["response"].lower()
 
     tool_calls = [t["tool"] for t in job["execution_trace"] if t["type"] == "tool_call"]
-    assert tool_calls == ["document_vision", "document_search"]
+    assert tool_calls == ["document_vision", "submit_findings", "document_search"]
 
     vision_result = [
         t for t in job["execution_trace"]

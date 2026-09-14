@@ -78,7 +78,7 @@ def test_agent_uses_document_vision_for_scanned_question(client_factory, test_mo
                     {"document_id": doc_id, "pages": [1], "question": "What does the handwritten note say?"},
                     "The report is scanned, so analyze the page image",
                 ),
-                final("No structured findings to extract.", "Vision read complete"),
+                tool_call("submit_findings", {"readings": []}, "No structured readings"),
                 # retrieve: knowledge-base search
                 tool_call(
                     "document_search",
@@ -106,7 +106,7 @@ def test_agent_uses_document_vision_for_scanned_question(client_factory, test_mo
     assert job["status"] == "completed"
     assert "mechanical seal" in job["response"]
     tool_calls = [t["tool"] for t in job["execution_trace"] if t["type"] == "tool_call"]
-    assert tool_calls == ["document_vision", "document_search"]
+    assert tool_calls == ["document_vision", "submit_findings", "document_search"]
     vision_results = [
         t
         for t in job["execution_trace"]

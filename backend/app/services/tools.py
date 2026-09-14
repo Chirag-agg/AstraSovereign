@@ -24,6 +24,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, ValidationError
 
 from app.schemas.artifact import Artifact, ArtifactStatus
+from app.schemas.findings import FindingsObject
 from app.schemas.document_content import (
     ApprovalNote,
     ApprovalSignature,
@@ -275,6 +276,82 @@ class CodeExecutionTool(BaseTool):
             ok=result.success,
             summary=summary,
             content=content,
+        )
+
+
+class SubmitFindingsTool(BaseTool):
+    """The extract node's typed exit: submit the structured findings object.
+
+    Extract produces its typed output through native tool calling and this
+    schema — not free-text JSON. A malformed object fails validation and is
+    returned as a tool error the model can correct, and the node completes only
+    when this call is accepted.
+    """
+
+    name = "submit_findings"
+    description = (
+        "Submit the final structured findings object for this job. Call once, "
+        "with every course reading. The task completes when this is accepted."
+    )
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "tank": {"type": "string"},
+            "procedure": {"type": "string"},
+            "geometry": {
+                "type": "object",
+                "properties": {
+                    "diameter_m": {"type": "number"},
+                    "fill_height_m": {"type": "number"},
+                    "specific_gravity": {"type": "number"},
+                    "allowable_stress_mpa": {"type": "number"},
+                    "joint_efficiency": {"type": "number"},
+                    "source": {"type": "string"},
+                },
+                "additionalProperties": True,
+            },
+            "readings": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "course": {"type": "string"},
+                        "value_mm": {"type": "number"},
+                        "survey_date": {"type": "string"},
+                        "source": {"type": "string"},
+                        "note": {"type": "string"},
+                        "candidates_mm": {
+                            "type": "array",
+                            "items": {"type": "number"},
+                        },
+                    },
+                    "required": ["course", "value_mm"],
+                    "additionalProperties": False,
+                },
+            },
+            "thresholds": {"type": "object"},
+            "notes": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["readings"],
+        "additionalProperties": False,
+    }
+    required_sources: dict = {}
+
+    async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
+        try:
+            findings = FindingsObject.model_validate(arguments or {})
+        except ValidationError as exc:
+            raise ToolError(
+                "submit_findings: invalid findings object: "
+                + "; ".join(
+                    f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
+                    for err in exc.errors()[:4]
+                )
+            ) from exc
+        return ToolResult(
+            ok=True,
+            summary=f"findings accepted: {len(findings.readings)} reading(s)",
+            content=findings.model_dump_json(),
         )
 
 

@@ -89,6 +89,7 @@ class Agent:
         append_start: bool = True,
         enforce_contracts: bool = True,
         tool_names: Optional[set[str]] = None,
+        terminal_tools: Optional[set[str]] = None,
     ) -> AgentResult:
         job_id = job.job_id
         user_id = job.user_id
@@ -103,6 +104,10 @@ class Agent:
         max_iter = max_iterations if max_iterations is not None else self._max_iterations
         max_calls = max_tool_calls if max_tool_calls is not None else self._max_tool_calls
         allowed_tools = set(tool_names) if tool_names is not None else None
+        # A tool whose successful call completes the run (e.g. submit_findings):
+        # the node's typed output is a tool call, not free-text JSON.
+        terminal = set(terminal_tools or set())
+        terminal_hit: Optional[str] = None
 
         if append_start:
             self._append(trace, "agent_started", task_type=job.task_type, model=model)
@@ -290,6 +295,30 @@ class Agent:
                     and e.get("ok") is True
                     for e in trace
                 )
+                # A terminal tool must actually be called: prose is not the
+                # node's typed output. Steer the model back (bounded by the
+                # iteration budget) instead of accepting the final answer.
+                if terminal and iterations < max_iter:
+                    accepted = any(
+                        entry.get("type") == "tool_result"
+                        and entry.get("tool") in terminal
+                        and entry.get("ok") is True
+                        for entry in trace
+                    )
+                    if not accepted:
+                        names = ", ".join(sorted(terminal))
+                        messages.append({"role": "assistant", "content": response})
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": (
+                                    f"You must finish by calling {names} with the structured "
+                                    f"object; a prose answer is not accepted. Call {names} now."
+                                ),
+                            }
+                        )
+                        await self._sync(job_id, trace, stage, iterations, tool_calls)
+                        continue
                 if (
                     enforce_contracts
                     and job.task_type in ("coding",)
@@ -501,6 +530,8 @@ class Agent:
                         )
                     else:
                         observation = self._observation(tool_name, result)
+                        if tool_name in terminal and result.ok:
+                            terminal_hit = observation
                         self._append(
                             trace, "tool_result", tool=tool_name, ok=result.ok,
                             result_summary=result.summary,
@@ -524,6 +555,29 @@ class Agent:
                 )
                 history.append(observation)
             await self._sync(job_id, trace, stage, iterations, tool_calls)
+            if terminal_hit is not None:
+                await self._sync(job_id, trace, "completed", iterations, tool_calls)
+                logger.info(
+                    "agent_completed",
+                    extra={
+                        "event": "agent_completed",
+                        "job_id": job_id,
+                        "user_id": user_id,
+                        "task_type": job.task_type,
+                        "model": model,
+                        "iteration": iterations,
+                        "tool_calls": tool_calls,
+                        "status": AgentStatus.COMPLETED,
+                    },
+                )
+                return AgentResult(
+                    status=AgentStatus.COMPLETED,
+                    response=terminal_hit,
+                    iterations=iterations,
+                    tool_calls=tool_calls,
+                    legacy_envelope_used=legacy_envelope_used,
+                    argument_coercions=argument_coercions,
+                )
 
     # ----------------------------------------------------------- helpers
 

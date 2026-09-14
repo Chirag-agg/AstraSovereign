@@ -75,7 +75,7 @@ def test_agent_document_search_grounded_answer(client_factory, app_settings, tes
             {"query": "cooling water pump inspection procedure", "top_k": 3},
             "Locate the relevant documents",
         ),
-        final("No structured findings were found.", "Nothing to extract"),
+        tool_call("submit_findings", {"readings": []}, "No structured readings"),
         # retrieve: grounded passages
         tool_call(
             "document_search",
@@ -114,7 +114,11 @@ def test_agent_document_search_grounded_answer(client_factory, app_settings, tes
 
     trace = job["execution_trace"]
     tool_calls = [t for t in trace if t["type"] == "tool_call"]
-    assert [t["tool"] for t in tool_calls] == ["document_search", "document_search"]
+    assert [t["tool"] for t in tool_calls] == [
+        "document_search",
+        "submit_findings",
+        "document_search",
+    ]
     assert tool_calls[0]["arguments"]["query"]
     results = [t for t in trace if t["type"] == "tool_result"]
     assert results[-1]["ok"] is True

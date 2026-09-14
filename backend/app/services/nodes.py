@@ -52,7 +52,7 @@ NODE_TOOLS = {
         "document_search",
         "read_document",
         "document_vision",
-        "read_file",
+        "submit_findings",
         "list_files",
     },
     "retrieve": {"document_search"},
@@ -296,14 +296,15 @@ class NodeAgent:
         model = route.model
         self._node_started(trace, "extract", model, confidence, runner_up)
         instruction = (
-            "Extract a single JSON findings object from the attached documents/images. "
-            "For each attachment call read_document with its doc_id to read the full "
-            "extracted text, including tables; call document_vision for scanned pages and "
-            "the nameplate. Do not answer from memory. Cite document_id/page. "
-            'Output STRICT JSON: {"tank":"","procedure":"","geometry":{"diameter_m":null,'
-            '"fill_height_m":null,"specific_gravity":null,"allowable_stress_mpa":null,'
-            '"joint_efficiency":null},"readings":[{"course":"","value_mm":0.0,'
-            '"survey_date":"YYYY-MM-DD","source":""}]}. Include every reading with its survey date.'
+            "Build the structured findings for the attached documents/images, then call "
+            "submit_findings exactly once with the object — do not answer with prose. The "
+            "attachment content is already in this message; call read_document for any "
+            "document whose full text you still need, and document_vision for scanned pages "
+            "and the nameplate. Never answer from memory; cite document_id/page in each "
+            "reading's source. If a cell shows more than one candidate value (a "
+            "struck-through value plus a handwritten correction), put both in candidates_mm "
+            "and set value_mm to the handwritten/latest value. Include every course reading "
+            "with its survey date and the nameplate geometry."
         )
         start = len(trace)
         parts = [instruction]
@@ -316,6 +317,7 @@ class NodeAgent:
             task_text="\n\n".join(parts),
             max_iterations=self._budgets["extract"], max_tool_calls=8,
             append_start=False, enforce_contracts=False, tool_names=NODE_TOOLS["extract"],
+            terminal_tools={"submit_findings"},
         )
         if _is_infrastructure_failure(result):
             raise NodeInfrastructureError(result.error or "infrastructure failure")
@@ -323,25 +325,28 @@ class NodeAgent:
         if result.status == AgentStatus.CANCELLED:
             raise NodeCancelledError()
         cursor += result.iterations
-        invoked = [
-            entry.get("tool")
-            for entry in trace[start:]
-            if entry.get("type") == "tool_call"
-        ]
-        findings = _extract_findings(result.response)
-        if not invoked:
+        findings, submit_called = self._submitted_findings(trace, start)
+        if findings is None:
             self._node_degraded(
-                trace, "extract", "no document tool was invoked",
-                iterations=result.iterations, tool_calls=result.tool_calls,
-            )
-            return cursor, None
-        if findings is None or not findings.readings:
-            self._node_degraded(
-                trace, "extract", "no typed findings were produced",
-                iterations=result.iterations, tool_calls=result.tool_calls,
+                trace,
+                "extract",
+                "submit_findings was rejected by schema validation"
+                if submit_called
+                else "submit_findings was not called",
+                iterations=result.iterations,
+                tool_calls=result.tool_calls,
             )
             if (result.response or "").strip():
                 self._node_outputs.append(result.response.strip())
+            return cursor, None
+        if not findings.readings:
+            # A valid but empty object: the document has no structured readings
+            # (e.g. a Q&A/retrieval job). Not a typed finding set, so the node
+            # still degrades and retrieval/draft carry the answer.
+            self._node_degraded(
+                trace, "extract", "submit_findings contained no readings",
+                iterations=result.iterations, tool_calls=result.tool_calls,
+            )
             return cursor, None
         self._node_completed(
             trace, "extract", readings=len(findings.readings),
@@ -349,6 +354,30 @@ class NodeAgent:
         )
         self._node_outputs.append(findings.model_dump_json())
         return cursor, findings
+
+    @staticmethod
+    def _submitted_findings(trace, start):
+        """``(findings, submit_called)`` from the accepted submit_findings call.
+
+        The typed output is a tool call, not free text: an accepted call yields
+        the findings object; a rejected call or a missing call yields ``None``.
+        """
+        arguments = None
+        accepted = False
+        for entry in trace[start:]:
+            if entry.get("type") == "tool_call" and entry.get("tool") == "submit_findings":
+                arguments = entry.get("arguments")
+            elif entry.get("type") == "tool_result" and entry.get("tool") == "submit_findings":
+                accepted = entry.get("ok") is True
+        if arguments is None:
+            return None, False
+        if not accepted:
+            return None, True
+        try:
+            findings = FindingsObject.model_validate(arguments)
+        except Exception:
+            return None, True
+        return findings, True
 
     async def _run_retrieve(
         self, job, workspace, task, trace, cursor, attempt_docs, attachment_block, planned

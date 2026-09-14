@@ -60,7 +60,15 @@ class FakeAgent:
         trace = kwargs.get("trace")
         if trace is not None:
             # simulate the tool use each node must perform
-            if "document_vision" in task:
+            if "submit_findings" in task:
+                # extract's typed output is the submit_findings tool call
+                trace.append(
+                    {"step": len(trace) + 1, "type": "tool_call", "tool": "submit_findings", "arguments": FINDINGS}
+                )
+                trace.append(
+                    {"step": len(trace) + 1, "type": "tool_result", "tool": "submit_findings", "ok": True}
+                )
+            elif "document_vision" in task:
                 trace.append({"step": len(trace) + 1, "type": "tool_call", "tool": "document_vision"})
             elif "document_search" in task:
                 trace.append({"step": len(trace) + 1, "type": "tool_call", "tool": "document_search"})
@@ -172,7 +180,7 @@ def test_nodes_scope_tools_per_step():
         "document_search",
         "read_document",
         "document_vision",
-        "read_file",
+        "submit_findings",
         "list_files",
     }
     assert calls[1]["tool_names"] == {"document_search"}

@@ -20,6 +20,7 @@ from app.schemas.findings import (
 # incomplete assessment is a system limitation. Same status, different cause.
 REASON_NO_BASELINE = "REFER_NO_BASELINE"
 REASON_INCOMPLETE = "REFER_ASSESSMENT_INCOMPLETE"
+REASON_AMBIGUOUS = "REFER_AMBIGUOUS_READING"
 
 
 def _as_date(value: Optional[str]) -> Optional[date]:
@@ -79,6 +80,29 @@ def assess(
         min_thickness_mm=min_thickness_mm, alert_thickness_mm=alert_thickness_mm
     )
     for course in sorted({reading.course for reading in findings.readings}):
+        ambiguous = next(
+            (
+                reading
+                for reading in findings.readings
+                if reading.course == course and len(reading.candidates_mm) >= 2
+            ),
+            None,
+        )
+        if ambiguous is not None:
+            candidates = ", ".join(str(value) for value in ambiguous.candidates_mm)
+            result.courses.append(
+                CourseAssessment(
+                    course=course,
+                    current_mm=ambiguous.value_mm,
+                    status="REFER",
+                    reason_code=REASON_AMBIGUOUS,
+                    reason=(
+                        f"ambiguous reading ({candidates}): more than one candidate "
+                        "value, referred for human review"
+                    ),
+                )
+            )
+            continue
         pair = latest_two(findings, course)
         if pair is None:
             result.courses.append(

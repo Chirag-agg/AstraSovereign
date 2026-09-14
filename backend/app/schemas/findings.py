@@ -19,6 +19,10 @@ class ThicknessReading(BaseModel):
     survey_date: Optional[str] = None  # ISO 8601 date, e.g. "2026-08-15"
     source: str = ""  # document id / filename
     note: str = ""
+    # Two or more candidate values means the source cell was ambiguous (e.g. a
+    # struck-through value plus a handwritten correction). The assessment refers
+    # such a reading for human review instead of silently picking one.
+    candidates_mm: list[float] = Field(default_factory=list)
 
 
 class TankGeometry(BaseModel):
