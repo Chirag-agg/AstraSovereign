@@ -9,19 +9,18 @@ so there is never more than one active model request at a time.
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Callable, Optional
+from typing import Optional
 
 from app.schemas.job import Job, JobStatus
 from app.services.agent import Agent, AgentStatus
 from app.services.attachments import build_attachment_manifest
 from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
-from app.services.model_router import ModelRouter, ModelRoutingError
+from app.services.capability_classifier import SemanticCapabilityClassifier
 from app.services.ollama_service import OllamaService, OllamaServiceError
 from app.services.context import ContextManager
 from app.services.projects import CoworkProjects, ProjectLocks, ProjectNotFoundError
 from app.services.resource_scheduler import ResourceScheduler
-from app.services.task_router import TaskRouter
 from app.services.workspace import WorkspaceManager
 
 logger = logging.getLogger("app.worker")
@@ -33,8 +32,7 @@ class Worker:
         queue: JobQueue,
         manager: JobManager,
         ollama: OllamaService,
-        task_router: TaskRouter,
-        model_router: ModelRouter,
+        classifier: SemanticCapabilityClassifier,
         agent: Agent,
         workspace_manager: WorkspaceManager,
         scheduler: ResourceScheduler,
@@ -43,15 +41,11 @@ class Worker:
         projects: Optional[CoworkProjects] = None,
         project_locks: Optional[ProjectLocks] = None,
         context_manager: Optional[ContextManager] = None,
-        available_models: Optional[set[str]] = None,
-        availability_provider: Optional[Callable[[], Optional[set[str]]]] = None,
-        fallback_enabled: bool = True,
     ) -> None:
         self._queue = queue
         self._manager = manager
         self._ollama = ollama
-        self._task_router = task_router
-        self._model_router = model_router
+        self._classifier = classifier
         self._agent = agent
         self._workspace_manager = workspace_manager
         self._scheduler = scheduler
@@ -60,9 +54,6 @@ class Worker:
         self._projects = projects
         self._project_locks = project_locks
         self._context_manager = context_manager
-        self._available_models = set(available_models) if available_models is not None else None
-        self._availability_provider = availability_provider
-        self._fallback_enabled = fallback_enabled
         self._task: Optional[asyncio.Task] = None
         self._state = "stopped"  # stopped | idle | running
         self._active_job_id: Optional[str] = None
@@ -118,7 +109,7 @@ class Worker:
         project_lock_held = False
         project_dir: Optional[object] = None
         try:
-            classification = self._task_router.classify(job.message)
+            classification = await self._classifier.classify(job.message)
             logger.info(
                 "task_classified",
                 extra={
@@ -134,59 +125,15 @@ class Worker:
                 task_type=classification.task_type,
             )
 
-            routing = self._model_router.resolve(
-                classification.task_type,
-                classification.reason,
-                available_models=(
-                    self._availability_provider()
-                    if self._availability_provider is not None
-                    else self._available_models
-                ),
-                fallback_enabled=self._fallback_enabled,
-            )
-            if routing.fallback_active:
-                logger.info(
-                    "model_fallback",
-                    extra={
-                        "event": "model_fallback",
-                        "job_id": job_id,
-                        "user_id": job.user_id,
-                        "task_type": routing.task_type,
-                        "requested": routing.requested_model,
-                        "actual": routing.model,
-                        "fallback_reason": "model_unavailable",
-                    },
-                )
-            logger.info(
-                "model_selected",
-                extra={
-                    "event": "model_selected",
-                    "job_id": job_id,
-                    "user_id": job.user_id,
-                    "task_type": routing.task_type,
-                    "model": routing.model,
-                    "requested_model": routing.requested_model,
-                    "fallback_active": routing.fallback_active,
-                },
-            )
-            await self._manager.update_job(
-                job_id,
-                model=routing.model,
-            )
-            job = await self._manager.get_job_for_worker(job_id)
-            if job is None or job.status == JobStatus.CANCELLED:
-                return
-
-            decision = await self._request_resources(job, routing)
-            if decision is None:
-                return  # rejected or cancelled while waiting for resources
-
-            resource_status = "allocated" if decision.allocation else "not_required"
+            # Model selection is per node inside the node sequence; the worker
+            # only records the classified task type. Per-node resource
+            # reservation and the MODEL_SELECTED/MODEL_FALLBACK audit happen in
+            # the node sequence.
             await self._manager.update_job(
                 job_id,
                 status=JobStatus.RUNNING,
                 started_at=datetime.now(timezone.utc),
-                resource_status=resource_status,
+                resource_status="not_required",
             )
             current = await self._manager.get_job_for_worker(job_id)
             if current is not None and current.status == JobStatus.CANCELLED:
@@ -200,6 +147,8 @@ class Worker:
                     },
                 )
                 return
+            # Re-read so the node sequence sees the classified task_type.
+            job = current or job
 
             logger.info(
                 "job_started",
@@ -208,8 +157,7 @@ class Worker:
                     "job_id": job_id,
                     "user_id": job.user_id,
                     "status": JobStatus.RUNNING.value,
-                    "task_type": routing.task_type,
-                    "model": routing.model,
+                    "task_type": classification.task_type,
                 },
             )
 
@@ -238,20 +186,11 @@ class Worker:
                 )
             else:
                 agent_result = await self._agent.run(
-                    job=job, model=routing.model, workspace=workspace, task_text=task_text
+                    job=job,
+                    model=self._ollama.default_model,
+                    workspace=workspace,
+                    task_text=task_text,
                 )
-        except ModelRoutingError as exc:
-            logger.error(
-                "routing_failure",
-                extra={
-                    "event": "routing_failure",
-                    "job_id": job_id,
-                    "user_id": job.user_id,
-                    "status": JobStatus.FAILED.value,
-                    "error": str(exc),
-                },
-            )
-            await self._fail(job, error=f"model_routing_error: {exc}")
         except OllamaServiceError as exc:
             await self._fail(job, error=f"{exc.__class__.__name__}: {exc}")
         except Exception as exc:  # catch-all: unexpected worker/backend failure
@@ -316,39 +255,6 @@ class Worker:
         return build_attachment_manifest(
             [document for document in documents if document.document_id in wanted]
         )
-
-    async def _request_resources(self, job: Job, routing) -> Optional[object]:
-        """Request resources until granted, rejected, or the job is cancelled.
-
-        Returns the scheduler decision on grant, or ``None`` when the job was
-        rejected (impossible request) or cancelled while waiting.
-        """
-        while True:
-            decision = await self._scheduler.request(
-                job.job_id, job.user_id, routing.model, routing.requirements
-            )
-            if decision.decision == "grant":
-                return decision
-            if decision.decision == "reject":
-                await self._manager.update_job(job.job_id, resource_status="rejected")
-                await self._fail(job, error=f"resource_rejected: {decision.reason}")
-                return None
-
-            await self._manager.update_job(job.job_id, resource_status="waiting")
-            await self._scheduler.wait_until_available(timeout=1.0)
-            current = await self._manager.get_job_for_worker(job.job_id)
-            if current is None or current.status == JobStatus.CANCELLED:
-                await self._scheduler.cancel(job.job_id)
-                logger.info(
-                    "job_cancelled",
-                    extra={
-                        "event": "job_cancelled",
-                        "job_id": job.job_id,
-                        "user_id": job.user_id,
-                        "status": JobStatus.CANCELLED.value,
-                    },
-                )
-                return None
 
     async def _release_resources(self, job_id: str) -> None:
         try:

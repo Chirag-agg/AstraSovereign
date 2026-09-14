@@ -1,12 +1,18 @@
-"""Capability-based model resolution for multi-model pipeline stages.
+"""Capability-based model resolution — the single routing authority.
 
-The worker's primary ``ModelRouter`` answers ``task_type -> model``. This router
-answers ``capability -> model`` for pipeline stages, with an explicit fallback
-chain: an enabled model that declares the capability, then the ``general``
-model, then any enabled model. It never hardcodes a model name.
+The node sequence asks this router for the model that serves a capability
+(``document``/``coding``/``general``). Resolution walks the configured entry's
+declared ``fallback_to`` chain when availability is known, and floors to the
+``general`` model when the capability is missing, disabled, or its chain is
+exhausted — so a disabled ``document`` model resolves to ``general`` with the
+substitution recorded, instead of failing the job.
+
+It never hardcodes a model name. ``ModelRouter`` (task-type based) is retired;
+this router owns routing for both the node sequence and startup preflight.
 """
 
 import logging
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -17,12 +23,17 @@ logger = logging.getLogger("app.capability_router")
 
 
 class CapabilityResult(BaseModel):
-    """The selected model for one pipeline stage capability."""
+    """The selected model for one capability (node or pipeline stage)."""
 
     capability: str
     provider: str
     model: str
     requirements: ResourceRequirements = ResourceRequirements()
+    reason: str = ""
+    # Candidate set considered (primary first, then the declared fallback chain).
+    candidates: list[str] = []
+    requested_model: Optional[str] = None
+    fallback_active: bool = False
 
 
 class CapabilityRoutingError(Exception):
@@ -35,30 +46,82 @@ class CapabilityRouter:
     def __init__(self, registry: ModelRegistry) -> None:
         self._registry = registry
 
-    def resolve(self, capability: str) -> CapabilityResult:
-        matches = self._registry.by_capability(capability)
-        if matches:
-            chosen = matches[0]
-            return self._result(capability, chosen)
+    def resolve(
+        self,
+        capability: str,
+        available_models: Optional[set[str]] = None,
+        fallback_enabled: bool = True,
+    ) -> CapabilityResult:
+        config = self._registry.get(capability)
+        requested = config.model if config is not None else None
+        candidates = self._registry.candidates(capability)
 
-        general = self._registry.get("general")
-        if general is not None and general.enabled:
-            return self._result(capability, general)
+        if config is not None and config.enabled:
+            effective = config.model
+            fallback_active = False
+            # Availability-aware substitution only when the entry declares a
+            # chain; without a chain nothing can be substituted, so an
+            # unavailable model surfaces at the model call as before.
+            if available_models is not None and fallback_enabled and config.fallback_to:
+                available = set(available_models)
+                effective = next((m for m in candidates if m in available), None)
+                if effective is None:
+                    return self._floor(
+                        capability,
+                        requested,
+                        candidates,
+                        f"fallback chain exhausted for '{capability}'; using general",
+                    )
+                fallback_active = effective != config.model
+            return CapabilityResult(
+                capability=capability,
+                provider=config.provider,
+                model=effective,
+                requirements=config.resources,
+                reason=f"resolved for '{capability}'",
+                candidates=candidates,
+                requested_model=requested,
+                fallback_active=fallback_active,
+            )
 
-        for config in self._registry.task_types():
-            entry = self._registry.get(config)
-            if entry is not None and entry.enabled:
-                return self._result(capability, entry)
-
-        raise CapabilityRoutingError(
-            f"Pipeline unavailable: no enabled local model can serve capability '{capability}'."
+        # Missing or disabled: the configured model cannot run, so floor to
+        # general. This is the ``document -> disabled -> general`` case.
+        state = "missing" if config is None else "disabled"
+        return self._floor(
+            capability,
+            requested,
+            candidates,
+            f"'{capability}' is {state}; using general",
         )
 
-    @staticmethod
-    def _result(capability: str, config: ModelConfig) -> CapabilityResult:
+    def _floor(
+        self,
+        capability: str,
+        requested: Optional[str],
+        candidates: list[str],
+        reason: str,
+    ) -> CapabilityResult:
+        chosen = self._registry.get("general")
+        if chosen is None or not chosen.enabled:
+            chosen = next(
+                (
+                    entry
+                    for task_type in self._registry.task_types()
+                    if (entry := self._registry.get(task_type)) is not None and entry.enabled
+                ),
+                None,
+            )
+        if chosen is None:
+            raise CapabilityRoutingError(
+                f"Pipeline unavailable: no enabled local model can serve capability '{capability}'."
+            )
         return CapabilityResult(
             capability=capability,
-            provider=config.provider,
-            model=config.model,
-            requirements=config.resources,
+            provider=chosen.provider,
+            model=chosen.model,
+            requirements=chosen.resources,
+            reason=reason,
+            candidates=candidates,
+            requested_model=requested,
+            fallback_active=requested is None or chosen.model != requested,
         )

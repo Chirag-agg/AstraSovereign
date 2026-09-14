@@ -1,13 +1,13 @@
-"""Unit tests for ModelRouter and ModelRegistry."""
+"""Unit tests for CapabilityRouter and ModelRegistry."""
 
 import pytest
 
+from app.services.capability_router import CapabilityRouter
 from app.services.model_registry import (
     ModelConfig,
     ModelConfigError,
     ModelRegistry,
 )
-from app.services.model_router import ModelRouter, ModelRoutingError
 
 
 def _registry(models: dict[str, ModelConfig]) -> ModelRegistry:
@@ -25,30 +25,29 @@ def _sample_registry() -> ModelRegistry:
 
 
 def test_resolve_selects_configured_model():
-    router = ModelRouter(_sample_registry())
-    result = router.resolve("coding", "Programming intent detected")
-    assert result.task_type == "coding"
+    result = CapabilityRouter(_sample_registry()).resolve("coding")
+    assert result.capability == "coding"
     assert result.model == "coder-model"
     assert result.provider == "ollama"
-    assert result.reason == "Programming intent detected"
 
 
 def test_resolve_uses_configuration_not_hardcoded_names():
     registry = _registry({"general": ModelConfig(model="llama3.1:latest", enabled=True)})
-    result = ModelRouter(registry).resolve("general")
-    assert result.model == "llama3.1:latest"
+    assert CapabilityRouter(registry).resolve("general").model == "llama3.1:latest"
 
 
-def test_disabled_model_cannot_be_selected():
-    router = ModelRouter(_sample_registry())
-    with pytest.raises(ModelRoutingError, match="disabled"):
-        router.resolve("document")
+def test_disabled_capability_floors_to_general():
+    result = CapabilityRouter(_sample_registry()).resolve("document")
+    assert result.model == "general-model"
+    assert result.requested_model == "doc-model"
+    assert result.fallback_active is True
 
 
-def test_missing_task_type_raises():
-    router = ModelRouter(_sample_registry())
-    with pytest.raises(ModelRoutingError, match="No model configured"):
-        router.resolve("vision")
+def test_missing_capability_floors_to_general():
+    result = CapabilityRouter(_sample_registry()).resolve("vision")
+    assert result.model == "general-model"
+    assert result.requested_model is None
+    assert result.fallback_active is True
 
 
 def test_availability_flags():

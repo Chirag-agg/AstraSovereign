@@ -371,6 +371,14 @@ models, and provides an agentic pipeline that:
   context that entered the model stays visible (the sovereignty-story asset).
   Empty selection means no retrieval: job-scoped and honest, with the toggle as
   the explicit route to whole-KB search. `submitChat` sends `document_ids`.
+- **Per-node routing + reservation (2026-09-14)**: the node sequence is the only
+  routing. Each node resolves its capability model through `CapabilityRouter`
+  (declared `fallback_to` chains plus a `general` floor for disabled/unavailable
+  capabilities, emitting `MODEL_FALLBACK`); all node models resolve at sequence
+  start, and the scheduler reservation is held across consecutive nodes that
+  share a model and released only on change (no per-node thrash). `TaskRouter`
+  and `ModelRouter` are deleted; the worker only classifies `task_type`, which
+  `compute` uses as its precondition.
 
 ---
 
@@ -395,7 +403,7 @@ Implemented and working locally (backend + frontend + local models + Docker):
   closure is vendored under `presentation/node_modules` (pinned `4.0.1`) and the
   real `render.cjs` is covered by a `node`-marked integration test; see
   `docs/OFFLINE_BUNDLE.md`.
-- Tests: backend `pytest` (448 passed) and frontend typecheck + 67 tests + build.
+- Tests: backend `pytest` (449 passed) and frontend typecheck + 67 tests + build.
 - SQLite job updates are flat: 200 status updates measured at ~0.27 ms/update with
   1 job and ~0.25 ms/update with 200 jobs (0.93x) - the old full-table rewrite is
   gone.
@@ -483,27 +491,22 @@ Phase-by-phase history is in `docs/HISTORY.md`.
 - OCR/vision accuracy on dense tables, handwriting, and drawings is limited.
 - Workspace retention is manual (`docs/CLEANUP.md`); `logs/backend.log` is
   gitignored.
-- **Compute intent relies on keyword classification (temporary).** `compute`'s
-  precondition uses `TaskRouter`'s keyword `task_type == "coding"` (plus a typed
-  findings object). A semantic nearest-exemplar classifier is now
-  built but not yet wired (`app/services/capability_classifier.py`), with a
-  four-class exemplar set and an offline eval (`bench/classifier_eval.py`).
-  **Held-out** accuracy (never scored against its own exemplars): 15/17 (88%)
-  at threshold 0.55, 16/17 (94%) at 0.60. 0.55 is chosen because a spurious
-  `compute` degrades harmlessly whereas a missed `coding` is the recorded
-  failure mode. The next commit wires it into the worker and retires
-  `TaskRouter` —
-  which is the last thing keeping keyword routing alive. Fifth recorded miss
-  (2026-09-13): the cowork turn "Change the helper so it computes 21 times 2 and
-  run it." did not route to `coding`, so `compute` was skipped and the sandbox
-  tool was rejected by `draft`; the test now says "helper script" to exercise the
-  coding path.
+- **Routing is semantic and per-node (2026-09-14).** The keyword `TaskRouter` and
+  the task-type `ModelRouter` are retired. A job's `task_type` comes from the
+  nearest-exemplar `SemanticCapabilityClassifier` (held-out 15/17 at 0.55; see
+  `bench/classifier_eval.py`); every node resolves its own capability model via
+  `CapabilityRouter`, which absorbs the declared `fallback_to` chains and floors
+  to `general` when a capability is disabled or unavailable, recording a
+  `MODEL_FALLBACK` event. Resource reservation moved into the node sequence: all
+  node models resolve up front and the scheduler hold is kept across consecutive
+  same-model nodes, released only on change. The fifth and last recorded keyword
+  miss (2026-09-13, the cowork turn) now routes to `coding`.
 - **`extract` has no intent signal.** Its precondition is structural
   ("attachments present"), so it runs on *every* attachment job — including
   retrieval and Q&A tasks — and wastes an iteration and a model call before
-  degrading (no typed findings). Named fix: the same semantic capability
-  classifier above. Two known issues now converge on that one component (the
-  classifier now exists; wiring it into the worker is the shared fix).
+  degrading (no typed findings). The classifier now exists and is wired, but
+  `extract`'s precondition is still structural; gating it on a document-intent
+  signal is the remaining use of the same capability work.
 - **The `/cowork` composer still cannot attach documents (2026-09-13).** The
   main workbench composer now sends `document_ids`, but `coworkChat` posts only
   `{project_id, message}` and `CoworkChatRequest` has no `document_ids`, so

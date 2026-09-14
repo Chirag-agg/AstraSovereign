@@ -10,7 +10,7 @@ import pytest
 
 from app.schemas.resources import GpuInfo, ResourceCapacity, ResourceRequirements
 from app.services.model_registry import ModelConfig, ModelRegistry
-from app.services.model_router import ModelRouter
+from app.services.capability_router import CapabilityRouter
 from app.services.resource_provider import InMemoryResourceProvider, LocalResourceProvider
 from app.services.resource_scheduler import InMemoryResourceScheduler
 
@@ -231,13 +231,13 @@ def test_model_resource_requirements_loaded_from_configuration():
             )
         }
     )
-    result = ModelRouter(registry).resolve("general", "reason")
+    result = CapabilityRouter(registry).resolve("general")
     assert result.requirements.gpu_vram_mb == 8000
     assert result.requirements.cpu_cores == 2
     assert result.requirements.memory_mb == 4096
     # routing fields unchanged
     assert result.model == "m"
-    assert result.task_type == "general"
+    assert result.capability == "general"
 
 
 def test_local_provider_discovers_capacity_without_nvidia():

@@ -19,7 +19,11 @@ from typing import Any, Optional
 from app.schemas.findings import AssessmentResult, FindingsObject
 from app.services.agent import AgentResult, AgentStatus
 from app.services.attachments import render_attachment_block
-from app.services.capability_router import CapabilityRouter, CapabilityRoutingError
+from app.services.capability_router import (
+    CapabilityResult,
+    CapabilityRouter,
+    CapabilityRoutingError,
+)
 from app.services.findings import (
     REASON_INCOMPLETE,
     assess,
@@ -119,10 +123,22 @@ class NodeAgent:
         extract_iterations: int = 10,
         compute_iterations: int = 6,
         draft_iterations: int = 8,
+        scheduler=None,
+        available_models_provider=None,
+        fallback_enabled: bool = True,
+        is_cancelled=None,
     ) -> None:
         self._agent = agent
         self._router = capability_router
         self._registry = registry
+        self._scheduler = scheduler
+        self._available_models_provider = available_models_provider
+        self._fallback_enabled = fallback_enabled
+        self._is_cancelled = is_cancelled
+        # Model currently reserved with the scheduler. Held across consecutive
+        # nodes that resolve to the same model (never reserve/release per node),
+        # released on change or at the end of the sequence.
+        self._held_model: Optional[str] = None
         self._budgets = {
             "extract": extract_iterations,
             "compute": compute_iterations,
@@ -139,20 +155,44 @@ class NodeAgent:
         # drafts from whatever this holds (never an enumerated source list).
         self._node_outputs: list[str] = []
 
-    def _route(self, capability: str) -> tuple[str, float, str]:
-        """Model, confidence and runner-up for a capability (recorded per node)."""
-        capability = NODE_CAPABILITY.get(capability, capability)
-        result = self._router.resolve(capability)
-        model = result.model
+    def _resolve(self, capability: str, job) -> tuple[CapabilityResult, float, str]:
+        """Resolve a capability's model (availability + fallback aware) and record
+        a MODEL_FALLBACK audit event when a substitution happens."""
+        available = (
+            self._available_models_provider()
+            if self._available_models_provider is not None
+            else None
+        )
+        result = self._router.resolve(
+            capability,
+            available_models=available,
+            fallback_enabled=self._fallback_enabled,
+        )
+        if result.fallback_active:
+            logger.info(
+                "model_fallback",
+                extra={
+                    "event": "model_fallback",
+                    "job_id": job.job_id,
+                    "user_id": job.user_id,
+                    "task_type": capability,
+                    "requested": result.requested_model,
+                    "actual": result.model,
+                    "fallback_reason": "model_unavailable",
+                },
+            )
+        return result, *self._confidence(capability, result.model)
+
+    def _confidence(self, capability: str, model: str) -> tuple[float, str]:
         if self._registry is None:
-            return model, 0.6, ""
+            return 0.6, ""
         declared = [entry.model for entry in self._registry.by_capability(capability)]
         if model in declared:
             others = [candidate for candidate in declared if candidate != model]
-            return model, 1.0, (others[0] if others else "")
+            return 1.0, (others[0] if others else "")
         general = self._registry.get("general")
         runner_up = general.model if general is not None and general.model != model else ""
-        return model, 0.6, runner_up
+        return 0.6, runner_up
 
     async def run(
         self,
@@ -176,19 +216,30 @@ class NodeAgent:
         attempt_docs = bool(manifest)
         cursor = 0
 
+        # Resolve every distinct node capability up front so the model swap points
+        # are known and the scheduler reservation can be held across nodes that
+        # share a model instead of reserve/releasing per node.
+        plan: dict[str, tuple[CapabilityResult, float, str]] = {}
         try:
+            for key in ("extract", "retrieve", "compute", "draft"):
+                capability = NODE_CAPABILITY[key]
+                if capability not in plan:
+                    plan[capability] = self._resolve(capability, job)
             # --- extract -----------------------------------------------------
             cursor, findings = await self._run_extract(
-                job, workspace, task, trace, cursor, attempt_docs, attachment_block
+                job, workspace, task, trace, cursor, attempt_docs, attachment_block,
+                plan["document"],
             )
             # --- retrieve ----------------------------------------------------
             cursor, retrieval = await self._run_retrieve(
-                job, workspace, task, trace, cursor, attempt_docs, attachment_block
+                job, workspace, task, trace, cursor, attempt_docs, attachment_block,
+                plan["document"],
             )
             self.last_retrieval = retrieval
             # --- compute -----------------------------------------------------
             cursor, assessment, degraded, compute_response = await self._run_compute(
-                job, workspace, task, trace, cursor, findings, retrieval
+                job, workspace, task, trace, cursor, findings, retrieval,
+                plan["coding"],
             )
             self.last_findings = findings
             self.last_assessment = assessment
@@ -198,7 +249,7 @@ class NodeAgent:
             something_to_draft = bool(self._node_outputs) or not attempt_docs
             cursor, response = await self._run_draft(
                 job, workspace, task, trace, cursor, findings, assessment,
-                something_to_draft,
+                something_to_draft, plan["general"],
             )
         except NodeCancelledError:
             trace.append({"step": len(trace) + 1, "type": "agent_cancelled"})
@@ -214,6 +265,8 @@ class NodeAgent:
             )
             await self._record(job.job_id, trace, "failed", cursor, self._tool_calls)
             return AgentResult(status=AgentStatus.FAILED, error=str(exc), iterations=cursor)
+        finally:
+            await self._release_reservation(job)
 
         await self._record(job.job_id, trace, "completed", cursor, self._tool_calls)
         if response is None:
@@ -228,12 +281,13 @@ class NodeAgent:
         return AgentResult(status=AgentStatus.COMPLETED, response=response, iterations=cursor)
 
     async def _run_extract(
-        self, job, workspace, task, trace, cursor, attempt_docs, attachment_block
+        self, job, workspace, task, trace, cursor, attempt_docs, attachment_block, planned
     ):
         if not attempt_docs:
             self._skip(trace, "extract", "no documents or images referenced in the request")
             return cursor, None
-        model, confidence, runner_up = self._route("extract")
+        route, confidence, runner_up = planned
+        model = route.model
         self._node_started(trace, "extract", model, confidence, runner_up)
         instruction = (
             "Extract a single JSON findings object from the attached documents/images. "
@@ -250,6 +304,7 @@ class NodeAgent:
         if attachment_block:
             parts.append(attachment_block)
         parts.append(f"REQUEST:\n{task}")
+        await self._ensure_reservation(job, model, route.requirements)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
             task_text="\n\n".join(parts),
@@ -290,12 +345,13 @@ class NodeAgent:
         return cursor, findings
 
     async def _run_retrieve(
-        self, job, workspace, task, trace, cursor, attempt_docs, attachment_block
+        self, job, workspace, task, trace, cursor, attempt_docs, attachment_block, planned
     ):
         if not attempt_docs:
             self._skip(trace, "retrieve", "no knowledge base documents referenced")
             return cursor, ""
-        model, confidence, runner_up = self._route("retrieve")
+        route, confidence, runner_up = planned
+        model = route.model
         self._node_started(trace, "retrieve", model, confidence, runner_up)
         instruction = (
             "You MUST call document_search before answering. Retrieve the governing "
@@ -307,6 +363,7 @@ class NodeAgent:
         if attachment_block:
             parts.append(attachment_block)
         parts.append(f"REQUEST:\n{task}")
+        await self._ensure_reservation(job, model, route.requirements)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
             task_text="\n\n".join(parts),
@@ -338,13 +395,16 @@ class NodeAgent:
         )
         return cursor, retrieval
 
-    async def _run_compute(self, job, workspace, task, trace, cursor, findings, retrieval):
+    async def _run_compute(
+        self, job, workspace, task, trace, cursor, findings, retrieval, planned
+    ):
         has_findings = findings is not None and bool(findings.readings)
         computational = getattr(job, "task_type", "") == "coding"
         if not has_findings and not computational:
             self._skip(trace, "compute", "no findings and the task is not computational")
             return cursor, None, False, None
-        model, confidence, runner_up = self._route("compute")
+        route, confidence, runner_up = planned
+        model = route.model
         self._node_started(trace, "compute", model, confidence, runner_up)
         if has_findings:
             min_thickness = minimal_thickness_mm(findings)
@@ -364,6 +424,7 @@ class NodeAgent:
                 "self-contained program, run it, and report the real output. Do not answer "
                 "from memory."
             )
+        await self._ensure_reservation(job, model, route.requirements)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
             task_text=f"{instruction}\n\nREQUEST:\n{task}",
@@ -407,12 +468,14 @@ class NodeAgent:
         return cursor, assessment, degraded, None
 
     async def _run_draft(
-        self, job, workspace, task, trace, cursor, findings, assessment, something_to_draft
+        self, job, workspace, task, trace, cursor, findings, assessment, something_to_draft,
+        planned,
     ):
         if not something_to_draft:
             self._skip(trace, "draft", "nothing grounded to draft from")
             return cursor, None
-        model, confidence, runner_up = self._route("draft")
+        route, confidence, runner_up = planned
+        model = route.model
         self._node_started(trace, "draft", model, confidence, runner_up)
         if assessment is not None:
             payload = assessment.model_dump_json()
@@ -438,6 +501,7 @@ class NodeAgent:
             # Degenerate path: a plain prompt passes through (nearly) unmodified,
             # so chat does not get wordier just because it ran through the engine.
             node_task = task
+        await self._ensure_reservation(job, model, route.requirements)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
             task_text=node_task,
@@ -461,6 +525,45 @@ class NodeAgent:
             iterations=result.iterations, tool_calls=result.tool_calls,
         )
         return cursor, result.response
+
+    # -- resource reservation -------------------------------------------------
+
+    async def _ensure_reservation(self, job, model, requirements):
+        """Reserve ``model`` for this job, holding across same-model nodes.
+
+        A single worker runs one job at a time, so the hold is released before
+        requesting a different model — never reserved/released per node, which
+        would thrash weights when capabilities map to distinct models.
+        """
+        if self._scheduler is None or self._held_model == model:
+            return
+        if self._held_model is not None:
+            await self._scheduler.release(job.job_id)
+            self._held_model = None
+        while True:
+            decision = await self._scheduler.request(
+                job.job_id, job.user_id, model, requirements
+            )
+            if decision.decision == "grant":
+                self._held_model = model
+                return
+            if decision.decision == "reject":
+                raise NodeInfrastructureError(f"resource_rejected: {decision.reason}")
+            if self._is_cancelled is not None and await self._is_cancelled(job.job_id):
+                raise NodeCancelledError()
+            await self._scheduler.wait_until_available(timeout=1.0)
+
+    async def _release_reservation(self, job):
+        if self._scheduler is None or self._held_model is None:
+            return
+        self._held_model = None
+        try:
+            await self._scheduler.release(job.job_id)
+        except Exception:
+            logger.exception(
+                "node_resource_release_error",
+                extra={"event": "resource_released", "job_id": job.job_id},
+            )
 
     # -- trace helpers --------------------------------------------------------
 

@@ -27,18 +27,14 @@ def test_job_completes_and_releases_resources(client_factory, test_models):
         job = wait_for_job(c, resp.json()["job_id"], "user-001", timeout=10)
 
         assert job["status"] == "completed"
-        # The worker releases the allocation in its finally, just after the job
-        # reaches COMPLETED, so a single read races the release. Poll for it.
+        # Per-node reservation is released when the job ends; poll health.
         deadline = time.monotonic() + 5
+        health = c.get("/health").json()
         while time.monotonic() < deadline:
-            job = c.get(
-                f"/api/jobs/{job['job_id']}", headers={"X-User-ID": "user-001"}
-            ).json()
-            if job["resource_status"] == "released":
+            health = c.get("/health").json()
+            if health["scheduler"]["running_jobs"] == 0:
                 break
             time.sleep(0.02)
-        assert job["resource_status"] == "released"
-        health = c.get("/health").json()
         assert health["scheduler"]["running_jobs"] == 0
         assert health["scheduler"]["allocated"]["gpu"]["GPU-0"]["allocated_vram_mb"] == 0
 
@@ -54,7 +50,6 @@ def test_impossible_job_fails_cleanly(client_factory, test_models):
         job = wait_for_job(c, resp.json()["job_id"], "user-001", timeout=10)
 
     assert job["status"] == "failed"
-    assert job["resource_status"] == "rejected"
     assert "resource_rejected" in job["error"]
     assert "Requested 32768 MB VRAM, system capacity is 16384 MB" in job["error"]
 
@@ -70,7 +65,6 @@ def test_unknown_gpu_fails_cleanly(client_factory, test_models):
         job = wait_for_job(c, resp.json()["job_id"], "user-001", timeout=10)
 
     assert job["status"] == "failed"
-    assert job["resource_status"] == "rejected"
     assert "Unknown GPU 'GPU-9'" in job["error"]
 
 

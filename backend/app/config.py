@@ -133,6 +133,11 @@ class Settings(BaseSettings):
     bench_mode: bool = False
     bench_seed: int = 7
 
+    # Semantic capability classifier: minimum cosine similarity to accept a
+    # capability label; below it the job is `general`. See
+    # app/services/capability_classifier.py and bench/classifier_eval.py.
+    classifier_threshold: float = 0.55
+
 
 @lru_cache
 def get_settings() -> Settings:

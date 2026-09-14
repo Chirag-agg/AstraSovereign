@@ -48,7 +48,8 @@ from app.services.job_queue import JobQueue
 from app.services.job_store import SqliteJobStore
 from app.services.knowledge_base import KnowledgeBase
 from app.services.model_registry import ModelRegistry
-from app.services.model_router import ModelRouter
+from app.schemas.job import JobStatus
+from app.services.capability_classifier import SemanticCapabilityClassifier
 from app.services.multimodal import MultimodalService
 from app.services.network_guard import NetworkGuard, make_guarded_transport
 from app.services.ocr_provider import OCRProvider, RapidOCREngine
@@ -57,7 +58,6 @@ from app.services.projects import CoworkProjects, ProjectLocks
 from app.services.resource_provider import InMemoryResourceProvider, LocalResourceProvider
 from app.services.resource_scheduler import InMemoryResourceScheduler
 from app.services.sandbox_runner import DockerSandboxRunner, SandboxRunner
-from app.services.task_router import TaskRouter
 from app.services.nodes import NODE_INPUT_NODES, NODE_TOOLS, NodeAgent
 from app.services.tool_config import validate_node_tools
 from app.services.tool_registry import ToolRegistry
@@ -273,6 +273,7 @@ def create_app(
     embedding_provider: Optional[EmbeddingProvider] = None,
     ocr_provider: Optional[OCRProvider] = None,
     vision_provider: Optional[VisionProvider] = None,
+    classifier: Optional[SemanticCapabilityClassifier] = None,
     cowork_projects: Optional[CoworkProjects] = None,
     cowork_locks: Optional[ProjectLocks] = None,
     presentation_renderer=None,
@@ -314,8 +315,6 @@ def create_app(
     if model_registry is None:
         model_registry = ModelRegistry.from_file(settings.models_config)
 
-    task_router = TaskRouter()
-    model_router = ModelRouter(registry=model_registry)
     vision_config = model_registry.get("vision")
 
     tools = [ListFilesTool(), ReadFileTool(), WriteFileTool()]
@@ -324,6 +323,9 @@ def create_app(
         base_url=settings.ollama_base_url,
         model=settings.embedding_model,
         transport=guarded_transport,
+    )
+    classifier = classifier or SemanticCapabilityClassifier(
+        embedding, threshold=settings.classifier_threshold
     )
     knowledge_base = KnowledgeBase(
         vector_store=JsonVectorStore(settings.knowledge_base_root),
@@ -428,11 +430,6 @@ def create_app(
     )
 
     capability_router = CapabilityRouter(registry=model_registry)
-    node_agent = NodeAgent(
-        agent=agent,
-        capability_router=capability_router,
-        registry=model_registry,
-    )
 
     projects = cowork_projects or CoworkProjects(
         root=settings.cowork_projects_root,
@@ -443,12 +440,25 @@ def create_app(
     # Filled by the lifespan preflight; None means "availability unknown".
     model_availability: dict[str, Optional[set[str]]] = {"models": None}
 
+    async def _job_cancelled(check_job_id: str) -> bool:
+        current = await job_manager.get_job_for_worker(check_job_id)
+        return current is not None and current.status == JobStatus.CANCELLED
+
+    node_agent = NodeAgent(
+        agent=agent,
+        capability_router=capability_router,
+        registry=model_registry,
+        scheduler=scheduler,
+        available_models_provider=lambda: model_availability["models"],
+        fallback_enabled=settings.model_fallback_enabled,
+        is_cancelled=_job_cancelled,
+    )
+
     worker = Worker(
         queue=job_queue,
         manager=job_manager,
         ollama=ollama_service,
-        task_router=task_router,
-        model_router=model_router,
+        classifier=classifier,
         agent=agent,
         workspace_manager=workspace_manager,
         scheduler=scheduler,
@@ -457,8 +467,6 @@ def create_app(
         projects=projects,
         project_locks=project_locks,
         context_manager=context_manager,
-        availability_provider=lambda: model_availability["models"],
-        fallback_enabled=settings.model_fallback_enabled,
     )
 
     app = FastAPI(
@@ -483,8 +491,7 @@ def create_app(
     app.state.worker = worker
     app.state.model_availability = model_availability
     app.state.model_registry = model_registry
-    app.state.task_router = task_router
-    app.state.model_router = model_router
+    app.state.classifier = classifier
     app.state.tool_registry = tool_registry
     app.state.workspace_manager = workspace_manager
     app.state.agent = agent

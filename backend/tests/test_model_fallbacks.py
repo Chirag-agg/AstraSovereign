@@ -9,7 +9,7 @@ from app.services.model_registry import (
     ModelConfigError,
     ModelRegistry,
 )
-from app.services.model_router import ModelRouter, ModelRoutingError
+from app.services.capability_router import CapabilityRouter
 
 
 def make_registry(models, capabilities):
@@ -33,7 +33,7 @@ def base_models():
 
 def test_valid_chain_resolves_to_fallback():
     registry = make_registry(base_models(), CAPS)
-    router = ModelRouter(registry)
+    router = CapabilityRouter(registry)
 
     decision = router.resolve(
         "coding", available_models={"coder-small"}, fallback_enabled=True
@@ -45,14 +45,14 @@ def test_valid_chain_resolves_to_fallback():
 
 
 def test_primary_available_uses_primary():
-    router = ModelRouter(make_registry(base_models(), CAPS))
+    router = CapabilityRouter(make_registry(base_models(), CAPS))
     decision = router.resolve("coding", available_models={"coder-big", "coder-small"})
     assert decision.model == "coder-big"
     assert decision.fallback_active is False
 
 
 def test_fallback_disabled_ignores_availability():
-    router = ModelRouter(make_registry(base_models(), CAPS))
+    router = CapabilityRouter(make_registry(base_models(), CAPS))
     decision = router.resolve(
         "coding", available_models={"coder-small"}, fallback_enabled=False
     )
@@ -60,10 +60,11 @@ def test_fallback_disabled_ignores_availability():
     assert decision.fallback_active is False
 
 
-def test_no_candidate_available_raises():
-    router = ModelRouter(make_registry(base_models(), CAPS))
-    with pytest.raises(ModelRoutingError, match="No available local model"):
-        router.resolve("coding", available_models=set())
+def test_exhausted_chain_floors_to_general():
+    router = CapabilityRouter(make_registry(base_models(), CAPS))
+    decision = router.resolve("coding", available_models=set(), fallback_enabled=True)
+    assert decision.model == "general-big"
+    assert decision.fallback_active is True
 
 
 def test_capability_floor_is_enforced():

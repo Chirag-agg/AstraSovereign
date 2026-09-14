@@ -159,7 +159,7 @@ def test_flagship_workflow_creates_expected_audit_trail(client_factory, test_mod
     required_stages = {
         "JOB_CREATED",
         "JOB_STARTED",
-        "MODEL_SELECTED",
+        "MODEL_FALLBACK",
         "MODEL_CALL_STARTED",
         "MODEL_CALL_COMPLETED",
         "DOCUMENT_INGESTION_STARTED",

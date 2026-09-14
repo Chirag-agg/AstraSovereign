@@ -99,6 +99,58 @@ class FakeEmbeddingProvider(EmbeddingProvider):
         return {"provider": "fake", "model": "keyword-hash"}
 
 
+class StubClassifier:
+    """Deterministic capability classifier for tests.
+
+    A stub, not a fake embedder: it maps a message to a capability by explicit
+    override or keyword (mirroring the retired keyword router), so tests
+    exercise the node sequence without depending on embedding geometry.
+    """
+
+    _KEYWORDS = {
+        "coding": (
+            "```", "def ", "function ", "class ", "import ", "print(", "console.log",
+            "=>", "javascript", "typescript", "python", "java ", "sql ", "select ",
+            "insert ", "update ", "delete ", "debug", "bug", "fix this", "write code",
+            "write a program", "write some code", "code block", "code snippet",
+            "code review", "code", "script", "refactor", "regex", "bash", "html",
+            "css", "algorithm",
+        ),
+        "vision": (
+            "image", "photo", "picture", "screenshot", "vision", "see this image",
+            "look at this image", "attached image",
+        ),
+        "document": (
+            "docx", "upload this file", "report file", "read this file",
+            "read the file", "process this document", "summarize the file",
+            "summarize this file", "summarize the document", "summarize this document",
+        ),
+    }
+
+    def __init__(self, overrides: dict | None = None) -> None:
+        self._overrides = dict(overrides or {})
+        self.seen: list[str] = []
+
+    async def classify(self, message: str):
+        from app.services.capability_classifier import CapabilityClassification
+
+        self.seen.append(message)
+        text = (message or "").lower()
+        for needle, label in self._overrides.items():
+            if needle in text:
+                return CapabilityClassification(
+                    task_type=label, reason="stub override", confidence=1.0
+                )
+        for label, keywords in self._KEYWORDS.items():
+            if any(keyword in text for keyword in keywords):
+                return CapabilityClassification(
+                    task_type=label, reason="stub keyword", confidence=1.0
+                )
+        return CapabilityClassification(
+            task_type="general", reason="stub default", confidence=1.0
+        )
+
+
 def default_capacity() -> ResourceCapacity:
     """Default test capacity: 8 cores, 16 GB RAM, one 16 GB GPU."""
     return ResourceCapacity(
@@ -589,6 +641,7 @@ def client_factory(app_settings, test_models):
         embedding_provider=None,
         ocr_provider=None,
         vision_provider=None,
+        classifier=None,
         project_root=None,
         file_max_bytes=1_000_000,
         presentation_renderer=None,
@@ -610,6 +663,7 @@ def client_factory(app_settings, test_models):
             embedding_provider=embedding_provider or FakeEmbeddingProvider(),
             ocr_provider=ocr_provider or FakeOCRProvider(),
             vision_provider=vision_provider,
+            classifier=classifier or StubClassifier(),
             presentation_renderer=presentation_renderer,
         )
         return TestClient(app)
