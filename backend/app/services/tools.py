@@ -354,6 +354,62 @@ class DocumentSearchTool(BaseTool):
         )
 
 
+class ReadDocumentTool(BaseTool):
+    """Read a whole ingested document's extraction markdown (user scoped).
+
+    Serves the per-document extraction artifact so a node can read an attached
+    document end to end instead of only top-k search chunks. Capped to a token
+    budget; the caller is told when the text was truncated.
+    """
+
+    name = "read_document"
+    description = (
+        "Read the full extracted text (markdown) of one ingested document, given "
+        "its document_id. Use this to read an attached document end to end."
+    )
+    input_schema = {
+        "type": "object",
+        "properties": {"document_id": {"type": "string"}},
+        "required": ["document_id"],
+        "additionalProperties": False,
+    }
+    required_sources = {"document_id": ["node_input", "document_search"]}
+
+    def __init__(self, extraction_store, max_chars: int = 12000) -> None:
+        self._store = extraction_store
+        self._max_chars = max_chars
+
+    async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
+        ctx = get_job_context()
+        user_id = ctx.get("user_id")
+        if not user_id:
+            raise ToolError("read_document requires a user context")
+        document_id = str(arguments.get("document_id", "")).strip()
+        if not document_id:
+            raise ToolError("document_id must not be empty")
+
+        extraction = self._store.get(user_id, document_id)
+        if extraction is None:
+            return ToolResult(
+                ok=False,
+                summary=f"No extraction available for '{document_id}'",
+                error="not_found",
+            )
+        text = extraction.markdown or ""
+        truncated = len(text) > self._max_chars
+        body = text[: self._max_chars]
+        if truncated:
+            body += "\n...[truncated]"
+        return ToolResult(
+            ok=True,
+            summary=(
+                f"Read {extraction.filename} "
+                f"({len(body)} chars{', truncated' if truncated else ''})"
+            ),
+            content=body,
+        )
+
+
 class DocumentVisionTool(BaseTool):
     """Analyze pages of the user's ingested documents using local OCR + vision.
 

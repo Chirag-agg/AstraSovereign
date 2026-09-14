@@ -252,9 +252,15 @@ class Worker:
             return []
         documents = await self._knowledge_base.list_documents(job.user_id)
         wanted = set(job.document_ids)
-        return build_attachment_manifest(
-            [document for document in documents if document.document_id in wanted]
-        )
+        selected = [document for document in documents if document.document_id in wanted]
+
+        def lookup(document) -> Optional[str]:
+            extraction = self._knowledge_base.get_extraction(
+                job.user_id, document.document_id
+            )
+            return extraction.markdown if extraction is not None else None
+
+        return build_attachment_manifest(selected, extraction_lookup=lookup)
 
     async def _release_resources(self, job_id: str) -> None:
         try:

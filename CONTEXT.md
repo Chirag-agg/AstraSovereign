@@ -379,6 +379,15 @@ models, and provides an agentic pipeline that:
   share a model and released only on change (no per-node thrash). `TaskRouter`
   and `ModelRouter` are deleted; the worker only classifies `task_type`, which
   `compute` uses as its precondition.
+- **Extraction artifact + `read_document` (2026-09-14)**: ingestion persists one
+  per-document extraction artifact (ordered elements with page/bbox/type/
+  `confidence` — null when the backend exposes none — plus a markdown rendering)
+  under `data/extractions/<user>/`. The `read_document` tool serves that markdown
+  within a token budget, and the extract node's attachment input carries each
+  attached document's markdown whole when it fits the per-doc/total budget, so a
+  document is read end to end without depending on the model to call the tool.
+  Docling will implement the same extractor seam and add real table/section
+  element types.
 
 ---
 
@@ -390,7 +399,8 @@ Implemented and working locally (backend + frontend + local models + Docker):
 - Config-driven routing and a typed agent node sequence (extract -> retrieve ->
   compute -> draft) spanning the document, coding, and general models.
 - Agent tool runtime: `list_files`/`read_file`/`write_file`, `document_search`
-  (local RAG), `document_vision` (RapidOCR + Ollama vision), `code_execution`
+  (local RAG), `read_document` (whole-document extraction markup), `document_vision`
+  (RapidOCR + Ollama vision), `code_execution`
   (isolated Docker sandbox), `document_generation` (Word `.docx` + Excel `.xlsx`,
   formal approval notes with signature blocks, workspace images),
   `presentation_generation` (PptxGenJS). See `README.md` for the full surface.
@@ -403,7 +413,7 @@ Implemented and working locally (backend + frontend + local models + Docker):
   closure is vendored under `presentation/node_modules` (pinned `4.0.1`) and the
   real `render.cjs` is covered by a `node`-marked integration test; see
   `docs/OFFLINE_BUNDLE.md`.
-- Tests: backend `pytest` (449 passed) and frontend typecheck + 67 tests + build.
+- Tests: backend `pytest` (460 passed) and frontend typecheck + 67 tests + build.
 - SQLite job updates are flat: 200 status updates measured at ~0.27 ms/update with
   1 job and ~0.25 ms/update with 200 jobs (0.93x) - the old full-table rewrite is
   gone.
@@ -507,6 +517,27 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   degrading (no typed findings). The classifier now exists and is wired, but
   `extract`'s precondition is still structural; gating it on a document-intent
   signal is the remaining use of the same capability work.
+- **`extract`'s blocker is the typed-output instruction, not the data
+  (2026-09-14).** `read_document` + whole-document injection now put the full
+  extraction — the readings table (`C1 13.4 … C5 10.4/11.6`, `C6 0.455 in`) and
+  the handwritten note — into the extract input, yet the model still does not
+  emit the `FindingsObject` JSON: it calls `document_search` (or `read_file`) and
+  finalizes prose, so `compute` and the three-deliverable `draft` skip. The data
+  gap is closed; the remaining fix is the structured-output/extraction
+  instruction (a constrained decoder or a dedicated extractor), not a new
+  capability.
+- **Docling chosen for table extraction (2026-09-14).** Spike: `docling==2.127.0`
+  (torch 2.14 CPU) runs fully offline (`HF_HUB_OFFLINE=1` + dead proxy) once
+  `docling-project/docling-models` (342 MB) and `docling-project/docling-layout-heron`
+  (164 MB) are vendored; it returns the page-1 table **with headers** and keeps
+  the struck + handwritten C5 values (`10.4 11.6`, remark `re-shot`). Caveats:
+  (a) its default OCR is RapidOCR (torch) and fetched `.pth` models from
+  **ModelScope** — point it at the existing `rapidocr-onnxruntime` instead
+  (a second external host otherwise); (b) it exposes provenance (page/bbox) but
+  **no per-element confidence**, so the escalation gate needs a fallback signal
+  (e.g. a multi-token cell = ambiguous → human review); (c) ~62 s/page on CPU, so
+  pre-ingest fixtures before the finale (demo checklist) and measure layout vs
+  table-structure cost before optimising.
 - **The `/cowork` composer still cannot attach documents (2026-09-13).** The
   main workbench composer now sends `document_ids`, but `coworkChat` posts only
   `{project_id, message}` and `CoworkChatRequest` has no `document_ids`, so

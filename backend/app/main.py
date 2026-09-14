@@ -40,6 +40,7 @@ from app.services.document_generator import (
 )
 from app.services.document_preparer import DocumentPreparer
 from app.services.embedding import EmbeddingProvider, OllamaEmbeddingProvider
+from app.services.extraction_store import JsonExtractionStore
 from app.services.job_manager import JobManager
 from app.services.capability_router import CapabilityRouter
 from app.services.context import ContextManager
@@ -66,6 +67,7 @@ from app.services.tools import (
     DocumentGenerationTool,
     DocumentSearchTool,
     DocumentVisionTool,
+    ReadDocumentTool,
     ListFilesTool,
     PresentationGenerationTool,
     ReadFileTool,
@@ -327,11 +329,13 @@ def create_app(
     classifier = classifier or SemanticCapabilityClassifier(
         embedding, threshold=settings.classifier_threshold
     )
+    extraction_store = JsonExtractionStore(settings.extraction_root)
     knowledge_base = KnowledgeBase(
         vector_store=JsonVectorStore(settings.knowledge_base_root),
         embedding_provider=embedding,
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap,
+        extraction_store=extraction_store,
     )
     tools.append(
         DocumentSearchTool(
@@ -339,6 +343,12 @@ def create_app(
             default_top_k=settings.document_search_default_top_k,
             max_top_k=settings.document_search_max_top_k,
             max_chunk_chars=settings.document_search_max_chunk_chars,
+        )
+    )
+    tools.append(
+        ReadDocumentTool(
+            extraction_store=extraction_store,
+            max_chars=settings.read_document_max_chars,
         )
     )
 

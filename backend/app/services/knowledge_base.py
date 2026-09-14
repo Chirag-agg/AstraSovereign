@@ -5,6 +5,7 @@ Ownership is explicit and per-user: every document and chunk is scoped to a
 vector store are behind interfaces so both can be swapped later.
 """
 
+import asyncio
 import hashlib
 import logging
 import re
@@ -21,6 +22,7 @@ from app.services.document_ingestion import (
     extract_document_pages,
 )
 from app.services.embedding import EmbeddingError, EmbeddingProvider
+from app.services.extractor import DocumentExtractor
 from app.services.vector_store import VectorStore
 
 logger = logging.getLogger("app.knowledge_base")
@@ -59,11 +61,15 @@ class KnowledgeBase:
         embedding_provider: EmbeddingProvider,
         chunk_size: int = 800,
         chunk_overlap: int = 100,
+        extraction_store=None,
+        extractor: Optional[DocumentExtractor] = None,
     ) -> None:
         self._store = vector_store
         self._embedder = embedding_provider
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
+        self._extraction_store = extraction_store
+        self._extractor = extractor or DocumentExtractor()
 
     # ---------------------------------------------------------- ingestion
 
@@ -210,6 +216,24 @@ class KnowledgeBase:
             )
         await self._store.upsert_chunks(user_id, chunks)
 
+        # Persist the per-document extraction artifact (elements + markdown) that
+        # ``read_document`` serves. Failure here must not fail ingestion.
+        if self._extraction_store is not None:
+            try:
+                extraction = self._extractor.from_pages(
+                    doc.document_id, doc.filename, doc.document_type, pages
+                )
+                await asyncio.to_thread(self._extraction_store.put, user_id, extraction)
+            except Exception:
+                logger.exception(
+                    "extraction_build_failed",
+                    extra={
+                        "event": "extraction_build_failed",
+                        "user_id": user_id,
+                        "document_id": doc.document_id,
+                    },
+                )
+
         doc.status = DocumentStatus.READY
         doc.chunk_count = len(chunks)
         doc.metadata = metadata
@@ -308,6 +332,8 @@ class KnowledgeBase:
 
     async def delete_document(self, user_id: str, document_id: str) -> bool:
         removed = await self._store.delete_document(user_id, document_id)
+        if removed and self._extraction_store is not None:
+            await asyncio.to_thread(self._extraction_store.delete, user_id, document_id)
         if removed:
             logger.info(
                 "document_deleted",
@@ -324,6 +350,12 @@ class KnowledgeBase:
 
     async def get_document(self, user_id: str, document_id: str) -> Optional[DocumentRecord]:
         return await self._store.get_document(user_id, document_id)
+
+    def get_extraction(self, user_id: str, document_id: str):
+        """The caller's extraction artifact for a document, or ``None``."""
+        if self._extraction_store is None:
+            return None
+        return self._extraction_store.get(user_id, document_id)
 
     def stats(self) -> dict:
         return self._store.stats()

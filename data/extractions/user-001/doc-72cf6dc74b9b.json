@@ -1,0 +1,18 @@
+{
+  "document_id": "doc-72cf6dc74b9b",
+  "filename": "tank204_pid_extract.png",
+  "document_type": "png",
+  "backend": "pypdf",
+  "page_count": 1,
+  "elements": [
+    {
+      "type": "text",
+      "page": 1,
+      "bbox": null,
+      "text": "TANK-204\nLT-204\n25.0 m DIA\nFT-204\n13.0 m HT\nP&ID extract—TANK-204and connected lines",
+      "confidence": null
+    }
+  ],
+  "markdown": "## Page 1\n\nTANK-204\nLT-204\n25.0 m DIA\nFT-204\n13.0 m HT\nP&ID extract—TANK-204and connected lines",
+  "created_at": "2026-09-14T14:57:27.870687Z"
+}

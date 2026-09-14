@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     # Local document knowledge base (Phase 7). All storage stays under the
     # knowledge base root (per-user subdirectories).
     knowledge_base_root: str = str(REPO_ROOT / "data" / "knowledge")
+    # Per-document extraction artifacts (elements + markdown) served by
+    # read_document.
+    extraction_root: str = str(REPO_ROOT / "data" / "extractions")
     uploads_root: str = str(REPO_ROOT / "data" / "uploads")
 
     # Deterministic text chunking.
@@ -79,6 +82,10 @@ class Settings(BaseSettings):
     document_search_default_top_k: int = 5
     document_search_max_top_k: int = 10
     document_search_max_chunk_chars: int = 1000
+
+    # read_document token budget (characters); whole documents under this are
+    # served in full, longer ones are truncated with a marker.
+    read_document_max_chars: int = 12000
 
     # Multimodal OCR + vision (Phase 8). Everything runs locally — the OCR
     # engine (RapidOCR) and PDF rendering (pypdfium2) are local libraries, and

@@ -48,7 +48,13 @@ NODE_CAPABILITY = {
 # Tools each node may see. A node cannot misuse a tool it cannot see, which is
 # more robust than instruction wording on small models.
 NODE_TOOLS = {
-    "extract": {"document_search", "document_vision", "read_file", "list_files"},
+    "extract": {
+        "document_search",
+        "read_document",
+        "document_vision",
+        "read_file",
+        "list_files",
+    },
     "retrieve": {"document_search"},
     "compute": {"code_execution"},
     # draft is the terminal general-purpose worker node: generators plus the
@@ -291,9 +297,9 @@ class NodeAgent:
         self._node_started(trace, "extract", model, confidence, runner_up)
         instruction = (
             "Extract a single JSON findings object from the attached documents/images. "
-            "First call document_search to obtain the document_id, then call document_vision "
-            "with {document_id, question} to read each scanned page and the nameplate; do not "
-            "answer from memory. Cite document_id/page. "
+            "For each attachment call read_document with its doc_id to read the full "
+            "extracted text, including tables; call document_vision for scanned pages and "
+            "the nameplate. Do not answer from memory. Cite document_id/page. "
             'Output STRICT JSON: {"tank":"","procedure":"","geometry":{"diameter_m":null,'
             '"fill_height_m":null,"specific_gravity":null,"allowable_stress_mpa":null,'
             '"joint_efficiency":null},"readings":[{"course":"","value_mm":0.0,'

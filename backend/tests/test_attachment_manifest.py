@@ -87,6 +87,30 @@ def make_kb(tmp_path):
     )
 
 
+def test_manifest_injects_extraction_content_under_budget():
+    documents = [record("doc-1", "report.pdf", "pdf")]
+    manifest = build_attachment_manifest(
+        documents, extraction_lookup=lambda d: "Course C1 13.4\nCourse C5 11.6"
+    )
+    assert "Course C5 11.6" in manifest[0]["content"]
+    block = render_attachment_block(manifest)
+    assert "content:" in block and "Course C5 11.6" in block
+
+
+def test_manifest_truncates_content_over_budget():
+    documents = [record("doc-1", "big.txt", "txt")]
+    manifest = build_attachment_manifest(
+        documents, extraction_lookup=lambda d: "x" * 100, max_chars_per_doc=40
+    )
+    assert manifest[0]["content"].endswith("...[truncated]")
+    assert len(manifest[0]["content"]) < 100
+
+
+def test_manifest_omits_content_without_a_lookup():
+    manifest = build_attachment_manifest([record("doc-1", "a.txt", "txt")])
+    assert "content" not in manifest[0]
+
+
 def test_reingesting_identical_bytes_reuses_document_id(tmp_path):
     kb = make_kb(tmp_path)
     file = tmp_path / "note.txt"

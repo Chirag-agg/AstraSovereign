@@ -1,0 +1,25 @@
+{
+  "document_id": "doc-8daf05a0dd60",
+  "filename": "inspection_report_2021.pdf",
+  "document_type": "pdf",
+  "backend": "pypdf",
+  "page_count": 2,
+  "elements": [
+    {
+      "type": "text",
+      "page": 1,
+      "bbox": null,
+      "text": "MRPL-MECHANICALMAINTENANCE\nUltrasonic Thickness Survey - TANK-204\nSurvey date: 2021-06-02\nInspectionref:UT/204/2021-06\nShell course thickness (ultrasonic, single reading)\nCourse\nThickness (mm)\nRemarks\nC1\n14.1\nC2\n11.9\nC3\n12.2\nC4\n13.6\nC5\nnotaccessible-scaffoldunavailable\nC6\n12.4",
+      "confidence": null
+    },
+    {
+      "type": "text",
+      "page": 2,
+      "bbox": null,
+      "text": "MRPL-MECHANICALMAINTENANCE\nUltrasonic Thickness Survey - TANK-204\nSurvey date:2021-06-02\nInspectionref:UT/204/2021-06\nCourse 5 could not be surveyed this interval.\nScaffold unavailable; defer to next survey.\nPrepared by: K. Menon (NDT Level II)",
+      "confidence": null
+    }
+  ],
+  "markdown": "## Page 1\n\nMRPL-MECHANICALMAINTENANCE\nUltrasonic Thickness Survey - TANK-204\nSurvey date: 2021-06-02\nInspectionref:UT/204/2021-06\nShell course thickness (ultrasonic, single reading)\nCourse\nThickness (mm)\nRemarks\nC1\n14.1\nC2\n11.9\nC3\n12.2\nC4\n13.6\nC5\nnotaccessible-scaffoldunavailable\nC6\n12.4\n\n## Page 2\n\nMRPL-MECHANICALMAINTENANCE\nUltrasonic Thickness Survey - TANK-204\nSurvey date:2021-06-02\nInspectionref:UT/204/2021-06\nCourse 5 could not be surveyed this interval.\nScaffold unavailable; defer to next survey.\nPrepared by: K. Menon (NDT Level II)",
+  "created_at": "2026-09-14T14:57:15.824216Z"
+}

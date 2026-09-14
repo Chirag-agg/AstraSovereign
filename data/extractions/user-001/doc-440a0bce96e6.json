@@ -1,0 +1,39 @@
+{
+  "document_id": "doc-440a0bce96e6",
+  "filename": "inspection_report_2026.pdf",
+  "document_type": "pdf",
+  "backend": "pypdf",
+  "page_count": 4,
+  "elements": [
+    {
+      "type": "text",
+      "page": 1,
+      "bbox": null,
+      "text": "MRPL-MECHANICALMAINTENANCE\nUltrasonic Thickness Survey - TANK-204\nSurvey date:2026-08-15\nInspectionref:UT/204/2026-08\nShell course thickness (ultrasonic, single reading)\nCourse\nThickness (mm)\nRemarks\nC1\n13.4\nC2\n10.9\nC3\n11.2\nC4\n12.8\nC5\n10.4\nre-shot\n11.6\nC6\n0.455 in\nas reported",
+      "confidence": null
+    },
+    {
+      "type": "text",
+      "page": 2,
+      "bbox": null,
+      "text": "MRPL-MECHANICALMAINTENANCE\nUltrasonic Thickness Survey -TANK-204\nSurveydate:2026-08-15\nInspection ref:UT/204/2026-08\nNotes:\n- Readings taken with a 5 MHz dual-element probe.\n- Values below the soP-09 retirement limit require engineering review.\n- Course 6 recorded in inches by the field instrument; convert as needed.\n- Course 5 required a repeat shot after a probe fault.",
+      "confidence": null
+    },
+    {
+      "type": "text",
+      "page": 3,
+      "bbox": null,
+      "text": "MRPL-MECHANICALMAINTENANCE\nUltrasonic Thickness Survey - TANK-204\nSurvey date:2026-08-15\nInspectionref:UT/204/2026-08\nInspector'snote (handwritten):\nCourse 5 re-shot after probe fault - use 11\n(initial: K. Menon, 15 Aug 2026)",
+      "confidence": null
+    },
+    {
+      "type": "text",
+      "page": 4,
+      "bbox": null,
+      "text": "MRPL-MECHANICALMAINTENANCE\nUltrasonic Thickness Survey - TANK-204\nSurvey date:2026-08-15\nInspectionref:UT/204/2026-08\nScope: full shell, courses 1 to 6, spot grid 200 mm.\nPrepared by: K. Menon (NDT Level Il)\nReviewed by: S. Rao (Inspection Engineer)",
+      "confidence": null
+    }
+  ],
+  "markdown": "## Page 1\n\nMRPL-MECHANICALMAINTENANCE\nUltrasonic Thickness Survey - TANK-204\nSurvey date:2026-08-15\nInspectionref:UT/204/2026-08\nShell course thickness (ultrasonic, single reading)\nCourse\nThickness (mm)\nRemarks\nC1\n13.4\nC2\n10.9\nC3\n11.2\nC4\n12.8\nC5\n10.4\nre-shot\n11.6\nC6\n0.455 in\nas reported\n\n## Page 2\n\nMRPL-MECHANICALMAINTENANCE\nUltrasonic Thickness Survey -TANK-204\nSurveydate:2026-08-15\nInspection ref:UT/204/2026-08\nNotes:\n- Readings taken with a 5 MHz dual-element probe.\n- Values below the soP-09 retirement limit require engineering review.\n- Course 6 recorded in inches by the field instrument; convert as needed.\n- Course 5 required a repeat shot after a probe fault.\n\n## Page 3\n\nMRPL-MECHANICALMAINTENANCE\nUltrasonic Thickness Survey - TANK-204\nSurvey date:2026-08-15\nInspectionref:UT/204/2026-08\nInspector'snote (handwritten):\nCourse 5 re-shot after probe fault - use 11\n(initial: K. Menon, 15 Aug 2026)\n\n## Page 4\n\nMRPL-MECHANICALMAINTENANCE\nUltrasonic Thickness Survey - TANK-204\nSurvey date:2026-08-15\nInspectionref:UT/204/2026-08\nScope: full shell, courses 1 to 6, spot grid 200 mm.\nPrepared by: K. Menon (NDT Level Il)\nReviewed by: S. Rao (Inspection Engineer)",
+  "created_at": "2026-09-14T14:57:24.056638Z"
+}

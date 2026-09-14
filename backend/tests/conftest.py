@@ -572,6 +572,7 @@ def app_settings(tmp_path):
         log_file="",
         workspaces_root=str(tmp_path / "workspaces"),
         knowledge_base_root=str(tmp_path / "knowledge"),
+        extraction_root=str(tmp_path / "extractions"),
         uploads_root=str(tmp_path / "uploads"),
         multimodal_tmp_root=str(tmp_path / "tmp"),
         audit_root=str(tmp_path / "audit"),
