@@ -549,6 +549,18 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   (e.g. a multi-token cell = ambiguous → human review); (c) ~62 s/page on CPU, so
   pre-ingest fixtures before the finale (demo checklist) and measure layout vs
   table-structure cost before optimising.
+- **Docling OCR moved to ONNX (2026-09-14).** `RapidOcrOptions(backend="onnxruntime")`
+  removes the torch RapidOCR engine and the **ModelScope** host entirely; the
+  4-page fixture drops from ~249 s to ~100 s (2.5x) and passes the dead-proxy
+  offline test. The ONNX models are the ones already shipped with RapidOCR.
+- **GLM-OCR bake-off (2026-09-14): Docling wins.** `zai-org/GLM-OCR` (VLM,
+  `GlmOcrForConditionalGeneration`, 2.66 GB) run model-only via transformers,
+  offline + dead proxy, `Table Recognition:` on page 1: returns an HTML table
+  with headers, but on the struck + handwritten C5 it silently emits `10.4` and
+  **drops the handwritten `11.6`** (the unsafe pick). No per-element confidence,
+  ~98 s/page CPU (~4x Docling per page), and **no layout stage** — the HF weights
+  are recognition only and PP-DocLayout-V3 ships in the official SDK; Ollama
+  serves the model only and no GGUF is present locally. Keep Docling.
 - **The `/cowork` composer still cannot attach documents (2026-09-13).** The
   main workbench composer now sends `document_ids`, but `coworkChat` posts only
   `{project_id, message}` and `CoworkChatRequest` has no `document_ids`, so
