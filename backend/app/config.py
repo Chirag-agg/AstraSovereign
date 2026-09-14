@@ -126,6 +126,14 @@ class Settings(BaseSettings):
     # configured model is unavailable. Disable for benchmarks (bench/ forces it
     # off) so routing effectiveness is measured without silent substitution.
     model_fallback_enabled: bool = True
+
+    # Benchmark determinism: force greedy decoding (temperature 0) and a fixed
+    # seed on every generation call, so a benchmark measures the system rather
+    # than sampling noise. Production keeps sampling; `bench/` forces this on.
+    bench_mode: bool = False
+    bench_seed: int = 7
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

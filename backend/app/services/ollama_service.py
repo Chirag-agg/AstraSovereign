@@ -69,15 +69,24 @@ class OllamaService:
         default_model: str,
         timeout_seconds: float = 120.0,
         transport: Optional[httpx.AsyncBaseTransport] = None,
+        options: Optional[dict] = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.default_model = default_model
         self.timeout_seconds = timeout_seconds
+        # Model options (e.g. {"temperature": 0.0, "seed": 7} in benchmark mode)
+        # merged into every generation call, so determinism is set in one place.
+        self._options = dict(options) if options else {}
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
             timeout=httpx.Timeout(timeout_seconds),
             transport=transport,
         )
+
+    def _with_options(self, payload: dict) -> dict:
+        if self._options:
+            payload["options"] = {**self._options, **payload.get("options", {})}
+        return payload
 
     async def generate(
         self,
@@ -98,6 +107,7 @@ class OllamaService:
         payload = {"model": model_name, "prompt": prompt, "stream": False}
         if format:
             payload["format"] = format
+        payload = self._with_options(payload)
 
         try:
             response = await self._client.post("/api/generate", json=payload)
@@ -154,6 +164,7 @@ class OllamaService:
             payload["tools"] = tools
         if format:
             payload["format"] = format
+        payload = self._with_options(payload)
 
         try:
             response = await self._client.post("/api/chat", json=payload)
@@ -218,6 +229,7 @@ class OllamaService:
             "images": [image_b64],
             "stream": False,
         }
+        payload = self._with_options(payload)
 
         try:
             response = await self._client.post("/api/generate", json=payload)

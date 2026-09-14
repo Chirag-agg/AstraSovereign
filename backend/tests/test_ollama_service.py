@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import httpx
 import pytest
@@ -12,12 +13,13 @@ from app.services.ollama_service import (
 )
 
 
-def make_service(handler, default_model="test-model"):
+def make_service(handler, default_model="test-model", options=None):
     return OllamaService(
         base_url="http://ollama.test",
         default_model=default_model,
         timeout_seconds=5.0,
         transport=httpx.MockTransport(handler),
+        options=options,
     )
 
 
@@ -138,6 +140,57 @@ def test_list_models():
         service = make_service(handler)
         try:
             assert await service.list_models() == ["a", "b"]
+        finally:
+            await service.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_generate_omits_options_by_default():
+    async def scenario():
+        def handler(request):
+            assert "options" not in json.loads(request.content)
+            return httpx.Response(200, json={"response": "ok", "model": "test-model"})
+
+        service = make_service(handler)
+        try:
+            await service.generate("hello")
+        finally:
+            await service.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_generate_includes_bench_options():
+    async def scenario():
+        def handler(request):
+            assert json.loads(request.content)["options"] == {
+                "temperature": 0.0,
+                "seed": 7,
+            }
+            return httpx.Response(200, json={"response": "ok", "model": "test-model"})
+
+        service = make_service(handler, options={"temperature": 0.0, "seed": 7})
+        try:
+            await service.generate("hello")
+        finally:
+            await service.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_chat_includes_bench_options():
+    async def scenario():
+        def handler(request):
+            payload = json.loads(request.content)
+            assert payload["options"] == {"temperature": 0.0, "seed": 7}
+            return httpx.Response(
+                200, json={"message": {"content": "ok"}, "model": "test-model"}
+            )
+
+        service = make_service(handler, options={"temperature": 0.0, "seed": 7})
+        try:
+            await service.chat([{"role": "user", "content": "hi"}])
         finally:
             await service.aclose()
 

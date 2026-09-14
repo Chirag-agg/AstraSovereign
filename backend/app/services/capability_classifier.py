@@ -42,6 +42,9 @@ CAPABILITY_EXEMPLARS: dict[str, list[str]] = {
         "Debug the failing script and explain the error.",
         "Implement a SQL query that joins the readings table.",
         "Write a shell command to find the largest files.",
+        "Turn this pseudocode into working Python.",
+        "Port this routine from JavaScript to Python.",
+        "Translate this pseudocode into a working script.",
     ],
     "document": [
         "Compare the inspection report with the maintenance procedure.",

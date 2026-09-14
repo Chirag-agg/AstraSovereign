@@ -298,11 +298,17 @@ def create_app(
     network_guard = NetworkGuard(allowed_hosts={_base_url_host(settings.ollama_base_url)})
     guarded_transport = make_guarded_transport(ollama_transport, network_guard)
 
+    ollama_options = (
+        {"temperature": 0.0, "seed": settings.bench_seed}
+        if settings.bench_mode
+        else None
+    )
     ollama_service = OllamaService(
         base_url=settings.ollama_base_url,
         default_model=settings.default_model,
         timeout_seconds=settings.ollama_timeout_seconds,
         transport=guarded_transport,
+        options=ollama_options,
     )
 
     if model_registry is None:

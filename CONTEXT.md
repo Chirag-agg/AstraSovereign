@@ -427,6 +427,11 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   chains but the pulled models mean **zero active fallbacks** at preflight.
 - **Demo checklist:** run preflight before the finale and confirm zero active
   fallbacks; fallback is disaster insurance, not the state to demo in.
+- **Bench determinism (2026-09-13):** `BENCH_MODE=true` forces temperature `0`
+  and a fixed seed on every generation call (text and vision) via `OllamaService`
+  options; production keeps sampling. `bench/.env.example` sets it alongside
+  `MODEL_FALLBACK_ENABLED=false`. Re-baseline with it on — a benchmark with
+  multi-point run-to-run spread cannot detect a real improvement.
 - **Sandbox (hardened):** Docker-only; the host-subprocess fallback was removed.
   `--pids-limit 128`; defaults `timeout 30s` / `memory 512m`; exit 137 reports
   "Execution exceeded the memory limit". The image `workbench-sandbox:py312`
@@ -482,9 +487,12 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   precondition uses `TaskRouter`'s keyword `task_type == "coding"` (plus a typed
   findings object). A semantic nearest-exemplar classifier is now
   built but not yet wired (`app/services/capability_classifier.py`), with a
-  four-class exemplar set and an offline eval (`bench/classifier_eval.py`):
-  35/37 (95%) held-out at threshold 0.55-0.60. The next commit wires it into the
-  worker and retires `TaskRouter` —
+  four-class exemplar set and an offline eval (`bench/classifier_eval.py`).
+  **Held-out** accuracy (never scored against its own exemplars): 15/17 (88%)
+  at threshold 0.55, 16/17 (94%) at 0.60. 0.55 is chosen because a spurious
+  `compute` degrades harmlessly whereas a missed `coding` is the recorded
+  failure mode. The next commit wires it into the worker and retires
+  `TaskRouter` —
   which is the last thing keeping keyword routing alive. Fifth recorded miss
   (2026-09-13): the cowork turn "Change the helper so it computes 21 times 2 and
   run it." did not route to `coding`, so `compute` was skipped and the sandbox
