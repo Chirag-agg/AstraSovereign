@@ -81,6 +81,7 @@ data/outputs/
 
 # ── Local Knowledge Base / Data ────────────────────────────────
 data/knowledge/
+data/extractions/
 
 # ── Job Workspaces (agent file tools) ──────────────────────────
 data/workspaces/
