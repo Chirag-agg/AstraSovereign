@@ -123,6 +123,23 @@ describe("ArtifactCard", () => {
     fireEvent.click(screen.getByRole("button", { name: /Download approval_note.docx/ }));
     expect(onDownload).toHaveBeenCalledWith(artifact);
   });
+
+  it("labels Excel and PowerPoint deliverables", () => {
+    const { rerender } = render(
+      <ArtifactCard
+        artifact={{ ...artifactFixture(), type: "excel", filename: "findings.xlsx" }}
+        onDownload={() => undefined}
+      />,
+    );
+    expect(screen.getByText(/Excel workbook/)).toBeInTheDocument();
+    rerender(
+      <ArtifactCard
+        artifact={{ ...artifactFixture(), type: "pptx", filename: "deck.pptx" }}
+        onDownload={() => undefined}
+      />,
+    );
+    expect(screen.getByText(/PowerPoint deck/)).toBeInTheDocument();
+  });
 });
 
 describe("friendlyJobError", () => {

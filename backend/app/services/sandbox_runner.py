@@ -14,8 +14,6 @@ locally and is never pulled automatically.
 import asyncio
 import logging
 import shutil
-import subprocess
-import sys
 import tempfile
 import uuid
 from abc import ABC, abstractmethod
@@ -59,19 +57,14 @@ class DockerSandboxRunner(SandboxRunner):
     def __init__(
         self,
         image: str = "python:3.12-alpine",
-        timeout_seconds: float = 10.0,
+        timeout_seconds: float = 30.0,
         cpu_limit: str = "0.5",
-        memory_limit: str = "128m",
-        local_fallback: bool = False,
+        memory_limit: str = "512m",
     ) -> None:
         self._image = image
         self._timeout_seconds = timeout_seconds
         self._cpu_limit = cpu_limit
         self._memory_limit = memory_limit
-        # When true, Docker failures fall back to a local subprocess run. This
-        # executes generated code on the host (no container isolation), so it is
-        # OFF by default.
-        self._local_fallback = local_fallback
 
     def build_args(self, code_dir: Path, container_name: str) -> list[str]:
         """The exact ``docker run`` argument list (unit-tested for safety)."""
@@ -82,6 +75,7 @@ class DockerSandboxRunner(SandboxRunner):
             "--network", "none",
             "--cpus", self._cpu_limit,
             "--memory", self._memory_limit,
+            "--pids-limit", "128",
             "--read-only",
             "--cap-drop", "ALL",
             "--security-opt", "no-new-privileges",
@@ -99,76 +93,25 @@ class DockerSandboxRunner(SandboxRunner):
 
         code_dir = Path(tempfile.mkdtemp(prefix="sovereign-sandbox-"))
         container_name = f"sandbox-{uuid.uuid4().hex[:12]}"
-        started = asyncio.get_event_loop().time()
+        started = asyncio.get_running_loop().time()
         try:
             (code_dir / "main.py").write_text(code, encoding="utf-8")
             args = self.build_args(code_dir, container_name)
             return await self._run_docker(args, container_name, stdin, started)
         except SandboxRunnerError:
-            if not self._local_fallback:
-                raise
-            logger.warning("Docker execution failed; falling back to local isolated subprocess")
-            return await self._run_subprocess(code_dir, stdin, started)
-        except FileNotFoundError:
-            if not self._local_fallback:
-                raise SandboxRunnerError("Docker is not available on this machine") from None
-            logger.warning("Docker CLI not found on host; falling back to local isolated subprocess")
-            return await self._run_subprocess(code_dir, stdin, started)
+            raise
+        except FileNotFoundError as exc:
+            raise SandboxRunnerError("Docker is not available on this machine") from exc
         except Exception as exc:
-            if not self._local_fallback:
-                logger.exception(
-                    "sandbox_runner_error",
-                    extra={"event": "code_execution_failed", "error": str(exc)},
-                )
-                raise SandboxRunnerError(
-                    f"Sandbox execution failed: {exc.__class__.__name__}"
-                ) from exc
-            logger.warning("Docker execution error (%s); falling back to local subprocess", exc)
-            try:
-                return await self._run_subprocess(code_dir, stdin, started)
-            except Exception as sub_exc:
-                logger.exception("Subprocess execution failed: %s", sub_exc)
-                raise SandboxRunnerError(
-                    f"Sandbox execution failed: {sub_exc.__class__.__name__}"
-                ) from sub_exc
+            logger.exception(
+                "sandbox_runner_error",
+                extra={"event": "code_execution_failed", "error": str(exc)},
+            )
+            raise SandboxRunnerError(
+                f"Sandbox execution failed: {exc.__class__.__name__}"
+            ) from exc
         finally:
             shutil.rmtree(code_dir, ignore_errors=True)
-
-    def _run_subprocess_sync(self, script_path: str, cwd: str, stdin: str) -> tuple[int, str, str, bool]:
-        """Execute script synchronously in an isolated process; called in thread pool."""
-        try:
-            res = subprocess.run(
-                [sys.executable, "-u", script_path],
-                input=stdin,
-                capture_output=True,
-                text=True,
-                timeout=self._timeout_seconds,
-                cwd=cwd,
-            )
-            return res.returncode, res.stdout, res.stderr, False
-        except subprocess.TimeoutExpired as exc:
-            stdout = (exc.stdout.decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or ""))
-            stderr = (exc.stderr.decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or ""))
-            stderr += "\n[Execution timed out after configured limit]"
-            return -1, stdout, stderr, True
-        except Exception as exc:
-            return -1, "", f"[Subprocess execution error: {exc}]", False
-
-    async def _run_subprocess(self, code_dir: Path, stdin: str, started: float) -> ExecutionResult:
-        script_path = str(code_dir / "main.py")
-        retcode, stdout, stderr, timed_out = await asyncio.to_thread(
-            self._run_subprocess_sync, script_path, str(code_dir), stdin
-        )
-        duration_ms = int((asyncio.get_event_loop().time() - started) * 1000)
-
-        return ExecutionResult(
-            success=(retcode == 0 and not timed_out),
-            exit_code=retcode,
-            stdout=stdout,
-            stderr=stderr,
-            timed_out=timed_out,
-            duration_ms=duration_ms,
-        )
 
     async def _run_docker(self, args, container_name, stdin, started) -> ExecutionResult:
         proc = await asyncio.create_subprocess_exec(
@@ -188,7 +131,7 @@ class DockerSandboxRunner(SandboxRunner):
             stdout_b, stderr_b = b"", b"[timed out]"
             await self._force_cleanup(container_name, proc)
 
-        duration_ms = int((asyncio.get_event_loop().time() - started) * 1000)
+        duration_ms = int((asyncio.get_running_loop().time() - started) * 1000)
         if proc.returncode is None:
             await proc.wait()
 
@@ -202,6 +145,22 @@ class DockerSandboxRunner(SandboxRunner):
                 )
             raise SandboxRunnerError(
                 f"Sandbox container failed to start: {self._shorten(stderr_text)}"
+            )
+
+        if not timed_out and returncode == 137:
+            limit_message = "Execution exceeded the memory limit"
+            return ExecutionResult(
+                success=False,
+                exit_code=returncode,
+                stdout=stdout_b.decode("utf-8", errors="replace"),
+                stderr=(
+                    stderr_b.decode("utf-8", errors="replace").rstrip()
+                    + "\n"
+                    + limit_message
+                ).strip(),
+                timed_out=False,
+                duration_ms=duration_ms,
+                error=limit_message,
             )
 
         return ExecutionResult(

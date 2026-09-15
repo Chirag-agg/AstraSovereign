@@ -22,8 +22,12 @@ logger = logging.getLogger("app.api.jobs")
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 _WORD_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+_XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_PPTX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 _ARTIFACT_MEDIA_TYPES = {
     "word": _WORD_MEDIA_TYPE,
+    "excel": _XLSX_MEDIA_TYPE,
+    "pptx": _PPTX_MEDIA_TYPE,
 }
 
 
@@ -172,6 +176,28 @@ async def preview_artifact(
             full_text = "\n\n".join(p.strip() for p in parts if p.strip())
         except Exception as e:
             full_text = f"[Could not extract PDF text: {e}]"
+    elif ext == "xlsx":
+        try:
+            from openpyxl import load_workbook
+
+            workbook = load_workbook(path, read_only=True, data_only=False)
+            parts = []
+            for sheet in workbook.worksheets:
+                rows = []
+                for row in sheet.iter_rows(values_only=True):
+                    cells = [
+                        str(cell)
+                        for cell in row
+                        if cell is not None and str(cell).strip()
+                    ]
+                    if cells:
+                        rows.append(" | ".join(cells))
+                if rows:
+                    parts.append(f"[{sheet.title}]\n" + "\n".join(rows))
+            workbook.close()
+            full_text = "\n\n".join(parts)
+        except Exception as e:
+            full_text = f"[Could not extract workbook content: {e}]"
     else:
         try:
             full_text = path.read_text(encoding="utf-8", errors="replace")
@@ -187,6 +213,39 @@ async def preview_artifact(
         "text": full_text,
     }
 
+
+
+@router.get("/{job_id}/files")
+async def list_job_files(
+    job_id: str,
+    request: Request,
+    user_id: str = Depends(get_user_id),
+) -> dict:
+    """List the real files in the caller's job workspace (owner-scoped)."""
+    manager = request.app.state.job_manager
+    try:
+        await manager.get_job(user_id, job_id)
+    except (JobNotFoundError, JobPermissionError):
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    workspace = request.app.state.workspace_manager.workspace_path(user_id, job_id)
+    entries: list[dict] = []
+    if workspace.is_dir():
+        for path in sorted(workspace.rglob("*")):
+            if len(entries) >= 500:
+                break
+            if path.is_symlink():
+                continue
+            rel = path.relative_to(workspace).as_posix()
+            if path.is_dir():
+                entries.append({"name": path.name, "path": rel, "kind": "dir", "size": None})
+            elif path.is_file():
+                try:
+                    size = path.stat().st_size
+                except OSError:
+                    size = None
+                entries.append({"name": path.name, "path": rel, "kind": "file", "size": size})
+    return {"job_id": job_id, "files": entries}
 
 
 @router.get("", response_model=list[JobSummary])

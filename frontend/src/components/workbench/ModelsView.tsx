@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { RefreshCw, ServerCog } from "lucide-react";
 import { getAdminModels, getHealth } from "@/lib/api";
-import type { AdminModelRow } from "@/lib/types";
+import type { AdminModelRow, Health } from "@/lib/types";
 
 export default function ModelsView() {
   const [rows, setRows] = useState<AdminModelRow[]>([]);
   const [defaultModel, setDefaultModel] = useState<string>("");
   const [ollama, setOllama] = useState<string>("unknown");
+  const [resolved, setResolved] = useState<NonNullable<Health["models_resolved"]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,6 +18,7 @@ export default function ModelsView() {
       setRows(models);
       setDefaultModel(health.default_model);
       setOllama(health.ollama.reachable ? "reachable" : "unreachable");
+      setResolved(health.models_resolved ?? {});
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load model registry.");
@@ -29,6 +31,9 @@ export default function ModelsView() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const missing = rows.filter((r) => r.enabled && !r.available);
+  const activeFallbacks = Object.entries(resolved).filter(([, v]) => v.fallback_active);
 
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
@@ -62,6 +67,36 @@ export default function ModelsView() {
           </div>
         ) : null}
 
+        {activeFallbacks.length > 0 ? (
+          <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800" role="status">
+            <p className="font-semibold">Preflight: {activeFallbacks.length} active model fallback(s)</p>
+            <ul className="mt-1 list-disc pl-5">
+              {activeFallbacks.map(([task, v]) => (
+                <li key={task}>
+                  <span className="font-medium">{task}</span>: {v.configured} MISSING -&gt; will use{" "}
+                  <code className="font-mono">{v.effective}</code>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {missing.length > 0 ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
+            <p className="font-semibold">Preflight: {missing.length} enabled model(s) are not pulled locally</p>
+            <ul className="mt-1 list-disc pl-5">
+              {missing.map((m) => (
+                <li key={m.task_type}>
+                  <span className="font-medium">{m.task_type}</span> needs{" "}
+                  <code className="font-mono">{m.model}</code> - run{" "}
+                  <code className="font-mono">ollama pull {m.model}</code> or edit{" "}
+                  <code className="font-mono">config/models.yaml</code>. The backend never auto-pulls.
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
@@ -82,7 +117,14 @@ export default function ModelsView() {
                 rows.map((r) => (
                   <tr key={r.task_type} className="hover:bg-slate-50/70">
                     <td className="px-4 py-3 font-medium text-slate-800">{r.task_type}</td>
-                    <td className="px-4 py-3 font-mono text-slate-700">{r.model}</td>
+                    <td className="px-4 py-3 font-mono text-slate-700">
+                      {r.model}
+                      {resolved[r.task_type]?.fallback_active ? (
+                        <span className="ml-1 text-[11px] text-sky-700">
+                          -&gt; {resolved[r.task_type]?.effective}
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-3 text-slate-500">{r.provider}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">

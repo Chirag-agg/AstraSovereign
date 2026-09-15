@@ -457,3 +457,19 @@ export function runSandboxCode(
   );
 }
 
+
+
+export interface JobWorkspaceFile {
+  name: string;
+  path: string;
+  kind: "dir" | "file";
+  size: number | null;
+}
+
+export function listJobFiles(userId: string, jobId: string): Promise<{ job_id: string; files: JobWorkspaceFile[] }> {
+  return request(`/api/jobs/${encodeURIComponent(jobId)}/files`, {}, userId);
+}
+
+export function listUserWorkspaceFiles(userId: string): Promise<{ user_id: string; files: JobWorkspaceFile[] }> {
+  return request("/api/workspace/files", {}, userId);
+}

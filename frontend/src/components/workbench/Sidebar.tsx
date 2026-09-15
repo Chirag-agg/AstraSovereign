@@ -187,11 +187,11 @@ export default function Sidebar({
                       onSelectSection(item.id);
                       onCloseMobile();
                     }}
-                    className={`group flex w-full items-center rounded-xl transition-all cursor-pointer font-medium ${
+                    className={`group flex w-full items-center rounded-xl transition-all cursor-pointer text-[15.5px] font-bold ${
                       collapsed ? "justify-center p-2.5" : "gap-2.5 px-3 py-2 text-left"
                     } ${
                       active
-                        ? "bg-[#ede9fe] text-[#6d28d9] font-bold shadow-xs"
+                        ? "bg-[#ede9fe] text-[#6d28d9] shadow-xs"
                         : "text-slate-600 hover:bg-slate-100"
                     }`}
                   >

@@ -3,7 +3,7 @@ tables, sources, footer, validity, and determinism."""
 
 import asyncio
 
-from app.schemas.document_content import DocumentContent, DocumentSection
+from app.schemas.document_content import ApprovalNote, DocumentContent, DocumentSection
 from app.services.document_generator import WordDocumentGenerator
 
 
@@ -104,11 +104,45 @@ def test_word_sources_preserved(tmp_path):
     assert "pump_maintenance_manual.txt" in texts
 
 
-def test_word_footer_present(tmp_path):
+def test_word_footer_has_page_x_of_y_and_no_marketing_line(tmp_path):
     generated = run(WordDocumentGenerator().generate(sample_content(), tmp_path, "note.docx"))
     doc = read_docx(generated.path)
     footer_text = doc.sections[0].footer.paragraphs[0].text
-    assert "Sovereign On-Premise AI Workbench" in footer_text
+    assert "Page" in footer_text
+    assert "of" in footer_text
+    # a marketing line has no place on a formal deliverable
+    assert "Sovereign On-Premise AI Workbench" not in footer_text
+
+
+def test_word_uses_a4_page_size(tmp_path):
+    generated = run(WordDocumentGenerator().generate(sample_content(), tmp_path, "note.docx"))
+    section = read_docx(generated.path).sections[0]
+    assert round(section.page_width.mm) == 210
+    assert round(section.page_height.mm) == 297
+
+
+def test_word_footer_carries_classification(tmp_path):
+    content = sample_content()
+    content.classification = "INTERNAL"
+    generated = run(WordDocumentGenerator().generate(content, tmp_path, "note.docx"))
+    doc = read_docx(generated.path)
+    assert "INTERNAL" in doc.sections[0].footer.paragraphs[0].text
+
+
+def test_approval_note_recommendation_follows_findings(tmp_path):
+    content = DocumentContent(
+        title="Approval Note",
+        approval=ApprovalNote(
+            reference_number="X/1", background="background text", recommendation="rec text"
+        ),
+        sections=[DocumentSection(heading="Findings", paragraphs=["finding"])],
+    )
+    generated = run(WordDocumentGenerator().generate(content, tmp_path, "note.docx"))
+    doc = read_docx(generated.path)
+    texts = [paragraph.text for paragraph in doc.paragraphs]
+    assert texts.index("Background") < texts.index("Findings")
+    assert texts.index("Findings") < texts.index("Recommendation")
+    assert texts.index("Recommendation") < texts.index("Approval")
 
 
 def test_word_generation_is_deterministic(tmp_path):

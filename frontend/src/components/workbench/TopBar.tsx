@@ -282,6 +282,15 @@ export default function TopBar({
             </Link>
           )}
 
+          {/* Quick link to the exact Sovereign UI */}
+          <Link
+            href="/sovereign"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
+            title="Open Exact AstraSovereign UI"
+          >
+            <span className="text-[11px] font-bold">✨ Sovereign UI</span>
+          </Link>
+
           {/* User Account Switcher - dynamically populated */}
           <select
             aria-label="Active department user"

@@ -54,21 +54,23 @@ async def health(request: Request) -> dict:
     knowledge_base = request.app.state.knowledge_base
     multimodal = request.app.state.multimodal_service
     artifact_store = request.app.state.artifact_store
-    document_generator = request.app.state.document_generator
-
+    document_generators = request.app.state.document_generator
     document_generation = {
-        "available": True,
-        "word": "available",
+        "available": bool(document_generators),
+        "word": "available" if "word" in document_generators else "unavailable",
+        "excel": "available" if "excel" in document_generators else "unavailable",
         "artifacts": artifact_store.stats(),
     }
-    if not document_generator.supported_types:
-        document_generation = {"available": False, "word": "unavailable", "artifacts": artifact_store.stats()}
 
     return {
         "status": "ok",
         "service": "sovereign-backend",
         "ollama": ollama,
         "models": registry.availability(available_models),
+        "models_missing": registry.missing_models(available_models),
+        "models_resolved": registry.resolved_availability(
+            available_models, settings.model_fallback_enabled
+        ),
         "default_model": settings.default_model,
         "queue_size": queue.qsize(),
         "jobs": job_stats,

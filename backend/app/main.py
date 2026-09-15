@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.admin import router as admin_router
 from app.api.artifacts import router as artifacts_router
 from app.api.audit import router as audit_router
+from app.api.workspace import router as workspace_router
 from app.api.chat import router as chat_router
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
@@ -30,9 +31,13 @@ from app.api.sandbox import router as sandbox_router
 from app.config import Settings, get_settings
 from app.schemas.resources import GpuInfo, ResourceCapacity, ResourceRequirements
 from app.services.agent import Agent
-from app.services.artifact_store import ArtifactStore, InMemoryArtifactStore
-from app.services.audit_store import ensure_audit_handler, get_audit_store
-from app.services.document_generator import DocumentGenerator, WordDocumentGenerator
+from app.services.artifact_store import ArtifactStore, SqliteArtifactStore
+from app.services.audit_store import SqliteAuditStore, ensure_audit_handler, set_audit_store
+from app.services.document_generator import (
+    DocumentGenerator,
+    WordDocumentGenerator,
+    XlsxDocumentGenerator,
+)
 from app.services.document_preparer import DocumentPreparer
 from app.services.embedding import EmbeddingProvider, OllamaEmbeddingProvider
 from app.services.job_manager import JobManager
@@ -40,7 +45,7 @@ from app.services.capability_router import CapabilityRouter
 from app.services.context import ContextManager
 from app.services.presentation_renderer import NodePresentationRenderer
 from app.services.job_queue import JobQueue
-from app.services.job_store import InMemoryJobStore
+from app.services.job_store import SqliteJobStore
 from app.services.knowledge_base import KnowledgeBase
 from app.services.model_registry import ModelRegistry
 from app.services.model_router import ModelRouter
@@ -54,6 +59,8 @@ from app.services.resource_provider import InMemoryResourceProvider, LocalResour
 from app.services.resource_scheduler import InMemoryResourceScheduler
 from app.services.sandbox_runner import DockerSandboxRunner, SandboxRunner
 from app.services.task_router import TaskRouter
+from app.services.nodes import NODE_INPUT_NODES, NODE_TOOLS
+from app.services.tool_config import validate_node_tools
 from app.services.tool_registry import ToolRegistry
 from app.services.tools import (
     CodeExecutionTool,
@@ -179,6 +186,36 @@ async def lifespan(app: FastAPI):
                 "availability": registry.availability(available),
             },
         )
+        missing = registry.missing_models(available)
+        resolved = registry.resolved_availability(
+            available, app.state.settings.model_fallback_enabled
+        )
+        substitutions = [
+            f"{task}: {state['configured']} MISSING -> will use {state['effective']}"
+            for task, state in resolved.items()
+            if state["fallback_active"]
+        ]
+        app.state.model_availability["models"] = available
+        if missing:
+            logger.warning(
+                "model_preflight",
+                extra={
+                    "event": "model_preflight",
+                    "reachable": True,
+                    "missing": [f"{m['task_type']}:{m['model']}" for m in missing],
+                    "substitutions": substitutions,
+                },
+            )
+        else:
+            logger.info(
+                "model_preflight",
+                extra={
+                    "event": "model_preflight",
+                    "reachable": True,
+                    "missing": [],
+                    "substitutions": [],
+                },
+            )
 
     logger.info(
         "application_startup",
@@ -249,8 +286,8 @@ def create_app(
     """
     settings = settings or get_settings()
     setup_logging(settings)
-    audit_store = get_audit_store()
-    audit_store.configure(settings.audit_root)
+    audit_store = SqliteAuditStore(settings.database_path)
+    set_audit_store(audit_store)
     ensure_audit_handler()
 
     if not settings.default_model:
@@ -345,11 +382,14 @@ def create_app(
     if vision_config is not None:
         tools.append(DocumentVisionTool(multimodal=multimodal))
 
-    artifact_store = InMemoryArtifactStore(settings.artifact_store_root)
-    document_generator = WordDocumentGenerator()
+    artifact_store = SqliteArtifactStore(settings.database_path)
+    document_generators = {
+        "word": WordDocumentGenerator(),
+        "excel": XlsxDocumentGenerator(),
+    }
     tools.append(
         DocumentGenerationTool(
-            generator=document_generator,
+            generators=document_generators,
             artifact_store=artifact_store,
             scheduler=scheduler,
         )
@@ -368,9 +408,10 @@ def create_app(
     )
 
     tool_registry = ToolRegistry(tools)
+    validate_node_tools(NODE_TOOLS, NODE_INPUT_NODES, tool_registry)
     workspace_manager = WorkspaceManager(root=settings.workspaces_root)
 
-    store = InMemoryJobStore(settings.job_store_root)
+    store = SqliteJobStore(settings.database_path)
     job_manager = JobManager(store=store, default_model=settings.default_model)
     job_queue = JobQueue()
     agent = Agent(
@@ -411,6 +452,8 @@ def create_app(
     )
     project_locks = cowork_locks or ProjectLocks()
     context_manager = ContextManager(projects)
+    # Filled by the lifespan preflight; None means "availability unknown".
+    model_availability: dict[str, Optional[set[str]]] = {"models": None}
 
     worker = Worker(
         queue=job_queue,
@@ -426,6 +469,8 @@ def create_app(
         projects=projects,
         project_locks=project_locks,
         context_manager=context_manager,
+        availability_provider=lambda: model_availability["models"],
+        fallback_enabled=settings.model_fallback_enabled,
     )
 
     app = FastAPI(
@@ -448,6 +493,7 @@ def create_app(
     app.state.job_manager = job_manager
     app.state.job_queue = job_queue
     app.state.worker = worker
+    app.state.model_availability = model_availability
     app.state.model_registry = model_registry
     app.state.task_router = task_router
     app.state.model_router = model_router
@@ -462,7 +508,7 @@ def create_app(
     app.state.embedding_provider = embedding
     app.state.multimodal_service = multimodal
     app.state.artifact_store = artifact_store
-    app.state.document_generator = document_generator
+    app.state.document_generator = document_generators
     app.state.audit_store = audit_store
     app.state.network_guard = network_guard
     app.state.sandbox_runner = runner
@@ -489,6 +535,7 @@ def create_app(
     app.include_router(audit_router)
     app.include_router(admin_router)
     app.include_router(projects_router)
+    app.include_router(workspace_router)
     app.include_router(sandbox_router)
 
     return app

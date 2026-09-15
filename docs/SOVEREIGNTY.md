@@ -33,12 +33,16 @@ User ──► Sovereign Workbench ──► Network boundary ──► Internet
 
 ## What is verified (evidence)
 
-- **Audit trail** (`data/audit/audit.jsonl`): every meaningful operation emits a
-  non-sensitive audit event — job lifecycle, model selection, model calls,
-  tool calls, document ingestion/search, OCR, vision, sandbox, document
-  generation, resource allocation/release. Events carry only identifiers and
-  small metadata (never prompts, responses, document contents, OCR/vision text,
-  source code, or secrets).
+- **Audit trail** (`data/astra.db`, `audit_events` table): every meaningful
+  operation emits a non-sensitive audit event — job lifecycle, model selection,
+  model calls, tool calls, document ingestion/search, OCR, vision, sandbox,
+  document generation, resource allocation/release. Events carry only identifiers
+  and small metadata (never prompts, responses, document contents, OCR/vision
+  text, source code, or secrets). Rows are hash-chained; `GET /api/audit/verify`
+  recomputes the chain and reports `{"intact": bool, "first_bad_seq": int|null}`.
+  The chain proves integrity **from import forward**: events imported from the
+  pre-SQLite JSONL were re-chained at import time, so the chain does not attest
+  the original JSONL file.
 - **`/api/sovereignty`** and `/health.sovereignty` report real state:
   - `local_model_calls` — count of `MODEL_CALL_COMPLETED` audit events.
   - `external_connections.status` — `VERIFIED_LOCAL` when the guarded clients
@@ -74,9 +78,11 @@ User ──► Sovereign Workbench ──► Network boundary ──► Internet
 
 ## How to inspect audit evidence
 
-- File: `data/audit/audit.jsonl` (append-only; one JSON object per line).
+- Store: `data/astra.db`, table `audit_events` (hash-chained; WAL).
 - API (user-scoped): `GET /api/audit?job_id=...&limit=...&offset=...` and
   `GET /api/jobs/{job_id}/audit`.
+- Integrity: `GET /api/audit/verify` (recomputes the chain; reports the first
+  bad sequence number if tampered).
 - Status: `GET /api/sovereignty` or `/health`.
 
 ## How to run the sovereignty demo

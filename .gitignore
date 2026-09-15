@@ -95,6 +95,11 @@ data/audit/
 data/jobs/
 data/artifacts/
 
+# ── Durable SQLite database ──
+data/astra.db
+data/astra.db-wal
+data/astra.db-shm
+
 # ── Cowork persistent user projects ──
 data/projects/
 
@@ -124,3 +129,17 @@ desktop.ini
 *.tmp
 *.temp
 *~
+
+# ── Vendored offline Node deps (PptxGenJS presentation renderer) ──
+# The presentation renderer must work on an air-gapped machine with no npm
+# registry, so its full runtime dependency closure is committed. These negations
+# come last so they win over the generic `node_modules/` and `dist/` rules above.
+!presentation/node_modules/
+!presentation/node_modules/**
+
+# ── Hard Scenario 01: generated fixtures and benchmark output ───
+# The fixtures are produced by tests/hard_scenario_01/build_fixtures.py and the
+# run outputs by run_scenario.py; neither belongs in version control.
+tests/fixtures/hard_scenario_01/
+tests/hard_scenario_01/_golden/
+bench/results/

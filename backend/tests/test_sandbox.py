@@ -137,6 +137,7 @@ def test_docker_invocation_is_secure(tmp_path):
     assert "--read-only" in args
     assert "--cap-drop" in args and args[args.index("--cap-drop") + 1] == "ALL"
     assert "--security-opt" in args and "no-new-privileges" in args
+    assert "--pids-limit" in args and args[args.index("--pids-limit") + 1] == "128"
     assert "--rm" in args
     assert "--cpus" in args and args[args.index("--cpus") + 1] == "0.5"
     assert "--memory" in args and args[args.index("--memory") + 1] == "128m"
@@ -149,3 +150,10 @@ def test_docker_invocation_is_secure(tmp_path):
     assert str(tmp_path) in volume
     assert "workspaces" not in volume
     assert "--tmpfs" in args
+
+
+def test_runner_has_no_host_execution_fallback():
+    runner = DockerSandboxRunner()
+    assert not hasattr(runner, "_local_fallback")
+    assert not hasattr(runner, "_run_subprocess")
+    assert not hasattr(runner, "_run_subprocess_sync")

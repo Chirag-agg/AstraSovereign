@@ -93,3 +93,15 @@ mocked backend (no live model needed).
 Project list + conversation, a file tree and editor over the persistent project
 folder (save disabled while the agent runs), create-file, and a live execution
 panel. Uses the typed cowork client in `src/lib/api.ts`.
+
+## Current routes & stack (authoritative)
+
+- Next.js 16 (Turbopack), React 18, TypeScript, Tailwind CSS v4.
+- `/` Landing + unified workbench (Home, Coworking Space, AI Assistant with real
+  job-workspace files, Code Sandbox, Task History, Knowledge Base, Deliverables,
+  Models & Routing, Local Tools, Agent Pipelines, Compute & VRAM, System Health,
+  Audit Trail, Team & Roles, Security).
+- `/cowork` persistent project IDE. `/admin` operations console.
+- `/preview` and `src/sih/` were removed.
+- Typed API client in `src/lib/api.ts`; hooks in `src/lib/hooks.ts`.
+- Checks: `npm run typecheck`, `npm test` (63), `npm run build`.

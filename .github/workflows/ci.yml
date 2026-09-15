@@ -23,6 +23,12 @@ jobs:
           python-version: "3.13"
           cache: "pip"
 
+      # The backend job must run the real vendored PptxGenJS renderer
+      # (node-marked test); pin Node so it cannot silently skip.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       # opencv-python (pulled in by rapidocr-onnxruntime) needs libGL on Linux.
       - name: Install system libraries
         run: sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0

@@ -1,22 +1,19 @@
 """Job storage abstraction.
 
-The ``JobStore`` interface is the seam that makes a later swap to
-Redis/Postgres/etc. straightforward without touching the manager, worker, or API
-layers. ``InMemoryJobStore`` keeps jobs in memory and (when a root directory is
-provided) snapshots them to disk after every mutation so history survives
-backend restarts (single process).
+``JobStore`` is the persistence seam. ``SqliteJobStore`` is the production
+implementation (one SQLite file, WAL, row-level read-modify-write per mutation).
+``InMemoryJobStore`` is a pure in-memory test double.
 """
 
 import asyncio
 import json
-import os
-import tempfile
+import sqlite3
 import uuid
 from abc import ABC, abstractmethod
-from pathlib import Path
 from typing import Optional
 
 from app.schemas.job import Job
+from app.services import db
 
 
 class JobStore(ABC):
@@ -39,91 +36,108 @@ class JobStore(ABC):
         """Return a snapshot of every stored job."""
 
 
-class InMemoryJobStore(JobStore):
-    """In-memory job store with optional on-disk persistence.
+def _new_job_id() -> str:
+    return f"job-{uuid.uuid4().hex[:12]}"
 
-    ``root`` may be a directory. When provided, jobs are loaded from
-    ``<root>/jobs.json`` on first access and the file is rewritten after each
-    mutation, so a process restart does not lose history.
-    """
 
-    def __init__(self, root: Optional[str] = None) -> None:
-        self._root = Path(root) if root else None
-        self._jobs: dict[str, Job] = {}
-        self._loaded = False
-        self._lock = asyncio.Lock()
+class SqliteJobStore(JobStore):
+    """Durable SQLite-backed job store."""
+
+    def __init__(self, path: str) -> None:
+        self._path = path
+        self._conn = db.get_connection(path)
+        db.init_schema(self._conn)
 
     @staticmethod
-    def _new_id() -> str:
-        return f"job-{uuid.uuid4().hex[:12]}"
+    def _row_to_job(row: sqlite3.Row) -> Job:
+        return Job(**json.loads(row["data"]))
 
-    def _snapshot_path(self) -> Path:
-        return self._root / "jobs.json"
+    def _create_sync(self, job: Job) -> Job:
+        created = job.model_copy(update={"job_id": _new_job_id()})
+        with db.jobs_lock:
+            self._conn.execute(
+                "INSERT INTO jobs (job_id, user_id, status, created_at, updated_at, data) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    created.job_id,
+                    created.user_id,
+                    created.status.value,
+                    created.created_at.isoformat(),
+                    created.created_at.isoformat(),
+                    json.dumps(created.model_dump(mode="json")),
+                ),
+            )
+            self._conn.commit()
+        return created
 
-    async def _ensure_loaded(self) -> None:
-        if self._loaded or self._root is None:
-            return
-        self._loaded = True
-        path = self._snapshot_path()
-        if not path.is_file():
-            return
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            for item in raw:
-                try:
-                    job = Job(**item)
-                    self._jobs[job.job_id] = job
-                except (TypeError, ValueError):
-                    continue
-        except (json.JSONDecodeError, OSError):
-            self._jobs = {}
+    async def create(self, job: Job) -> Job:
+        return await asyncio.to_thread(self._create_sync, job)
 
-    def _persist(self) -> None:
-        if self._root is None:
-            return
-        self._root.mkdir(parents=True, exist_ok=True)
-        path = self._snapshot_path()
-        payload = json.dumps(
-            [job.model_dump(mode="json") for job in self._jobs.values()],
-            default=str,
-        )
-        fd, tmp_name = tempfile.mkstemp(dir=str(self._root), suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                fh.write(payload)
-            os.replace(tmp_name, path)
-        finally:
-            if os.path.exists(tmp_name):
-                try:
-                    os.unlink(tmp_name)
-                except OSError:
-                    pass
+    def _get_sync(self, job_id: str) -> Optional[Job]:
+        with db.jobs_lock:
+            row = self._conn.execute("SELECT data FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+        return self._row_to_job(row) if row is not None else None
+
+    async def get(self, job_id: str) -> Optional[Job]:
+        return await asyncio.to_thread(self._get_sync, job_id)
+
+    def _update_sync(self, job_id: str, fields: dict) -> Optional[Job]:
+        with db.jobs_lock:
+            row = self._conn.execute("SELECT data FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+            if row is None:
+                return None
+            updated = self._row_to_job(row).model_copy(update=fields)
+            self._conn.execute(
+                "UPDATE jobs SET user_id = ?, status = ?, updated_at = ?, data = ? WHERE job_id = ?",
+                (
+                    updated.user_id,
+                    updated.status.value,
+                    (updated.completed_at or updated.started_at or updated.created_at).isoformat(),
+                    json.dumps(updated.model_dump(mode="json")),
+                    job_id,
+                ),
+            )
+            self._conn.commit()
+        return updated
+
+    async def update(self, job_id: str, **fields) -> Optional[Job]:
+        return await asyncio.to_thread(self._update_sync, job_id, dict(fields))
+
+    def _list_all_sync(self) -> list[Job]:
+        with db.jobs_lock:
+            rows = self._conn.execute("SELECT data FROM jobs").fetchall()
+        return [self._row_to_job(row) for row in rows]
+
+    async def list_all(self) -> list[Job]:
+        return await asyncio.to_thread(self._list_all_sync)
+
+
+class InMemoryJobStore(JobStore):
+    """Pure in-memory job store (test double; no persistence)."""
+
+    def __init__(self) -> None:
+        self._jobs: dict[str, Job] = {}
+        self._lock = asyncio.Lock()
 
     async def create(self, job: Job) -> Job:
         async with self._lock:
-            await self._ensure_loaded()
-            created = job.model_copy(update={"job_id": self._new_id()})
+            created = job.model_copy(update={"job_id": _new_job_id()})
             self._jobs[created.job_id] = created
-            self._persist()
             return created
 
     async def get(self, job_id: str) -> Optional[Job]:
         async with self._lock:
-            await self._ensure_loaded()
             return self._jobs.get(job_id)
 
     async def update(self, job_id: str, **fields) -> Optional[Job]:
         async with self._lock:
-            await self._ensure_loaded()
             job = self._jobs.get(job_id)
             if job is None:
                 return None
             updated = job.model_copy(update=dict(fields))
             self._jobs[job_id] = updated
-            self._persist()
             return updated
 
     async def list_all(self) -> list[Job]:
         async with self._lock:
-            await self._ensure_loaded()
             return list(self._jobs.values())

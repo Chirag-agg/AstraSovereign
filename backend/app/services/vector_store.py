@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 import math
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
@@ -45,6 +46,12 @@ class VectorStore(ABC):
     @abstractmethod
     async def search(self, user_id: str, query_vector: list[float], top_k: int) -> list[SearchResult]:
         raise NotImplementedError
+
+    async def search_hybrid(
+        self, user_id: str, query: str, query_vector: list[float], top_k: int
+    ) -> list[SearchResult]:
+        """Dense + keyword fusion. Default is dense-only for other stores."""
+        return await self.search(user_id, query_vector, top_k)
 
     @abstractmethod
     def stats(self) -> dict:
@@ -165,6 +172,84 @@ class JsonVectorStore(VectorStore):
             for score, c in scored[:top_k]
         ]
 
+    async def search_hybrid(
+        self,
+        user_id: str,
+        query: str,
+        query_vector: list[float],
+        top_k: int,
+        per_page_cap: int = 2,
+        duplicate_threshold: float = 0.95,
+    ) -> list[SearchResult]:
+        """Dense + BM25 fused with Reciprocal Rank Fusion, then diversified.
+
+        - at most ``per_page_cap`` chunks from any one ``(doc_id, page)``
+        - drop near-duplicates (cosine to an already-selected chunk > threshold)
+        - RRF score = sum over rankings of ``1 / (60 + rank)`` (no tuning needed)
+        """
+        async with self._lock:
+            data = await self._load(user_id)
+        chunks = data["chunks"]
+        if not chunks:
+            return []
+
+        dense_rank = {
+            chunk["chunk_id"]: index + 1
+            for index, chunk in enumerate(
+                sorted(
+                    chunks,
+                    key=lambda c: _cosine(query_vector, c.get("vector") or []),
+                    reverse=True,
+                )
+            )
+        }
+        bm25_rank = {
+            chunk["chunk_id"]: index + 1
+            for index, (score, chunk) in enumerate(_bm25_rank(query, chunks))
+            if score > 0
+        }
+
+        fused: list[tuple[float, dict]] = []
+        for chunk in chunks:
+            chunk_id = chunk["chunk_id"]
+            score = 0.0
+            if chunk_id in dense_rank:
+                score += 1.0 / (60 + dense_rank[chunk_id])
+            if chunk_id in bm25_rank:
+                score += 1.0 / (60 + bm25_rank[chunk_id])
+            if score > 0:
+                fused.append((score, chunk))
+        fused.sort(key=lambda item: item[0], reverse=True)
+
+        selected: list[tuple[float, dict]] = []
+        per_page: dict[tuple, int] = {}
+        for score, chunk in fused:
+            key = (chunk["document_id"], chunk.get("page"))
+            if per_page.get(key, 0) >= per_page_cap:
+                continue
+            vector = chunk.get("vector") or []
+            if any(
+                _cosine(vector, other.get("vector") or []) > duplicate_threshold
+                for _, other in selected
+            ):
+                continue
+            selected.append((score, chunk))
+            per_page[key] = per_page.get(key, 0) + 1
+            if len(selected) >= top_k:
+                break
+
+        return [
+            SearchResult(
+                chunk_id=chunk["chunk_id"],
+                document_id=chunk["document_id"],
+                filename=chunk["filename"],
+                page=chunk.get("page"),
+                text=chunk["text"],
+                score=round(score, 6),
+            )
+            for score, chunk in selected
+        ]
+
     def stats(self) -> dict:
         documents = 0
         chunks = 0
@@ -190,3 +275,42 @@ def _cosine(a: list[float], b: list[float]) -> float:
     if norm_a == 0 or norm_b == 0:
         return 0.0
     return dot / (norm_a * norm_b)
+
+
+_TOKEN_RE = re.compile(r"[a-z0-9]+(?:[.\-/][a-z0-9]+)*")
+
+
+def _tokenize(text: str) -> list[str]:
+    """Lowercase alphanumeric tokens, keeping exact codes like sop-09 / 0.455."""
+    return _TOKEN_RE.findall((text or "").lower())
+
+
+def _bm25_rank(query: str, chunks: list[dict], k1: float = 1.5, b: float = 0.75):
+    """BM25 over the chunks; returns ``[(score, chunk)]`` sorted by score desc."""
+    if not chunks:
+        return []
+    docs = [_tokenize(chunk.get("text", "")) for chunk in chunks]
+    count = len(docs)
+    avgdl = (sum(len(doc) for doc in docs) / count) or 1.0
+    df: dict[str, int] = {}
+    for doc in docs:
+        for token in set(doc):
+            df[token] = df.get(token, 0) + 1
+    query_tokens = _tokenize(query)
+    scored = []
+    for chunk, doc in zip(chunks, docs):
+        length = len(doc) or 1
+        tf: dict[str, int] = {}
+        for token in doc:
+            tf[token] = tf.get(token, 0) + 1
+        score = 0.0
+        for token in query_tokens:
+            if token not in tf:
+                continue
+            idf = math.log(1.0 + (count - df.get(token, 0) + 0.5) / (df.get(token, 0) + 0.5))
+            score += idf * (tf[token] * (k1 + 1)) / (
+                tf[token] + k1 * (1 - b + b * length / avgdl)
+            )
+        scored.append((score, chunk))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return scored

@@ -411,20 +411,23 @@ Agent → structured content → document_generation tool → Word generator →
   → job workspace artifacts/ → ArtifactStore → job API → secure download
 ```
 
-**Generator abstraction** (`DocumentGenerator` → `WordDocumentGenerator`):
-`python-docx` produces valid `.docx` files from a structured intermediate
-representation (`DocumentContent`): title, subtitle, headings, paragraphs, bullet
-lists (`List Bullet`), numbered lists (`List Number`), simple tables (`Table
-Grid`), an optional `Sources` numbered section, and a static footer. Excel and
-PowerPoint are reserved future generators behind the same interface. Generation is
-deterministic; output is validated (file exists, non-zero, reopens with
-`python-docx`) before success is reported.
+**Generator abstraction** (`DocumentGenerator` → `WordDocumentGenerator`,
+`XlsxDocumentGenerator`): a structured intermediate representation
+(`DocumentContent`) is converted locally. `python-docx` produces `.docx` (title,
+subtitle, headings, paragraphs, bullet/numbered lists, tables, workspace images,
+an optional `Sources` section, an A4 page size, a footer of optional
+`classification` plus live page numbers, and an optional formal
+`approval` block with a signature table); `openpyxl` produces `.xlsx` (one
+worksheet per section table, real `=` formulas, sources sheet). Generation is
+deterministic; output is validated by reopening before success is reported.
 
 **`document_generation` tool**: the only gateway the agent has to generation.
 Arguments:
-`{"type":"word","filename":"...","title":"...","document_type":"...",
-"sections":[{"heading":"...","content"|"paragraphs"|"bullets"|"numbered"|"table":...}],
-"sources":[...]}`.
+`{"type":"word"|"excel","filename":"...","title":"...","document_type":"...",
+"sections":[{"heading":"...","content"|"paragraphs"|"bullets"|"numbered"|"table"|"images":...}],
+"sources":[...],"approval":{...}}`.
+Image paths in a section are resolved through the existing workspace containment
+(absolute/traversal/absent paths and non-png/jpg/jpeg are rejected).
 All arguments are validated before generation — unsupported types, unsafe
 filenames (path separators, `..`, wrong extension), malformed sections, and
 oversized content are rejected. Artifacts are written only under
@@ -441,7 +444,8 @@ for moving to a database later). API views expose a safe `ArtifactSummary`
 Secure download: `GET /api/jobs/{job_id}/artifacts/{artifact_id}` — verifies job
 ownership, artifact↔job binding, and that the file path is still inside the job
 workspace before returning the file with the correct content type
-(`application/vnd.openxmlformats-officedocument.wordprocessingml.document`). There
+(Word `wordprocessingml.document`, Excel `spreadsheetml.sheet`, PowerPoint
+`presentationml.presentation`). There
 is **no generic filesystem download endpoint**.
 
 **Resource scheduling**: document generation is CPU-only; the tool requests a
@@ -704,3 +708,16 @@ frontend typecheck/tests/build) on every push and pull request.
 - Tests: `pytest tests/test_presentation.py` (real renderer runs when node + deps
   are present). Presenton (Apache-2.0) referenced for planning/layout concepts only;
   PptxGenJS (MIT) used for rendering.
+
+## Current feature surface (authoritative)
+
+Endpoints include: `/api/chat`, `/api/jobs` (+ artifact download/preview,
+`/{job_id}/files`), `/api/documents` (+ content/raw file), `/api/artifacts`,
+`/api/audit`, `/api/sovereignty`, `/api/health`, `/api/projects`,
+`/api/cowork/chat`, `/api/workspace/files`, `/api/sandbox/run`, and `/api/admin/*`.
+
+Pipeline capabilities: reasoning, math, coding, document, vision, presentation.
+Tools include document_search, document_vision, code_execution (Docker sandbox),
+document_generation (Word), presentation_generation (PptxGenJS), and workspace
+file ops. See `app/services/pipeline.py`, `app/services/tools.py`,
+`app/services/sandbox_runner.py`, `app/services/network_guard.py`.

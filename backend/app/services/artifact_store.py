@@ -1,23 +1,19 @@
 """Artifact store: metadata for generated deliverables.
 
-The generated files themselves stay on disk inside the job workspace.
-``InMemoryArtifactStore`` keeps metadata in memory and, when given a root
-directory, snapshots it to ``<root>/artifacts.json`` after every mutation so the
-artifact history survives backend restarts. The ``ArtifactStore`` abstraction is
-the seam for moving persistence to a database later.
+Generated files stay on disk inside the job workspace. ``SqliteArtifactStore`` is
+the durable implementation; ``InMemoryArtifactStore`` is a pure in-memory test
+double.
 """
 
 import asyncio
 import json
 import logging
-import os
-import tempfile
-import uuid
+import sqlite3
 from abc import ABC, abstractmethod
-from pathlib import Path
 from typing import Optional
 
-from app.schemas.artifact import Artifact, ArtifactStatus, ArtifactSummary
+from app.schemas.artifact import Artifact, ArtifactStatus
+from app.services import db
 
 logger = logging.getLogger("app.artifact_store")
 
@@ -52,112 +48,145 @@ class ArtifactStore(ABC):
         raise NotImplementedError
 
 
+class SqliteArtifactStore(ArtifactStore):
+    """Durable SQLite-backed artifact metadata store."""
+
+    def __init__(self, path: str) -> None:
+        self._path = path
+        self._conn = db.get_connection(path)
+        db.init_schema(self._conn)
+
+    @staticmethod
+    def _row_to_artifact(row: sqlite3.Row) -> Artifact:
+        return Artifact(**json.loads(row["data"]))
+
+    def _create_sync(self, artifact: Artifact) -> Artifact:
+        with db.jobs_lock:
+            self._conn.execute(
+                "INSERT INTO artifacts (artifact_id, job_id, user_id, status, created_at, data) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    artifact.artifact_id,
+                    artifact.job_id,
+                    artifact.user_id,
+                    artifact.status,
+                    artifact.created_at.isoformat(),
+                    json.dumps(artifact.model_dump(mode="json")),
+                ),
+            )
+            self._conn.commit()
+        return artifact
+
+    async def create(self, artifact: Artifact) -> Artifact:
+        return await asyncio.to_thread(self._create_sync, artifact)
+
+    def _get_sync(self, artifact_id: str) -> Optional[Artifact]:
+        with db.jobs_lock:
+            row = self._conn.execute(
+                "SELECT data FROM artifacts WHERE artifact_id = ?", (artifact_id,)
+            ).fetchone()
+        return self._row_to_artifact(row) if row is not None else None
+
+    async def get(self, artifact_id: str) -> Optional[Artifact]:
+        return await asyncio.to_thread(self._get_sync, artifact_id)
+
+    def _list_sync(self, column: str, value: str) -> list[Artifact]:
+        with db.jobs_lock:
+            rows = self._conn.execute(
+                f"SELECT data FROM artifacts WHERE {column} = ?", (value,)
+            ).fetchall()
+        return [self._row_to_artifact(row) for row in rows]
+
+    async def list_for_job(self, job_id: str) -> list[Artifact]:
+        return await asyncio.to_thread(self._list_sync, "job_id", job_id)
+
+    async def list_for_user(self, user_id: str) -> list[Artifact]:
+        return await asyncio.to_thread(self._list_sync, "user_id", user_id)
+
+    def _update_sync(self, artifact_id: str, fields: dict) -> Optional[Artifact]:
+        with db.jobs_lock:
+            row = self._conn.execute(
+                "SELECT data FROM artifacts WHERE artifact_id = ?", (artifact_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            updated = self._row_to_artifact(row).model_copy(update=fields)
+            self._conn.execute(
+                "UPDATE artifacts SET job_id = ?, user_id = ?, status = ?, data = ? WHERE artifact_id = ?",
+                (
+                    updated.job_id,
+                    updated.user_id,
+                    updated.status,
+                    json.dumps(updated.model_dump(mode="json")),
+                    artifact_id,
+                ),
+            )
+            self._conn.commit()
+        return updated
+
+    async def update(self, artifact_id: str, **fields) -> Optional[Artifact]:
+        return await asyncio.to_thread(self._update_sync, artifact_id, dict(fields))
+
+    def _delete_sync(self, artifact_id: str) -> bool:
+        with db.jobs_lock:
+            cursor = self._conn.execute(
+                "DELETE FROM artifacts WHERE artifact_id = ?", (artifact_id,)
+            )
+            self._conn.commit()
+            return cursor.rowcount > 0
+
+    async def delete(self, artifact_id: str) -> bool:
+        return await asyncio.to_thread(self._delete_sync, artifact_id)
+
+    def stats(self) -> dict:
+        with db.jobs_lock:
+            total = self._conn.execute("SELECT COUNT(*) AS n FROM artifacts").fetchone()["n"]
+            completed = self._conn.execute(
+                "SELECT COUNT(*) AS n FROM artifacts WHERE status = ?",
+                (ArtifactStatus.COMPLETED,),
+            ).fetchone()["n"]
+        return {"artifacts": total, "completed": completed}
+
+
 class InMemoryArtifactStore(ArtifactStore):
-    """In-memory artifact metadata store with optional on-disk persistence."""
+    """Pure in-memory artifact store (test double; no persistence)."""
 
-    def __init__(self, root: Optional[str] = None) -> None:
-        self._root = Path(root) if root else None
+    def __init__(self) -> None:
         self._artifacts: dict[str, Artifact] = {}
-        self._loaded = False
         self._lock = asyncio.Lock()
-
-    def _snapshot_path(self) -> Path:
-        return self._root / "artifacts.json"
-
-    async def _ensure_loaded(self) -> None:
-        if self._loaded or self._root is None:
-            return
-        self._loaded = True
-        path = self._snapshot_path()
-        if not path.is_file():
-            return
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            for item in raw:
-                try:
-                    artifact = Artifact(**item)
-                    self._artifacts[artifact.artifact_id] = artifact
-                except (TypeError, ValueError):
-                    continue
-        except (json.JSONDecodeError, OSError):
-            self._artifacts = {}
-
-    def _persist(self) -> None:
-        if self._root is None:
-            return
-        self._root.mkdir(parents=True, exist_ok=True)
-        path = self._snapshot_path()
-        payload = json.dumps(
-            [artifact.model_dump(mode="json") for artifact in self._artifacts.values()],
-            default=str,
-        )
-        fd, tmp_name = tempfile.mkstemp(dir=str(self._root), suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                fh.write(payload)
-            os.replace(tmp_name, path)
-        finally:
-            if os.path.exists(tmp_name):
-                try:
-                    os.unlink(tmp_name)
-                except OSError:
-                    pass
 
     async def create(self, artifact: Artifact) -> Artifact:
         async with self._lock:
-            await self._ensure_loaded()
             self._artifacts[artifact.artifact_id] = artifact
-            self._persist()
         return artifact
 
     async def get(self, artifact_id: str) -> Optional[Artifact]:
         async with self._lock:
-            await self._ensure_loaded()
             return self._artifacts.get(artifact_id)
 
     async def list_for_job(self, job_id: str) -> list[Artifact]:
         async with self._lock:
-            await self._ensure_loaded()
-            return [
-                artifact
-                for artifact in self._artifacts.values()
-                if artifact.job_id == job_id
-            ]
+            return [a for a in self._artifacts.values() if a.job_id == job_id]
 
     async def list_for_user(self, user_id: str) -> list[Artifact]:
         async with self._lock:
-            await self._ensure_loaded()
-            return [
-                artifact
-                for artifact in self._artifacts.values()
-                if artifact.user_id == user_id
-            ]
+            return [a for a in self._artifacts.values() if a.user_id == user_id]
 
     async def update(self, artifact_id: str, **fields) -> Optional[Artifact]:
         async with self._lock:
-            await self._ensure_loaded()
             artifact = self._artifacts.get(artifact_id)
             if artifact is None:
                 return None
             updated = artifact.model_copy(update=fields)
             self._artifacts[artifact_id] = updated
-            self._persist()
             return updated
 
     async def delete(self, artifact_id: str) -> bool:
         async with self._lock:
-            await self._ensure_loaded()
-            removed = self._artifacts.pop(artifact_id, None) is not None
-            if removed:
-                self._persist()
-            return removed
+            return self._artifacts.pop(artifact_id, None) is not None
 
     def stats(self) -> dict:
         completed = sum(
-            1 for artifact in self._artifacts.values()
-            if artifact.status == ArtifactStatus.COMPLETED
+            1 for a in self._artifacts.values() if a.status == ArtifactStatus.COMPLETED
         )
-        return {
-            "artifacts": len(self._artifacts),
-            "completed": completed,
-        }
+        return {"artifacts": len(self._artifacts), "completed": completed}

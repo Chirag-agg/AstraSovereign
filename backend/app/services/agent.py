@@ -20,7 +20,7 @@ from app.schemas.job import Job, JobStatus
 from app.services.job_manager import JobManager
 from app.services.log_context import set_job_context
 from app.services.ollama_service import OllamaService, OllamaServiceError
-from app.services.tool_registry import ToolRegistry
+from app.services.tool_registry import ToolRegistry, coerce_arguments
 from app.services.tools import ToolError, ToolResult
 
 logger = logging.getLogger("app.agent")
@@ -46,6 +46,12 @@ class AgentResult(BaseModel):
     error: Optional[str] = None
     iterations: int = 0
     tool_calls: int = 0
+    # How many turns fell back to the hand-rolled JSON envelope instead of native
+    # tool calling. Expiry signal: if this stays 0 across the demo models, delete
+    # the legacy parser before freeze.
+    legacy_envelope_used: int = 0
+    # How many tool calls needed lenient scalar coercion (a weak-model signal).
+    argument_coercions: int = 0
 
 
 class AgentError(Exception):
@@ -82,6 +88,7 @@ class Agent:
         max_tool_calls: Optional[int] = None,
         append_start: bool = True,
         enforce_contracts: bool = True,
+        tool_names: Optional[set[str]] = None,
     ) -> AgentResult:
         job_id = job.job_id
         user_id = job.user_id
@@ -90,9 +97,12 @@ class Agent:
         task_text = job.message if task_text is None else task_text
         iterations = 0
         tool_calls = 0
+        legacy_envelope_used = 0
+        argument_coercions = 0
         stage = "planning"
         max_iter = max_iterations if max_iterations is not None else self._max_iterations
         max_calls = max_tool_calls if max_tool_calls is not None else self._max_tool_calls
+        allowed_tools = set(tool_names) if tool_names is not None else None
 
         if append_start:
             self._append(trace, "agent_started", task_type=job.task_type, model=model)
@@ -108,6 +118,15 @@ class Agent:
                 "model": model,
             },
         )
+
+        # A single, persistent conversation. The model must see its own tool
+        # calls and their results as *its own* history, or every turn reads as a
+        # fresh request with a wall of text appended (the model re-searches
+        # instead of chaining search -> vision).
+        messages: list[dict] = [
+            {"role": "system", "content": self._system_prompt()},
+            {"role": "user", "content": task_text},
+        ]
 
         while True:
             if await self._is_cancelled(job_id):
@@ -139,7 +158,6 @@ class Agent:
                 )
 
             iterations += 1
-            prompt = self._build_prompt(task_text, model, history)
 
             model_call_start = time.monotonic()
             logger.info(
@@ -152,8 +170,10 @@ class Agent:
                 },
             )
             try:
-                raw, _model_used = await self._model.generate(
-                    prompt, model=model, format="json"
+                raw, native_calls, _model_used = await self._model.chat(
+                    messages,
+                    model=model,
+                    tools=self._schemas_for(allowed_tools),
                 )
             except OllamaServiceError as exc:
                 logger.error(
@@ -223,20 +243,26 @@ class Agent:
             )
 
             try:
-                decision = self._parse_decision(raw)
+                decision = self._parse_decision(raw, native_calls)
             except AgentError as exc:
-                # The model produced JSON we cannot interpret (e.g. it put a tool
-                # name in "type"). Instead of killing the job with an internal
-                # error, tell the model what it did wrong and give it another
-                # chance (bounded by max_iterations).
-                history.append(
-                    "Your previous reply was not a valid action. Reply with STRICT JSON only, "
-                    'either {"type":"final","response":"..."} or '
-                    '{"type":"tool_call","tool":"<name>","arguments":{...}}. '
-                    f"(Reason: {exc})"
+                # Tell the model what went wrong on the same channel it observes
+                # tool results on, then let it retry.
+                messages.append({"role": "assistant", "content": raw or ""})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "Your previous reply was not a valid action. Use one of the "
+                            "provided tools, or reply with your final answer as plain text. "
+                            f"(Reason: {exc})"
+                        ),
+                    }
                 )
                 await self._sync(job_id, trace, stage, iterations, tool_calls)
                 continue
+            if decision.get("legacy"):
+                legacy_envelope_used += 1
+                self._append(trace, "legacy_envelope_used", count=legacy_envelope_used)
             if await self._is_cancelled(job_id):
                 return await self._cancelled(
                     job_id, user_id, job.task_type, model, trace, iterations, tool_calls
@@ -270,13 +296,18 @@ class Agent:
                     and not has_run_ok
                     and iterations < max_iter
                 ):
-                    history.append(
-                        "You tried to finish a coding task without a successful sandbox run. This "
-                        "is not allowed: call code_execution with "
-                        '{"language": "python", "code": "<your complete, self-contained program>"} '
-                        "(standard library or numpy), read the reported error if it fails, fix the "
-                        "code, and rerun until it exits with code 0. Then reply final with the "
-                        "verified result and the final code."
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "You tried to finish a coding task without a successful sandbox run. "
+                                "This is not allowed: call code_execution with "
+                                '{"language": "python", "code": "<your complete, self-contained program>"} '
+                                "(standard library or numpy), read the reported error if it fails, fix the "
+                                "code, and rerun until it exits with code 0. Then reply with the final "
+                                "result and the final code."
+                            ),
+                        }
                     )
                     await self._sync(job_id, trace, stage, iterations, tool_calls)
                     continue
@@ -304,13 +335,18 @@ class Agent:
                     and not has_generated
                     and iterations < max_iter
                 ):
-                    history.append(
-                        "This request is a document-generation task, but you have not called "
-                        "document_generation. Call it now with {\"type\": \"word\", \"filename\": "
-                        "\"<name>.docx\", \"title\": \"...\", \"document_type\": \"...\", \"sections\": "
-                        "[{\"heading\": \"...\", \"content\": \"...\"} ...]}. Write long, well-structured "
-                        "content that fully covers the requested scope. Do not refuse and do not answer "
-                        "with prose alone."
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "This request is a document-generation task, but you have not called "
+                                "document_generation. Call it now with {\"type\": \"word\", \"filename\": "
+                                "\"<name>.docx\", \"title\": \"...\", \"document_type\": \"...\", \"sections\": "
+                                "[{\"heading\": \"...\", \"content\": \"...\"} ...]}. Write long, well-structured "
+                                "content that fully covers the requested scope. Do not refuse and do not "
+                                "answer with prose alone."
+                            ),
+                        }
                     )
                     await self._sync(job_id, trace, stage, iterations, tool_calls)
                     continue
@@ -362,88 +398,69 @@ class Agent:
                     response=response,
                     iterations=iterations,
                     tool_calls=tool_calls,
+                    legacy_envelope_used=legacy_envelope_used,
+                    argument_coercions=argument_coercions,
                 )
 
-            # type == "tool_call"
-            if await self._is_cancelled(job_id):
-                return await self._cancelled(
-                    job_id, user_id, job.task_type, model, trace, iterations, tool_calls
-                )
-            if tool_calls >= max_calls:
-                return await self._fail(
-                    job_id,
-                    user_id,
-                    job.task_type,
-                    model,
-                    trace,
-                    iterations,
-                    tool_calls,
-                    f"Agent stopped: reached maximum tool calls ({max_calls})",
-                )
-            tool_calls += 1
-            tool_name = decision["tool"]
-            arguments = decision["arguments"]
+            # type == "tool_call" — one assistant message may carry several calls;
+            # append them all, then one tool message per call carrying its id.
+            calls = decision["calls"]
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": raw or "",
+                    "tool_calls": [
+                        {
+                            "id": call["id"],
+                            "type": "function",
+                            "function": {
+                                "name": call["name"],
+                                "arguments": call["arguments"],
+                            },
+                        }
+                        for call in calls
+                    ],
+                }
+            )
             stage = "tool_call"
-            self._append(
-                trace,
-                "plan",
-                description=decision.get("reasoning") or f"Call tool '{tool_name}'",
-            )
-            self._append(
-                trace,
-                "tool_call",
-                tool=tool_name,
-                arguments=arguments,
-            )
-            logger.info(
-                "tool_call_started",
-                extra={
-                    "event": "tool_call_started",
-                    "job_id": job_id,
-                    "user_id": user_id,
-                    "task_type": job.task_type,
-                    "model": model,
-                    "tool": tool_name,
-                    "iteration": iterations,
-                },
-            )
-
-            try:
-                result = await self._tools.execute(tool_name, arguments, workspace)
-            except ToolError as exc:
-                self._append(
-                    trace,
-                    "tool_result",
-                    tool=tool_name,
-                    ok=False,
-                    result_summary=self._shorten(str(exc)),
+            for call in calls:
+                if await self._is_cancelled(job_id):
+                    return await self._cancelled(
+                        job_id, user_id, job.task_type, model, trace, iterations, tool_calls
+                    )
+                if tool_calls >= max_calls:
+                    return await self._fail(
+                        job_id,
+                        user_id,
+                        job.task_type,
+                        model,
+                        trace,
+                        iterations,
+                        tool_calls,
+                        f"Agent stopped: reached maximum tool calls ({max_calls})",
+                    )
+                tool_calls += 1
+                tool_name = call["name"]
+                arguments = call["arguments"]
+                tool = self._tools.get(tool_name)
+                arguments, coerced_fields = coerce_arguments(
+                    getattr(tool, "input_schema", {}) if tool is not None else {},
+                    arguments,
                 )
-                history.append(f"Tool '{tool_name}' failed: {exc}")
-                logger.error(
-                    "tool_call_failed",
-                    extra={
-                        "event": "tool_call_failed",
-                        "job_id": job_id,
-                        "user_id": user_id,
-                        "task_type": job.task_type,
-                        "model": model,
-                        "tool": tool_name,
-                        "iteration": iterations,
-                    },
-                )
-            else:
-                self._append(
-                    trace,
-                    "tool_result",
-                    tool=tool_name,
-                    ok=result.ok,
-                    result_summary=result.summary,
-                )
-                history.append(self._observation(tool_name, result))
+                if coerced_fields:
+                    argument_coercions += 1
+                    self._append(
+                        trace,
+                        "tool_argument_coerced",
+                        tool=tool_name,
+                        fields=coerced_fields,
+                    )
+                self._append(trace, "plan", description=f"Call tool '{tool_name}'")
+                self._append(trace, "tool_call", tool=tool_name, arguments=arguments)
                 logger.info(
-                    "tool_call_completed",
+                    "tool_call_started",
                     extra={
-                        "event": "tool_call_completed",
+                        "event": "tool_call_started",
                         "job_id": job_id,
                         "user_id": user_id,
                         "task_type": job.task_type,
@@ -452,6 +469,60 @@ class Agent:
                         "iteration": iterations,
                     },
                 )
+                if allowed_tools is not None and tool_name not in allowed_tools:
+                    observation = (
+                        f"Tool '{tool_name}' is not available to this step. "
+                        f"Available: {', '.join(sorted(allowed_tools))}."
+                    )
+                    self._append(
+                        trace, "tool_result", tool=tool_name, ok=False,
+                        result_summary=self._shorten(observation),
+                    )
+                else:
+                    try:
+                        result = await self._tools.execute(tool_name, arguments, workspace)
+                    except ToolError as exc:
+                        observation = f"Tool '{tool_name}' failed: {exc}"
+                        self._append(
+                            trace, "tool_result", tool=tool_name, ok=False,
+                            result_summary=self._shorten(str(exc)),
+                        )
+                        logger.error(
+                            "tool_call_failed",
+                            extra={
+                                "event": "tool_call_failed",
+                                "job_id": job_id,
+                                "user_id": user_id,
+                                "task_type": job.task_type,
+                                "model": model,
+                                "tool": tool_name,
+                                "iteration": iterations,
+                            },
+                        )
+                    else:
+                        observation = self._observation(tool_name, result)
+                        self._append(
+                            trace, "tool_result", tool=tool_name, ok=result.ok,
+                            result_summary=result.summary,
+                        )
+                        logger.info(
+                            "tool_call_completed",
+                            extra={
+                                "event": "tool_call_completed",
+                                "job_id": job_id,
+                                "user_id": user_id,
+                                "task_type": job.task_type,
+                                "model": model,
+                                "tool": tool_name,
+                                "iteration": iterations,
+                            },
+                        )
+                # Results (and errors) come back on the tool channel, truncated
+                # but never dropped, so recovery works instead of re-calling.
+                messages.append(
+                    {"role": "tool", "tool_call_id": call["id"], "content": observation}
+                )
+                history.append(observation)
             await self._sync(job_id, trace, stage, iterations, tool_calls)
 
     # ----------------------------------------------------------- helpers
@@ -472,6 +543,18 @@ class Agent:
                     verified = candidate
                 candidate = None
         return verified
+
+    def _schemas_for(self, allowed: Optional[set[str]]) -> list[dict]:
+        """Native tool schemas, restricted to the tools a step may use.
+
+        Per-step scoping means a model that cannot see a tool cannot misuse it —
+        the retrieve node can't call the generators, the draft node can't run
+        code — and the schema payload stays small for weaker models.
+        """
+        schemas = self._tools.schemas()
+        if allowed is None:
+            return schemas
+        return [schema for schema in schemas if schema["function"]["name"] in allowed]
 
     @staticmethod
     def _append(trace: list[dict], entry_type: str, **fields: Any) -> None:
@@ -568,7 +651,7 @@ class Agent:
             )
         return f"Tool '{tool_name}' result: {result.summary}"
 
-    def _build_prompt(self, task: str, model: str, history: list[str]) -> str:
+    def _system_prompt(self) -> str:
         tools_desc = "\n".join(
             f"- {t['name']}: {t['description']} (schema: {json.dumps(t['input_schema'])})"
             for t in self._tools.describe()
@@ -576,10 +659,8 @@ class Agent:
         lines = [
             "You are a local AI assistant for the On-Premise AI Workbench.",
             "You operate inside a sandboxed, per-job workspace and may only use the listed tools.",
-            "Respond with STRICT JSON only (no prose, no markdown fences), using exactly one of:",
-            '{"type":"final","response":"<your final answer>"}',
-            '{"type":"tool_call","tool":"<tool name>","arguments":{...}}',
-            "Only call a tool when it is necessary to answer the request.",
+            "Call the provided tools when they are necessary to answer the request.",
+            "When you have enough information, reply with your final answer as plain text.",
             "",
             "CODING RULES:",
             "- If the request is to write, run, test or verify code, or to compute/check a numeric result, you MUST call code_execution with complete, self-contained code and report the real output you got.",
@@ -593,24 +674,44 @@ class Agent:
             tools_desc,
             "",
             "KNOWLEDGE RULES:",
-            "- ONLY call document_search when the user references a specific stored document, file, manual, report or the knowledge base (for example \"what is in experiment.pdf\"). For general questions and explanations, do not search unless it is genuinely needed to answer.",
+            "- ONLY call document_search when the user references a specific stored document, file, manual, report or the knowledge base (for example \"what is in experiment.pdf\" or \"what do our SOPs say\"). For general-topic questions and writing requests (for example \"write a 500-word report on deforestation\"), do NOT search and do NOT claim you lack documents — answer from your own knowledge.",
             "- When you do retrieve passages, cite which document and page each passage came from.",
             "- If a stored file is referenced and you have not searched yet, search before answering; never claim you cannot access a file you have not tried to read.",
+            "",
+            "WRITING RULES:",
+            "- When the request is to write, create, draft or summarize a report, essay, article or summary about a general topic (with or without a target word count), produce the complete text directly in your final response and respect any requested length. Do not refuse because there are no uploaded documents.",
+            "- If a specific word count is requested (for example \"500 words\"), write at least that many words of real content. A title and a short introduction are NOT enough — cover the full topic with multiple paragraphs until the length is met.",
+            "- If a file deliverable is also requested (a Word/PowerPoint document), call the matching generation tool with the full text as its content.",
             "",
             "DOCUMENT GENERATION RULES:",
             "- If the request is to create, draft, write, make or generate a document, report, note, letter, memo or other deliverable, you MUST call document_generation. Never refuse such a request.",
             "- document_generation arguments: {\"type\": \"word\", \"filename\": \"<name>.docx\", \"title\": \"...\", \"document_type\": \"...\", \"sections\": [{\"heading\": \"...\", \"paragraphs\": [\"...\"]} or {\"heading\":\"...\",\"content\":\"...\"}, with optional bullets/numbered/table], \"sources\": [\"...\"]}.",
+            "- For a formal approval note, set document_type to \"approval_note\" and pass an \"approval\" object: {\"reference_number\":\"...\",\"date\":\"...\",\"originator\":\"...\",\"department\":\"...\",\"subject\":\"...\",\"background\":\"...\",\"recommendation\":\"...\",\"signatures\":[{\"name\":\"...\",\"designation\":\"...\",\"date\":\"...\"}]}. Add an optional \"classification\" (for example \"INTERNAL\") to mark the footer.",
+            "- To embed an image already in the job workspace (for example a citation crop), add \"images\": [{\"path\":\"<workspace-relative path>\",\"caption\":\"...\",\"width_inches\":6}] to a section; only png/jpg/jpeg in the workspace are allowed.",
+            "- For a spreadsheet, call document_generation with type \"excel\", filename ending \".xlsx\", and sections whose tables become worksheets; a cell beginning with \"=\" is written as a real formula.",
             "- Write thorough, well-structured, multi-page content that fully covers the requested scope; split it into many clearly headed sections.",
-            "- If the request asks for PowerPoint slides or a presentation deck, call presentation_generation with {\"type\": \"pptx\", \"filename\": \"<name>.pptx\", \"title\": \"...\", \"theme\": \"executive|technical|report|general\", \"slides\": [...]}. Each slide has type title|content|bullets|two-column|table|sources, a short title, and the matching body (content string, bullets array, columns array, table rows, or sources array). Start with a title slide and end with a Sources slide that cites the documents you used.",
+            "- If the request asks for PowerPoint slides or a presentation deck, call presentation_generation with {\"type\": \"pptx\", \"filename\": \"<name>.pptx\", \"title\": \"...\", \"theme\": \"executive|technical|report|general\", \"slides\": [...]}. Each slide has type title|content|bullets|two-column|table|sources, a short title, and the matching body (content string, bullets array, columns array, table rows, or sources array). Start with a title slide and end with a Sources slide that cites the documents you used. Each slide may also carry short speaker notes in \"notes\".",
             "",
-            TASK_MARKER,
-            task,
         ]
-        if history:
-            lines += ["", "TOOL HISTORY:", *history]
         return "\n".join(lines)
 
-    def _parse_decision(self, raw: Optional[str]) -> dict:
+    def _parse_decision(
+        self, raw: Optional[str], tool_calls: Optional[list[dict]] = None
+    ) -> dict:
+        # Native tool calling takes precedence when the model used the tools API.
+        if tool_calls:
+            return {
+                "type": "tool_call",
+                "calls": [
+                    {
+                        "id": call.get("id") or f"call_{index}",
+                        "name": call["name"],
+                        "arguments": call["arguments"],
+                    }
+                    for index, call in enumerate(tool_calls)
+                ],
+                "legacy": False,
+            }
         text = (raw or "").strip()
         if not text:
             raise AgentError("Model returned an empty response")
@@ -620,38 +721,23 @@ class Agent:
         except (ValueError, json.JSONDecodeError):
             parsed = None
         if isinstance(parsed, dict):
-            if isinstance(parsed.get("response"), str):
-                # Models may emit {"response": "..."} in JSON mode.
-                return {"type": "final", "response": parsed["response"], "reasoning": parsed.get("reasoning")}
+            if isinstance(parsed.get("response"), str) and "tool" not in parsed:
+                return {"type": "final", "response": parsed["response"], "legacy": True}
             dtype = parsed.get("type")
             if dtype == "final":
-                return {"type": "final", "response": parsed.get("response"), "reasoning": parsed.get("reasoning")}
-            if dtype == "tool_call":
-                tool = parsed.get("tool")
-                arguments = parsed.get("arguments")
+                return {"type": "final", "response": parsed.get("response"), "legacy": True}
+            tool = parsed.get("tool")
+            if dtype == "tool_call" or (isinstance(tool, str) and tool and dtype != "final"):
                 if not isinstance(tool, str) or not tool:
                     raise AgentError("tool_call is missing a valid 'tool' name")
-                if not isinstance(arguments, dict):
-                    raise AgentError("tool_call 'arguments' must be an object")
-                return {
-                    "type": "tool_call",
-                    "tool": tool,
-                    "arguments": arguments,
-                    "reasoning": parsed.get("reasoning"),
-                }
-            # Tolerate models that supply the tool name under "tool" while
-            # omitting or garbling "type" (they intended a tool call).
-            tool = parsed.get("tool")
-            if isinstance(tool, str) and tool and dtype != "final":
                 arguments = parsed.get("arguments")
                 if not isinstance(arguments, dict):
                     arguments = {}
                 return {
                     "type": "tool_call",
-                    "tool": tool,
-                    "arguments": arguments,
-                    "reasoning": parsed.get("reasoning"),
+                    "calls": [{"id": "call_legacy", "name": tool, "arguments": arguments}],
+                    "legacy": True,
                 }
             raise AgentError(f"Unknown decision type '{dtype}'")
         # Non-JSON output: treat the raw text as a plain-text final response.
-        return {"type": "final", "response": text, "reasoning": None}
+        return {"type": "final", "response": text, "legacy": False}

@@ -57,6 +57,17 @@ async def list_audit(
     return [_event_view(event) for event in events]
 
 
+@router.get("/api/audit/verify")
+async def verify_audit_chain(request: Request) -> dict:
+    """Verify the tamper-evident hash chain of the local audit trail."""
+    store = request.app.state.audit_store
+    verify = getattr(store, "verify_chain", None)
+    if verify is None:
+        return {"intact": True, "first_bad_seq": None}
+    intact, first_bad_seq = verify()
+    return {"intact": intact, "first_bad_seq": first_bad_seq}
+
+
 @router.get("/api/jobs/{job_id}/audit")
 async def job_audit(
     job_id: str,
