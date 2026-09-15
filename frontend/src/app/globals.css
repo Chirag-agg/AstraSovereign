@@ -2,6 +2,7 @@
 @import "tailwindcss";
 
 :root {
+  font-size: 15.5px;
   color-scheme: light;
 
   /* AstraSovereign Design Palette */
@@ -27,8 +28,8 @@
   --radius: 16px;
   --radius-sm: 10px;
   --radius-pill: 9999px;
-  --mono: 'JetBrains Mono', ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --sans: 'Plus Jakarta Sans', var(--font-inter, system-ui), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --sans: "Times New Roman", Times, serif;
   --sidebar-w: 260px;
 }
 
@@ -47,8 +48,9 @@ body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: var(--sans);
-  font-size: 14px;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 15.5px;
+  font-weight: 550;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -56,8 +58,151 @@ body {
   letter-spacing: -0.011em;
 }
 
-button {
-  font-family: inherit;
+/* Everywhere text is displayed uses Times New Roman */
+p,
+span:not(.font-mono):not([class*="font-mono"]),
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+a,
+label,
+button,
+input:not(.font-mono):not([class*="font-mono"]),
+textarea:not(.font-mono):not([class*="font-mono"]),
+select,
+li,
+td:not(.font-mono):not([class*="font-mono"]),
+th,
+blockquote,
+strong,
+b,
+em,
+i,
+nav,
+header,
+aside,
+main,
+footer {
+  font-family: "Times New Roman", Times, serif;
+}
+
+/* EXCEPT FOR CODE: All code blocks, code editor, terminals, monospace text */
+code,
+pre,
+kbd,
+samp,
+.font-mono,
+[class*="font-mono"],
+code *,
+pre *,
+kbd *,
+samp *,
+.font-mono *,
+[class*="font-mono"] *,
+.terminal,
+.terminal *,
+.monaco-editor,
+.monaco-editor *,
+.code-editor,
+.code-editor *,
+textarea.font-mono,
+input.font-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  font-weight: 500 !important;
+}
+
+/* ==========================================================================
+   RHS (RIGHT-HAND SIDE) WORKSPACE TYPOGRAPHY: UNIVERSALLY BIGGER & BOLDER
+   Addresses: "the font for all seems to small on rhs everywhere increase that and maybe bold it"
+   ========================================================================== */
+
+main,
+[data-rhs="true"],
+.rhs-workspace,
+aside[aria-label*="Inbox" i] {
+  font-size: 15.5px;
+}
+
+/* RHS text elements: paragraphs, labels, table cells, lists, links, inputs */
+main p,
+main label,
+main td:not(.font-mono):not([class*="font-mono"]),
+main th,
+main li,
+main a,
+main input:not(.font-mono):not([class*="font-mono"]),
+main textarea:not(.font-mono):not([class*="font-mono"]),
+main select,
+[data-rhs="true"] p,
+[data-rhs="true"] label,
+[data-rhs="true"] td:not(.font-mono):not([class*="font-mono"]),
+[data-rhs="true"] th,
+[data-rhs="true"] li,
+[data-rhs="true"] a,
+aside[aria-label*="Inbox" i] p,
+aside[aria-label*="Inbox" i] label {
+  font-weight: 600;
+}
+
+/* Ensure display text spans in RHS are bold */
+main span:not(.font-mono):not([class*="font-mono"]):not(.font-normal),
+[data-rhs="true"] span:not(.font-mono):not([class*="font-mono"]):not(.font-normal),
+aside[aria-label*="Inbox" i] span:not(.font-mono):not([class*="font-mono"]):not(.font-normal) {
+  font-weight: 600;
+}
+
+/* All headings across RHS are extra bold */
+main h1, main h2, main h3, main h4, main h5, main h6,
+[data-rhs="true"] h1, [data-rhs="true"] h2, [data-rhs="true"] h3, [data-rhs="true"] h4,
+aside[aria-label*="Inbox" i] h1, aside[aria-label*="Inbox" i] h2, aside[aria-label*="Inbox" i] h3 {
+  font-weight: 800 !important;
+  letter-spacing: -0.015em;
+}
+
+/* All buttons in RHS and header are bold and clean */
+main button,
+[data-rhs="true"] button,
+header button,
+aside[aria-label*="Inbox" i] button {
+  font-weight: 700;
+}
+
+/* Clean header button sizing so horizontal taskbar never crowds or overlaps */
+header button,
+header [role="toolbar"] button,
+header [role="toolbar"] > div {
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+}
+
+/* Universal scale-up & bolding for arbitrary pixel utilities across RHS & UI */
+[class*="text-[8px]"], main [class*="text-[8px]"], [data-rhs="true"] [class*="text-[8px]"] { font-size: 10px !important; font-weight: 700 !important; }
+[class*="text-[9px]"], main [class*="text-[9px]"], [data-rhs="true"] [class*="text-[9px]"] { font-size: 11px !important; font-weight: 700 !important; }
+[class*="text-[10px]"], main [class*="text-[10px]"], [data-rhs="true"] [class*="text-[10px]"] { font-size: 12px !important; font-weight: 700 !important; }
+[class*="text-[10.5px]"], main [class*="text-[10.5px]"], [data-rhs="true"] [class*="text-[10.5px]"] { font-size: 12.5px !important; font-weight: 700 !important; }
+[class*="text-[11px]"], main [class*="text-[11px]"], [data-rhs="true"] [class*="text-[11px]"] { font-size: 13px !important; font-weight: 700 !important; }
+[class*="text-[11.5px]"], main [class*="text-[11.5px]"], [data-rhs="true"] [class*="text-[11.5px]"] { font-size: 13.5px !important; font-weight: 700 !important; }
+[class*="text-[12px]"], main [class*="text-[12px]"], [data-rhs="true"] [class*="text-[12px]"] { font-size: 14px !important; font-weight: 700 !important; }
+[class*="text-[12.5px]"], main [class*="text-[12.5px]"], [data-rhs="true"] [class*="text-[12.5px]"] { font-size: 14.5px !important; font-weight: 700 !important; }
+[class*="text-[13px]"], main [class*="text-[13px]"], [data-rhs="true"] [class*="text-[13px]"] { font-size: 15px !important; font-weight: 650 !important; }
+[class*="text-[13.5px]"], main [class*="text-[13.5px]"], [data-rhs="true"] [class*="text-[13.5px]"] { font-size: 15.5px !important; font-weight: 650 !important; }
+[class*="text-[14px]"], main [class*="text-[14px]"], [data-rhs="true"] [class*="text-[14px]"] { font-size: 16px !important; font-weight: 650 !important; }
+[class*="text-[14.5px]"], main [class*="text-[14.5px]"], [data-rhs="true"] [class*="text-[14.5px]"] { font-size: 16.5px !important; font-weight: 650 !important; }
+[class*="text-[15px]"], main [class*="text-[15px]"], [data-rhs="true"] [class*="text-[15px]"] { font-size: 17px !important; font-weight: 650 !important; }
+[class*="text-[15.5px]"], main [class*="text-[15.5px]"], [data-rhs="true"] [class*="text-[15.5px]"] { font-size: 17.5px !important; font-weight: 700 !important; }
+[class*="text-[16px]"], main [class*="text-[16px]"], [data-rhs="true"] [class*="text-[16px]"] { font-size: 18px !important; font-weight: 700 !important; }
+
+/* Ensure header content never overlaps */
+header {
+  overflow: visible;
+}
+header h1,
+header span {
+  flex-shrink: 0;
 }
 
 :focus-visible {

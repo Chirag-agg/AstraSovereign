@@ -26,6 +26,7 @@ import HomeSearchView from "@/components/workbench/HomeSearchView";
 import SystemDrawer from "@/components/SystemDrawer";
 import Login from "@/components/Login";
 import LandingPage from "@/components/LandingPage";
+import AstraSovereignDashboard from "@/components/AstraSovereignDashboard";
 
 import {
   ApiError,
@@ -781,42 +782,56 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
 
 export default function WorkbenchPage() {
   const router = useRouter();
-  const [authed, setAuthed] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
+  const [currentView, setCurrentView] = useState<"landing" | "login" | "dashboard">("landing");
 
   useEffect(() => {
     try {
-      setAuthed(window.sessionStorage.getItem("sovereign.session") === "1");
+      if (window.sessionStorage.getItem("sovereign.session") === "1") {
+        setCurrentView("dashboard");
+      }
     } catch {
-      setAuthed(false);
+      // ignore
     }
   }, []);
 
-  if (!authed) {
-    if (showLogin) {
-      return (
-        <Login
-          onBack={() => setShowLogin(false)}
-          onAuthenticated={(role) => {
-            setAuthed(true);
-            // Admin remains inside the full Sovereign Workbench with full AI Assistant, Sandbox, and Admin tools!
-          }}
-        />
-      );
-    }
-
-    return <LandingPage onEnter={() => setShowLogin(true)} />;
-  }
-
-  const signOut = () => {
+  const handleSignOut = () => {
     try {
       window.sessionStorage.removeItem("sovereign.session");
     } catch {
       // ignore
     }
-    setAuthed(false);
-    setShowLogin(false);
+    setCurrentView("landing");
   };
 
-  return <WorkbenchWorkspace onSignOut={signOut} />;
+  const handleAuthenticated = (role: string) => {
+    try {
+      window.sessionStorage.setItem("sovereign.session", "1");
+    } catch {
+      // ignore
+    }
+    setCurrentView("dashboard");
+  };
+
+  if (currentView === "login") {
+    return (
+      <Login
+        onBack={() => setCurrentView("landing")}
+        onAuthenticated={handleAuthenticated}
+      />
+    );
+  }
+
+  if (currentView === "landing") {
+    return (
+      <LandingPage
+        onEnter={() => setCurrentView("login")}
+      />
+    );
+  }
+
+  return (
+    <AstraSovereignDashboard
+      onSignOut={handleSignOut}
+    />
+  );
 }

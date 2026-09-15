@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Users,
   Plus,
@@ -13,28 +13,370 @@ import {
   FileText,
   AlertCircle,
   ChevronDown,
+  ChevronUp,
   ArrowUpRight,
-  TrendingUp,
   Paperclip,
   X,
   Building2,
   Sparkles,
   Award,
+  Lock,
+  Check,
+  ChevronRight,
+  Eye,
+  Briefcase,
+  Layers,
+  ArrowDown,
+  Server,
+  Trash2,
+  UserPlus,
+  ArrowLeft,
+  GitBranch,
+  Shield,
+  AlertTriangle,
+  CornerDownRight,
+  Cpu,
+  Scale,
+  Coins,
+  Truck,
+  HelpCircle,
 } from "lucide-react";
-import type { AuthorizationLevel, Coworker, CoworkingActivity, CoworkingTask } from "./types";
+import type { AuthorizationLevel, CoworkingTask } from "./types";
 
 interface CoworkingViewProps {
   onOpenAgentWorkspace?: (taskPrompt?: string) => void;
 }
 
-const INITIAL_TASKS: CoworkingTask[] = [
+// ---------------------------------------------------------------------------
+// Hierarchy & Clearance Definition
+// ---------------------------------------------------------------------------
+// Rank 4: L4 Sovereign Admin / Directorate (Topmost Authority)
+// Rank 3: L3 Department Director / Lead
+// Rank 2: L2 Senior Specialist / Reviewer
+// Rank 1: L1 Associate / Contributor / Operator
+export interface OrgEmployee {
+  id: string;
+  name: string;
+  avatar: string;
+  email: string;
+  roleTitle: string;
+  department: string;
+  rank: 4 | 3 | 2 | 1;
+  clearance: AuthorizationLevel;
+  nodeIp: string;
+  status: "online" | "in-task" | "idle" | "offline";
+  activeTasksCount: number;
+  specialties: string[];
+}
+
+export interface DepartmentInfo {
+  id: string;
+  name: string;
+  icon: React.ElementType;
+  leadId: string;
+  leadName: string;
+  description: string;
+  accentColor: string;
+  bgLight: string;
+  borderColor: string;
+  textColor: string;
+  slaTarget: string;
+}
+
+const INITIAL_DEPARTMENTS: DepartmentInfo[] = [
+  {
+    id: "ai_eng",
+    name: "AI & Engineering",
+    icon: Cpu,
+    leadId: "user-005",
+    leadName: "Dr. Victor Vance",
+    description: "Local LLM inference clusters, Docker sandbox validation, and CUDA/NVLink kernel optimization.",
+    accentColor: "#7047eb",
+    bgLight: "bg-purple-50/70",
+    borderColor: "border-purple-200",
+    textColor: "text-purple-700",
+    slaTarget: "< 2s Execution SLA",
+  },
+  {
+    id: "legal",
+    name: "Legal & Contracts",
+    icon: Scale,
+    leadId: "user-001",
+    leadName: "Sarah Jenkins",
+    description: "ITAR compliance verification, defense contract liability auditing, and export-control clearance.",
+    accentColor: "#2563eb",
+    bgLight: "bg-blue-50/70",
+    borderColor: "border-blue-200",
+    textColor: "text-blue-700",
+    slaTarget: "100% ITAR Verification",
+  },
+  {
+    id: "finance",
+    name: "Finance & Accounting",
+    icon: Coins,
+    leadId: "user-002",
+    leadName: "Michael Sterling",
+    description: "Cross-department budget reconciliations, vendor ledger analysis, and cryptographic payroll checks.",
+    accentColor: "#059669",
+    bgLight: "bg-emerald-50/70",
+    borderColor: "border-emerald-200",
+    textColor: "text-emerald-700",
+    slaTarget: "Zero Egress Audited",
+  },
+  {
+    id: "ops",
+    name: "Operations & Supply",
+    icon: Truck,
+    leadId: "user-004",
+    leadName: "Capt. Ray Thornton",
+    description: "Physical hardware custody, RapidOCR logistics waybill extraction, and edge token transportation.",
+    accentColor: "#d97706",
+    bgLight: "bg-amber-50/70",
+    borderColor: "border-amber-200",
+    textColor: "text-amber-700",
+    slaTarget: "Same-Day Manifest",
+  },
+  {
+    id: "hr",
+    name: "HR & Compliance",
+    icon: ShieldCheck,
+    leadId: "user-003",
+    leadName: "Clara Oswald",
+    description: "Air-gap ethics governance, clearance level credentialing (L1-L4), and personnel security trails.",
+    accentColor: "#e11d48",
+    bgLight: "bg-rose-50/70",
+    borderColor: "border-rose-200",
+    textColor: "text-rose-700",
+    slaTarget: "L4 Officer Clearance",
+  },
+  {
+    id: "security",
+    name: "Security & Directorate",
+    icon: Shield,
+    leadId: "admin-001",
+    leadName: "Security Officer & Admin",
+    description: "Topmost administrative sovereign authority, loopback socket enforcement, and network air-gap defense.",
+    accentColor: "#475569",
+    bgLight: "bg-slate-100/70",
+    borderColor: "border-slate-200",
+    textColor: "text-slate-800",
+    slaTarget: "Zero Packet Egress",
+  },
+];
+
+const INITIAL_EMPLOYEES: OrgEmployee[] = [
+  // Topmost Admin (Security & Directorate)
+  {
+    id: "admin-001",
+    name: "Security Officer & Admin",
+    avatar: "SA",
+    email: "admin@sovereign.local",
+    roleTitle: "Topmost Sovereign Administrator",
+    department: "Security & Directorate",
+    rank: 4,
+    clearance: "L4: Sovereign Officer",
+    nodeIp: "10.0.1.10",
+    status: "online",
+    activeTasksCount: 0,
+    specialties: ["Air-Gap Root", "Policy Enforcement", "Org Monitoring", "Crypto Authority"],
+  },
+  // AI & Engineering
+  {
+    id: "user-005",
+    name: "Dr. Victor Vance",
+    avatar: "VV",
+    email: "v.vance@sovereign.local",
+    roleTitle: "Infrastructure & AI Lead",
+    department: "AI & Engineering",
+    rank: 3,
+    clearance: "L3: Dept Lead",
+    nodeIp: "10.0.1.25",
+    status: "online",
+    activeTasksCount: 2,
+    specialties: ["Llama 3.3", "Qwen 2.5", "NVLink Bus", "Docker Isolation"],
+  },
+  {
+    id: "emp-ai-02",
+    name: "Elena Rostova",
+    avatar: "ER",
+    email: "e.rostova@sovereign.local",
+    roleTitle: "Senior Neural Model Engineer",
+    department: "AI & Engineering",
+    rank: 2,
+    clearance: "L2: Reviewer",
+    nodeIp: "10.0.1.26",
+    status: "in-task",
+    activeTasksCount: 3,
+    specialties: ["Model Quantization", "VRAM Profiling", "Python Sandbox"],
+  },
+  {
+    id: "emp-ai-03",
+    name: "Marcus Chen",
+    avatar: "MC",
+    email: "m.chen@sovereign.local",
+    roleTitle: "Docker Sandbox Operator",
+    department: "AI & Engineering",
+    rank: 1,
+    clearance: "L1: Contributor",
+    nodeIp: "10.0.1.27",
+    status: "idle",
+    activeTasksCount: 1,
+    specialties: ["Linux Containers", "Network None", "Ephemeral Filesystems"],
+  },
+  // Legal & Contracts
+  {
+    id: "user-001",
+    name: "Sarah Jenkins",
+    avatar: "SJ",
+    email: "s.jenkins@sovereign.local",
+    roleTitle: "Senior Legal Counsel",
+    department: "Legal & Contracts",
+    rank: 3,
+    clearance: "L3: Dept Lead",
+    nodeIp: "10.0.1.32",
+    status: "online",
+    activeTasksCount: 1,
+    specialties: ["ITAR Regulatory", "Defense Procurement", "Sovereign IP"],
+  },
+  {
+    id: "emp-leg-02",
+    name: "David Morales",
+    avatar: "DM",
+    email: "d.morales@sovereign.local",
+    roleTitle: "Contract Compliance Specialist",
+    department: "Legal & Contracts",
+    rank: 2,
+    clearance: "L2: Reviewer",
+    nodeIp: "10.0.1.33",
+    status: "in-task",
+    activeTasksCount: 2,
+    specialties: ["Clause Extraction", "Risk Scoring", "Vendor Agreements"],
+  },
+  {
+    id: "emp-leg-03",
+    name: "Aisha Patel",
+    avatar: "AP",
+    email: "a.patel@sovereign.local",
+    roleTitle: "Legal Records Clerk",
+    department: "Legal & Contracts",
+    rank: 1,
+    clearance: "L1: Contributor",
+    nodeIp: "10.0.1.34",
+    status: "idle",
+    activeTasksCount: 0,
+    specialties: ["Document Archiving", "Metadata Tagging", "PDF Ledger Sign-off"],
+  },
+  // Finance & Accounting
+  {
+    id: "user-002",
+    name: "Michael Sterling",
+    avatar: "MS",
+    email: "m.sterling@sovereign.local",
+    roleTitle: "Lead Financial Analyst",
+    department: "Finance & Accounting",
+    rank: 3,
+    clearance: "L3: Dept Lead",
+    nodeIp: "10.0.1.44",
+    status: "online",
+    activeTasksCount: 2,
+    specialties: ["Budget Forecasting", "Cost Allocation", "Tamper-Proof Ledgers"],
+  },
+  {
+    id: "emp-fin-02",
+    name: "Rachel Kim",
+    avatar: "RK",
+    email: "r.kim@sovereign.local",
+    roleTitle: "Treasury & Budget Auditor",
+    department: "Finance & Accounting",
+    rank: 2,
+    clearance: "L2: Reviewer",
+    nodeIp: "10.0.1.45",
+    status: "online",
+    activeTasksCount: 1,
+    specialties: ["Audit Trail Check", "Anonymized Payroll", "Multi-Currency"],
+  },
+  {
+    id: "emp-fin-03",
+    name: "Lucas Zhang",
+    avatar: "LZ",
+    email: "l.zhang@sovereign.local",
+    roleTitle: "Ledger Reconciliation Operator",
+    department: "Finance & Accounting",
+    rank: 1,
+    clearance: "L1: Contributor",
+    nodeIp: "10.0.1.46",
+    status: "in-task",
+    activeTasksCount: 1,
+    specialties: ["Receipt Ingestion", "OCR Table Extraction", "Variance Verification"],
+  },
+  // Operations & Supply
+  {
+    id: "user-004",
+    name: "Capt. Ray Thornton",
+    avatar: "RT",
+    email: "r.thornton@sovereign.local",
+    roleTitle: "Supply Operations Lead",
+    department: "Operations & Supply",
+    rank: 3,
+    clearance: "L3: Dept Lead",
+    nodeIp: "10.0.1.58",
+    status: "online",
+    activeTasksCount: 2,
+    specialties: ["Physical Air-Gap Custody", "Hardware Mesh", "Supply Chain Security"],
+  },
+  {
+    id: "emp-ops-02",
+    name: "Tanya Brooks",
+    avatar: "TB",
+    email: "t.brooks@sovereign.local",
+    roleTitle: "Air-Gap Hardware Dispatcher",
+    department: "Operations & Supply",
+    rank: 1,
+    clearance: "L1: Contributor",
+    nodeIp: "10.0.1.59",
+    status: "online",
+    activeTasksCount: 2,
+    specialties: ["USB Token Verification", "Manifest Scanning", "Edge Device Setup"],
+  },
+  // HR & Compliance
+  {
+    id: "user-003",
+    name: "Clara Oswald",
+    avatar: "CO",
+    email: "c.oswald@sovereign.local",
+    roleTitle: "Chief Compliance Auditor",
+    department: "HR & Compliance",
+    rank: 3,
+    clearance: "L3: Dept Lead",
+    nodeIp: "10.0.1.61",
+    status: "online",
+    activeTasksCount: 1,
+    specialties: ["Clearance Credentialing", "Air-Gap Ethics", "Audit Trail Verification"],
+  },
+  {
+    id: "emp-hr-02",
+    name: "Julian Rossi",
+    avatar: "JR",
+    email: "j.rossi@sovereign.local",
+    roleTitle: "Ethics & Policy Officer",
+    department: "HR & Compliance",
+    rank: 2,
+    clearance: "L2: Reviewer",
+    nodeIp: "10.0.1.62",
+    status: "idle",
+    activeTasksCount: 1,
+    specialties: ["L1-L4 Policy Checks", "Employee Onboarding", "Confidential Records"],
+  },
+];
+
+const INITIAL_ORG_TASKS: CoworkingTask[] = [
   {
     id: "TSK-801",
-    title: "Q3 Vendor Procurement Contract Compliance",
+    title: "Vendor Procurement Agreement Export-Control Audit",
     department: "Legal & Contracts",
     assignee: {
-      name: "Senior Legal Counsel",
-      avatar: "LC",
+      name: "Sarah Jenkins",
+      avatar: "SJ",
       role: "Department Lead",
     },
     requiredLevel: "L3: Dept Lead",
@@ -46,17 +388,18 @@ const INITIAL_TASKS: CoworkingTask[] = [
       size: "1.4 MB",
     },
     notes: "Requires Level 3 Sign-Off prior to offline vendor signature binding.",
+    assignedBy: "Security Officer & Admin (L4)",
   },
   {
     id: "TSK-802",
-    title: "Cross-Department Payroll Audit & Tax Anonymization",
+    title: "Air-Gapped Payroll Variance & Tax Anonymization",
     department: "Finance & Accounting",
     assignee: {
-      name: "Lead Financial Analyst",
-      avatar: "FA",
+      name: "Michael Sterling",
+      avatar: "MS",
       role: "Finance Lead",
     },
-    requiredLevel: "L4: Sovereign Officer",
+    requiredLevel: "L3: Dept Lead",
     status: "In Progress",
     deadline: "15 Sep, 2026",
     deliverable: {
@@ -64,16 +407,17 @@ const INITIAL_TASKS: CoworkingTask[] = [
       type: "xlsx",
       size: "3.8 MB",
     },
-    notes: "Requires strict air-gap OCR reconciliation against 42 bank slips.",
+    notes: "Requires strict air-gap OCR reconciliation against bank ledger slips.",
+    assignedBy: "Security Officer & Admin (L4)",
   },
   {
     id: "TSK-803",
-    title: "Local OCR Extraction of 120 Logistics Waybills",
+    title: "RapidOCR Ingestion of 120 Logistics Waybills",
     department: "Operations & Supply",
     assignee: {
-      name: "Supply Operations Specialist",
-      avatar: "SO",
-      role: "Operations Specialist",
+      name: "Tanya Brooks",
+      avatar: "TB",
+      role: "Operations Operator",
     },
     requiredLevel: "L1: Contributor",
     status: "Completed",
@@ -83,1090 +427,1720 @@ const INITIAL_TASKS: CoworkingTask[] = [
       type: "pdf",
       size: "5.2 MB",
     },
-    notes: "Processed completely offline via on-prem vision OCR pipeline.",
+    notes: "Processed completely offline via on-prem RapidOCR pipeline.",
+    assignedBy: "Capt. Ray Thornton (L3)",
   },
   {
     id: "TSK-804",
-    title: "Internal Data Governance & Air-Gap Compliance Checklist",
-    department: "HR & Compliance",
+    title: "Docker Sandbox Python Leak & Compliance Benchmark",
+    department: "AI & Engineering",
     assignee: {
-      name: "Chief Compliance Auditor",
-      avatar: "CA",
-      role: "Compliance Lead",
+      name: "Elena Rostova",
+      avatar: "ER",
+      role: "Senior Model Engineer",
     },
     requiredLevel: "L2: Reviewer",
-    status: "Pending L2 Review",
-    deadline: "18 Sep, 2026",
+    status: "In Progress",
+    deadline: "Today, 6:00 PM",
     deliverable: {
-      name: "airgap_compliance_manifesto.docx",
-      type: "docx",
-      size: "820 KB",
+      name: "sandbox_benchmark_report.pdf",
+      type: "pdf",
+      size: "1.8 MB",
     },
-    notes: "Review requested for section 4: Zero External Telemetry Rules.",
+    notes: "Verified zero network egress during 50 isolated loop executions.",
+    assignedBy: "Dr. Victor Vance (L3)",
   },
   {
     id: "TSK-805",
-    title: "Offline Embedding Cluster Calibration & Benchmark",
-    department: "AI & Engineering",
-    assignee: {
-      name: "Infrastructure Lead",
-      avatar: "IL",
-      role: "AI Architect",
-    },
-    requiredLevel: "L4: Sovereign Officer",
-    status: "L4 Signed Off",
-    deadline: "Yesterday",
-    deliverable: {
-      name: "vector_index_benchmark.pdf",
-      type: "pdf",
-      size: "2.1 MB",
-    },
-    notes: "Signed off by Security Directorate. Zero network leakage verified.",
-  },
-];
-
-const INITIAL_COWORKERS: Coworker[] = [
-  {
-    id: "cw-1",
-    name: "Senior Legal Counsel",
-    department: "Legal & Contracts",
-    avatar: "LC",
-    status: "online",
-    lastMessage: "Submitted Q3 Contract for Level 3 Lead authorization.",
-    time: "4:12 PM",
-    unreadCount: 2,
-  },
-  {
-    id: "cw-2",
-    name: "Lead Financial Analyst",
-    department: "Finance & Accounting",
-    avatar: "FA",
-    status: "in-review",
-    lastMessage: "Reconciling the ledger with local document OCR results.",
-    time: "3:45 PM",
-    unreadCount: 0,
-  },
-  {
-    id: "cw-3",
-    name: "Chief Compliance Auditor",
+    title: "Clearance Level Verification for 4 New Onboarding Technicians",
     department: "HR & Compliance",
-    avatar: "CA",
-    status: "online",
-    lastMessage: "Please verify authorization levels for new onboarding batch.",
-    time: "2:10 PM",
-    unreadCount: 1,
+    assignee: {
+      name: "Julian Rossi",
+      avatar: "JR",
+      role: "Ethics Officer",
+    },
+    requiredLevel: "L2: Reviewer",
+    status: "Pending L2 Review",
+    deadline: "In 2 days",
+    deliverable: {
+      name: "clearance_credentials_manifest.pdf",
+      type: "pdf",
+      size: "940 KB",
+    },
+    notes: "L2 credentialing check before issuing physical cryptographic tokens.",
+    assignedBy: "Clara Oswald (L3)",
   },
-  {
-    id: "cw-4",
-    name: "Supply Operations Specialist",
-    department: "Operations & Supply",
-    avatar: "SO",
-    status: "busy",
-    lastMessage: "Local OCR batch completed: 120 manifests processed.",
-    time: "1:20 PM",
-    unreadCount: 0,
-  },
-  {
-    id: "cw-5",
-    name: "Infrastructure Lead",
-    department: "AI & Engineering",
-    avatar: "IL",
-    status: "online",
-    lastMessage: "Air-gap verification hash verified against sha256 checksum.",
-    time: "11:05 AM",
-    unreadCount: 0,
-  },
-];
-
-const INITIAL_ACTIVITIES: CoworkingActivity[] = [
-  {
-    id: "act-1",
-    actor: "Legal Counsel",
-    avatar: "LC",
-    action: "submitted deliverable",
-    target: "vendor_master_agreement_q3.docx",
-    time: "15m ago",
-    levelBadge: "L3 Approval Needed",
-  },
-  {
-    id: "act-2",
-    actor: "Infrastructure Lead",
-    avatar: "IL",
-    action: "signed off air-gap release",
-    target: "TSK-805 Vector Cluster Calibration",
-    time: "1h ago",
-    levelBadge: "L4 Signed Off",
-  },
-  {
-    id: "act-3",
-    actor: "Operations Specialist",
-    avatar: "SO",
-    action: "completed local OCR extraction",
-    target: "120 Logistics Waybills",
-    time: "3h ago",
-    levelBadge: "L1 Completed",
-  },
-];
-
-const CHART_MONTHS = [
-  { month: "Jan", completed: 65, uncompleted: 25 },
-  { month: "Feb", completed: 80, uncompleted: 30 },
-  { month: "Mar", completed: 72, uncompleted: 20 },
-  { month: "Apr", completed: 90, uncompleted: 18 },
-  { month: "May", completed: 85, uncompleted: 24 },
-  { month: "Jun", completed: 95, uncompleted: 15 },
-  { month: "Jul", completed: 78, uncompleted: 22 },
-  { month: "Aug", completed: 88, uncompleted: 19 },
-  { month: "Sep", completed: 94, uncompleted: 14 },
-  { month: "Oct", completed: 82, uncompleted: 20 },
-  { month: "Nov", completed: 91, uncompleted: 16 },
-  { month: "Dec", completed: 97, uncompleted: 12 },
 ];
 
 export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewProps) {
-  const [tasks, setTasks] = useState<CoworkingTask[]>(INITIAL_TASKS);
-  const [coworkers] = useState<Coworker[]>(INITIAL_COWORKERS);
-  const [activities, setActivities] = useState<CoworkingActivity[]>(INITIAL_ACTIVITIES);
+  // Global states
+  const [employees, setEmployees] = useState<OrgEmployee[]>(INITIAL_EMPLOYEES);
+  const [departments] = useState<DepartmentInfo[]>(INITIAL_DEPARTMENTS);
+  const [tasks, setTasks] = useState<CoworkingTask[]>(INITIAL_ORG_TASKS);
 
-  // Filters
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDept, setSelectedDept] = useState<string>("All");
-  const [selectedLevel, setSelectedLevel] = useState<string>("All");
+  // Active User / Role Simulation State
+  const [activeUserId, setActiveUserId] = useState<string>("admin-001");
+  const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false);
+  const [treeModalOpen, setTreeModalOpen] = useState(false);
+
+  // Department Selection & Drilldown
+  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
+
+  // Department Employee Query & Filter State
+  const [empQuery, setEmpQuery] = useState("");
+  const [empRankFilter, setEmpRankFilter] = useState<"all" | "L4" | "L3" | "L2" | "L1">("all");
+  const [empStatusFilter, setEmpStatusFilter] = useState<"all" | "available" | "in-task">("all");
 
   // Modals state
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
-  const [selectedTaskForSubmission, setSelectedTaskForSubmission] = useState<CoworkingTask | null>(null);
+  const [workModalOpen, setWorkModalOpen] = useState(false);
+  const [selectedTargetEmp, setSelectedTargetEmp] = useState<OrgEmployee | null>(null);
+  const [workModalMode, setWorkModalMode] = useState<"assign" | "request" | "consult">("assign");
 
-  // New task form state
-  const [newTitle, setNewTitle] = useState("");
-  const [newDept, setNewDept] = useState<CoworkingTask["department"]>("Legal & Contracts");
-  const [newAssignee, setNewAssignee] = useState("Senior Legal Counsel");
-  const [newLevel, setNewLevel] = useState<AuthorizationLevel>("L2: Reviewer");
-  const [newDeadline, setNewDeadline] = useState("In 3 days");
-  const [newNotes, setNewNotes] = useState("");
+  // Work Dispatch Form
+  const [workTitle, setWorkTitle] = useState("");
+  const [workPriority, setWorkPriority] = useState<"P0" | "P1" | "P2">("P1");
+  const [workDeadline, setWorkDeadline] = useState("In 3 days");
+  const [workDeliverableType, setWorkDeliverableType] = useState<"pdf" | "docx" | "xlsx" | "report">("pdf");
+  const [workNotes, setWorkNotes] = useState("");
 
-  // Submit modal form state
-  const [submitFileName, setSubmitFileName] = useState("");
-  const [submitNotes, setSubmitNotes] = useState("");
-  const [submitLevel, setSubmitLevel] = useState<AuthorizationLevel>("L3: Dept Lead");
-  const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
+  // Manual Employee Creation Modal State (For Admin)
+  const [createEmpModalOpen, setCreateEmpModalOpen] = useState(false);
+  const [newEmpName, setNewEmpName] = useState("");
+  const [newEmpRole, setNewEmpRole] = useState("");
+  const [newEmpDept, setNewEmpDept] = useState("AI & Engineering");
+  const [newEmpRank, setNewEmpRank] = useState<4 | 3 | 2 | 1>(1);
+  const [newEmpEmail, setNewEmpEmail] = useState("");
+  const [newEmpNode, setNewEmpNode] = useState("10.0.1.75");
+  const [newEmpSpecialties, setNewEmpSpecialties] = useState("");
 
-  const getActiveUserInfo = () => {
-    if (typeof window === "undefined") {
-      return { id: "user-001", name: "Senior Legal Counsel", role: "manager" as const, dept: "Legal & Contracts" as const, roleTitle: "Department Lead" };
-    }
-    const uid = window.localStorage.getItem("sovereign.active-user") || "user-001";
-    const devRole = window.localStorage.getItem("sovereign.dev-role");
-    if (uid === "admin-001" || devRole === "admin") {
-      return { id: uid, name: "Security Officer (Admin)", role: "admin" as const, dept: "AI & Engineering" as const, roleTitle: "System Administrator" };
-    }
-    if (uid === "user-001") {
-      return { id: uid, name: "Senior Legal Counsel", role: "manager" as const, dept: "Legal & Contracts" as const, roleTitle: "Legal Lead" };
-    }
-    if (uid === "user-002") {
-      return { id: uid, name: "Lead Financial Analyst", role: "manager" as const, dept: "Finance & Accounting" as const, roleTitle: "Finance Lead" };
-    }
-    if (uid === "user-003") {
-      return { id: uid, name: "Chief Compliance Auditor", role: "manager" as const, dept: "HR & Compliance" as const, roleTitle: "Compliance Lead" };
-    }
-    if (uid === "user-005") {
-      return { id: uid, name: "Infrastructure Lead", role: "manager" as const, dept: "AI & Engineering" as const, roleTitle: "AI Lead" };
-    }
-    return { id: uid, name: "Supply Operations Specialist", role: "junior" as const, dept: "Operations & Supply" as const, roleTitle: "Operations Specialist" };
+  // Assign Job to Department Modal State (For Admin)
+  const [deptJobModalOpen, setDeptJobModalOpen] = useState(false);
+  const [targetDeptForJob, setTargetDeptForJob] = useState("AI & Engineering");
+  const [deptJobTitle, setDeptJobTitle] = useState("");
+  const [deptJobPriority, setDeptJobPriority] = useState<"P0" | "P1" | "P2">("P1");
+  const [deptJobDeadline, setDeptJobDeadline] = useState("In 2 days");
+  const [deptJobDeliverable, setDeptJobDeliverable] = useState<"pdf" | "docx" | "xlsx" | "report">("pdf");
+
+  // Notifications / Toast
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "warning" | "info" } | null>(null);
+
+  const showToast = (text: string, type: "success" | "warning" | "info" = "success") => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const currentUser = getActiveUserInfo();
+  // Sync active user
+  useEffect(() => {
+    const syncUser = () => {
+      try {
+        const uid = window.localStorage.getItem("sovereign.active-user") || "admin-001";
+        setActiveUserId(uid);
+      } catch {
+        // ignore
+      }
+    };
+    syncUser();
+    window.addEventListener("storage", syncUser);
+    window.addEventListener("sovereign:active-user-updated", syncUser);
+    return () => {
+      window.removeEventListener("storage", syncUser);
+      window.removeEventListener("sovereign:active-user-updated", syncUser);
+    };
+  }, []);
 
-  const filteredTasks = tasks.filter((t) => {
-    const matchesSearch =
-      t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.assignee.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.department.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDept = selectedDept === "All" || t.department === selectedDept;
-    const matchesLevel = selectedLevel === "All" || t.requiredLevel.startsWith(selectedLevel);
-    return matchesSearch && matchesDept && matchesLevel;
-  });
+  const handleSwitchUser = (uid: string) => {
+    setActiveUserId(uid);
+    try {
+      window.localStorage.setItem("sovereign.active-user", uid);
+      const matched = employees.find((e) => e.id === uid);
+      if (matched) {
+        window.localStorage.setItem("sovereign.dev-role", matched.rank === 4 ? "admin" : "staff");
+      }
+      window.dispatchEvent(new Event("sovereign:active-user-updated"));
+    } catch {
+      // ignore
+    }
+    setRoleSwitcherOpen(false);
+    showToast(`Switched active profile to ${employees.find((e) => e.id === uid)?.name} (${employees.find((e) => e.id === uid)?.roleTitle})`, "info");
+  };
 
-  const handleAssignTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle.trim()) return;
+  // Active Current User Details
+  const currentUser = useMemo(() => {
+    return (
+      employees.find((e) => e.id === activeUserId) ||
+      employees[0]
+    );
+  }, [activeUserId, employees]);
 
-    // Hierarchy rule check
-    let effectiveDept = newDept;
-    let effectiveAssignee = newAssignee;
+  const isAdmin = currentUser.rank === 4;
 
-    if (currentUser.role === "manager") {
-      effectiveDept = currentUser.dept;
-    } else if (currentUser.role === "junior") {
-      effectiveDept = currentUser.dept;
-      effectiveAssignee = currentUser.name;
+  // Selected Department Info
+  const activeDepartment = useMemo(() => {
+    return departments.find((d) => d.name === selectedDeptId || d.id === selectedDeptId) || null;
+  }, [selectedDeptId, departments]);
+
+  // Employees of the Selected Department (filtered by query and rank)
+  const departmentEmployees = useMemo(() => {
+    if (!activeDepartment) return [];
+    let list = employees.filter((e) => e.department === activeDepartment.name);
+
+    if (empQuery.trim()) {
+      const q = empQuery.toLowerCase();
+      list = list.filter(
+        (e) =>
+          e.name.toLowerCase().includes(q) ||
+          e.roleTitle.toLowerCase().includes(q) ||
+          e.email.toLowerCase().includes(q) ||
+          e.clearance.toLowerCase().includes(q) ||
+          e.specialties.some((s) => s.toLowerCase().includes(q))
+      );
     }
 
-    const coworkerMatch = coworkers.find((c) => c.name === effectiveAssignee) || coworkers[0];
+    if (empRankFilter !== "all") {
+      const rMap = { L4: 4, L3: 3, L2: 2, L1: 1 };
+      list = list.filter((e) => e.rank === rMap[empRankFilter]);
+    }
+
+    if (empStatusFilter === "available") {
+      list = list.filter((e) => e.status === "online" || e.status === "idle");
+    } else if (empStatusFilter === "in-task") {
+      list = list.filter((e) => e.status === "in-task");
+    }
+
+    return list;
+  }, [activeDepartment, employees, empQuery, empRankFilter, empStatusFilter]);
+
+  // Handle Opening Work Modal
+  const handleOpenWorkModal = (target: OrgEmployee, forceMode?: "assign" | "request" | "consult") => {
+    setSelectedTargetEmp(target);
+
+    // Enforce Hierarchy Rules:
+    // 1. Admin (rank 4) CANNOT be assigned tasks by subordinates
+    // 2. Upper to Lower (currentUser.rank > target.rank) -> Assign Work Order
+    // 3. Same Level (currentUser.rank === target.rank) -> Request Collaboration
+    // 4. Lower to Upper (currentUser.rank < target.rank) -> Consultative Query only
+    if (target.rank === 4 && currentUser.rank < 4) {
+      setWorkModalMode("consult");
+    } else if (currentUser.rank > target.rank) {
+      setWorkModalMode(forceMode === "consult" ? "consult" : "assign");
+    } else if (currentUser.rank === target.rank) {
+      setWorkModalMode("request");
+    } else {
+      setWorkModalMode("consult");
+    }
+
+    setWorkTitle("");
+    setWorkNotes("");
+    setWorkModalOpen(true);
+  };
+
+  // Submit Work Dispatch
+  const handleDispatchWork = () => {
+    if (!selectedTargetEmp || !workTitle.trim()) return;
+
+    // Check hierarchy compliance
+    if (workModalMode === "assign" && currentUser.rank <= selectedTargetEmp.rank) {
+      showToast("Hierarchy Restriction: Work orders can only be assigned to lower-level personnel.", "warning");
+      return;
+    }
+
     const newTask: CoworkingTask = {
-      id: `TSK-${Math.floor(800 + Math.random() * 200)}`,
-      title: newTitle.trim(),
-      department: effectiveDept,
+      id: `TSK-${Math.floor(1000 + Math.random() * 9000)}`,
+      title: workTitle,
+      department: selectedTargetEmp.department as CoworkingTask["department"],
       assignee: {
-        name: coworkerMatch.name,
-        avatar: coworkerMatch.avatar,
-        role: coworkerMatch.department,
+        name: selectedTargetEmp.name,
+        avatar: selectedTargetEmp.avatar,
+        role: selectedTargetEmp.roleTitle,
       },
-      requiredLevel: newLevel,
-      status: "In Progress",
-      deadline: newDeadline,
-      notes: newNotes,
+      requiredLevel: selectedTargetEmp.clearance,
+      status: workModalMode === "assign" ? "In Progress" : "Pending L2 Review",
+      deadline: workDeadline,
+      deliverable: {
+        name: `${workTitle.toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 24)}.${workDeliverableType}`,
+        type: workDeliverableType,
+        size: "1.2 MB",
+      },
+      notes: workNotes || `Dispatched via Coworking Hub by ${currentUser.name} (${currentUser.roleTitle}).`,
+      assignedBy: `${currentUser.name} (${currentUser.clearance.split(":")[0]})`,
     };
 
-    setTasks([newTask, ...tasks]);
-    setActivities([
-      {
-        id: `act-${Date.now()}`,
-        actor: currentUser.name,
-        avatar: currentUser.name.slice(0, 2).toUpperCase(),
-        action: currentUser.role === "admin" ? "dispatched department task" : currentUser.role === "manager" ? "delegated task to junior" : "created draft task",
-        target: newTask.title,
-        time: "Just now",
-        levelBadge: newTask.requiredLevel,
-      },
-      ...activities,
-    ]);
+    setTasks((prev) => [newTask, ...prev]);
 
-    setIsAssignModalOpen(false);
-    setNewTitle("");
-    setNewNotes("");
-    setFeedbackNotice(`Task assigned to ${effectiveAssignee} (${effectiveDept}) with ${newLevel} requirement.`);
-    setTimeout(() => setFeedbackNotice(null), 5000);
-  };
+    // Update target employee active tasks count & status
+    setEmployees((prev) =>
+      prev.map((e) =>
+        e.id === selectedTargetEmp.id
+          ? { ...e, activeTasksCount: e.activeTasksCount + 1, status: "in-task" }
+          : e
+      )
+    );
 
-  const handleSubmitTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedTaskForSubmission) return;
+    setWorkModalOpen(false);
 
-    const updatedTasks = tasks.map((t) => {
-      if (t.id === selectedTaskForSubmission.id) {
-        return {
-          ...t,
-          status:
-            submitLevel.includes("L4")
-              ? ("Pending L3 Approval" as const)
-              : ("Pending L2 Review" as const),
-          deliverable: submitFileName
-            ? {
-                name: submitFileName,
-                type: "docx" as const,
-                size: "1.8 MB",
-              }
-            : t.deliverable,
-          notes: submitNotes || t.notes,
-        };
-      }
-      return t;
-    });
-
-    setTasks(updatedTasks);
-    setActivities([
-      {
-        id: `act-${Date.now()}`,
-        actor: selectedTaskForSubmission.assignee.name,
-        avatar: selectedTaskForSubmission.assignee.avatar,
-        action: "submitted task for authorization",
-        target: selectedTaskForSubmission.title,
-        time: "Just now",
-        levelBadge: submitLevel,
-      },
-      ...activities,
-    ]);
-
-    setIsSubmitModalOpen(false);
-    setSelectedTaskForSubmission(null);
-    setSubmitFileName("");
-    setSubmitNotes("");
-    setFeedbackNotice("Deliverable submitted for authorization! Teammate backend endpoint binding ready.");
-    setTimeout(() => setFeedbackNotice(null), 5000);
-  };
-
-  const getLevelBadgeClass = (level: AuthorizationLevel) => {
-    if (level.startsWith("L1")) return "bg-slate-100 text-slate-700 border-slate-200";
-    if (level.startsWith("L2")) return "bg-blue-50 text-blue-700 border-blue-200";
-    if (level.startsWith("L3")) return "bg-purple-50 text-purple-700 border-purple-200";
-    return "bg-emerald-50 text-emerald-800 border-emerald-200 font-semibold";
-  };
-
-  const getStatusBadge = (status: CoworkingTask["status"]) => {
-    switch (status) {
-      case "Completed":
-      case "L4 Signed Off":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-            {status}
-          </span>
-        );
-      case "Pending L3 Approval":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
-            <Clock className="w-3 h-3 text-purple-600" />
-            L3 Sign-Off Pending
-          </span>
-        );
-      case "Pending L2 Review":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-            <Clock className="w-3 h-3 text-amber-600" />
-            L2 Review Required
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
-            <Clock className="w-3 h-3 text-zinc-500" />
-            In Progress
-          </span>
-        );
+    if (workModalMode === "assign") {
+      showToast(`Work Order "${workTitle}" assigned to ${selectedTargetEmp.name} (Level ${selectedTargetEmp.rank})!`, "success");
+    } else if (workModalMode === "request") {
+      showToast(`Peer Collaboration Request sent to ${selectedTargetEmp.name}!`, "success");
+    } else {
+      showToast(`Consultation query submitted to senior officer ${selectedTargetEmp.name}!`, "info");
     }
+  };
+
+  // Manual Employee Creation (Admin task without query)
+  const handleCreateEmployee = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) {
+      showToast("Access Denied: Only Topmost Admin can add employees.", "warning");
+      return;
+    }
+    if (!newEmpName.trim() || !newEmpRole.trim()) return;
+
+    const clearanceMap: Record<number, AuthorizationLevel> = {
+      4: "L4: Sovereign Officer",
+      3: "L3: Dept Lead",
+      2: "L2: Reviewer",
+      1: "L1: Contributor",
+    };
+
+    const newEmp: OrgEmployee = {
+      id: `emp-${Date.now().toString().slice(-4)}`,
+      name: newEmpName.trim(),
+      avatar: newEmpName
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2),
+      email: newEmpEmail.trim() || `${newEmpName.toLowerCase().replace(/\s+/g, ".")}@sovereign.local`,
+      roleTitle: newEmpRole.trim(),
+      department: newEmpDept,
+      rank: newEmpRank,
+      clearance: clearanceMap[newEmpRank],
+      nodeIp: newEmpNode.trim() || `10.0.1.${Math.floor(60 + Math.random() * 30)}`,
+      status: "online",
+      activeTasksCount: 0,
+      specialties: newEmpSpecialties ? newEmpSpecialties.split(",").map((s) => s.trim()) : ["General Operations"],
+    };
+
+    setEmployees((prev) => [...prev, newEmp]);
+    setCreateEmpModalOpen(false);
+    setNewEmpName("");
+    setNewEmpRole("");
+    setNewEmpSpecialties("");
+    showToast(`Employee ${newEmp.name} successfully created in ${newEmp.department}!`, "success");
+  };
+
+  // Manual Employee Deletion (Admin task)
+  const handleDeleteEmployee = (empId: string) => {
+    if (!isAdmin) {
+      showToast("Access Denied: Only Topmost Admin can delete employees.", "warning");
+      return;
+    }
+    const target = employees.find((e) => e.id === empId);
+    if (!target) return;
+    if (target.id === "admin-001") {
+      showToast("Cannot delete the root Topmost Administrator account.", "warning");
+      return;
+    }
+
+    if (confirm(`Are you sure you want to remove ${target.name} (${target.roleTitle}) from the sovereign organization?`)) {
+      setEmployees((prev) => prev.filter((e) => e.id !== empId));
+      showToast(`Personnel record for ${target.name} removed.`, "info");
+    }
+  };
+
+  // Assign Job to Entire Department (Admin task)
+  const handleAssignDeptJob = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) {
+      showToast("Access Denied: Only Topmost Admin can assign jobs to entire departments.", "warning");
+      return;
+    }
+    if (!deptJobTitle.trim()) return;
+
+    // Route to the department lead or least busy employee in that department
+    const deptPersonnel = employees.filter((e) => e.department === targetDeptForJob);
+    const lead = deptPersonnel.find((e) => e.rank === 3) || deptPersonnel[0];
+
+    const newDeptTask: CoworkingTask = {
+      id: `TSK-${Math.floor(2000 + Math.random() * 7000)}`,
+      title: deptJobTitle,
+      department: targetDeptForJob as CoworkingTask["department"],
+      assignee: {
+        name: lead ? lead.name : "Department Lead Queue",
+        avatar: lead ? lead.avatar : "DL",
+        role: lead ? lead.roleTitle : "Department Dispatch",
+      },
+      requiredLevel: lead ? lead.clearance : "L3: Dept Lead",
+      status: "In Progress",
+      deadline: deptJobDeadline,
+      deliverable: {
+        name: `${deptJobTitle.toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 24)}.${deptJobDeliverable}`,
+        type: deptJobDeliverable,
+        size: "2.4 MB",
+      },
+      notes: `Directive issued by Topmost Admin to the entire ${targetDeptForJob} department queue.`,
+      assignedBy: "Security Officer & Admin (L4)",
+    };
+
+    setTasks((prev) => [newDeptTask, ...prev]);
+    setDeptJobModalOpen(false);
+    setDeptJobTitle("");
+    showToast(`Job "${deptJobTitle}" successfully assigned to ${targetDeptForJob}!`, "success");
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0">
-      <div className="max-w-[1500px] mx-auto w-full space-y-6">
-        {/* Notice Banner */}
-      {feedbackNotice && (
-        <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 text-purple-900 text-xs flex items-center justify-between shadow-xs animate-fade-in">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
-            <span className="font-medium">{feedbackNotice}</span>
+    <div className="space-y-8 animate-in fade-in pb-10">
+      {/* ─────────────────────────────────────────────────────────────────
+          1. HEADER & ACTIVE ACCOUNT HIERARCHY TRAIL SWITCHER
+      ───────────────────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-2xs space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 border-b border-slate-100 pb-6">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-purple-100 flex items-center justify-center text-purple-700 font-black text-sm shrink-0">
+                {currentUser.avatar}
+              </div>
+              <div>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    {currentUser.name}
+                  </h2>
+                  <span
+                    className={`px-3 py-0.5 rounded-full text-xs font-bold border ${
+                      currentUser.rank === 4
+                        ? "bg-purple-100 text-purple-800 border-purple-300"
+                        : currentUser.rank === 3
+                        ? "bg-blue-100 text-blue-800 border-blue-300"
+                        : currentUser.rank === 2
+                        ? "bg-amber-100 text-amber-800 border-amber-300"
+                        : "bg-slate-100 text-slate-700 border-slate-300"
+                    }`}
+                  >
+                    Level {currentUser.rank}: {currentUser.clearance.split(":")[0]}
+                  </span>
+                  {isAdmin && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Topmost Admin
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                  {currentUser.roleTitle} &bull; {currentUser.department} &bull; Station: {currentUser.nodeIp}
+                </p>
+              </div>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setFeedbackNotice(null)}
-            className="text-purple-600 hover:text-purple-900 cursor-pointer text-sm"
-          >
-            ×
-          </button>
+
+          {/* Action Buttons: Switch Profile & View Org Hierarchy Tree */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Hierarchy Tree Modal Button */}
+            <button
+              type="button"
+              onClick={() => setTreeModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+            >
+              <GitBranch className="w-4 h-4 text-purple-600" />
+              <span>Org Hierarchy Tree</span>
+            </button>
+
+            {/* Role Switcher Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setRoleSwitcherOpen(!roleSwitcherOpen)}
+                className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white border border-slate-200 hover:border-purple-300 text-slate-700 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                title="Switch account persona to test hierarchy permissions"
+              >
+                <Users className="w-4 h-4 text-slate-500" />
+                <span>Switch Account Role</span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+
+              {roleSwitcherOpen && (
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 space-y-1 animate-in fade-in">
+                  <div className="text-[11px] font-bold text-slate-400 px-3 py-1.5 uppercase tracking-wider">
+                    Simulate Hierarchy Identity
+                  </div>
+                  {[
+                    { id: "admin-001", name: "Security Officer & Admin", rank: "Level 4 (Topmost Admin)", dept: "Security Directorate" },
+                    { id: "user-001", name: "Sarah Jenkins", rank: "Level 3 (Dept Director)", dept: "Legal & Contracts" },
+                    { id: "emp-ai-02", name: "Elena Rostova", rank: "Level 2 (Senior Specialist)", dept: "AI & Engineering" },
+                    { id: "emp-ai-03", name: "Marcus Chen", rank: "Level 1 (Operator)", dept: "AI & Engineering" },
+                  ].map((acc) => (
+                    <button
+                      key={acc.id}
+                      onClick={() => handleSwitchUser(acc.id)}
+                      className={`w-full flex items-start gap-2.5 px-3 py-2 rounded-xl text-left transition-colors cursor-pointer ${
+                        activeUserId === acc.id ? "bg-purple-50 text-purple-900 font-bold" : "hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 mt-0.5 shrink-0">
+                        {acc.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold">{acc.name}</div>
+                        <div className="text-[10px] text-slate-400 font-medium">
+                          {acc.rank} &bull; {acc.dept}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Authority Scope Banner based on Hierarchy */}
+        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <Shield className="w-4.5 h-4.5 text-purple-600 shrink-0" />
+            <div className="space-y-0.5">
+              <span className="font-bold text-slate-800">
+                {currentUser.rank === 4
+                  ? "Topmost Administrative Clearance (Rank 4)"
+                  : currentUser.rank === 3
+                  ? `Department Leadership Scope: ${currentUser.department} (Rank 3)`
+                  : currentUser.rank === 2
+                  ? `Senior Specialist Scope: ${currentUser.department} (Rank 2)`
+                  : `Associate / Operator Scope: ${currentUser.department} (Rank 1)`}
+              </span>
+              <p className="text-slate-500">
+                {currentUser.rank === 4
+                  ? "Full cross-department directive authority. Cannot be assigned tasks by subordinates. Oversees all operations."
+                  : currentUser.rank === 3
+                  ? "Authorized to assign tasks downwards to L2/L1 personnel, request peer work from other L3 leads. Cannot assign to L4 Admin."
+                  : currentUser.rank === 2
+                  ? "Authorized to assign tasks downwards to L1 personnel, request peer work from other L2 specialists. Cannot assign to L3 or L4."
+                  : "Authorized to request peer collaboration from L1 operators. Cannot command higher-ranking personnel."}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 font-semibold">
+              Assigns: {currentUser.rank > 1 ? `L${currentUser.rank - 1} and below` : "None (Operator)"}
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 font-semibold">
+              Requests: L{currentUser.rank} Peers
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ─────────────────────────────────────────────────────────────────
+          2. DEDICATED TOPMOST ADMIN MONITORING PANEL (When currentUser is Admin)
+      ───────────────────────────────────────────────────────────────── */}
+      {isAdmin && (
+        <div className="bg-gradient-to-r from-purple-900 to-indigo-900 rounded-3xl p-7 text-white space-y-6 shadow-md">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-purple-200">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold tracking-tight">
+                    Topmost Administrator Operations Monitor
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold border border-emerald-400/30">
+                    AIR-GAP SUPERVISOR ACTIVE
+                  </span>
+                </div>
+                <p className="text-xs text-purple-200">
+                  Global overview of cross-departmental tasks, personnel rosters, and air-gap SLA governance.
+                </p>
+              </div>
+            </div>
+
+            {/* Admin Direct Action Buttons */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setCreateEmpModalOpen(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white text-purple-900 hover:bg-purple-50 text-xs font-bold transition-all shadow-sm cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>+ Add Employee Manually</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDeptJobModalOpen(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-700/80 hover:bg-purple-600 border border-purple-400/40 text-white text-xs font-bold transition-all cursor-pointer"
+              >
+                <Send className="w-4 h-4" />
+                <span>Assign Job to Department</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Org Key Metrics Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-1">
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+              <span className="text-[11px] font-bold text-purple-200 uppercase tracking-wider block">
+                Total Departments
+              </span>
+              <span className="text-2xl font-black mt-1 block">6 Active</span>
+              <span className="text-[11px] text-purple-300 mt-1 block">100% Isolated Mesh</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+              <span className="text-[11px] font-bold text-purple-200 uppercase tracking-wider block">
+                Total Personnel
+              </span>
+              <span className="text-2xl font-black mt-1 block">{employees.length} Members</span>
+              <span className="text-[11px] text-purple-300 mt-1 block">L1 through L4 Cleared</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+              <span className="text-[11px] font-bold text-purple-200 uppercase tracking-wider block">
+                Work Orders In-Flight
+              </span>
+              <span className="text-2xl font-black mt-1 block">{tasks.length} Orders</span>
+              <span className="text-[11px] text-purple-300 mt-1 block">
+                {tasks.filter((t) => t.status === "In Progress").length} actively executing
+              </span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+              <span className="text-[11px] font-bold text-purple-200 uppercase tracking-wider block">
+                Admin Task Inflow
+              </span>
+              <span className="text-2xl font-black text-emerald-300 mt-1 block">0 (Protected)</span>
+              <span className="text-[11px] text-purple-300 mt-1 block">Admin cannot be assigned tasks</span>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Top Section: Team Performance & Summary Cards */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Team Performance Chart Card */}
-        <div className="xl:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] flex flex-col justify-between">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-lg font-bold text-zinc-900 tracking-tight">Department Performance</h2>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                Overview of team tasks, completion rate, and quarterly deliverables.
-              </p>
-            </div>
-
-            <div className="flex items-center flex-wrap gap-3">
-              <div className="flex items-center gap-2 text-xs font-medium text-zinc-700 bg-purple-50/80 px-3 py-1.5 rounded-full border border-purple-100">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#7047eb]" />
-                <span>Completed tasks (74%)</span>
-              </div>
-
-              <div className="flex items-center gap-2 text-xs font-medium text-zinc-700 bg-amber-50/80 px-3 py-1.5 rounded-full border border-amber-100">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                <span>Uncompleted tasks (26%)</span>
-              </div>
-
-              <div className="relative">
-                <button
-                  type="button"
-                  className="flex items-center gap-2 text-xs font-medium text-zinc-700 bg-zinc-50 hover:bg-zinc-100 px-3 py-1.5 rounded-xl border border-zinc-200 transition-colors"
-                >
-                  <span>Last year</span>
-                  <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
-                </button>
-              </div>
-            </div>
+      {/* ─────────────────────────────────────────────────────────────────
+          3. DEPARTMENT SELECTION & WORKSPACE (SIMPLIFIED IN CARDS)
+      ───────────────────────────────────────────────────────────────── */}
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-purple-600" />
+              <span>Cross-Departmental Coworking Hub</span>
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium">
+              Choose a department card below to drill down, run employee queries, or assign/request work according to hierarchy rules.
+            </p>
           </div>
 
-          {/* Bar Chart Representation */}
-          <div className="pt-4 pb-2">
-            <div className="grid grid-cols-12 gap-2 sm:gap-4 items-end h-44 border-b border-zinc-100 pb-3">
-              {CHART_MONTHS.map((item) => (
-                <div key={item.month} className="flex flex-col items-center gap-2 h-full justify-end group">
-                  <div className="w-full flex gap-1 items-end justify-center h-36">
-                    <div
-                      className="w-2.5 sm:w-3.5 rounded-t-lg bg-[#7047eb] group-hover:bg-[#5f36dd] transition-all duration-300"
-                      style={{ height: `${item.completed}%` }}
-                      title={`${item.month}: ${item.completed}% completed`}
-                    />
-                    <div
-                      className="w-1.5 sm:w-2 rounded-t-md bg-amber-300/80 group-hover:bg-amber-400 transition-all duration-300"
-                      style={{ height: `${item.uncompleted}%` }}
-                      title={`${item.month}: ${item.uncompleted}% pending`}
-                    />
-                  </div>
-                  <span className="text-[11px] font-medium text-zinc-400 group-hover:text-zinc-700 transition-colors">
-                    {item.month}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Sub-footer stats */}
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-4 text-xs text-zinc-500 border-t border-zinc-50">
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 text-emerald-600" />
-                <span className="font-semibold text-zinc-800">+18.4%</span> productivity vs last quarter
-              </span>
-              <span className="text-zinc-300">|</span>
-              <span className="flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-purple-600" />
-                Zero unverified deliverable releases
-              </span>
-            </div>
+          {selectedDeptId && (
             <button
               type="button"
-              onClick={() => onOpenAgentWorkspace?.()}
-              className="text-purple-600 hover:text-purple-800 font-medium flex items-center gap-1 cursor-pointer"
+              onClick={() => setSelectedDeptId(null)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer self-start sm:self-auto"
             >
-              <span>Automate task with Local AI Agent</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to All Departments</span>
             </button>
-          </div>
+          )}
         </div>
 
-        {/* Right 1 Col: Quick Metric Stack */}
-        <div className="flex flex-col gap-4">
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] flex items-center justify-between">
-            <div>
-              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Total Projects</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-3xl font-extrabold text-zinc-900">173</span>
-                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                  +14%
-                </span>
-              </div>
-              <p className="text-xs text-zinc-500 mt-2">Across 5 office departments</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600">
-              <Building2 className="w-6 h-6" />
-            </div>
-          </div>
+        {/* ── MODE A: ALL DEPARTMENTS CARDS SHOWCASE (When none is expanded) ── */}
+        {!selectedDeptId ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {departments.map((dept) => {
+              const deptEmps = employees.filter((e) => e.department === dept.name);
+              const deptTasks = tasks.filter((t) => t.department === dept.name);
+              const IconComp = dept.icon;
 
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] flex items-center justify-between">
-            <div>
-              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Pending Sign-Offs</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-3xl font-extrabold text-zinc-900">28</span>
-                <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
-                  L3 & L4
-                </span>
-              </div>
-              <p className="text-xs text-zinc-500 mt-2">Requires Lead or Officer approval</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600">
-              <Award className="w-6 h-6" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] flex items-center justify-between">
-            <div>
-              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">System Security</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-3xl font-extrabold text-zinc-900">100%</span>
-                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                  Protected
-                </span>
-              </div>
-              <p className="text-xs text-zinc-500 mt-2">Encrypted workspace & data security</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Middle Section: Coworking Tasks & Team Communications */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Task Assignment & Management Workspace */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)]">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-zinc-100">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-zinc-900">Coworking Space & Task Assignments</h2>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-800">
-                    Role-Based
-                  </span>
-                </div>
-                <p className="text-xs text-zinc-500 mt-1">
-                  Assign, track, and review tasks across departments.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setIsAssignModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Assign Task</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedTaskForSubmission(tasks[0] || null);
-                    setIsSubmitModalOpen(true);
-                  }}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Submit Task</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Filter and Search Controls */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 pb-3">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Search tasks, roles, or departments..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-zinc-200 bg-zinc-50 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-purple-500 focus:bg-white transition-all"
-                />
-              </div>
-
-              <div className="flex items-center flex-wrap gap-2">
-                <div className="flex items-center gap-1 text-xs text-zinc-500">
-                  <Filter className="w-3.5 h-3.5" />
-                  <span>Dept:</span>
-                </div>
-                <select
-                  value={selectedDept}
-                  onChange={(e) => setSelectedDept(e.target.value)}
-                  className="text-xs rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-zinc-700 cursor-pointer focus:outline-none"
-                >
-                  <option value="All">All Departments</option>
-                  <option value="Legal & Contracts">Legal & Contracts</option>
-                  <option value="Finance & Accounting">Finance & Accounting</option>
-                  <option value="Operations & Supply">Operations & Supply</option>
-                  <option value="HR & Compliance">HR & Compliance</option>
-                  <option value="AI & Engineering">AI & Engineering</option>
-                </select>
-
-                <div className="flex items-center gap-1 text-xs text-zinc-500 ml-2">
-                  <span>Level:</span>
-                </div>
-                <select
-                  value={selectedLevel}
-                  onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="text-xs rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-zinc-700 cursor-pointer focus:outline-none"
-                >
-                  <option value="All">All Auth Levels</option>
-                  <option value="L1">Level 1 (Contributor)</option>
-                  <option value="L2">Level 2 (Reviewer)</option>
-                  <option value="L3">Level 3 (Dept Lead)</option>
-                  <option value="L4">Level 4 (Officer Sign-Off)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Task Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-100 text-zinc-400 uppercase tracking-wider font-semibold text-[10px]">
-                    <th className="py-2.5 px-2">Task Details</th>
-                    <th className="py-2.5 px-2">Assignee</th>
-                    <th className="py-2.5 px-2">Required Auth</th>
-                    <th className="py-2.5 px-2">Status</th>
-                    <th className="py-2.5 px-2">Deliverable</th>
-                    <th className="py-2.5 px-2 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-50">
-                  {filteredTasks.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="text-center py-8 text-zinc-400">
-                        No tasks match current search or filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredTasks.map((t) => (
-                      <tr key={t.id} className="hover:bg-zinc-50/70 transition-colors group">
-                        {/* Task Title & Dept */}
-                        <td className="py-3 px-2 max-w-[240px]">
-                          <div className="font-semibold text-zinc-800 truncate" title={t.title}>
-                            {t.title}
-                          </div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] font-mono text-zinc-400">{t.id}</span>
-                            <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-zinc-100 text-zinc-600 font-medium">
-                              {t.department}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Assignee */}
-                        <td className="py-3 px-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-xs shrink-0 border border-purple-200">
-                              {t.assignee.avatar}
-                            </div>
-                            <div className="truncate">
-                              <span className="block font-medium text-zinc-800 truncate">
-                                {t.assignee.name}
-                              </span>
-                              <span className="block text-[10px] text-zinc-400 truncate">
-                                {t.assignee.role}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Authorization Level */}
-                        <td className="py-3 px-2">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded-md text-[10.5px] border ${getLevelBadgeClass(
-                              t.requiredLevel,
-                            )}`}
-                          >
-                            {t.requiredLevel}
-                          </span>
-                        </td>
-
-                        {/* Status */}
-                        <td className="py-3 px-2">{getStatusBadge(t.status)}</td>
-
-                        {/* Deliverable */}
-                        <td className="py-3 px-2">
-                          {t.deliverable ? (
-                            <div className="flex items-center gap-1.5 text-purple-700 bg-purple-50/70 px-2 py-1 rounded-lg border border-purple-100 max-w-[130px] truncate">
-                              <FileText className="w-3.5 h-3.5 shrink-0 text-purple-600" />
-                              <span className="text-[10.5px] font-medium truncate" title={t.deliverable.name}>
-                                {t.deliverable.name}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-zinc-400 text-[11px] italic">Not attached</span>
-                          )}
-                        </td>
-
-                        {/* Actions */}
-                        <td className="py-3 px-2 text-right">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedTaskForSubmission(t);
-                              setIsSubmitModalOpen(true);
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-medium text-[11px] transition-colors cursor-pointer"
-                          >
-                            Submit / Review
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Right 1 Col: Department Communication Drawer */}
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)]">
-            <div className="flex items-center justify-between pb-4 border-b border-zinc-100">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-zinc-900">Department Streams</h3>
-                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[#7047eb] text-white">
-                  34
-                </span>
-              </div>
-              <span className="text-[11px] font-medium text-zinc-400">Collaborative</span>
-            </div>
-
-            {/* Department member list */}
-            <div className="divide-y divide-zinc-50 pt-2">
-              {coworkers.map((cw) => (
+              return (
                 <div
-                  key={cw.id}
-                  className="py-3 flex items-start gap-3 hover:bg-zinc-50/80 rounded-xl px-2 transition-colors cursor-pointer group"
+                  key={dept.id}
+                  onClick={() => setSelectedDeptId(dept.name)}
+                  className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group flex flex-col justify-between space-y-6"
                 >
-                  <div className="relative shrink-0 mt-0.5">
-                    <div className="w-9 h-9 rounded-full bg-purple-100 text-[#7047eb] font-bold flex items-center justify-center text-xs border border-purple-200 shadow-xs">
-                      {cw.avatar}
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div
+                        className={`w-12 h-12 rounded-2xl flex items-center justify-center ${dept.bgLight} ${dept.textColor} border ${dept.borderColor}`}
+                      >
+                        <IconComp className="w-6 h-6" />
+                      </div>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200 text-slate-600">
+                        {dept.slaTarget}
+                      </span>
                     </div>
-                    <span
-                      className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                        cw.status === "online"
-                          ? "bg-emerald-500"
-                          : cw.status === "in-review"
-                          ? "bg-purple-500"
-                          : "bg-amber-500"
-                      }`}
-                    />
-                  </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-zinc-900 truncate">{cw.name}</h4>
-                      <span className="text-[10px] text-zinc-400">{cw.time}</span>
+                    <div>
+                      <h4 className="text-lg font-bold text-slate-900 group-hover:text-purple-600 transition-colors">
+                        {dept.name}
+                      </h4>
+                      <p className="text-xs text-slate-500 leading-relaxed mt-1 font-medium">
+                        {dept.description}
+                      </p>
                     </div>
-                    <span className="text-[10px] font-medium text-purple-700 block truncate">
-                      {cw.department}
-                    </span>
-                    <p className="text-[11px] text-zinc-500 truncate mt-0.5">{cw.lastMessage}</p>
-                  </div>
 
-                  {cw.unreadCount && cw.unreadCount > 0 ? (
-                    <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[9.5px] font-bold shrink-0 self-center">
-                      {cw.unreadCount}
-                    </span>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-
-            {/* Live Activity Feed */}
-            <div className="mt-5 pt-4 border-t border-zinc-100">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
-                  Live Authorization Feed
-                </span>
-                <span className="text-[10px] text-emerald-600 font-mono flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  AIR-GAP AUDITED
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                {activities.map((act) => (
-                  <div key={act.id} className="text-xs flex items-start gap-2.5">
-                    <div className="w-6 h-6 rounded-full bg-zinc-100 text-zinc-700 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5 border border-zinc-200">
-                      {act.avatar}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <span className="font-semibold text-zinc-800">{act.actor}</span>{" "}
-                      <span className="text-zinc-500">{act.action}</span>{" "}
-                      <span className="font-medium text-zinc-700 truncate block">{act.target}</span>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] text-zinc-400">{act.time}</span>
-                        {act.levelBadge && (
-                          <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-100">
-                            {act.levelBadge}
-                          </span>
-                        )}
+                    <div className="pt-2 border-t border-slate-100 space-y-2 text-xs">
+                      <div className="flex items-center justify-between text-slate-600 font-medium">
+                        <span>Department Lead:</span>
+                        <span className="font-bold text-slate-800">{dept.leadName}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600 font-medium">
+                        <span>Personnel Count:</span>
+                        <span className="font-bold text-slate-800">{deptEmps.length} Employees</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600 font-medium">
+                        <span>Active Tasks:</span>
+                        <span className="font-bold text-purple-700">{deptTasks.length} Work Orders</span>
                       </div>
                     </div>
                   </div>
-                ))}
+
+                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400">Click to inspect roster &amp; work</span>
+                    <div className="flex items-center gap-1 text-xs font-bold text-purple-700 group-hover:translate-x-1 transition-transform">
+                      <span>Inspect</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* ── MODE B: SELECTED DEPARTMENT DRILLDOWN WORKSPACE ── */
+          activeDepartment && (
+            <div className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-2xs space-y-7 animate-in fade-in">
+              {/* Department Header */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-100">
+                <div className="flex items-center gap-3.5">
+                  <div
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center ${activeDepartment.bgLight} ${activeDepartment.textColor} border ${activeDepartment.borderColor} shrink-0`}
+                  >
+                    {React.createElement(activeDepartment.icon, { className: "w-6 h-6" })}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-xl font-black text-slate-900">
+                        {activeDepartment.name}
+                      </h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        Lead: {activeDepartment.leadName}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      {activeDepartment.description}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Admin-only direct actions on this department */}
+                {isAdmin && (
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewEmpDept(activeDepartment.name);
+                        setCreateEmpModalOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>+ Add Employee to {activeDepartment.name}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTargetDeptForJob(activeDepartment.name);
+                        setDeptJobModalOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span>Assign Job to Dept Queue</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Natural Language / Query on Employees in this Department */}
+              <div className="p-5 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <Sparkles className="w-4 h-4 text-purple-600" />
+                    <span>Query &amp; Search Personnel in {activeDepartment.name}</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    Showing {departmentEmployees.length} of {employees.filter((e) => e.department === activeDepartment.name).length} employees
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <div className="relative flex-1 w-full">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={empQuery}
+                      onChange={(e) => setEmpQuery(e.target.value)}
+                      placeholder={`Query employees (e.g. 'find L2 clearance', 'Docker', 'Elena', 'specialties')...`}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                    />
+                    {empQuery && (
+                      <button
+                        onClick={() => setEmpQuery("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    {/* Level Filter */}
+                    <select
+                      value={empRankFilter}
+                      onChange={(e) => setEmpRankFilter(e.target.value as any)}
+                      className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 cursor-pointer outline-none"
+                    >
+                      <option value="all">All Levels</option>
+                      <option value="L4">Level 4 (Directorate)</option>
+                      <option value="L3">Level 3 (Lead)</option>
+                      <option value="L2">Level 2 (Senior)</option>
+                      <option value="L1">Level 1 (Operator)</option>
+                    </select>
+
+                    {/* Status Filter */}
+                    <select
+                      value={empStatusFilter}
+                      onChange={(e) => setEmpStatusFilter(e.target.value as any)}
+                      className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 cursor-pointer outline-none"
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="available">Available / Idle</option>
+                      <option value="in-task">In Task</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Quick Query Template Chips */}
+                <div className="flex items-center gap-2 flex-wrap pt-1">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Quick Queries:
+                  </span>
+                  {[
+                    "Level 2 Reviewers",
+                    "Available Personnel",
+                    "Sandbox",
+                    "Clearance L3",
+                    "ITAR",
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => setEmpQuery(chip === "Level 2 Reviewers" ? "L2" : chip === "Clearance L3" ? "L3" : chip)}
+                      className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-purple-300 text-slate-600 transition-colors cursor-pointer"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                  {empQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmpQuery("");
+                        setEmpRankFilter("all");
+                        setEmpStatusFilter("all");
+                      }}
+                      className="text-xs font-bold text-purple-700 hover:underline ml-1 cursor-pointer"
+                    >
+                      Reset filters
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Department Employees Grid */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-base font-bold text-slate-900">
+                    Department Personnel ({departmentEmployees.length})
+                  </h4>
+                  <span className="text-xs text-slate-400 font-medium">
+                    Hierarchy rule: Assign downwards &bull; Request peer
+                  </span>
+                </div>
+
+                {departmentEmployees.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-slate-50 border border-slate-100 text-center space-y-2">
+                    <Users className="w-8 h-8 text-slate-400 mx-auto" />
+                    <p className="text-sm font-bold text-slate-700">No personnel match current query</p>
+                    <p className="text-xs text-slate-400">
+                      Try adjusting the search query or reset the filters.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    {departmentEmployees.map((emp) => {
+                      const isSelf = emp.id === currentUser.id;
+                      const isTargetAdmin = emp.rank === 4;
+
+                      // Determine action capability:
+                      const canAssign = currentUser.rank > emp.rank;
+                      const canRequest = currentUser.rank === emp.rank;
+                      const isSuperior = currentUser.rank < emp.rank;
+
+                      return (
+                        <div
+                          key={emp.id}
+                          className={`rounded-2xl p-5 border transition-all flex flex-col justify-between space-y-4 ${
+                            isSelf
+                              ? "bg-purple-50/40 border-purple-200 ring-2 ring-purple-100"
+                              : "bg-white border-slate-200/90 shadow-2xs hover:shadow-xs hover:border-slate-300"
+                          }`}
+                        >
+                          <div className="space-y-3">
+                            {/* Employee Header */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-3">
+                                <div className="relative">
+                                  <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-800 font-extrabold text-xs flex items-center justify-center border border-slate-200">
+                                    {emp.avatar}
+                                  </div>
+                                  <span
+                                    className={`w-2.5 h-2.5 rounded-full border-2 border-white absolute -bottom-0.5 -right-0.5 ${
+                                      emp.status === "online"
+                                        ? "bg-emerald-500"
+                                        : emp.status === "in-task"
+                                        ? "bg-amber-500"
+                                        : "bg-slate-400"
+                                    }`}
+                                    title={`Status: ${emp.status}`}
+                                  />
+                                </div>
+
+                                <div>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <h5 className="text-sm font-bold text-slate-900 leading-tight">
+                                      {emp.name}
+                                    </h5>
+                                    {isSelf && (
+                                      <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.2 rounded">
+                                        You
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-slate-500 font-medium truncate max-w-[170px]">
+                                    {emp.roleTitle}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Authority Badge */}
+                              <span
+                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border shrink-0 ${
+                                  emp.rank === 4
+                                    ? "bg-purple-50 text-purple-800 border-purple-200"
+                                    : emp.rank === 3
+                                    ? "bg-blue-50 text-blue-800 border-blue-200"
+                                    : emp.rank === 2
+                                    ? "bg-amber-50 text-amber-800 border-amber-200"
+                                    : "bg-slate-100 text-slate-700 border-slate-200"
+                                }`}
+                              >
+                                Level {emp.rank}
+                              </span>
+                            </div>
+
+                            {/* Details & Specs */}
+                            <div className="space-y-1.5 pt-1 text-xs text-slate-600">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-slate-400">Station Node:</span>
+                                <span className="font-mono text-slate-700 font-semibold">{emp.nodeIp}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-slate-400">Active Tasks:</span>
+                                <span className="font-bold text-purple-700">{emp.activeTasksCount} In-Flight</span>
+                              </div>
+                            </div>
+
+                            {/* Specialties tags */}
+                            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                              {emp.specialties.slice(0, 3).map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="text-[10px] font-medium bg-slate-50 text-slate-600 px-2 py-0.5 rounded border border-slate-100"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Action Row */}
+                          <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                            {/* Delete Employee (Admin Only) */}
+                            {isAdmin && !isSelf && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEmployee(emp.id)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Delete employee from sovereign roster"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            <div className="flex items-center gap-2 ml-auto">
+                              {isSelf ? (
+                                <span className="text-xs font-semibold text-slate-400 italic">
+                                  Current User Session
+                                </span>
+                              ) : isTargetAdmin && !isAdmin ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenWorkModal(emp, "consult")}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                                  title="Admin cannot be assigned tasks. Send consultation query."
+                                >
+                                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>Consult Admin</span>
+                                </button>
+                              ) : canAssign ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenWorkModal(emp, "assign")}
+                                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                                  title="Assign directive downwards (Hierarchy Authorized)"
+                                >
+                                  <Send className="w-3.5 h-3.5" />
+                                  <span>Assign Work</span>
+                                </button>
+                              ) : canRequest ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenWorkModal(emp, "request")}
+                                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors cursor-pointer"
+                                  title="Request collaboration from equal peer"
+                                >
+                                  <Users className="w-3.5 h-3.5" />
+                                  <span>Request Work</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenWorkModal(emp, "consult")}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                                  title="Senior rank. Submit consultative inquiry."
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>Consult Inquiry</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
+          )
+        )}
+      </div>
+
+      {/* ─────────────────────────────────────────────────────────────────
+          4. ALL ACTIVE COWORKING TASKS & DISPATCH STREAM
+      ───────────────────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-2xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <h4 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <Clock className="w-5 h-5 text-purple-600" />
+              <span>Cross-Department Live Work Orders</span>
+            </h4>
+            <p className="text-xs text-slate-500 font-medium">
+              Tasks assigned between upper and lower hierarchy, peer collaborations, and deliverables in progress.
+            </p>
           </div>
+
+          <span className="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-200 self-start sm:self-auto">
+            {tasks.length} Active Directives
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider text-[10.5px]">
+                <th className="pb-3 pr-4">Order ID</th>
+                <th className="pb-3 pr-4">Work Description</th>
+                <th className="pb-3 pr-4">Department</th>
+                <th className="pb-3 pr-4">Assignee</th>
+                <th className="pb-3 pr-4">Assigned By</th>
+                <th className="pb-3 pr-4">Status</th>
+                <th className="pb-3 text-right">Deadline</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {tasks.map((task) => (
+                <tr key={task.id} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="py-3.5 pr-4 font-mono font-bold text-purple-700">
+                    {task.id}
+                  </td>
+                  <td className="py-3.5 pr-4 font-bold text-slate-900 max-w-xs truncate">
+                    {task.title}
+                  </td>
+                  <td className="py-3.5 pr-4 text-slate-600 font-medium">
+                    {task.department}
+                  </td>
+                  <td className="py-3.5 pr-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center justify-center">
+                        {task.assignee.avatar}
+                      </div>
+                      <span className="font-semibold text-slate-800">{task.assignee.name}</span>
+                    </div>
+                  </td>
+                  <td className="py-3.5 pr-4 text-slate-500 font-medium">
+                    {task.assignedBy || "Directorate"}
+                  </td>
+                  <td className="py-3.5 pr-4">
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
+                        task.status === "Completed"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : task.status === "In Progress"
+                          ? "bg-purple-50 text-purple-700 border border-purple-200"
+                          : "bg-amber-50 text-amber-700 border border-amber-200"
+                      }`}
+                    >
+                      {task.status}
+                    </span>
+                  </td>
+                  <td className="py-3.5 text-right font-medium text-slate-500">
+                    {task.deadline}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Modal 1: Assign Task Modal */}
-      {isAssignModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-zinc-100 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb]">
-                  <Plus className="w-5 h-5" />
+      {/* ─────────────────────────────────────────────────────────────────
+          MODAL 1: WORK DISPATCH & COLLABORATION MODAL (Strict Hierarchy)
+      ───────────────────────────────────────────────────────────────── */}
+      {workModalOpen && selectedTargetEmp && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-7 max-w-lg w-full shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {workModalMode === "assign"
+                      ? "Assign Work Order (Directive)"
+                      : workModalMode === "request"
+                      ? "Request Peer Collaboration"
+                      : "Submit Consultative Query"}
+                  </h3>
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-zinc-900">Assign New Task</h3>
-                  <p className="text-xs text-zinc-500">
-                    Delegate work with explicit role-based authorization requirements.
-                  </p>
-                </div>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Target: <strong className="text-slate-800">{selectedTargetEmp.name}</strong> ({selectedTargetEmp.roleTitle} &bull; Level {selectedTargetEmp.rank})
+                </p>
               </div>
+
               <button
                 type="button"
-                onClick={() => setIsAssignModalOpen(false)}
-                className="text-zinc-400 hover:text-zinc-700 p-1"
+                onClick={() => setWorkModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Role Hierarchy Scope Indicator */}
-            {currentUser.role === "admin" ? (
-              <div className="p-3 bg-purple-50 border border-purple-200 rounded-2xl flex items-start gap-2 text-xs text-purple-900">
-                <ShieldCheck className="w-4 h-4 text-[#7047eb] shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold">ADMIN PRIVILEGE (Cross-Department)</span>
-                  <p className="text-[11px] text-purple-700 mt-0.5 leading-relaxed">
-                    Authorized to assign and dispatch work orders to any department and staff member across the organization.
-                  </p>
+            {/* Hierarchy Relationship Notice */}
+            <div
+              className={`p-3.5 rounded-2xl border text-xs leading-relaxed ${
+                workModalMode === "assign"
+                  ? "bg-emerald-50/80 border-emerald-200 text-emerald-800"
+                  : workModalMode === "request"
+                  ? "bg-blue-50/80 border-blue-200 text-blue-800"
+                  : "bg-amber-50/80 border-amber-200 text-amber-800"
+              }`}
+            >
+              {workModalMode === "assign" && (
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>Hierarchy Rule Verified:</strong> As an L{currentUser.rank} officer, you have direct command authority over L{selectedTargetEmp.rank} personnel. Directives are recorded in the air-gap audit ledger.
+                  </div>
                 </div>
-              </div>
-            ) : currentUser.role === "manager" ? (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-2 text-xs text-blue-900">
-                <Building2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold">DEPARTMENT MANAGER ({currentUser.dept})</span>
-                  <p className="text-[11px] text-blue-700 mt-0.5 leading-relaxed">
-                    Authorized to delegate tasks to junior specialists and operators within {currentUser.dept}.
-                  </p>
+              )}
+              {workModalMode === "request" && (
+                <div className="flex items-start gap-2">
+                  <Users className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>Peer Collaboration:</strong> Both accounts share Level {currentUser.rank} authority. Submitting as a cross-departmental peer cooperation request.
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2 text-xs text-amber-900">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold">JUNIOR CONTRIBUTOR / OPERATOR</span>
-                  <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
-                    Delegating tasks to other staff is restricted to Managers &amp; Admins. This item will be created as a self-assigned draft.
-                  </p>
+              )}
+              {workModalMode === "consult" && (
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>Hierarchy Policy:</strong> Subordinate personnel (Level {currentUser.rank}) cannot issue mandatory work orders to senior officers (Level {selectedTargetEmp.rank}). This will be routed as an advisory consultation.
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            <form onSubmit={handleAssignTask} className="space-y-4 text-xs">
+            {/* Form Fields */}
+            <div className="space-y-4">
               <div>
-                <label className="block font-semibold text-zinc-700 mb-1">Task Title</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Work Title / Directive Summary
+                </label>
                 <input
                   type="text"
-                  required
-                  placeholder="e.g. Q3 Vendor Compliance Review or Ledger Reconciliation"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:border-purple-500 text-xs"
+                  value={workTitle}
+                  onChange={(e) => setWorkTitle(e.target.value)}
+                  placeholder="e.g. Audit export compliance clauses across vendor schematics"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:border-purple-400 focus:outline-none"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-zinc-700 mb-1">Target Department</label>
-                  {currentUser.role === "admin" ? (
-                    <select
-                      value={newDept}
-                      onChange={(e) => setNewDept(e.target.value as any)}
-                      className="w-full px-3 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:border-purple-500 text-xs"
-                    >
-                      <option value="Legal & Contracts">Legal & Contracts</option>
-                      <option value="Finance & Accounting">Finance & Accounting</option>
-                      <option value="Operations & Supply">Operations & Supply</option>
-                      <option value="HR & Compliance">HR & Compliance</option>
-                      <option value="AI & Engineering">AI & Engineering</option>
-                    </select>
-                  ) : (
-                    <div className="p-2.5 rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-700 font-semibold text-xs">
-                      {currentUser.dept} (Locked to Dept)
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-zinc-700 mb-1">Assignee</label>
-                  {currentUser.role === "junior" ? (
-                    <div className="p-2.5 rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-700 font-semibold text-xs">
-                      {currentUser.name} (Self-Assigned)
-                    </div>
-                  ) : (
-                    <select
-                      value={newAssignee}
-                      onChange={(e) => setNewAssignee(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:border-purple-500 text-xs"
-                    >
-                      {coworkers
-                        .filter((c) => currentUser.role === "admin" || c.department === currentUser.dept || c.department.includes("Specialist") || c.department.includes("Operations"))
-                        .map((c) => (
-                          <option key={c.id} value={c.name}>
-                            {c.name} ({c.department})
-                          </option>
-                        ))}
-                    </select>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-zinc-700 mb-1">
-                    Authorization Level Required
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Priority Level
                   </label>
                   <select
-                    value={newLevel}
-                    onChange={(e) => setNewLevel(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:border-purple-500 text-xs"
+                    value={workPriority}
+                    onChange={(e) => setWorkPriority(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
                   >
-                    <option value="L1: Contributor">L1: Contributor (Operator)</option>
-                    <option value="L2: Reviewer">L2: Reviewer (Specialist)</option>
-                    <option value="L3: Dept Lead">L3: Dept Lead (Department Head)</option>
-                    <option value="L4: Sovereign Officer">L4: Sovereign Officer (Air-Gap Sign-Off)</option>
+                    <option value="P0">P0 - Critical / Immediate</option>
+                    <option value="P1">P1 - High Priority</option>
+                    <option value="P2">P2 - Standard Queue</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-700 mb-1">Deadline</label>
-                  <input
-                    type="text"
-                    value={newDeadline}
-                    onChange={(e) => setNewDeadline(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:border-purple-500 text-xs"
-                  />
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Target Deliverable
+                  </label>
+                  <select
+                    value={workDeliverableType}
+                    onChange={(e) => setWorkDeliverableType(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                  >
+                    <option value="pdf">Signed PDF Document</option>
+                    <option value="docx">Word Specification (DOCX)</option>
+                    <option value="xlsx">Spreadsheet Audit Ledger (XLSX)</option>
+                    <option value="report">Compliance Brief</option>
+                  </select>
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-700 mb-1">Instructions / Notes</label>
-                <textarea
-                  rows={3}
-                  value={newNotes}
-                  onChange={(e) => setNewNotes(e.target.value)}
-                  placeholder="Specific compliance guidelines, local OCR inputs, or air-gap requirements..."
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:border-purple-500 text-xs"
-                />
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Deadline / SLA Target
+                </label>
+                <select
+                  value={workDeadline}
+                  onChange={(e) => setWorkDeadline(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                >
+                  <option value="Today, 5:00 PM">Today, 5:00 PM</option>
+                  <option value="Tomorrow, 12:00 PM">Tomorrow, 12:00 PM</option>
+                  <option value="In 3 days">In 3 days</option>
+                  <option value="Next Week">Next Week (Standard SLA)</option>
+                </select>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100">
-                <button
-                  type="button"
-                  onClick={() => setIsAssignModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-zinc-200 hover:bg-zinc-50 text-zinc-700 font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#7047eb] hover:bg-[#5f36dd] text-white font-semibold shadow-sm"
-                >
-                  Confirm Assignment
-                </button>
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Detailed Instructions / Context
+                </label>
+                <textarea
+                  rows={3}
+                  value={workNotes}
+                  onChange={(e) => setWorkNotes(e.target.value)}
+                  placeholder="Specify key constraints, required clearance levels, or references..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 focus:bg-white focus:border-purple-400 focus:outline-none resize-none"
+                />
               </div>
-            </form>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setWorkModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDispatchWork}
+                disabled={!workTitle.trim()}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                <Send className="w-4 h-4" />
+                <span>
+                  {workModalMode === "assign"
+                    ? "Dispatch Work Order"
+                    : workModalMode === "request"
+                    ? "Send Request"
+                    : "Submit Consultation"}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Modal 2: Submit Task for Authorization Modal */}
-      {isSubmitModalOpen && selectedTaskForSubmission && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-zinc-100 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb]">
-                  <Send className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-zinc-900">Submit Deliverable for Sign-Off</h3>
-                  <p className="text-xs text-zinc-500">
-                    Route this completed task through hierarchical authorization.
-                  </p>
-                </div>
+      {/* ─────────────────────────────────────────────────────────────────
+          MODAL 2: MANUAL EMPLOYEE CREATION MODAL (Admin Only)
+      ───────────────────────────────────────────────────────────────── */}
+      {createEmpModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-7 max-w-md w-full shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-purple-600" />
+                  <span>Manual Employee Creation</span>
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Topmost Admin authority: Register new personnel into air-gap roster without query.
+                </p>
               </div>
+
               <button
                 type="button"
-                onClick={() => setIsSubmitModalOpen(false)}
-                className="text-zinc-400 hover:text-zinc-700 p-1"
+                onClick={() => setCreateEmpModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmitTask} className="space-y-4 text-xs">
-              <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-100">
-                <span className="text-[10px] text-zinc-400 font-mono">SELECTED TASK</span>
-                <div className="font-bold text-zinc-800 text-sm mt-0.5">
-                  {selectedTaskForSubmission.title}
-                </div>
-                <div className="flex items-center gap-2 mt-1 text-zinc-500">
-                  <span>{selectedTaskForSubmission.department}</span>
-                  <span>·</span>
-                  <span>Assigned to: {selectedTaskForSubmission.assignee.name}</span>
-                </div>
-              </div>
-
+            <form onSubmit={handleCreateEmployee} className="space-y-3.5">
               <div>
-                <label className="block font-semibold text-zinc-700 mb-1">
-                  Attach Deliverable (DOCX, XLSX, PDF)
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Full Name
                 </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="e.g. final_procurement_report.docx"
-                    value={submitFileName}
-                    onChange={(e) => setSubmitFileName(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:border-purple-500 text-xs"
-                  />
-                  <label className="px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 cursor-pointer flex items-center gap-1">
-                    <Paperclip className="w-3.5 h-3.5" />
-                    <span>Browse</span>
-                    <input
-                      type="file"
-                      className="hidden"
-                      onChange={(e) => {
-                        if (e.target.files?.[0]) {
-                          setSubmitFileName(e.target.files[0].name);
-                        }
-                      }}
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-zinc-700 mb-1">
-                  Authorization Level to Request
-                </label>
-                <select
-                  value={submitLevel}
-                  onChange={(e) => setSubmitLevel(e.target.value as any)}
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:border-purple-500 text-xs"
-                >
-                  <option value="L2: Reviewer">L2: Reviewer (Peer Specialist Check)</option>
-                  <option value="L3: Dept Lead">L3: Dept Lead (Official Approval)</option>
-                  <option value="L4: Sovereign Officer">L4: Sovereign Officer (Air-Gap Cryptographic Sign-Off)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-zinc-700 mb-1">
-                  Submission Memo / Review Notes
-                </label>
-                <textarea
-                  rows={2}
-                  value={submitNotes}
-                  onChange={(e) => setSubmitNotes(e.target.value)}
-                  placeholder="Add notes for the reviewer or compliance team..."
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:border-purple-500 text-xs"
+                <input
+                  type="text"
+                  required
+                  value={newEmpName}
+                  onChange={(e) => setNewEmpName(e.target.value)}
+                  placeholder="e.g. Commander Jason Hayes"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:border-purple-400 focus:outline-none"
                 />
               </div>
 
-              <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-100 text-purple-800 text-[11px] flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-purple-600" />
-                <span>
-                  Task will be routed to the selected department lead for review and sign-off.
-                </span>
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Role Title
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newEmpRole}
+                  onChange={(e) => setNewEmpRole(e.target.value)}
+                  placeholder="e.g. Lead Cryptographic Systems Engineer"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:border-purple-400 focus:outline-none"
+                />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Department
+                  </label>
+                  <select
+                    value={newEmpDept}
+                    onChange={(e) => setNewEmpDept(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                  >
+                    {departments.map((d) => (
+                      <option key={d.id} value={d.name}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Clearance Hierarchy
+                  </label>
+                  <select
+                    value={newEmpRank}
+                    onChange={(e) => setNewEmpRank(Number(e.target.value) as any)}
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                  >
+                    <option value={1}>Level 1: Contributor (Operator)</option>
+                    <option value={2}>Level 2: Reviewer (Senior)</option>
+                    <option value={3}>Level 3: Dept Lead (Director)</option>
+                    <option value={4}>Level 4: Sovereign Officer</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Workstation IP Node
+                  </label>
+                  <input
+                    type="text"
+                    value={newEmpNode}
+                    onChange={(e) => setNewEmpNode(e.target.value)}
+                    placeholder="10.0.1.75"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-medium text-slate-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={newEmpEmail}
+                    onChange={(e) => setNewEmpEmail(e.target.value)}
+                    placeholder="j.hayes@sovereign.local"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Specialties (Comma Separated)
+                </label>
+                <input
+                  type="text"
+                  value={newEmpSpecialties}
+                  onChange={(e) => setNewEmpSpecialties(e.target.value)}
+                  placeholder="Python, ITAR, Hardware, Cryptography"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setIsSubmitModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-zinc-200 hover:bg-zinc-50 text-zinc-700 font-medium"
+                  onClick={() => setCreateEmpModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#7047eb] hover:bg-[#5f36dd] text-white font-semibold shadow-sm"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
                 >
-                  Submit for Authorization
+                  <Check className="w-4 h-4" />
+                  <span>Create Employee</span>
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-      </div>
+
+      {/* ─────────────────────────────────────────────────────────────────
+          MODAL 3: ASSIGN JOB TO ENTIRE DEPARTMENT (Admin Only)
+      ───────────────────────────────────────────────────────────────── */}
+      {deptJobModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-7 max-w-md w-full shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Send className="w-5 h-5 text-purple-600" />
+                  <span>Assign Job to Department Queue</span>
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Topmost Admin Directive: Dispatch work order to an entire department.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setDeptJobModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAssignDeptJob} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Target Department
+                </label>
+                <select
+                  value={targetDeptForJob}
+                  onChange={(e) => setTargetDeptForJob(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                >
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.name}>
+                      {d.name} (Lead: {d.leadName})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Job Directive Title
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={deptJobTitle}
+                  onChange={(e) => setDeptJobTitle(e.target.value)}
+                  placeholder="e.g. Q4 Defense Perimeter Security Audit & Stress Test"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:border-purple-400 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Priority
+                  </label>
+                  <select
+                    value={deptJobPriority}
+                    onChange={(e) => setDeptJobPriority(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                  >
+                    <option value="P0">P0 - Critical</option>
+                    <option value="P1">P1 - High</option>
+                    <option value="P2">P2 - Standard</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Deliverable Format
+                  </label>
+                  <select
+                    value={deptJobDeliverable}
+                    onChange={(e) => setDeptJobDeliverable(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                  >
+                    <option value="pdf">Signed PDF</option>
+                    <option value="docx">Word Report (DOCX)</option>
+                    <option value="xlsx">Ledger Sheet (XLSX)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setDeptJobModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Assign to Department</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────
+          MODAL 4: INTERACTIVE VISUAL HIERARCHY TREE MODAL
+      ───────────────────────────────────────────────────────────────── */}
+      {treeModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-7 max-w-2xl w-full shadow-2xl border border-slate-100 space-y-6 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <GitBranch className="w-5 h-5 text-purple-600" />
+                  <span>Sovereign Organization Hierarchy Trail</span>
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Visual reporting chain &amp; authority matrix across all 4 clearance tiers.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setTreeModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Tree Flow Visual Representation */}
+            <div className="space-y-4">
+              {/* Level 4: Topmost Admin */}
+              <div className="p-4 rounded-2xl bg-purple-50/80 border-2 border-purple-300 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-0.5 rounded-md bg-purple-700 text-white text-xs font-black">
+                    LEVEL 4: SOVEREIGN DIRECTORATE (TOPMOST ADMIN)
+                  </span>
+                  <span className="text-xs font-bold text-purple-700">Root Authority</span>
+                </div>
+                <div className="text-sm font-bold text-slate-900">
+                  Security Officer &amp; Admin (admin-001)
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Monitors all department operations. Can create/delete employees, assign jobs to any department or individual. <strong>Cannot be assigned tasks by subordinates.</strong>
+                </p>
+              </div>
+
+              <div className="flex justify-center text-purple-400">
+                <ArrowDown className="w-5 h-5" />
+              </div>
+
+              {/* Level 3: Department Directors / Leads */}
+              <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-0.5 rounded-md bg-blue-700 text-white text-xs font-black">
+                    LEVEL 3: DEPARTMENT DIRECTORS / LEADS
+                  </span>
+                  <span className="text-xs font-bold text-blue-700">Department Heads</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-semibold text-slate-800 pt-1">
+                  <div className="p-2 rounded-lg bg-white border border-blue-100">
+                    Dr. Victor Vance (AI &amp; Eng)
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-blue-100">
+                    Sarah Jenkins (Legal)
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-blue-100">
+                    Michael Sterling (Finance)
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-blue-100">
+                    Capt. Ray Thornton (Supply)
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-blue-100">
+                    Clara Oswald (HR)
+                  </div>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed pt-1">
+                  Can assign directives to L2 and L1 personnel below them. Can request peer collaboration from other Level 3 leads. Cannot command Level 4 Admin.
+                </p>
+              </div>
+
+              <div className="flex justify-center text-blue-400">
+                <ArrowDown className="w-5 h-5" />
+              </div>
+
+              {/* Level 2: Senior Specialists / Reviewers */}
+              <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-0.5 rounded-md bg-amber-700 text-white text-xs font-black">
+                    LEVEL 2: SENIOR SPECIALISTS / REVIEWERS
+                  </span>
+                  <span className="text-xs font-bold text-amber-700">Audit &amp; Code Review</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-semibold text-slate-800 pt-1">
+                  <div className="p-2 rounded-lg bg-white border border-amber-100">
+                    Elena Rostova (AI)
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-amber-100">
+                    David Morales (Legal)
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-amber-100">
+                    Rachel Kim (Finance)
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-amber-100">
+                    Julian Rossi (HR)
+                  </div>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed pt-1">
+                  Can assign tasks downwards to Level 1 Operators. Can request peer collaboration with other Level 2 specialists. Cannot command L3 or L4 superiors.
+                </p>
+              </div>
+
+              <div className="flex justify-center text-amber-400">
+                <ArrowDown className="w-5 h-5" />
+              </div>
+
+              {/* Level 1: Associates / Operators */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-0.5 rounded-md bg-slate-700 text-white text-xs font-black">
+                    LEVEL 1: ASSOCIATES / OPERATORS
+                  </span>
+                  <span className="text-xs font-bold text-slate-600">Task Execution</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-semibold text-slate-800 pt-1">
+                  <div className="p-2 rounded-lg bg-white border border-slate-200">
+                    Marcus Chen (Docker)
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-slate-200">
+                    Aisha Patel (Records)
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-slate-200">
+                    Lucas Zhang (Ledger)
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-slate-200">
+                    Tanya Brooks (Hardware)
+                  </div>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed pt-1">
+                  Executes assigned work orders. Can request peer collaboration with Level 1 operators. Cannot assign tasks upwards.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setTreeModalOpen(false)}
+                className="px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+              >
+                Close Hierarchy View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-2xl shadow-xl border flex items-center gap-3 text-xs font-bold animate-in slide-in-from-bottom-5 ${
+            toastMessage.type === "success"
+              ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+              : toastMessage.type === "warning"
+              ? "bg-amber-50 text-amber-900 border-amber-200"
+              : "bg-purple-50 text-purple-900 border-purple-200"
+          }`}
+        >
+          {toastMessage.type === "success" ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : toastMessage.type === "warning" ? (
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+          ) : (
+            <ShieldCheck className="w-4 h-4 text-purple-600 shrink-0" />
+          )}
+          <span>{toastMessage.text}</span>
+        </div>
+      )}
     </div>
   );
 }

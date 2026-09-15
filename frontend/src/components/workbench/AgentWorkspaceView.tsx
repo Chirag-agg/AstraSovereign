@@ -23,6 +23,11 @@ import {
   RefreshCw,
   Download,
   AlertCircle,
+  Sparkles,
+  Wrench,
+  FileSpreadsheet,
+  FileDown,
+  ShieldCheck,
 } from "lucide-react";
 import Composer, { type AttachmentChip } from "@/components/Composer";
 import type { ArtifactSummary, DocumentMeta, Job, JobStatus } from "@/lib/types";
@@ -51,6 +56,7 @@ interface AgentWorkspaceViewProps {
   setConsoleOpen: (open: boolean) => void;
   healthError: string | null;
   onResetSession?: () => void;
+  themeKey?: "violet" | "emerald" | "cobalt" | "amber" | "rose" | "dark";
 }
 
 export default function AgentWorkspaceView({
@@ -73,6 +79,7 @@ export default function AgentWorkspaceView({
   setConsoleOpen,
   healthError,
   onResetSession,
+  themeKey = "violet",
 }: AgentWorkspaceViewProps) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [workspaceFiles, setWorkspaceFiles] = useState<JobWorkspaceFile[]>([]);
@@ -134,7 +141,7 @@ export default function AgentWorkspaceView({
 
   return (
     <div
-      className="flex flex-1 overflow-hidden h-full p-3 sm:p-4 gap-3 bg-[#eef1f6] min-w-0 min-h-0"
+      className="flex flex-1 overflow-hidden h-full p-1 sm:p-2 gap-3 bg-transparent min-w-0 min-h-0"
     >
       {/* 1. LEFT PANEL: FILES & RESOURCES (IDE File Explorer) */}
       <div
@@ -286,15 +293,40 @@ export default function AgentWorkspaceView({
         <div
           className="border-b border-zinc-200/80 p-4 bg-white shrink-0 flex flex-col gap-2.5"
         >
+          {/* Hidden File Input connected to fileInputRef */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            accept=".pdf,.docx,.txt,.md,.py,.json,.csv,.xlsx,.pptx,.png,.jpg,.jpeg"
+            onChange={handleFileChange}
+          />
           <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-            <span className="font-semibold text-slate-700">Task Prompt</span>
-            <button
-              type="button"
-              onClick={() => onSubmitTask(DEMO_TASK)}
-              className="text-[#7047eb] hover:text-[#5e38d6] font-semibold cursor-pointer"
-            >
-              Try Demo
-            </button>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-700">Task Prompt &amp; Swarm Instruction</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                Air-Gap Local
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 hover:text-purple-700 hover:bg-purple-50 border border-slate-200 transition-colors cursor-pointer"
+                title="Attach Document or Source Code"
+              >
+                <Paperclip className="w-3.5 h-3.5 text-purple-600" />
+                <span>Attach File</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onSubmitTask(DEMO_TASK)}
+                className="text-[#7047eb] hover:text-[#5e38d6] font-semibold cursor-pointer text-xs"
+              >
+                Try Demo
+              </button>
+            </div>
           </div>
 
           <Composer
@@ -339,106 +371,197 @@ export default function AgentWorkspaceView({
             onCancel={onCancelTask}
             consoleOpen={consoleOpen}
             setConsoleOpen={setConsoleOpen}
+            themeKey={themeKey}
           />
         </div>
       </div>
 
-      {/* 3. RIGHT PANEL: CONFIGURATION (Model, Temp, Context, Tools) */}
+      {/* 3. RIGHT PANEL: QUICK TOOLS (PDF Creation, Output Summary, Table Extraction, Sandbox, Compliance) */}
       <div
-        className="w-64 shrink-0 bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] flex flex-col overflow-hidden select-none hidden lg:flex"
+        className="w-72 shrink-0 bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] flex flex-col overflow-hidden select-none hidden lg:flex"
       >
         <div
-          className="flex h-12 items-center justify-between px-4 border-b border-zinc-100 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase"
+          className="flex h-12 items-center justify-between px-4 border-b border-zinc-100 text-[11px] font-semibold tracking-wider uppercase bg-slate-50/50"
         >
-          <span>Configuration</span>
-          <Sliders className="w-3.5 h-3.5 text-zinc-400" />
+          <div className="flex items-center gap-1.5 font-bold text-zinc-800">
+            <Wrench className="w-3.5 h-3.5 text-[#7047eb]" />
+            <span>Quick Agent Tools</span>
+          </div>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-mono font-bold border border-purple-100">
+            LOCAL
+          </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 text-xs space-y-5">
-          {/* Target Model */}
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-semibold text-zinc-600 uppercase tracking-wider">
-              Local Inference Model
-            </label>
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-800 cursor-pointer outline-none focus:border-purple-500 focus:bg-white transition-all shadow-xs"
+        <div className="flex-1 overflow-y-auto p-3.5 text-xs space-y-3">
+          <p className="text-[11px] text-zinc-500 leading-relaxed">
+            One-click automated tasks executed locally with zero cloud telemetry.
+          </p>
+
+          {/* Quick Tool 1: PDF Deliverable Creation */}
+          <div className="p-3 rounded-xl border border-purple-100 bg-purple-50/30 hover:bg-purple-50/70 transition-all space-y-2 group">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-purple-100 text-[#7047eb]">
+                  <FileDown className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-900">PDF Report Creation</h4>
+                  <span className="text-[9.5px] font-mono text-purple-700 font-semibold">AIR-GAP DELIVERABLE</span>
+                </div>
+              </div>
+            </div>
+            <p className="text-[11px] text-zinc-500 leading-relaxed">
+              Compile workspace findings into a structured executive PDF/Word document with formal headers, tables, and sign-offs.
+            </p>
+            <button
+              type="button"
+              disabled={running}
+              onClick={() =>
+                onSubmitTask(
+                  "Generate a complete, structured executive deliverable PDF report based on current workspace findings, formatted with clear section headers, metadata, tables, and official clearance sign-off blocks."
+                )
+              }
+              className="w-full py-1.5 px-2.5 rounded-lg bg-[#7047eb] hover:bg-[#5e38d6] disabled:opacity-50 text-white font-medium text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
             >
-              <option value="Qwen 2.5 14B">Qwen 2.5 14B (Default)</option>
-              <option value="Llama 3.1 8B">Llama 3.1 8B (Fast)</option>
-              <option value="DeepSeek Coder 6.7B">DeepSeek Coder 6.7B</option>
-              <option value="Llama 3.2 Vision">Llama 3.2 Vision (OCR)</option>
-            </select>
+              <Play className="w-3 h-3" />
+              <span>Generate PDF Report</span>
+            </button>
           </div>
 
-          {/* Temperature */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-[11px] font-semibold text-zinc-600 uppercase tracking-wider">
-              <span>Temperature</span>
-              <span className="text-[#7047eb] font-mono font-bold">{temperature}</span>
+          {/* Quick Tool 2: Output Summary */}
+          <div className="p-3 rounded-xl border border-amber-100 bg-amber-50/30 hover:bg-amber-50/70 transition-all space-y-2 group">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-900">Output Summary</h4>
+                  <span className="text-[9.5px] font-mono text-amber-700 font-semibold">EXECUTIVE BRIEF</span>
+                </div>
+              </div>
             </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={temperature}
-              onChange={(e) => setTemperature(parseFloat(e.target.value))}
-              className="w-full cursor-pointer accent-[#7047eb]"
-            />
+            <p className="text-[11px] text-zinc-500 leading-relaxed">
+              Condense outputs, transcripts, and model traces into an actionable bullet-point executive briefing with risk factors.
+            </p>
+            <button
+              type="button"
+              disabled={running}
+              onClick={() =>
+                onSubmitTask(
+                  "Analyze the current conversation, document outputs, and execution trace to generate a concise executive summary with bullet points, critical risks, and recommended next steps."
+                )
+              }
+              className="w-full py-1.5 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-medium text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            >
+              <Sparkles className="w-3 h-3" />
+              <span>Summarize Output</span>
+            </button>
           </div>
 
-          {/* Context Window */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-[11px] font-semibold text-zinc-600 uppercase tracking-wider">
-              <span>Context Window</span>
-              <span className="text-zinc-800 font-mono font-bold">{contextWindow}</span>
+          {/* Quick Tool 3: Table / Ledger Extraction */}
+          <div className="p-3 rounded-xl border border-emerald-100 bg-emerald-50/30 hover:bg-emerald-50/70 transition-all space-y-2 group">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-900">Extract Data Ledger</h4>
+                  <span className="text-[9.5px] font-mono text-emerald-700 font-semibold">TABLES & CSV</span>
+                </div>
+              </div>
             </div>
-            <div className="h-1.5 w-full rounded-full bg-zinc-100 overflow-hidden">
-              <div className="h-full bg-[#7047eb] rounded-full" style={{ width: "24%" }} />
-            </div>
-            <span className="text-[10px] text-zinc-400">4,120 / 32,768 tokens allocated</span>
+            <p className="text-[11px] text-zinc-500 leading-relaxed">
+              Extract numerical tabular data, amounts, and dates from uploaded documents into clean CSV/Excel ledger format.
+            </p>
+            <button
+              type="button"
+              disabled={running}
+              onClick={() =>
+                onSubmitTask(
+                  "Extract all tabular and numerical data from the uploaded files into a clean CSV format with columns: Item, Date, Reference ID, Quantity, and Amount."
+                )
+              }
+              className="w-full py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3 h-3" />
+              <span>Extract to CSV</span>
+            </button>
           </div>
 
-          {/* Local Tools Enabled */}
-          <div className="space-y-2 pt-3 border-t border-zinc-100">
-            <label className="block text-[11px] font-semibold text-zinc-600 uppercase tracking-wider">
-              Enabled Local Tools
-            </label>
-            <div className="space-y-1">
-              {Object.entries(selectedTools).map(([tool, enabled]) => (
-                <label
-                  key={tool}
-                  className="flex items-center gap-2 cursor-pointer p-1.5 rounded-lg hover:bg-zinc-50 transition-colors"
-                >
-                  <input
-                    type="checkbox"
-                    checked={enabled}
-                    onChange={(e) =>
-                      setSelectedTools((prev) => ({ ...prev, [tool]: e.target.checked }))
-                    }
-                    className="rounded border-zinc-300 accent-[#7047eb] cursor-pointer"
-                  />
-                  <span className="text-xs font-medium text-zinc-700">
-                    {tool}
-                  </span>
-                </label>
-              ))}
+          {/* Quick Tool 4: Sandbox Code Execution & Audit */}
+          <div className="p-3 rounded-xl border border-blue-100 bg-blue-50/30 hover:bg-blue-50/70 transition-all space-y-2 group">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-blue-100 text-blue-700">
+                  <Terminal className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-900">Sandbox Code Audit</h4>
+                  <span className="text-[9.5px] font-mono text-blue-700 font-semibold">ZERO-EGRESS RUN</span>
+                </div>
+              </div>
             </div>
+            <p className="text-[11px] text-zinc-500 leading-relaxed">
+              Test untrusted Python snippets inside an isolated rootless container with <code className="font-mono bg-blue-100/60 px-1 py-0.5 rounded text-[10px]">--network none</code>.
+            </p>
+            <button
+              type="button"
+              disabled={running}
+              onClick={() =>
+                onSubmitTask(
+                  "Audit and execute the code in the isolated zero-egress Docker sandbox container (--network none) and output stdout, memory consumption, and exit status."
+                )
+              }
+              className="w-full py-1.5 px-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            >
+              <Terminal className="w-3 h-3" />
+              <span>Run in Sandbox</span>
+            </button>
           </div>
 
-          {/* Air-Gap Policy */}
+          {/* Quick Tool 5: Air-Gap Compliance Check */}
+          <div className="p-3 rounded-xl border border-indigo-100 bg-indigo-50/30 hover:bg-indigo-50/70 transition-all space-y-2 group">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-indigo-100 text-indigo-700">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-900">Compliance Audit</h4>
+                  <span className="text-[9.5px] font-mono text-indigo-700 font-semibold">SECURITY HASH</span>
+                </div>
+              </div>
+            </div>
+            <p className="text-[11px] text-zinc-500 leading-relaxed">
+              Verify local model weights, calculate SHA256 integrity hash, and log tamper-evident audit record.
+            </p>
+            <button
+              type="button"
+              disabled={running}
+              onClick={() =>
+                onSubmitTask(
+                  "Perform full air-gap security audit: verify 0 bytes egress on transport layer, check model weights hash integrity, and record event into append-only audit trail."
+                )
+              }
+              className="w-full py-1.5 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            >
+              <ShieldCheck className="w-3 h-3" />
+              <span>Audit Compliance</span>
+            </button>
+          </div>
+
+          {/* Air-Gap Policy Card */}
           <div
-            className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-emerald-900 text-xs space-y-1 shadow-xs"
+            className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-900 text-xs space-y-1 shadow-xs"
           >
-            <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+            <div className="flex items-center gap-1.5 font-bold text-emerald-800 text-[11px]">
               <Shield className="w-3.5 h-3.5 text-emerald-600" />
-              <span>AIR-GAP ISOLATION</span>
+              <span>AIR-GAP LOCKDOWN ACTIVE</span>
             </div>
-            <div className="text-[11px] text-emerald-700">Network egress: Disabled (Local Only)</div>
-            <div className="text-[11px] text-emerald-700">Sandbox: rootless seccomp container</div>
-            <div className="text-[11px] text-emerald-700">Memory cap: 1024 MB / task</div>
+            <div className="text-[10.5px] text-emerald-700">Egress: 0.00 Bytes &bull; Local Host Only</div>
+            <div className="text-[10.5px] text-emerald-700">Container: Read-only rootless sandbox</div>
           </div>
         </div>
       </div>
