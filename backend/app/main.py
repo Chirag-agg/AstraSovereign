@@ -464,6 +464,7 @@ def create_app(
         available_models_provider=lambda: model_availability["models"],
         fallback_enabled=settings.model_fallback_enabled,
         is_cancelled=_job_cancelled,
+        tools=tool_registry,
     )
 
     worker = Worker(

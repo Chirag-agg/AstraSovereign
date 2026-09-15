@@ -6,6 +6,7 @@ import json
 from app.services.agent import AgentResult, AgentStatus
 from app.services.capability_router import CapabilityRouter
 from app.services.nodes import NodeAgent
+from app.services.tools import ToolResult
 from tests.conftest import build_registry
 
 MODELS = {
@@ -35,7 +36,28 @@ FINDINGS = {
 
 class FakeJob:
     job_id = "job-nodes"
+    user_id = "user-001"
+    task_type = "document"
     message = "Assess Tank 204 using the inspection reports and our SOP."
+
+
+class FakeTool:
+    def __init__(self, name):
+        self.name = name
+        self.calls = []
+
+    async def execute(self, workspace, arguments):
+        self.calls.append(arguments)
+        return ToolResult(ok=True, summary=f"{self.name} ok")
+
+
+class FakeTools:
+    def __init__(self):
+        self.document_generation = FakeTool("document_generation")
+        self.presentation_generation = FakeTool("presentation_generation")
+
+    def get(self, name):
+        return getattr(self, name, None)
 
 
 ATTACHMENTS = [
@@ -148,6 +170,36 @@ def test_sequence_routes_four_models_and_compute_sees_typed_object():
     assert node_agent.last_assessment.courses
 
 
+def test_draft_renders_deterministically_when_assessment_exists():
+    results = [
+        AgentResult(status=AgentStatus.COMPLETED, response="extract", iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="sop", iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="computed", iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="SHOULD NOT BE USED", iterations=1),
+    ]
+    tools = FakeTools()
+    node_agent = NodeAgent(
+        agent=FakeAgent(results),
+        capability_router=CapabilityRouter(build_registry(MODELS)),
+        registry=build_registry(MODELS),
+        tools=tools,
+    )
+    result = asyncio.run(
+        node_agent.run(FakeJob(), "/workspace", task_text=FakeJob.message, attachments=ATTACHMENTS)
+    )
+
+    # draft never consumed the fourth scripted turn: rendering was deterministic.
+    assert len(node_agent._agent.results) == 1
+    assert "Rendered the approval note" in (result.response or "")
+    docx = tools.document_generation.calls[0]
+    assert docx["filename"] == "approval_note.docx"
+    assert any("C2" in row for row in docx["sections"][0]["table"])
+    xlsx = tools.document_generation.calls[1]
+    assert xlsx["filename"] == "assessment.xlsx"
+    pptx = tools.presentation_generation.calls[0]
+    assert pptx["filename"] == "assessment.pptx"
+
+
 def test_compute_budget_exhaustion_degrades_to_incomplete_refer():
     results = [
         AgentResult(status=AgentStatus.COMPLETED, response=json.dumps(FINDINGS), iterations=1),
@@ -182,7 +234,7 @@ def test_nodes_scope_tools_per_step():
         "document_vision",
         "submit_findings",
         "list_files",
-    }
+    }  # unchanged: extract keeps its read tools plus the typed exit
     assert calls[1]["tool_names"] == {"document_search"}
     assert calls[2]["tool_names"] == {"code_execution"}
     assert calls[3]["tool_names"] == {

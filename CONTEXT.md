@@ -417,7 +417,7 @@ Implemented and working locally (backend + frontend + local models + Docker):
   closure is vendored under `presentation/node_modules` (pinned `4.0.1`) and the
   real `render.cjs` is covered by a `node`-marked integration test; see
   `docs/OFFLINE_BUNDLE.md`.
-- Tests: backend `pytest` (466 passed) and frontend typecheck + 67 tests + build.
+- Tests: backend `pytest` (468 passed) and frontend typecheck + 67 tests + build.
 - SQLite job updates are flat: 200 status updates measured at ~0.27 ms/update with
   1 job and ~0.25 ms/update with 200 jobs (0.93x) - the old full-table rewrite is
   gone.
@@ -533,6 +533,20 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   closed, the deterministic scenario completes with extract submitting findings
   (2/20, previously 1/20 or a failed job); what remains is findings quality and
   rendering, not structure.
+- **Ollama/llama3.1 tool calling breaks on per-field schema descriptions
+  (2026-09-15).** A tool whose parameter schema carries `description` keys makes
+  llama3.1 emit the call as *prose* instead of a native tool call (measured:
+  descriptions stripped -> native call; present -> no call). Keep durable rules
+  in the tool-level description, not in the parameter grammar.
+- **`draft` renders deterministically from an assessment (2026-09-15).** When an
+  assessment exists, draft calls the word/excel/presentation generators directly
+  in Python - no model turn, structural cross-deliverable consistency. The
+  sandbox output rides along as a calculation appendix. But it is unexerciseable
+  until extract produces findings: **extract's model adherence is the remaining
+  scenario blocker** - llama3.1 intermittently calls no tool at all across the
+  iteration budget, so no assessment exists. Fix: a stronger tool-capable extract
+  model, or deterministic extraction (build `FindingsObject` from the injected
+  extraction / Docling table), which removes the model from that loop.
 - **Ollama call timeout can fail a job (2026-09-14).** A single slow generation
   on CPU exceeded the default 120 s `OLLAMA_TIMEOUT_SECONDS` and failed the job
   mid-sequence. Benchmark runs use a larger value; raise it (or cap generation)

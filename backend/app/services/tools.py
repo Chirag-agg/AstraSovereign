@@ -290,9 +290,18 @@ class SubmitFindingsTool(BaseTool):
 
     name = "submit_findings"
     description = (
-        "Submit the final structured findings object for this job. Call once, "
-        "with every course reading. The task completes when this is accepted."
+        "Submit the final structured findings for this job. Call it once, after "
+        "reading the attachments, with the nameplate geometry and every course "
+        "reading (each with its survey date and source document/page). Never answer "
+        "from memory. If a source cell is ambiguous - e.g. a struck-through value "
+        "plus a handwritten correction - put every candidate in candidates_mm and "
+        "set value_mm to the handwritten/latest value. The task completes only when "
+        "this call is accepted."
     )
+    # NOTE: no per-field "description" keys. Ollama/llama3.1 stops emitting native
+    # tool calls when a tool's parameter schema carries descriptions (measured:
+    # stripped -> called, present -> prose). Keep the durable rules in the tool
+    # description above instead; it does not go through the parameter grammar.
     input_schema = {
         "type": "object",
         "properties": {

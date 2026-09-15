@@ -11,9 +11,7 @@ that exhausts its budget degrades to ``REFER_ASSESSMENT_INCOMPLETE`` rather than
 failing or leaving a blank field.
 """
 
-import json
 import logging
-import re
 from typing import Any, Optional
 
 from app.schemas.findings import AssessmentResult, FindingsObject
@@ -31,6 +29,7 @@ from app.services.findings import (
     minimal_thickness_mm,
     traceability_violations,
 )
+from app.services.log_context import set_job_context
 
 logger = logging.getLogger("app.nodes")
 
@@ -98,26 +97,6 @@ def _is_infrastructure_failure(result: AgentResult) -> bool:
     return any(error.startswith(prefix) for prefix in _INFRASTRUCTURE_ERROR_PREFIXES)
 
 
-def _extract_findings(text: Optional[str]) -> Optional[FindingsObject]:
-    if not text:
-        return None
-    candidate = text.strip()
-    try:
-        data = json.loads(candidate)
-    except (ValueError, json.JSONDecodeError):
-        match = re.search(r"\{.*\}", candidate, flags=re.DOTALL)
-        if not match:
-            return None
-        try:
-            data = json.loads(match.group(0))
-        except (ValueError, json.JSONDecodeError):
-            return None
-    try:
-        return FindingsObject.model_validate(data)
-    except Exception:
-        return None
-
-
 class NodeAgent:
     """Runs the typed node sequence and records per-node routing decisions."""
 
@@ -133,10 +112,14 @@ class NodeAgent:
         available_models_provider=None,
         fallback_enabled: bool = True,
         is_cancelled=None,
+        tools=None,
     ) -> None:
         self._agent = agent
         self._router = capability_router
         self._registry = registry
+        # ToolRegistry, so draft can render deliverables deterministically from a
+        # complete assessment instead of paying a model to call the generators.
+        self._tools = tools
         self._scheduler = scheduler
         self._available_models_provider = available_models_provider
         self._fallback_enabled = fallback_enabled
@@ -255,7 +238,7 @@ class NodeAgent:
             something_to_draft = bool(self._node_outputs) or not attempt_docs
             cursor, response = await self._run_draft(
                 job, workspace, task, trace, cursor, findings, assessment,
-                something_to_draft, plan["general"],
+                something_to_draft, plan["general"], working=compute_response,
             )
         except NodeCancelledError:
             trace.append({"step": len(trace) + 1, "type": "agent_cancelled"})
@@ -296,15 +279,9 @@ class NodeAgent:
         model = route.model
         self._node_started(trace, "extract", model, confidence, runner_up)
         instruction = (
-            "Build the structured findings for the attached documents/images, then call "
-            "submit_findings exactly once with the object — do not answer with prose. The "
-            "attachment content is already in this message; call read_document for any "
-            "document whose full text you still need, and document_vision for scanned pages "
-            "and the nameplate. Never answer from memory; cite document_id/page in each "
-            "reading's source. If a cell shows more than one candidate value (a "
-            "struck-through value plus a handwritten correction), put both in candidates_mm "
-            "and set value_mm to the handwritten/latest value. Include every course reading "
-            "with its survey date and the nameplate geometry."
+            "Read the attachments (their content is in this message), then call "
+            "submit_findings once with the nameplate geometry and every shell-course reading "
+            "(course, value_mm, survey date, source). Never leave readings empty."
         )
         start = len(trace)
         parts = [instruction]
@@ -500,11 +477,13 @@ class NodeAgent:
             iterations=result.iterations, tool_calls=result.tool_calls,
         )
         self._node_outputs.append(assessment.model_dump_json())
-        return cursor, assessment, degraded, None
+        # Carry the sandbox working so draft can render it as an appendix; the
+        # authoritative numbers still come from assess() in Python.
+        return cursor, assessment, degraded, (result.response or "")
 
     async def _run_draft(
         self, job, workspace, task, trace, cursor, findings, assessment, something_to_draft,
-        planned,
+        planned, working=None,
     ):
         if not something_to_draft:
             self._skip(trace, "draft", "nothing grounded to draft from")
@@ -512,6 +491,19 @@ class NodeAgent:
         route, confidence, runner_up = planned
         model = route.model
         self._node_started(trace, "draft", model, confidence, runner_up)
+        # When the assessment is complete, the three deliverables are fully
+        # determined by it, so render them deterministically in Python — no model
+        # turn, no argument coercion, and cross-deliverable consistency is
+        # structural rather than hoped for.
+        if (
+            assessment is not None
+            and self._tools is not None
+            and self._tools.get("document_generation") is not None
+            and self._tools.get("presentation_generation") is not None
+        ):
+            return cursor, await self._render_assessment(
+                job, workspace, trace, assessment, findings, working
+            )
         if assessment is not None:
             payload = assessment.model_dump_json()
             instruction = (
@@ -560,6 +552,187 @@ class NodeAgent:
             iterations=result.iterations, tool_calls=result.tool_calls,
         )
         return cursor, result.response
+
+    # -- deterministic deliverables -------------------------------------------
+
+    @staticmethod
+    def _fmt(value) -> str:
+        return "-" if value is None else f"{value:.2f}"
+
+    @staticmethod
+    def _reason_text(course) -> str:
+        return {
+            "REFER_NO_BASELINE": "no previous baseline reading; referred for engineering review",
+            "REFER_AMBIGUOUS_READING": (
+                "ambiguous reading (more than one candidate value); referred for human review"
+            ),
+            "REFER_ASSESSMENT_INCOMPLETE": "assessment incomplete; referred for engineering review",
+        }.get(course.reason_code, course.reason or "")
+
+    def _assessment_rows(self, assessment) -> list[list[str]]:
+        rows = [[
+            "Course", "Current (mm)", "Previous (mm)", "Corrosion Rate (mm/yr)",
+            "Remaining Life (yr)", "Next Inspection (yr)", "Status", "Reason",
+        ]]
+        for course in assessment.courses:
+            label = (course.course or "").strip()
+            if not label.upper().startswith("C"):
+                label = f"C{label}"
+            rows.append([
+                label,
+                self._fmt(course.current_mm),
+                self._fmt(course.previous_mm),
+                self._fmt(course.corrosion_rate_mm_per_year),
+                self._fmt(course.remaining_life_years),
+                self._fmt(course.next_inspection_years),
+                course.status,
+                self._reason_text(course),
+            ])
+        return rows
+
+    def _recommendation(self, assessment) -> str:
+        def courses_for(status):
+            return [c.course for c in assessment.courses if c.status == status]
+
+        parts = []
+        repair = courses_for("REPAIR_REQUIRED")
+        alert = courses_for("ALERT")
+        refer = courses_for("REFER")
+        if repair:
+            parts.append(f"repair courses {', '.join(repair)} (below retirement thickness)")
+        if alert:
+            parts.append(f"monitor courses {', '.join(alert)} at the alert threshold")
+        if refer:
+            parts.append(f"refer courses {', '.join(refer)} for engineering review")
+        return "; ".join(parts) or "No action required."
+
+    async def _render_assessment(self, job, workspace, trace, assessment, findings, working):
+        """Render all three deliverables from the assessment object in Python.
+
+        Reuses the generation tools (containment, artifact registration, audit),
+        but the model is not in the loop: the assessment fully determines the
+        documents, so consistency across them is structural.
+        """
+        set_job_context(job_id=job.job_id, user_id=job.user_id, task_type=job.task_type)
+        rows = self._assessment_rows(assessment)
+        procedure = (getattr(findings, "procedure", "") or "SOP-09") if findings else "SOP-09"
+        tank = (getattr(findings, "tank", "") or "") if findings else ""
+        min_t = self._fmt(assessment.min_thickness_mm)
+        alert_t = self._fmt(assessment.alert_thickness_mm)
+        course5 = next((c for c in assessment.courses if c.course == "5"), None)
+        reason5 = self._reason_text(course5) if course5 is not None else ""
+        background = (
+            f"Assessed per {procedure}. Retirement thickness {min_t} mm; alert "
+            f"threshold {alert_t} mm. {reason5}"
+        ).strip()
+        recommendation = self._recommendation(assessment)
+        approval = {
+            "reference_number": "",
+            "date": "",
+            "originator": "Inspection Department",
+            "department": "Mechanical Maintenance",
+            "subject": f"Tank {tank or '204'} fitness-for-service assessment per {procedure}",
+            "background": background,
+            "recommendation": recommendation,
+            "signatures": [],
+        }
+        sections = [{"heading": "Findings", "paragraphs": [background], "table": rows}]
+        if working and working.strip():
+            sections.append(
+                {"heading": "Calculation appendix", "paragraphs": [working.strip()[:8000]]}
+            )
+        docx_args = {
+            "type": "word",
+            "filename": "approval_note.docx",
+            "title": f"Tank {tank or '204'} Fitness-for-Service Approval Note",
+            "document_type": "approval_note",
+            "classification": "INTERNAL",
+            "sections": sections,
+            "sources": [procedure],
+            "approval": approval,
+        }
+        xlsx_args = {
+            "type": "excel",
+            "filename": "assessment.xlsx",
+            "title": f"Tank {tank or '204'} Fitness-for-Service Calculations",
+            "document_type": "spreadsheet",
+            "sections": [{"heading": "Assessment", "table": rows}],
+            "sources": [procedure],
+        }
+        slides = [
+            {
+                "type": "title",
+                "title": f"Tank {tank or '204'} Fitness-for-Service",
+                "content": f"Per {procedure}",
+            },
+            {
+                "type": "bullets",
+                "title": "Findings",
+                "bullets": [f"Retirement {min_t} mm; alert {alert_t} mm", recommendation],
+            },
+            {"type": "table", "title": "Assessment", "table": rows},
+            {"type": "sources", "title": "Sources", "sources": [procedure]},
+        ]
+        pptx_args = {
+            "type": "pptx",
+            "filename": "assessment.pptx",
+            "title": f"Tank {tank or '204'}",
+            "slides": slides,
+        }
+
+        for tool_name, args in (
+            ("document_generation", docx_args),
+            ("document_generation", xlsx_args),
+            ("presentation_generation", pptx_args),
+        ):
+            tool = self._tools.get(tool_name)
+            trace.append(
+                {
+                    "step": len(trace) + 1,
+                    "type": "tool_call",
+                    "tool": tool_name,
+                    "arguments": {
+                        "type": args.get("type"),
+                        "filename": args.get("filename"),
+                        "title": args.get("title"),
+                    },
+                }
+            )
+            try:
+                result = await tool.execute(workspace, args)
+            except Exception as exc:
+                trace.append(
+                    {
+                        "step": len(trace) + 1,
+                        "type": "tool_result",
+                        "tool": tool_name,
+                        "ok": False,
+                        "result_summary": str(exc)[:200],
+                    }
+                )
+                self._node_degraded(trace, "draft", f"{tool_name} failed: {exc}")
+                return None
+            self._tool_calls += 1
+            trace.append(
+                {
+                    "step": len(trace) + 1,
+                    "type": "tool_result",
+                    "tool": tool_name,
+                    "ok": result.ok,
+                    "result_summary": result.summary,
+                }
+            )
+        self._node_completed(trace, "draft", deliverables=3)
+        statuses: dict[str, int] = {}
+        for course in assessment.courses:
+            statuses[course.status] = statuses.get(course.status, 0) + 1
+        breakdown = ", ".join(f"{count} {status}" for status, count in sorted(statuses.items()))
+        summary = (
+            "Rendered the approval note, spreadsheet and deck from the assessment "
+            f"({breakdown}). Retirement thickness {min_t} mm; alert threshold {alert_t} mm."
+        )
+        self._node_outputs.append(summary)
+        return summary
 
     # -- resource reservation -------------------------------------------------
 
