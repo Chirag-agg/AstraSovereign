@@ -19,10 +19,10 @@ export function formatBytes(bytes: number): string {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  word: "Word Document",
-  excel: "Excel Workbook",
-  pptx: "PowerPoint Deck",
-  pdf: "Compliance Report PDF",
+  word: "Word document",
+  excel: "Excel workbook",
+  pptx: "PowerPoint deck",
+  pdf: "Compliance report PDF",
 };
 
 export function artifactTypeLabel(type: string): string {
@@ -50,7 +50,11 @@ export default function ArtifactCard({
 
   return (
     <>
-      <div className="flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:border-purple-300 transition-all gap-3 font-sans">
+      <div
+        role="group"
+        aria-label={`Artifact ${artifact.filename}`}
+        className="flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:border-purple-300 transition-all gap-3 font-sans"
+      >
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700 shrink-0">
             <FileText className="w-5 h-5" />

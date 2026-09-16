@@ -144,8 +144,8 @@ export default function Login({
               <span className="block text-base font-extrabold text-slate-900 tracking-tight leading-tight">
                 AstraSovereign
               </span>
-              <span className="block text-[11px] font-semibold text-purple-600 tracking-wide uppercase">
-                Air-Gapped Sovereign OS
+              <span className="block text-[11px] font-semibold text-purple-600 tracking-wide">
+                Sign in to the on-premise AI workbench
               </span>
             </div>
           </div>

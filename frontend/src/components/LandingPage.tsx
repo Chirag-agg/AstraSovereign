@@ -31,6 +31,10 @@ function useInView(threshold = 0.15) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return;
+    }
     const obs = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect(); } },
       { threshold }
@@ -212,10 +216,11 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
           <button
             type="button"
             onClick={onEnter}
+            aria-label="Sign In to Portal"
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white cursor-pointer transition-all hover:scale-105 active:scale-95"
             style={{ background: "linear-gradient(135deg,#7047eb,#9d7cfc)", boxShadow: "0 0 24px #7047eb55" }}
           >
-            Sign In <ArrowRight className="w-4 h-4" />
+            <span>Sign In to Portal</span> <ArrowRight className="w-4 h-4" />
           </button>
         </div>
 

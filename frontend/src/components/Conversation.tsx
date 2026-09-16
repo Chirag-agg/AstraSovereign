@@ -131,13 +131,25 @@ export default function Conversation({
 
   if (!job) {
     return (
-      <div className="w-full">
-        <ThemeTerminal
-          themeKey={themeKey}
-          onRunCommand={onSubmit}
-          user={userId}
-          running={false}
-        />
+      <div className="welcome font-mono text-left p-6 rounded-2xl border border-purple-100 bg-white shadow-xs space-y-4">
+        <div className="flex items-center gap-2 mb-2 text-xs text-purple-600 font-semibold uppercase tracking-wider">
+          <span className="h-1.5 w-1.5 rounded-full bg-purple-600" />
+          <span>ON-PREMISE AI ENGINEERING WORKBENCH</span>
+        </div>
+        <h2 className="text-lg font-semibold text-slate-800 tracking-tight mb-1">
+          Agent Execution & Inference Workspace
+        </h2>
+        <p className="text-slate-500 text-xs leading-relaxed max-w-xl mb-3">
+          Submit tasks, review documents, or verify code in a fully air-gapped environment. Models, OCR pipelines, vector stores, and execution sandboxes execute strictly on this machine.
+        </p>
+        <button
+          type="button"
+          aria-label={`Try the demo: ${DEMO_TASK}`}
+          onClick={() => onSubmit(DEMO_TASK)}
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-mono transition-colors cursor-pointer"
+        >
+          <span>Try the demo — “{DEMO_TASK}”</span>
+        </button>
       </div>
     );
   }
@@ -225,16 +237,9 @@ export default function Conversation({
           )
         ) : null}
 
-        {/* Theme-Matched Terminal Output instead of grey console */}
         {(job.execution_trace && job.execution_trace.length > 0) || job.status === "running" ? (
           <div style={{ margin: "12px 0 16px" }}>
-            <ThemeTerminal
-              themeKey={themeKey}
-              activeJob={job}
-              running={job.status === "running"}
-              onRunCommand={onSubmit}
-              user={userId}
-            />
+            <WorkConsole job={job} expanded={consoleOpen} onToggle={() => setConsoleOpen(!consoleOpen)} />
           </div>
         ) : null}
 

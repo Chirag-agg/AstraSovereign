@@ -146,9 +146,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
 
   // Admin users have full access to the Sovereign workbench with AI Assistant, Sandbox, and Team management.
 
-  const [currentSection, setCurrentSection] = useState<WorkbenchSection>(
-    typeof process !== "undefined" && process.env.NODE_ENV === "test" ? "agent" : "home"
-  );
+  const [currentSection, setCurrentSection] = useState<WorkbenchSection>("agent");
   const [activeJobId, setActiveJobId] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -258,7 +256,10 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
       const selected = useAllDocuments
         ? readyDocuments.map((doc) => doc.document_id)
         : chips
-            .filter((chip) => chip.documentId && chip.state === "ready")
+            .filter(
+              (chip) =>
+                chip.documentId && (chip.state === "ready" || chip.state === "processing"),
+            )
             .map((chip) => chip.documentId as string);
       const documentIds = Array.from(new Set(selected));
       try {
@@ -830,7 +831,7 @@ export default function WorkbenchPage() {
   }
 
   return (
-    <AstraSovereignDashboard
+    <WorkbenchWorkspace
       onSignOut={handleSignOut}
     />
   );

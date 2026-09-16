@@ -24,17 +24,17 @@ const STATE_CONFIG: Record<
     icon: Loader2,
   },
   processing: {
-    label: "Indexing (Air-Gap)",
+    label: "indexing",
     color: "bg-purple-50 text-purple-700 border-purple-200",
     icon: Clock,
   },
   ready: {
-    label: "Vector Ready",
+    label: "indexed",
     color: "bg-emerald-50 text-emerald-700 border-emerald-200",
     icon: CheckCircle2,
   },
   failed: {
-    label: "Failed",
+    label: "failed",
     color: "bg-rose-50 text-rose-700 border-rose-200",
     icon: AlertCircle,
   },
@@ -273,14 +273,16 @@ export default function Composer({
             <button
               type="button"
               onClick={onCancel}
+              aria-label="Cancel task"
               className="px-4 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition-colors cursor-pointer"
             >
-              Cancel Task
+              Cancel task
             </button>
           ) : (
             <button
               type="button"
               onClick={send}
+              aria-label="Send"
               disabled={!canSend}
               className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl font-bold text-xs transition-all shadow-2xs cursor-pointer ${
                 canSend
@@ -289,7 +291,7 @@ export default function Composer({
               }`}
             >
               <ArrowUp className="w-3.5 h-3.5" />
-              <span>Send Prompt</span>
+              <span>Send</span>
             </button>
           )}
         </div>

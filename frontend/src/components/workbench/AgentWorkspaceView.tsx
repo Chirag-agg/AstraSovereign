@@ -48,10 +48,10 @@ interface AgentWorkspaceViewProps {
   chips: AttachmentChip[];
   onAttachFile: (file: File) => void;
   onRemoveChip: (id: string) => void;
-  libraryDocuments: DocumentMeta[];
-  useAllDocuments: boolean;
-  onToggleUseAllDocuments: (value: boolean) => void;
-  onAttachDocument: (document: DocumentMeta) => void;
+  libraryDocuments?: DocumentMeta[];
+  useAllDocuments?: boolean;
+  onToggleUseAllDocuments?: (value: boolean) => void;
+  onAttachDocument?: (document: DocumentMeta) => void;
   consoleOpen: boolean;
   setConsoleOpen: (open: boolean) => void;
   healthError: string | null;
@@ -71,10 +71,10 @@ export default function AgentWorkspaceView({
   chips,
   onAttachFile,
   onRemoveChip,
-  libraryDocuments,
-  useAllDocuments,
-  onToggleUseAllDocuments,
-  onAttachDocument,
+  libraryDocuments = [],
+  useAllDocuments = false,
+  onToggleUseAllDocuments = () => {},
+  onAttachDocument = () => {},
   consoleOpen,
   setConsoleOpen,
   healthError,

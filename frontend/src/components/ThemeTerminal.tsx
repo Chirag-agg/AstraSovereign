@@ -179,7 +179,7 @@ export default function ThemeTerminal({
 
   // Auto scroll to bottom
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView?.({ behavior: "smooth" });
   }, [logs, running]);
 
   const handleCommandSubmit = (e: React.FormEvent) => {
