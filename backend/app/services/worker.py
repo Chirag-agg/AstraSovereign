@@ -8,12 +8,14 @@ so there is never more than one active model request at a time.
 
 import asyncio
 import logging
+import shutil
 from datetime import datetime, timezone
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Union
 
 from app.schemas.job import Job, JobStatus
 from app.services.agent import Agent, AgentStatus
-from app.services.attachments import build_attachment_manifest
+from app.services.attachments import build_attachment_manifest, render_attachment_block
 from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
 from app.services.capability_classifier import SemanticCapabilityClassifier
@@ -41,6 +43,7 @@ class Worker:
         projects: Optional[CoworkProjects] = None,
         project_locks: Optional[ProjectLocks] = None,
         context_manager: Optional[ContextManager] = None,
+        uploads_root: Optional[Union[str, Path]] = None,
     ) -> None:
         self._queue = queue
         self._manager = manager
@@ -54,6 +57,7 @@ class Worker:
         self._projects = projects
         self._project_locks = project_locks
         self._context_manager = context_manager
+        self._uploads_root = Path(uploads_root).resolve() if uploads_root else None
         self._task: Optional[asyncio.Task] = None
         self._state = "stopped"  # stopped | idle | running
         self._active_job_id: Optional[str] = None
@@ -179,17 +183,19 @@ class Worker:
                 task_text = self._context_manager.build_request(
                     job.user_id, job.project_id, job.message
                 )
+            manifest = await self._attachment_manifest(job, workspace=workspace)
             if self._node_agent is not None:
-                manifest = await self._attachment_manifest(job)
                 agent_result = await self._node_agent.run(
                     job, workspace, task_text=task_text, attachments=manifest
                 )
             else:
+                attachment_block = render_attachment_block(manifest)
+                effective_task_text = f"{task_text}\n\n{attachment_block}" if attachment_block else task_text
                 agent_result = await self._agent.run(
                     job=job,
                     model=self._ollama.default_model,
                     workspace=workspace,
-                    task_text=task_text,
+                    task_text=effective_task_text,
                 )
         except OllamaServiceError as exc:
             await self._fail(job, error=f"{exc.__class__.__name__}: {exc}")
@@ -242,7 +248,7 @@ class Worker:
             self._active_job_id = None
             self._state = "idle"
 
-    async def _attachment_manifest(self, job: Job) -> list[dict]:
+    async def _attachment_manifest(self, job: Job, workspace: Optional[Path] = None) -> list[dict]:
         """Job-scoped attachments: only the documents named on the job.
 
         Never the user's whole library — that flooded the node input with 65
@@ -254,11 +260,27 @@ class Worker:
         wanted = set(job.document_ids)
         selected = [document for document in documents if document.document_id in wanted]
 
+        # Stage files into workspace/attachments so tools like read_file or code_execution can find them
+        if workspace is not None and self._uploads_root is not None:
+            attachments_dir = workspace / "attachments"
+            attachments_dir.mkdir(parents=True, exist_ok=True)
+            for doc in selected:
+                source = self._uploads_root / (doc.source_relpath or f"{job.user_id}/{doc.filename}")
+                if source.is_file():
+                    try:
+                        dest = attachments_dir / doc.filename
+                        if not dest.exists():
+                            shutil.copy2(source, dest)
+                    except OSError:
+                        pass
+
         def lookup(document) -> Optional[str]:
-            extraction = self._knowledge_base.get_extraction(
-                job.user_id, document.document_id
-            )
-            return extraction.markdown if extraction is not None else None
+            if hasattr(self._knowledge_base, "get_extraction"):
+                extraction = self._knowledge_base.get_extraction(
+                    job.user_id, document.document_id
+                )
+                return extraction.markdown if extraction is not None else None
+            return None
 
         return build_attachment_manifest(selected, extraction_lookup=lookup)
 

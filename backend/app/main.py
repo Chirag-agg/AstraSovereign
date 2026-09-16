@@ -480,6 +480,7 @@ def create_app(
         projects=projects,
         project_locks=project_locks,
         context_manager=context_manager,
+        uploads_root=settings.uploads_root,
     )
 
     app = FastAPI(
