@@ -352,28 +352,28 @@ export default function DocumentPreviewModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-3 sm:p-6 animate-in fade-in select-none">
-      <div className="relative w-full max-w-6xl h-[92vh] bg-slate-900 rounded-3xl border border-slate-700/80 shadow-2xl flex flex-col overflow-hidden text-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-6 animate-in fade-in select-none">
+      <div className="relative w-full max-w-6xl h-[92vh] bg-[#0d0d12] rounded-3xl border border-zinc-800 shadow-2xl flex flex-col overflow-hidden text-zinc-100">
         {/* Modal Top Control Bar */}
-        <div className="h-16 px-6 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div className="h-16 px-6 bg-[#0d0d12] border-b border-zinc-800 flex items-center justify-between shrink-0">
           {/* File Info */}
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-purple-900/50 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-red-950/40 border border-red-800/40 flex items-center justify-center text-red-400 shrink-0">
               {activeDoc.type === "pdf" ? (
-                <FileText className="w-5 h-5 text-rose-400" />
+                <FileText className="w-5 h-5 text-red-400" />
               ) : activeDoc.type === "sheet" ? (
                 <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
               ) : activeDoc.type === "pptx" ? (
                 <Presentation className="w-5 h-5 text-amber-400" />
               ) : (
-                <FileCode className="w-5 h-5 text-purple-400" />
+                <FileCode className="w-5 h-5 text-red-400" />
               )}
             </div>
             <div className="min-w-0">
-              <h3 className="font-bold text-sm text-slate-100 truncate tracking-tight">
+              <h3 className="font-bold text-sm text-white truncate tracking-tight">
                 {activeDoc.filename}
               </h3>
-              <p className="text-xs text-slate-400 flex items-center gap-2">
+              <p className="text-xs text-zinc-400 flex items-center gap-2 font-mono">
                 <span>{activeDoc.size}</span>
                 <span>·</span>
                 <span className="text-emerald-400 flex items-center gap-1 font-semibold">
@@ -385,13 +385,13 @@ export default function DocumentPreviewModal({
           </div>
 
           {/* Device Mode Switcher (Phone / Tablet / Desktop) */}
-          <div className="hidden md:flex items-center gap-1 bg-slate-800/80 p-1 rounded-2xl border border-slate-700">
+          <div className="hidden md:flex items-center gap-1 bg-zinc-900 p-1 rounded-2xl border border-zinc-800">
             <button
               onClick={() => setDeviceMode("desktop")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 deviceMode === "desktop"
-                  ? "bg-purple-600 text-white shadow-xs"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "bg-gradient-to-r from-red-600 to-red-700 text-white shadow-xs"
+                  : "text-zinc-400 hover:text-zinc-200"
               }`}
               title="A4 Document Paper View"
             >
@@ -402,8 +402,8 @@ export default function DocumentPreviewModal({
               onClick={() => setDeviceMode("tablet")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 deviceMode === "tablet"
-                  ? "bg-purple-600 text-white shadow-xs"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "bg-gradient-to-r from-red-600 to-red-700 text-white shadow-xs"
+                  : "text-zinc-400 hover:text-zinc-200"
               }`}
               title="Tablet Reader View"
             >
@@ -414,8 +414,8 @@ export default function DocumentPreviewModal({
               onClick={() => setDeviceMode("phone")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 deviceMode === "phone"
-                  ? "bg-purple-600 text-white shadow-xs"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "bg-gradient-to-r from-red-600 to-red-700 text-white shadow-xs"
+                  : "text-zinc-400 hover:text-zinc-200"
               }`}
               title="Mobile Device Phone View"
             >
@@ -493,26 +493,26 @@ export default function DocumentPreviewModal({
           </div>
         </div>
 
-        {/* Live Document Working Status Banner (User Request: Preview that documents are being worked on) */}
-        <div className="bg-[#121622] border-b border-purple-500/30 px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs select-none">
+        {/* Live Document Working Status Banner */}
+        <div className="bg-[#09090b] border-b border-red-950/50 px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs select-none">
           <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
-            <span className="text-emerald-400 font-bold tracking-wide flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping shrink-0" />
+            <span className="text-red-400 font-bold tracking-wide flex items-center gap-1.5 font-mono">
               <Activity className="w-3.5 h-3.5" />
               <span>ACTIVE PROCESSING IN-PROGRESS:</span>
             </span>
-            <span className="text-slate-300 font-medium">
+            <span className="text-zinc-400 font-medium">
               Being worked on by Agent Alpha (ITAR Sentinel) & RapidOCR Engine
             </span>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 text-purple-300 font-mono text-[11.5px]">
-              <Sparkles className="w-3 h-3 text-purple-400 animate-spin" />
+            <div className="flex items-center gap-1.5 text-red-300 font-mono text-[11.5px]">
+              <Sparkles className="w-3 h-3 text-red-400 animate-spin" />
               <span>Clause Verification: 84% complete</span>
             </div>
-            <div className="w-28 h-2 bg-slate-800 rounded-full overflow-hidden shrink-0 border border-slate-700">
-              <div className="h-full bg-gradient-to-r from-purple-500 via-cyan-400 to-emerald-400 w-[84%] animate-pulse" />
+            <div className="w-28 h-2 bg-zinc-900 rounded-full overflow-hidden shrink-0 border border-zinc-800">
+              <div className="h-full bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 w-[84%] animate-pulse" />
             </div>
           </div>
         </div>
@@ -632,7 +632,7 @@ export default function DocumentPreviewModal({
               </div>
               <div className="bg-white text-slate-900 p-8 space-y-6 max-h-[660px] overflow-y-auto">
                 <div className="border-b border-slate-200 pb-4">
-                  <span className="text-xs font-bold text-purple-700 uppercase tracking-wider">
+                  <span className="text-xs font-bold text-red-600 uppercase tracking-wider font-mono">
                     {activeDoc.department}
                   </span>
                   <h1 className="text-xl font-bold text-slate-900 mt-1">{activeDoc.title}</h1>
@@ -698,14 +698,14 @@ export default function DocumentPreviewModal({
               <div className="space-y-4 border-b-2 border-slate-900 pb-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-900 flex items-center justify-center text-white font-black text-sm">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-red-700 flex items-center justify-center text-white font-black text-sm shadow-[0_0_12px_rgba(239,68,68,0.3)]">
                       AS
                     </div>
                     <div>
                       <h2 className="text-lg font-black text-slate-900 tracking-tight leading-tight">
                         ASTRASOVEREIGN WORKBENCH
                       </h2>
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 font-mono">
                         Air-Gapped Sovereign Intelligence Protocol
                       </p>
                     </div>
@@ -745,18 +745,18 @@ export default function DocumentPreviewModal({
                 </div>
               </div>
 
-              {/* Live In-Flight Working Annotation (User Request: Preview that documents are being worked on) */}
-              <div className="p-4 rounded-2xl bg-purple-50/90 border border-purple-200 text-xs space-y-1.5 animate-in fade-in select-text shadow-2xs">
-                <div className="flex items-center justify-between text-purple-900 font-bold">
+              {/* Live In-Flight Working Annotation */}
+              <div className="p-4 rounded-2xl bg-red-950/40 border border-red-800/60 text-xs space-y-1.5 animate-in fade-in select-text shadow-2xs">
+                <div className="flex items-center justify-between text-red-200 font-bold font-mono">
                   <span className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-600 animate-spin" />
+                    <Sparkles className="w-4 h-4 text-red-400 animate-spin" />
                     <span>Live In-Flight Annotation by Agent Alpha (ITAR Sentinel)</span>
                   </span>
-                  <span className="text-[10px] font-mono text-purple-700 bg-purple-200/80 px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-[10px] font-mono text-red-300 bg-red-900/60 border border-red-700/60 px-2 py-0.5 rounded-full font-bold">
                     IN-PROGRESS · 84% COMPLETE
                   </span>
                 </div>
-                <p className="text-purple-800 leading-relaxed font-sans text-xs">
+                <p className="text-zinc-300 leading-relaxed font-sans text-xs">
                   Automated clause extraction active. 14 vendor contractual agreements verified against ITAR Category VIII/XII regulations. Loopback SHA-256 verification hash generated on PCIe NVLink.
                 </p>
               </div>
@@ -766,18 +766,18 @@ export default function DocumentPreviewModal({
                 {activePageData?.sections.map((sec, idx) => (
                   <div key={idx} className="space-y-3">
                     {sec.heading && (
-                      <h3 className="text-base font-bold text-slate-900 tracking-tight border-b border-slate-100 pb-1">
+                      <h3 className="text-base font-bold text-slate-900 tracking-tight border-b border-slate-200 pb-1">
                         {sec.heading}
                       </h3>
                     )}
-                    <p className="text-sm text-slate-700 leading-relaxed font-sans">{sec.content}</p>
+                    <p className="text-sm text-slate-800 leading-relaxed font-sans">{sec.content}</p>
 
                     {sec.callout && (
                       <div
                         className={`p-4 rounded-xl border text-xs font-semibold leading-relaxed ${
                           sec.callout.type === "success"
                             ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                            : "bg-purple-50 border-purple-200 text-purple-800"
+                            : "bg-amber-50 border-amber-200 text-amber-900"
                         }`}
                       >
                         {sec.callout.text}

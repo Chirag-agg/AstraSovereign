@@ -11,6 +11,11 @@ import {
   Plus,
   Trash2,
   Save,
+  FileCode,
+  Sparkles,
+  Activity,
+  Play,
+  Eye,
   CheckCircle2,
   X,
 } from "lucide-react";
@@ -95,27 +100,27 @@ function FileRow({
         style={{ paddingLeft: `${depth * 14 + 10}px` }}
         className={`w-full flex items-center gap-2 text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
           isSelected
-            ? "bg-[#ede9fe] text-[#6d28d9] font-semibold"
+            ? "bg-red-950/40 text-red-300 border border-red-800/40 font-semibold"
             : isDir
-            ? "font-semibold text-slate-700 hover:bg-slate-100"
-            : "font-mono text-slate-600 hover:bg-slate-100"
+            ? "font-semibold text-zinc-200 hover:bg-[#27272a]"
+            : "font-mono text-zinc-400 hover:bg-[#27272a]"
         }`}
       >
         {isDir ? (
           <>
             {expanded ? (
-              <FolderOpen className="w-3.5 h-3.5 text-[#7047eb] shrink-0" />
+              <FolderOpen className="w-3.5 h-3.5 text-red-500 shrink-0" />
             ) : (
-              <Folder className="w-3.5 h-3.5 text-[#7047eb] shrink-0" />
+              <Folder className="w-3.5 h-3.5 text-red-500 shrink-0" />
             )}
             <span className="truncate">{node.name}</span>
           </>
         ) : (
           <>
-            <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <FileText className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
             <span className="truncate">{node.name}</span>
             {node.size != null && (
-              <span className="ml-auto text-[10px] text-slate-400 shrink-0">
+              <span className="ml-auto text-[10px] text-zinc-500 shrink-0">
                 {formatBytes(node.size)}
               </span>
             )}
@@ -123,7 +128,7 @@ function FileRow({
         )}
       </button>
       {isDir && expanded && node.children?.length === 0 && (
-        <div className="text-[11px] text-slate-400 pl-8 py-0.5 italic">Empty folder</div>
+        <div className="text-[11px] text-zinc-500 pl-8 py-0.5 italic">Empty folder</div>
       )}
       {isDir &&
         expanded &&
@@ -317,15 +322,15 @@ export default function FilesView() {
   const tree = buildTree(entries);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#09090b]">
       <div className="max-w-[1500px] mx-auto w-full space-y-5">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 tracking-tight">
               Workspace Files &amp; Projects
             </h1>
-            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1 leading-relaxed">
+            <p className="text-xs sm:text-sm text-zinc-400 font-medium mt-1 leading-relaxed">
               Create and manage projects, source code, scripts, and deliverables in isolated local workspaces.
             </p>
           </div>
@@ -334,7 +339,7 @@ export default function FilesView() {
             <button
               type="button"
               onClick={() => setIsNewProjectModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white px-4 py-2 text-xs font-bold shadow-xs transition-all cursor-pointer"
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white px-4 py-2 text-xs font-bold shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all cursor-pointer font-mono"
             >
               <Plus className="w-4 h-4" />
               <span>+ New Project</span>
@@ -344,7 +349,7 @@ export default function FilesView() {
               type="button"
               onClick={() => void loadProjects()}
               disabled={loadingProjects}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors cursor-pointer disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-[#111115] hover:bg-[#18181b] px-3.5 py-2 text-xs font-semibold text-zinc-200 transition-colors cursor-pointer disabled:opacity-60"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loadingProjects ? "animate-spin" : ""}`} />
               <span>Refresh</span>
@@ -354,14 +359,14 @@ export default function FilesView() {
 
         {/* Notice & Error */}
         {notice && (
-          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-xs font-semibold shadow-xs animate-fade-in">
+          <div className="flex items-center gap-2 bg-emerald-950/40 border border-emerald-900/50 text-emerald-800 rounded-xl px-4 py-2.5 text-xs font-semibold shadow-xs animate-fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{notice}</span>
           </div>
         )}
 
         {error && (
-          <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-4 py-2.5 text-xs font-medium">
+          <div className="flex items-center gap-2 bg-rose-950/40 border border-rose-900/50 text-rose-400 rounded-xl px-4 py-2.5 text-xs font-medium">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -370,15 +375,15 @@ export default function FilesView() {
         {/* 3-Column Workspace Explorer */}
         <div className="flex flex-col lg:flex-row gap-4 min-h-[520px]">
           {/* Column 1: Projects List */}
-          <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-3 lg:w-72 shrink-0 flex flex-col">
-            <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100 mb-2">
-              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+          <div className="bg-[#111115] border border-zinc-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-3 lg:w-72 shrink-0 flex flex-col">
+            <div className="flex items-center justify-between px-2 py-1.5 border-b border-zinc-800 mb-2">
+              <h2 className="text-xs font-bold text-zinc-100 uppercase tracking-wider">
                 Projects
               </h2>
               <button
                 type="button"
                 onClick={() => setIsNewProjectModalOpen(true)}
-                className="text-[11px] font-bold text-[#7047eb] hover:underline flex items-center gap-1 cursor-pointer"
+                className="text-[11px] font-bold text-red-400 hover:underline flex items-center gap-1 cursor-pointer font-mono"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>New</span>
@@ -386,15 +391,15 @@ export default function FilesView() {
             </div>
 
             {loadingProjects ? (
-              <div className="flex items-center justify-center gap-2 text-slate-500 text-xs py-12">
+              <div className="flex items-center justify-center gap-2 text-zinc-400 text-xs py-12">
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 Loading projects...
               </div>
             ) : projects.length === 0 ? (
               <div className="px-3 py-12 text-center space-y-2">
                 <Folder className="w-8 h-8 text-slate-300 mx-auto" />
-                <p className="text-xs font-semibold text-slate-700">No workspace projects</p>
-                <p className="text-[11px] text-slate-400">Click &quot;+ New Project&quot; above to create your first project!</p>
+                <p className="text-xs font-semibold text-zinc-200">No workspace projects</p>
+                <p className="text-[11px] text-zinc-500">Click &quot;+ New Project&quot; above to create your first project!</p>
               </div>
             ) : (
               <div className="space-y-1 overflow-y-auto max-h-[540px] pr-1">
@@ -407,14 +412,14 @@ export default function FilesView() {
                       className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
                         isSelected
                           ? "bg-[#ede9fe] border-[#c4b5fd] text-[#6d28d9] shadow-xs"
-                          : "border-transparent hover:bg-slate-50 text-slate-700"
+                          : "border-transparent hover:bg-[#18181b] text-zinc-200"
                       }`}
                     >
                       <div className="flex items-center gap-2 min-w-0 pr-1">
-                        <Folder className={`w-4 h-4 shrink-0 ${isSelected ? "text-[#7047eb]" : "text-slate-400"}`} />
+                        <Folder className={`w-4 h-4 shrink-0 ${isSelected ? "text-red-500" : "text-zinc-500"}`} />
                         <div className="min-w-0">
                           <p className="text-xs font-bold truncate">{p.name}</p>
-                          <p className="text-[10px] font-mono text-slate-400 truncate">{p.project_id}</p>
+                          <p className="text-[10px] font-mono text-zinc-500 truncate">{p.project_id}</p>
                         </div>
                       </div>
 
@@ -422,7 +427,7 @@ export default function FilesView() {
                         type="button"
                         onClick={(e) => void handleDeleteProject(p.project_id, e)}
                         title="Delete project"
-                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-600 transition-opacity cursor-pointer shrink-0"
+                        className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-rose-600 transition-opacity cursor-pointer shrink-0"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -434,16 +439,16 @@ export default function FilesView() {
           </div>
 
           {/* Column 2: Files Tree */}
-          <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-3 lg:w-80 shrink-0 flex flex-col">
-            <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100 mb-2">
-              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+          <div className="bg-[#111115] border border-zinc-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-3 lg:w-80 shrink-0 flex flex-col">
+            <div className="flex items-center justify-between px-2 py-1.5 border-b border-zinc-800 mb-2">
+              <h2 className="text-xs font-bold text-zinc-100 uppercase tracking-wider">
                 Files
               </h2>
               {selectedProject && (
                 <button
                   type="button"
                   onClick={() => setIsNewFileModalOpen(true)}
-                  className="text-[11px] font-bold text-[#7047eb] hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-[11px] font-bold text-red-400 hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>+ File</span>
@@ -453,18 +458,18 @@ export default function FilesView() {
 
             {selectedProject ? (
               loadingFiles ? (
-                <div className="flex items-center justify-center gap-2 text-slate-500 text-xs py-12">
+                <div className="flex items-center justify-center gap-2 text-zinc-400 text-xs py-12">
                   <RefreshCw className="w-4 h-4 animate-spin" />
                   Loading files...
                 </div>
               ) : tree.length === 0 ? (
                 <div className="px-3 py-12 text-center space-y-2">
                   <FileText className="w-8 h-8 text-slate-300 mx-auto" />
-                  <p className="text-xs font-semibold text-slate-700">Project is empty</p>
+                  <p className="text-xs font-semibold text-zinc-200">Project is empty</p>
                   <button
                     type="button"
                     onClick={() => setIsNewFileModalOpen(true)}
-                    className="text-xs font-bold text-[#7047eb] hover:underline cursor-pointer"
+                    className="text-xs font-bold text-red-400 hover:underline cursor-pointer"
                   >
                     + Create a file (e.g. main.py)
                   </button>
@@ -483,22 +488,22 @@ export default function FilesView() {
                 </div>
               )
             ) : (
-              <p className="text-xs text-slate-400 px-2 py-12 text-center">
+              <p className="text-xs text-zinc-500 px-2 py-12 text-center">
                 Select a project to inspect and add files.
               </p>
             )}
           </div>
 
           {/* Column 3: File Content & Editor */}
-          <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex-1 min-w-0 flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="bg-[#111115] border border-zinc-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex-1 min-w-0 flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
               <div className="flex items-center gap-2 truncate">
-                <FileText className="w-4 h-4 text-[#7047eb] shrink-0" />
-                <span className="text-xs font-bold text-slate-900 truncate">
+                <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                <span className="text-xs font-bold text-zinc-100 truncate">
                   {selectedFile || "Workspace File Preview"}
                 </span>
                 {selectedProject && selectedFile && (
-                  <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+                  <span className="text-[10px] font-mono text-zinc-500 bg-slate-100 px-2 py-0.5 rounded">
                     {selectedProject.name}
                   </span>
                 )}
@@ -509,7 +514,7 @@ export default function FilesView() {
                   type="button"
                   onClick={() => void handleSaveFile()}
                   disabled={savingFile}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-semibold shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-colors cursor-pointer disabled:opacity-50 font-mono"
                 >
                   <Save className="w-3.5 h-3.5" />
                   <span>{savingFile ? "Saving..." : "Save File"}</span>
@@ -518,23 +523,26 @@ export default function FilesView() {
             </div>
 
             {loadingContent ? (
-              <div className="flex items-center justify-center gap-2 text-slate-500 text-xs py-20 flex-1">
+              <div className="flex items-center justify-center gap-2 text-zinc-400 text-xs py-20 flex-1">
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 Loading file content...
               </div>
             ) : selectedFile && content !== null ? (
-              <textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                className="flex-1 w-full p-4 mt-3 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:border-purple-500 transition-all resize-none leading-relaxed shadow-inner"
-                spellCheck={false}
-              />
+              <div className="flex-1 min-h-0 flex flex-col pt-3">
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className="w-full flex-1 p-3.5 rounded-xl border border-zinc-800 bg-slate-900 text-slate-100 font-mono text-xs leading-relaxed focus:outline-none focus:border-red-500 resize-none select-text"
+                  placeholder="File content..."
+                  spellCheck={false}
+                />
+              </div>
             ) : (
-              <div className="flex flex-col items-center justify-center text-center py-24 flex-1 space-y-2">
-                <Code2 className="w-10 h-10 text-slate-300" />
-                <p className="text-sm font-semibold text-slate-700">No file selected</p>
-                <p className="text-xs text-slate-400 max-w-sm">
-                  Select an existing file from the tree to edit or click &quot;+ File&quot; to create a new file in this project.
+              <div className="flex flex-col items-center justify-center text-center p-12 flex-1 text-zinc-500">
+                <FileCode className="w-10 h-10 text-slate-300 mb-2" />
+                <p className="text-xs font-semibold text-zinc-400">No file selected</p>
+                <p className="text-[11px] text-zinc-500">
+                  Select a file from the file explorer tree to view or edit its contents.
                 </p>
               </div>
             )}
@@ -545,13 +553,13 @@ export default function FilesView() {
       {/* Modal: New Project */}
       {isNewProjectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Create New Workspace Project</h3>
+          <div className="bg-[#111115] rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-zinc-800 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <h3 className="text-sm font-bold text-zinc-100">Create New Project</h3>
               <button
                 type="button"
                 onClick={() => setIsNewProjectModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                className="text-zinc-500 hover:text-zinc-200 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -559,7 +567,7 @@ export default function FilesView() {
 
             <form onSubmit={handleCreateProject} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-zinc-200 mb-1">
                   Project Name
                 </label>
                 <input
@@ -567,8 +575,8 @@ export default function FilesView() {
                   required
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder="e.g. Pipeline Reliability Analysis"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-medium text-slate-900 focus:outline-none focus:border-purple-500 focus:bg-white"
+                  placeholder="e.g. data-pipeline or legal-audit"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-800 bg-[#18181b] text-xs font-medium text-zinc-100 focus:outline-none focus:border-red-500 focus:bg-[#111115]"
                 />
               </div>
 
@@ -576,14 +584,14 @@ export default function FilesView() {
                 <button
                   type="button"
                   onClick={() => setIsNewProjectModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:bg-[#27272a] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={creatingProject || !newProjectName.trim()}
-                  className="px-5 py-2 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold shadow-[0_0_12px_rgba(239,68,68,0.3)] cursor-pointer disabled:opacity-50 font-mono"
                 >
                   {creatingProject ? "Creating..." : "Create Project"}
                 </button>
@@ -596,15 +604,15 @@ export default function FilesView() {
       {/* Modal: New File */}
       {isNewFileModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">
+          <div className="bg-[#111115] rounded-3xl max-w-md w-full p-6 shadow-2xl border border-zinc-800 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <h3 className="text-sm font-bold text-zinc-100">
                 Create File in &quot;{selectedProject?.name}&quot;
               </h3>
               <button
                 type="button"
                 onClick={() => setIsNewFileModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                className="text-zinc-500 hover:text-zinc-200 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -612,7 +620,7 @@ export default function FilesView() {
 
             <form onSubmit={handleCreateFile} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-zinc-200 mb-1">
                   File Path / Filename
                 </label>
                 <input
@@ -621,12 +629,12 @@ export default function FilesView() {
                   value={newFilePath}
                   onChange={(e) => setNewFilePath(e.target.value)}
                   placeholder="e.g. main.py or utils/helpers.py"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-mono text-slate-900 focus:outline-none focus:border-purple-500 focus:bg-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-800 bg-[#18181b] text-xs font-mono text-zinc-100 focus:outline-none focus:border-red-500 focus:bg-[#111115]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-zinc-200 mb-1">
                   Initial Content (optional)
                 </label>
                 <textarea
@@ -634,7 +642,7 @@ export default function FilesView() {
                   value={newFileContent}
                   onChange={(e) => setNewFileContent(e.target.value)}
                   placeholder="# Initial code or document notes..."
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-mono text-slate-900 focus:outline-none focus:border-purple-500 focus:bg-white resize-none"
+                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-800 bg-[#18181b] text-xs font-mono text-zinc-100 focus:outline-none focus:border-red-500 focus:bg-[#111115] resize-none"
                 />
               </div>
 
@@ -642,14 +650,14 @@ export default function FilesView() {
                 <button
                   type="button"
                   onClick={() => setIsNewFileModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:bg-[#27272a] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={creatingFile || !newFilePath.trim()}
-                  className="px-5 py-2 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold shadow-[0_0_12px_rgba(239,68,68,0.3)] cursor-pointer disabled:opacity-50 font-mono"
                 >
                   {creatingFile ? "Creating..." : "Create File"}
                 </button>

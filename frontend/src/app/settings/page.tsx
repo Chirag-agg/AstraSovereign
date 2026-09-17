@@ -7,17 +7,17 @@ import EnterpriseSettingsView from "@/components/settings/EnterpriseSettingsView
 
 export default function SettingsPage() {
   return (
-    <main className="min-h-screen bg-[#F8FAFC] text-slate-800 p-4 sm:p-6">
+    <main className="min-h-screen bg-[#09090b] text-zinc-200 p-4 sm:p-6">
       <div className="max-w-[1440px] mx-auto space-y-4">
         <div className="flex items-center justify-between pb-2">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-bold transition-all shadow-2xs cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Return to Workspace</span>
           </Link>
-          <span className="text-xs font-bold text-slate-400">
+          <span className="text-xs font-bold text-zinc-500 font-mono">
             AstraSovereign Enterprise Governance &bull; config/models.yaml
           </span>
         </div>

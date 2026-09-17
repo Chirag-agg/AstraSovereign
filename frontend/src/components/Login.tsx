@@ -34,13 +34,13 @@ function AstraEmblem({ size = 28 }: { size?: number }) {
           <path
             key={i}
             d="M0 -3.2 C 1.2 -6.5, 2.2 -11, 0 -14.5 C -2.2 -11, -1.2 -6.5, 0 -3.2 Z"
-            fill="#7047eb"
+            fill="#ef4444"
             transform={`rotate(${angle})`}
             opacity={i % 2 === 0 ? 1 : 0.85}
           />
         ))}
-        <circle cx="0" cy="0" r="3" fill="#ffffff" />
-        <circle cx="0" cy="0" r="1.5" fill="#7047eb" />
+        <circle cx="0" cy="0" r="3" fill="#09090b" />
+        <circle cx="0" cy="0" r="1.5" fill="#ef4444" />
       </g>
     </svg>
   );
@@ -117,19 +117,19 @@ export default function Login({
   };
 
   return (
-    <div className="min-h-screen w-screen flex items-center justify-center bg-[#F8FAFC] p-4 relative overflow-hidden select-none font-sans">
-      {/* Background Soft Ambient Studio Glows */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-100/40 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-purple-100/40 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen w-screen flex items-center justify-center bg-[#09090b] text-zinc-200 p-4 relative overflow-hidden select-none font-sans">
+      {/* Background Soft Ambient Crimson Glows */}
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-red-950/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-red-950/20 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-md bg-white rounded-2xl p-7 md:p-8 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_12px_32px_rgba(15,23,42,0.06)] border border-slate-200/80 relative z-10 space-y-5 animate-in fade-in zoom-in-95">
+      <div className="w-full max-w-md bg-[#111115] rounded-2xl p-7 md:p-8 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] border border-zinc-800 relative z-10 space-y-5 animate-in fade-in zoom-in-95">
         
         {/* Back Button */}
         {onBack && (
           <button
             type="button"
             onClick={onBack}
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-800 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 hover:text-white transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to Home</span>
@@ -141,40 +141,40 @@ export default function Login({
           <div className="flex items-center gap-3">
             <AstraEmblem size={32} />
             <div>
-              <span className="block text-base font-extrabold text-slate-900 tracking-tight leading-tight">
+              <span className="block text-base font-extrabold text-white tracking-tight leading-tight">
                 AstraSovereign
               </span>
-              <span className="block text-[11px] font-semibold text-purple-600 tracking-wide">
+              <span className="block text-[11px] font-semibold text-red-400 tracking-wide font-mono">
                 Sign in to the on-premise AI workbench
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-red-400 bg-red-950/40 px-2.5 py-1 rounded-full border border-red-800/40 font-mono">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
             <span>Zero Egress</span>
           </div>
         </div>
 
-        {/* Discreet Single-Line Status Chip (User Request: NetworkGuard Active • 100% Offline Loopback) */}
-        <div className="flex items-center justify-center gap-2 py-2 px-3.5 rounded-xl bg-slate-50 border border-slate-200/70 text-xs font-medium text-slate-600">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-xs animate-pulse" />
+        {/* Discreet Single-Line Status Chip */}
+        <div className="flex items-center justify-center gap-2 py-2 px-3.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-medium text-zinc-400 font-mono">
+          <span className="w-2 h-2 rounded-full bg-red-500 shadow-xs animate-pulse" />
           <span>NetworkGuard Active • 100% Offline Loopback</span>
         </div>
 
-        {/* Elegant Segmented Control Role Selector: Admin L4 vs Normal User L2 */}
+        {/* Role Selector: Admin L4 vs Normal User L2 */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+          <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 font-mono">
             Workspace Role
           </label>
-          <div className="grid grid-cols-2 p-1 bg-slate-100/80 rounded-xl border border-slate-200/60 gap-1">
+          <div className="grid grid-cols-2 p-1 bg-zinc-950 rounded-xl border border-zinc-800 gap-1">
             <button
               type="button"
               onClick={() => handleRoleChange("admin")}
               className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
                 role === "admin"
-                  ? "bg-white text-purple-700 shadow-xs border border-slate-200/60"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-red-950/60 text-red-200 shadow-xs border border-red-800/60"
+                  : "text-zinc-400 hover:text-white"
               }`}
             >
               <Shield className="w-3.5 h-3.5" />
@@ -186,8 +186,8 @@ export default function Login({
               onClick={() => handleRoleChange("user")}
               className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
                 role === "user"
-                  ? "bg-white text-purple-700 shadow-xs border border-slate-200/60"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-red-950/60 text-red-200 shadow-xs border border-red-800/60"
+                  : "text-zinc-400 hover:text-white"
               }`}
             >
               <User className="w-3.5 h-3.5" />
@@ -199,7 +199,7 @@ export default function Login({
         {/* If Normal User, allow choosing department profile */}
         {role === "user" && (
           <div className="space-y-1.5 animate-in fade-in">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 font-mono">
               Department Profile
             </label>
             <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
@@ -212,27 +212,27 @@ export default function Login({
                     onClick={() => handleUserAccountChange(acc.id)}
                     className={`w-full flex items-center justify-between p-2 rounded-xl border text-left transition-all cursor-pointer ${
                       isSelected
-                        ? "border-[#7047eb] bg-purple-50/60 shadow-2xs"
-                        : "border-slate-100 hover:border-slate-200 bg-slate-50/60"
+                        ? "border-red-600 bg-red-950/40 text-red-200 shadow-2xs"
+                        : "border-zinc-800/80 hover:border-zinc-700 bg-zinc-900/60 text-zinc-300"
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <div className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-[10px] ${
-                        isSelected ? "bg-[#7047eb] text-white" : "bg-slate-200 text-slate-600"
+                        isSelected ? "bg-red-600 text-white" : "bg-zinc-800 text-zinc-400"
                       }`}>
                         {acc.id.split("-")[1]}
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-slate-800 leading-tight">
+                        <div className="text-xs font-bold text-zinc-200 leading-tight">
                           {acc.name}
                         </div>
-                        <div className="text-[10px] text-slate-400 font-medium">
+                        <div className="text-[10px] text-zinc-500 font-medium">
                           {acc.dept}
                         </div>
                       </div>
                     </div>
                     {isSelected && (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#7047eb] shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
                     )}
                   </button>
                 );
@@ -244,7 +244,7 @@ export default function Login({
         {/* Login Form: Username & Password */}
         <form onSubmit={handleSignIn} className="space-y-3.5">
           <div className="space-y-1">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 font-mono">
               Username
             </label>
             <div className="relative">
@@ -255,19 +255,19 @@ export default function Login({
                   setUsername(e.target.value);
                   setErrorMessage(null);
                 }}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 focus:bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none transition-all pl-9"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-semibold text-zinc-200 focus:bg-zinc-950 focus:border-red-500 focus:ring-1 focus:ring-red-500/50 outline-none transition-all pl-9"
                 placeholder="Enter username"
               />
-              <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <User className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
             </div>
           </div>
 
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 font-mono">
                 Password
               </label>
-              <span className="text-[10.5px] font-medium text-slate-400">
+              <span className="text-[10.5px] font-medium text-zinc-500 font-mono">
                 {role === "admin" ? "Default: admin123" : "Default: user123"}
               </span>
             </div>
@@ -279,14 +279,14 @@ export default function Login({
                   setPassword(e.target.value);
                   setErrorMessage(null);
                 }}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 focus:bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none transition-all pl-9 pr-9"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-semibold text-zinc-200 focus:bg-zinc-950 focus:border-red-500 focus:ring-1 focus:ring-red-500/50 outline-none transition-all pl-9 pr-9"
                 placeholder="Enter password"
               />
-              <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <KeyRound className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                className="absolute right-3 top-2.5 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -295,8 +295,8 @@ export default function Login({
 
           {/* Error Message */}
           {errorMessage && (
-            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-700 text-xs font-medium animate-in fade-in">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div className="p-2.5 rounded-xl bg-red-950/50 border border-red-800/80 flex items-start gap-2 text-red-200 text-xs font-medium animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
               <span>{errorMessage}</span>
             </div>
           )}
@@ -305,7 +305,7 @@ export default function Login({
           <button
             type="submit"
             disabled={signingIn}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#7047eb] hover:bg-[#5e38d6] active:scale-[0.98] text-white text-xs font-bold shadow-md hover:shadow-purple-500/25 transition-all cursor-pointer disabled:opacity-70"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 active:scale-[0.98] text-white text-xs font-bold shadow-[0_0_20px_rgba(239,68,68,0.3)] transition-all cursor-pointer disabled:opacity-70"
           >
             {signingIn ? (
               <span>Authorizing {role === "admin" ? "Admin" : "Analyst"} Clearance...</span>
@@ -319,7 +319,7 @@ export default function Login({
         </form>
 
         {/* Footer info */}
-        <div className="text-center text-[10.5px] text-slate-400 font-medium">
+        <div className="text-center text-[10.5px] text-zinc-500 font-medium font-mono">
           Bare-metal NVLink PCIe · AES-256 Ephemeral Token Storage
         </div>
       </div>

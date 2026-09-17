@@ -2,24 +2,12 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import {
-  Folder,
   FolderOpen,
   FileCode,
   FileText,
-  Database,
-  Cpu,
-  Bot,
-  Sliders,
-  Play,
-  Square,
-  Paperclip,
+  Terminal,
   CheckCircle2,
   Clock,
-  Terminal,
-  Shield,
-  Layers,
-  ChevronRight,
-  ChevronDown,
   RefreshCw,
   Download,
   AlertCircle,
@@ -28,13 +16,21 @@ import {
   FileSpreadsheet,
   FileDown,
   ShieldCheck,
+  ChevronRight,
+  X,
+  Bot,
+  Play,
+  ArrowRight,
+  Layers,
+  Cpu,
+  Eye,
+  ChevronDown,
 } from "lucide-react";
 import Composer, { type AttachmentChip } from "@/components/Composer";
 import type { ArtifactSummary, DocumentMeta, Job, JobStatus } from "@/lib/types";
 import { listJobFiles, listUserWorkspaceFiles } from "@/lib/api";
 import type { JobWorkspaceFile } from "@/lib/api";
 import Conversation, { DEMO_TASK } from "@/components/Conversation";
-import WorkConsole from "@/components/WorkConsole";
 
 interface AgentWorkspaceViewProps {
   user: string;
@@ -59,6 +55,49 @@ interface AgentWorkspaceViewProps {
   themeKey?: "violet" | "emerald" | "cobalt" | "amber" | "rose" | "dark";
 }
 
+const QUICK_ACTIONS = [
+  {
+    title: "API 653 Tank Assessment",
+    badge: "ENGINEERING",
+    description: "Review inspection report against maintenance procedure and create formal approval note.",
+    prompt: DEMO_TASK,
+    icon: FileCheckIcon,
+    color: "violet",
+  },
+  {
+    title: "Extract Tabular Ledger",
+    badge: "DATA & TABLES",
+    description: "Extract measured thickness readings and inspection tables into clean CSV / Excel ledger format.",
+    prompt: "Extract all tabular and numerical data from the uploaded files into a clean CSV format with columns: Item, Date, Reference ID, Quantity, and Amount.",
+    icon: FileSpreadsheet,
+    color: "emerald",
+  },
+  {
+    title: "Executive Approval Note",
+    badge: "DELIVERABLE",
+    description: "Compile findings into a formal executive Word document with signature blocks and clearance tables.",
+    prompt: "Generate a complete, structured executive deliverable PDF/Word report based on current workspace findings, formatted with clear section headers, metadata, tables, and official clearance sign-off blocks.",
+    icon: FileDown,
+    color: "blue",
+  },
+  {
+    title: "Docker Sandbox Verification",
+    badge: "CODE AUDIT",
+    description: "Execute Python validation inside isolated container to verify calculations without network egress.",
+    prompt: "Execute an isolated Python calculation in the Docker sandbox to verify minimum required thickness and remaining corrosion life.",
+    icon: Terminal,
+    color: "amber",
+  },
+];
+
+function FileCheckIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
+
 export default function AgentWorkspaceView({
   user,
   activeJob,
@@ -81,28 +120,16 @@ export default function AgentWorkspaceView({
   onResetSession,
   themeKey = "violet",
 }: AgentWorkspaceViewProps) {
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [workspaceFiles, setWorkspaceFiles] = useState<JobWorkspaceFile[]>([]);
-  const [selectedModel, setSelectedModel] = useState("Qwen 2.5 14B");
-  const [temperature, setTemperature] = useState(0.7);
-  const [contextWindow, setContextWindow] = useState("32,768");
-  const [selectedTools, setSelectedTools] = useState({
-    document_search: true,
-    document_vision: true,
-    code_execution: true,
-    document_generation: true,
-    workspace_fs: true,
-  });
+  const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
+  const [toolsDrawerOpen, setToolsDrawerOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [promptText, setPromptText] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Load the real files in the active job's workspace (or the user's workspace
-  // root when no job is selected).
+  // Load workspace files
   useEffect(() => {
     let alive = true;
     if (!activeJobId) {
-      setSelectedFile(null);
       listUserWorkspaceFiles(user)
         .then((res) => {
           if (alive) setWorkspaceFiles(res.files);
@@ -124,211 +151,230 @@ export default function AgentWorkspaceView({
     };
   }, [activeJobId, user]);
 
-  const handleSend = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const text = promptText.trim();
-    if (!text || running) return;
-    onSubmitTask(text);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onAttachFile(file);
-      e.target.value = "";
+  // Auto-scroll to bottom when active job updates
+  useEffect(() => {
+    if (activeJob) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  };
+  }, [activeJob?.status, activeJob?.response, activeJob?.execution_trace?.length]);
+
+  const artifacts = activeJob?.artifacts ?? [];
 
   return (
-    <div
-      className="flex flex-1 overflow-hidden h-full p-1 sm:p-2 gap-3 bg-transparent min-w-0 min-h-0"
-    >
-      {/* 1. LEFT PANEL: FILES & RESOURCES (IDE File Explorer) */}
-      <div
-        className="w-56 shrink-0 bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] flex flex-col overflow-hidden select-none hidden md:flex"
-      >
-        <div
-          className="flex h-12 items-center justify-between px-3.5 border-b border-zinc-100 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase"
-        >
-          <span>Workspace Files</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 font-mono">ROOT</span>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-2 text-xs space-y-3">
-          {!activeJobId ? (
-            workspaceFiles.length === 0 ? (
-              <p className="px-2 py-2 text-zinc-400">Workspace is empty.</p>
-            ) : (
-              <>
-                <p className="px-2 py-1 text-zinc-500 font-semibold text-[11.5px]">workspaces/{user}</p>
-                <div className="space-y-0.5">
-                  {workspaceFiles.map((file) => {
-                    const isSelected = selectedFile === file.path;
-                    const Icon = file.kind === "dir" ? FolderOpen : FileCode;
-                    return (
-                      <button
-                        key={file.path}
-                        type="button"
-                        onClick={() => setSelectedFile(file.path)}
-                        className={`flex w-full items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-left transition-colors cursor-pointer truncate font-medium text-xs ${
-                          isSelected
-                            ? "bg-[#ede9fe] text-[#6d28d9] font-bold"
-                            : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100/70"
-                        }`}
-                      >
-                        <Icon className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
-                        <span className="truncate">{file.path}</span>
-                        {file.kind === "file" && file.size !== null ? (
-                          <span className="ml-auto text-[10px] text-zinc-400 font-mono">{file.size} B</span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )
-          ) : workspaceFiles.length === 0 ? (
-            <p className="px-2 py-2 text-zinc-400">This task's workspace has no files yet.</p>
-          ) : (
-            workspaceFiles.map((file) => {
-              const isSelected = selectedFile === file.path;
-              const Icon = file.kind === "dir" ? FolderOpen : FileCode;
-              return (
-                <button
-                  key={file.path}
-                  type="button"
-                  onClick={() => setSelectedFile(file.path)}
-                  className={`flex w-full items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-left transition-colors cursor-pointer truncate font-medium text-xs ${
-                    isSelected
-                      ? "bg-[#ede9fe] text-[#6d28d9] font-bold"
-                      : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100/70"
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
-                  <span className="truncate">{file.path}</span>
-                  {file.kind === "file" && file.size !== null ? (
-                    <span className="ml-auto text-[10px] text-zinc-400 font-mono">{file.size} B</span>
-                  ) : null}
-                </button>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* 2. CENTER PANEL: WORKSPACE (Prompt Editor & Execution Output) */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)]">
-        <div
-          className="flex h-12 items-center justify-between px-4 border-b border-slate-200/60 bg-white shrink-0"
-        >
-          <div className="flex items-center gap-2 text-xs">
-            <span className="font-bold text-slate-900">AI Assistant</span>
-            {activeJobId && (
-              <>
-                <span className="text-slate-300">·</span>
-                <span className="truncate max-w-[240px] font-mono text-slate-500 font-medium">
+    <div className="flex flex-col flex-1 h-full w-full min-w-0 min-h-0 bg-[#09090b] text-zinc-100 overflow-hidden relative font-sans">
+      {/* 1. TOP CHAT HEADER BAR */}
+      <header className="h-14 shrink-0 px-4 sm:px-6 border-b border-zinc-800/80 bg-[#0d0d12]/95 backdrop-blur-md flex items-center justify-between z-10 select-none">
+        {/* Left: Chatbot Identity & Session Title */}
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-zinc-950 border border-red-600/40 text-red-500 flex items-center justify-center font-bold text-sm shadow-[0_0_12px_rgba(239,68,68,0.2)] shrink-0">
+            <Bot className="w-4 h-4" />
+          </div>
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-bold text-white truncate">
+                Astra Sovereign Assistant
+              </h1>
+              {activeJobId && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-red-400 font-semibold">
                   {activeJob?.job_id || activeJobId}
                 </span>
-              </>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 text-xs">
-            {onResetSession && activeJobId && (
-              <button
-                type="button"
-                onClick={onResetSession}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-xs font-semibold transition-colors cursor-pointer mr-1"
-                title="Reset session and start a new task"
-              >
-                <RefreshCw className="w-3 h-3 text-slate-400" />
-                <span>Reset Session</span>
-              </button>
-            )}
-
-            {running ? (
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-[#7047eb] border border-purple-200">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#7047eb] animate-pulse" />
-                Processing
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+              <span className="text-zinc-400 font-medium">Local LLM: Qwen 2.5 Coder</span>
+              <span>·</span>
+              <span className="text-emerald-400 font-medium flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Air-Gapped Local
               </span>
-            ) : activeJob?.status === "completed" ? (
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                Completed
-              </span>
-            ) : (
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
-                Ready
-              </span>
-            )}
+            </div>
           </div>
         </div>
 
-        {/* Generated deliverables (also shown inline, not just in Deliverables) */}
-        {activeJob && activeJob.artifacts && activeJob.artifacts.length > 0 ? (
-          <div className="shrink-0 flex flex-wrap gap-2 px-4 py-3 border-b border-zinc-200/80 bg-white">
-            {activeJob.artifacts.map((a) => (
-              <div
-                key={a.artifact_id}
-                className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800"
-              >
-                <FileText className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="truncate max-w-[220px] font-medium">{a.filename}</span>
-                <span className="text-emerald-600/70">· {a.type}</span>
-                <button
-                  type="button"
-                  onClick={() => onDownloadArtifact(a)}
-                  className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:text-emerald-900 transition-colors cursor-pointer"
-                  title="Download"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Download
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
+        {/* Right: Quick Action Controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Status Badge */}
+          {running ? (
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-950/50 text-red-300 border border-red-800/60 shadow-[0_0_10px_rgba(239,68,68,0.2)]">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <span>Executing...</span>
+            </div>
+          ) : activeJob?.status === "completed" ? (
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-950/40 text-emerald-400 border border-emerald-800/60">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Done</span>
+            </div>
+          ) : (
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-900 text-zinc-400 border border-zinc-800">
+              <span>Ready</span>
+            </div>
+          )}
 
-        {/* Task Editor & Composer */}
-        <div
-          className="border-b border-zinc-200/80 p-4 bg-white shrink-0 flex flex-col gap-2.5"
-        >
-          {/* Hidden File Input connected to fileInputRef */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            accept=".pdf,.docx,.txt,.md,.py,.json,.csv,.xlsx,.pptx,.png,.jpg,.jpeg"
-            onChange={handleFileChange}
-          />
-          <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-slate-700">Task Prompt &amp; Swarm Instruction</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                Air-Gap Local
+          {/* Execution Trace Button */}
+          <button
+            type="button"
+            onClick={() => setConsoleOpen(!consoleOpen)}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+              consoleOpen
+                ? "bg-red-600 text-white border-red-600 shadow-[0_0_12px_rgba(239,68,68,0.4)]"
+                : "bg-zinc-900 text-zinc-200 border-zinc-700 hover:bg-zinc-800 hover:text-white"
+            }`}
+            title="Toggle Agent Execution Trace"
+          >
+            <Terminal className="w-4 h-4" />
+            <span className="hidden md:inline">Trace</span>
+          </button>
+
+          {/* Deliverables Drawer Toggle (if any artifacts exist) */}
+          {artifacts.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilesDrawerOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-red-950/50 text-red-200 border border-red-800/80 hover:bg-red-900/60 transition-colors cursor-pointer shadow-sm"
+              title="View Generated Deliverables"
+            >
+              <FileDown className="w-4 h-4 text-red-400" />
+              <span>
+                {artifacts.length} {artifacts.length === 1 ? "File" : "Files"}
               </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 hover:text-purple-700 hover:bg-purple-50 border border-slate-200 transition-colors cursor-pointer"
-                title="Attach Document or Source Code"
-              >
-                <Paperclip className="w-3.5 h-3.5 text-purple-600" />
-                <span>Attach File</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onSubmitTask(DEMO_TASK)}
-                className="text-[#7047eb] hover:text-[#5e38d6] font-semibold cursor-pointer text-xs"
-              >
-                Try Demo
-              </button>
-            </div>
-          </div>
+            </button>
+          )}
 
+          {/* Workspace Files Button */}
+          <button
+            type="button"
+            onClick={() => setFilesDrawerOpen(!filesDrawerOpen)}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+              filesDrawerOpen
+                ? "bg-red-950/60 text-red-200 border-red-800/80"
+                : "bg-zinc-900 text-zinc-200 border-zinc-700 hover:bg-zinc-800 hover:text-white"
+            }`}
+            title="Inspect Workspace Files"
+          >
+            <FolderOpen className="w-4 h-4 text-zinc-300" />
+            <span className="hidden md:inline">Files</span>
+            {workspaceFiles.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-zinc-800 text-zinc-200 font-mono font-bold">
+                {workspaceFiles.length}
+              </span>
+            )}
+          </button>
+
+          {/* Quick Tools Menu Button */}
+          <button
+            type="button"
+            onClick={() => setToolsDrawerOpen(!toolsDrawerOpen)}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+              toolsDrawerOpen
+                ? "bg-red-950/60 text-red-200 border-red-800/80"
+                : "bg-zinc-900 text-zinc-200 border-zinc-700 hover:bg-zinc-800 hover:text-white"
+            }`}
+            title="Quick Agent Tasks"
+          >
+            <Sparkles className="w-4 h-4 text-red-400" />
+            <span className="hidden md:inline">Prompts</span>
+          </button>
+
+          {/* Reset Session / New Chat */}
+          {activeJobId && onResetSession && (
+            <button
+              type="button"
+              onClick={onResetSession}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-zinc-200 hover:text-white bg-zinc-900 border border-zinc-700 hover:bg-zinc-800 transition-colors cursor-pointer"
+              title="Start a new chat session"
+            >
+              <RefreshCw className="w-4 h-4 text-zinc-400" />
+              <span className="hidden sm:inline">New Chat</span>
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* 2. CHAT STREAM / MAIN CONVERSATION CANVAS */}
+      <main className="flex-1 overflow-y-auto min-h-0 w-full relative">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+          {!activeJob ? (
+            /* EMPTY STATE / WELCOME HERO */
+            <div className="py-6 sm:py-10 flex flex-col items-center text-center space-y-6 animate-in fade-in duration-300">
+              {/* Hero Icon */}
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-red-600 via-rose-600 to-red-800 flex items-center justify-center text-white shadow-lg shadow-red-600/30">
+                <Sparkles className="w-8 h-8" />
+              </div>
+
+              {/* Welcome Titles */}
+              <div className="space-y-2 max-w-xl">
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                  How can Astra Sovereign assist you?
+                </h2>
+                <p className="text-zinc-400 text-sm leading-relaxed">
+                  Your fully air-gapped sovereign AI assistant. Ingest reports, run verified Docker calculations, and generate authoritative Word, Excel, and PowerPoint deliverables on-premise.
+                </p>
+              </div>
+
+              {/* Quick Suggestion Prompt Cards */}
+              <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 text-left">
+                {QUICK_ACTIONS.map((item, idx) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => onSubmitTask(item.prompt)}
+                      className="group p-4 rounded-2xl bg-[#111115] border border-zinc-800 hover:border-red-600/60 hover:shadow-[0_4px_20px_rgba(239,68,68,0.15)] transition-all cursor-pointer flex flex-col justify-between space-y-3 text-left"
+                    >
+                      <div className="flex items-start justify-between w-full">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-xl bg-red-950/60 text-red-500 border border-red-900/40 group-hover:bg-red-600 group-hover:text-white transition-colors">
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-zinc-100 block group-hover:text-red-400 transition-colors">
+                              {item.title}
+                            </span>
+                            <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+                              {item.badge}
+                            </span>
+                          </div>
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:text-red-400 group-hover:translate-x-0.5 transition-all" />
+                      </div>
+                      <p className="text-xs text-zinc-400 leading-relaxed">
+                        {item.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Air-gap Guarantee Pill */}
+              <div className="pt-4 flex items-center gap-2 text-xs text-zinc-400 font-medium">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                <span>100% On-Premise Air-Gapped Inference · Zero External Telemetry · Local Vector Store</span>
+              </div>
+            </div>
+          ) : (
+            /* ACTIVE CHAT CONVERSATION */
+            <div className="space-y-6">
+              <Conversation
+                userId={user}
+                job={activeJob}
+                documents={libraryDocuments}
+                onDownload={onDownloadArtifact}
+                onSubmit={onSubmitTask}
+                onCancel={onCancelTask}
+                consoleOpen={consoleOpen}
+                setConsoleOpen={setConsoleOpen}
+                themeKey={themeKey}
+              />
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* 3. DOCKED BOTTOM PROMPT COMPOSER (Chatbot Style) */}
+      <footer className="shrink-0 w-full border-t border-zinc-800/80 bg-[#0d0d12]/95 backdrop-blur-md pt-3 pb-4 px-4 sm:px-6 z-10">
+        <div className="max-w-4xl mx-auto space-y-2">
           <Composer
             user={user}
             attachments={chips}
@@ -343,228 +389,177 @@ export default function AgentWorkspaceView({
             onCancel={onCancelTask}
             disabled={Boolean(healthError) && !activeJob}
           />
-        </div>
-
-        {/* Task Output */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-white">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Output
+          <div className="flex items-center justify-between text-[11px] text-zinc-500 px-1 select-none">
+            <span className="flex items-center gap-1.5 text-zinc-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
+              Air-Gapped Sovereign AI · Local NVLink Engine
             </span>
-            {activeJob?.model && (
-              <span className="text-xs font-medium text-slate-400">
-                Model: <span className="text-slate-700 font-semibold">{activeJob.model}</span>
-              </span>
-            )}
+            <span>Shift + Enter for new line</span>
           </div>
-
-          {/* Conversation and WorkConsole Integration */}
-          <Conversation
-            userId={user}
-            job={activeJob}
-            documents={libraryDocuments}
-            onDownload={onDownloadArtifact}
-            onSubmit={(text) => {
-              setPromptText(text);
-              onSubmitTask(text);
-            }}
-            onCancel={onCancelTask}
-            consoleOpen={consoleOpen}
-            setConsoleOpen={setConsoleOpen}
-            themeKey={themeKey}
-          />
         </div>
-      </div>
+      </footer>
 
-      {/* 3. RIGHT PANEL: QUICK TOOLS (PDF Creation, Output Summary, Table Extraction, Sandbox, Compliance) */}
-      <div
-        className="w-72 shrink-0 bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] flex flex-col overflow-hidden select-none hidden lg:flex"
-      >
-        <div
-          className="flex h-12 items-center justify-between px-4 border-b border-zinc-100 text-[11px] font-semibold tracking-wider uppercase bg-slate-50/50"
-        >
-          <div className="flex items-center gap-1.5 font-bold text-zinc-800">
-            <Wrench className="w-3.5 h-3.5 text-[#7047eb]" />
-            <span>Quick Agent Tools</span>
-          </div>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-mono font-bold border border-purple-100">
-            LOCAL
-          </span>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-3.5 text-xs space-y-3">
-          <p className="text-[11px] text-zinc-500 leading-relaxed">
-            One-click automated tasks executed locally with zero cloud telemetry.
-          </p>
-
-          {/* Quick Tool 1: PDF Deliverable Creation */}
-          <div className="p-3 rounded-xl border border-purple-100 bg-purple-50/30 hover:bg-purple-50/70 transition-all space-y-2 group">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-purple-100 text-[#7047eb]">
-                  <FileDown className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-zinc-900">PDF Report Creation</h4>
-                  <span className="text-[9.5px] font-mono text-purple-700 font-semibold">AIR-GAP DELIVERABLE</span>
-                </div>
-              </div>
-            </div>
-            <p className="text-[11px] text-zinc-500 leading-relaxed">
-              Compile workspace findings into a structured executive PDF/Word document with formal headers, tables, and sign-offs.
-            </p>
-            <button
-              type="button"
-              disabled={running}
-              onClick={() =>
-                onSubmitTask(
-                  "Generate a complete, structured executive deliverable PDF report based on current workspace findings, formatted with clear section headers, metadata, tables, and official clearance sign-off blocks."
-                )
-              }
-              className="w-full py-1.5 px-2.5 rounded-lg bg-[#7047eb] hover:bg-[#5e38d6] disabled:opacity-50 text-white font-medium text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-            >
-              <Play className="w-3 h-3" />
-              <span>Generate PDF Report</span>
-            </button>
-          </div>
-
-          {/* Quick Tool 2: Output Summary */}
-          <div className="p-3 rounded-xl border border-amber-100 bg-amber-50/30 hover:bg-amber-50/70 transition-all space-y-2 group">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-zinc-900">Output Summary</h4>
-                  <span className="text-[9.5px] font-mono text-amber-700 font-semibold">EXECUTIVE BRIEF</span>
-                </div>
-              </div>
-            </div>
-            <p className="text-[11px] text-zinc-500 leading-relaxed">
-              Condense outputs, transcripts, and model traces into an actionable bullet-point executive briefing with risk factors.
-            </p>
-            <button
-              type="button"
-              disabled={running}
-              onClick={() =>
-                onSubmitTask(
-                  "Analyze the current conversation, document outputs, and execution trace to generate a concise executive summary with bullet points, critical risks, and recommended next steps."
-                )
-              }
-              className="w-full py-1.5 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-medium text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-            >
-              <Sparkles className="w-3 h-3" />
-              <span>Summarize Output</span>
-            </button>
-          </div>
-
-          {/* Quick Tool 3: Table / Ledger Extraction */}
-          <div className="p-3 rounded-xl border border-emerald-100 bg-emerald-50/30 hover:bg-emerald-50/70 transition-all space-y-2 group">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
-                  <FileSpreadsheet className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-zinc-900">Extract Data Ledger</h4>
-                  <span className="text-[9.5px] font-mono text-emerald-700 font-semibold">TABLES & CSV</span>
-                </div>
-              </div>
-            </div>
-            <p className="text-[11px] text-zinc-500 leading-relaxed">
-              Extract numerical tabular data, amounts, and dates from uploaded documents into clean CSV/Excel ledger format.
-            </p>
-            <button
-              type="button"
-              disabled={running}
-              onClick={() =>
-                onSubmitTask(
-                  "Extract all tabular and numerical data from the uploaded files into a clean CSV format with columns: Item, Date, Reference ID, Quantity, and Amount."
-                )
-              }
-              className="w-full py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-            >
-              <FileSpreadsheet className="w-3 h-3" />
-              <span>Extract to CSV</span>
-            </button>
-          </div>
-
-          {/* Quick Tool 4: Sandbox Code Execution & Audit */}
-          <div className="p-3 rounded-xl border border-blue-100 bg-blue-50/30 hover:bg-blue-50/70 transition-all space-y-2 group">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-blue-100 text-blue-700">
-                  <Terminal className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-zinc-900">Sandbox Code Audit</h4>
-                  <span className="text-[9.5px] font-mono text-blue-700 font-semibold">ZERO-EGRESS RUN</span>
-                </div>
-              </div>
-            </div>
-            <p className="text-[11px] text-zinc-500 leading-relaxed">
-              Test untrusted Python snippets inside an isolated rootless container with <code className="font-mono bg-blue-100/60 px-1 py-0.5 rounded text-[10px]">--network none</code>.
-            </p>
-            <button
-              type="button"
-              disabled={running}
-              onClick={() =>
-                onSubmitTask(
-                  "Audit and execute the code in the isolated zero-egress Docker sandbox container (--network none) and output stdout, memory consumption, and exit status."
-                )
-              }
-              className="w-full py-1.5 px-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-            >
-              <Terminal className="w-3 h-3" />
-              <span>Run in Sandbox</span>
-            </button>
-          </div>
-
-          {/* Quick Tool 5: Air-Gap Compliance Check */}
-          <div className="p-3 rounded-xl border border-indigo-100 bg-indigo-50/30 hover:bg-indigo-50/70 transition-all space-y-2 group">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-indigo-100 text-indigo-700">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-zinc-900">Compliance Audit</h4>
-                  <span className="text-[9.5px] font-mono text-indigo-700 font-semibold">SECURITY HASH</span>
-                </div>
-              </div>
-            </div>
-            <p className="text-[11px] text-zinc-500 leading-relaxed">
-              Verify local model weights, calculate SHA256 integrity hash, and log tamper-evident audit record.
-            </p>
-            <button
-              type="button"
-              disabled={running}
-              onClick={() =>
-                onSubmitTask(
-                  "Perform full air-gap security audit: verify 0 bytes egress on transport layer, check model weights hash integrity, and record event into append-only audit trail."
-                )
-              }
-              className="w-full py-1.5 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium text-[11px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-            >
-              <ShieldCheck className="w-3 h-3" />
-              <span>Audit Compliance</span>
-            </button>
-          </div>
-
-          {/* Air-Gap Policy Card */}
+      {/* 4. SLIDE-OVER DRAWER: WORKSPACE FILES */}
+      {filesDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-2xs animate-in fade-in duration-200">
           <div
-            className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-900 text-xs space-y-1 shadow-xs"
+            className="w-full max-w-md bg-[#111115] text-zinc-200 h-full shadow-2xl border-l border-zinc-800 flex flex-col overflow-hidden animate-in slide-in-from-right duration-200"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-1.5 font-bold text-emerald-800 text-[11px]">
-              <Shield className="w-3.5 h-3.5 text-emerald-600" />
-              <span>AIR-GAP LOCKDOWN ACTIVE</span>
+            <div className="flex h-14 items-center justify-between px-5 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="w-5 h-5 text-red-500" />
+                <div>
+                  <h3 className="text-sm font-bold text-white">Workspace Files</h3>
+                  <span className="text-[10.5px] text-zinc-400 font-mono">
+                    {activeJobId ? `Task: ${activeJobId.slice(0, 8)}` : `User: ${user}`}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFilesDrawerOpen(false)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <div className="text-[10.5px] text-emerald-700">Egress: 0.00 Bytes &bull; Local Host Only</div>
-            <div className="text-[10.5px] text-emerald-700">Container: Read-only rootless sandbox</div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+              {/* Artifacts if completed */}
+              {artifacts.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                    Generated Deliverables
+                  </div>
+                  <div className="space-y-1.5">
+                    {artifacts.map((a) => (
+                      <div
+                        key={a.artifact_id}
+                        className="p-3 rounded-xl border border-red-900/50 bg-red-950/20 flex items-center justify-between gap-2"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <FileText className="w-4 h-4 text-red-400 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="font-semibold text-white truncate block">{a.filename}</span>
+                            <span className="text-[10px] text-red-400 font-mono uppercase">{a.type}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onDownloadArtifact(a)}
+                          className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0 shadow-xs"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Save</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Workspace disk files */}
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                  Disk Files &amp; Attachments
+                </div>
+                {workspaceFiles.length === 0 ? (
+                  <div className="p-6 text-center text-zinc-400 bg-zinc-900/50 rounded-xl border border-zinc-800">
+                    No files currently staged in this workspace.
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {workspaceFiles.map((file) => {
+                      const Icon = file.kind === "dir" ? FolderOpen : FileCode;
+                      return (
+                        <div
+                          key={file.path}
+                          className="flex items-center justify-between p-2.5 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800/60 transition-colors"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Icon className="w-4 h-4 text-red-400 shrink-0" />
+                            <span className="truncate font-medium text-zinc-300">{file.path}</span>
+                          </div>
+                          {file.size !== null && (
+                            <span className="text-[10.5px] font-mono text-zinc-500 shrink-0 ml-2">
+                              {file.size} B
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* 5. SLIDE-OVER / MODAL: QUICK PROMPTS */}
+      {toolsDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-2xs animate-in fade-in duration-200">
+          <div
+            className="w-full max-w-md bg-[#111115] text-zinc-200 h-full shadow-2xl border-l border-zinc-800 flex flex-col overflow-hidden animate-in slide-in-from-right duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex h-14 items-center justify-between px-5 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-red-500" />
+                <div>
+                  <h3 className="text-sm font-bold text-white">Automated Prompts</h3>
+                  <span className="text-[10.5px] text-zinc-400">One-click engineering templates</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setToolsDrawerOpen(false)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {QUICK_ACTIONS.map((action, idx) => {
+                const Icon = action.icon;
+                return (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-2xl border border-zinc-800 bg-zinc-900/50 hover:border-red-600/50 hover:shadow-xs transition-all space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-xl bg-red-950/60 text-red-500 border border-red-900/40">
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <span className="font-bold text-xs text-white">{action.title}</span>
+                      </div>
+                      <span className="text-[10px] font-semibold text-red-400 px-2 py-0.5 rounded-full bg-red-950/50 border border-red-900/50 font-mono">
+                        {action.badge}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-400 leading-relaxed">{action.description}</p>
+                    <button
+                      type="button"
+                      disabled={running}
+                      onClick={() => {
+                        setToolsDrawerOpen(false);
+                        onSubmitTask(action.prompt);
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-medium text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      <span>Run this prompt</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

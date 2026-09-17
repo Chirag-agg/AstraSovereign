@@ -18,10 +18,12 @@ import {
   Copy,
   Check,
   Download,
-  WrapText,
   FileCode,
+  ArrowRightLeft,
+  FileCheck,
+  WrapText,
 } from "lucide-react";
-import { getHealth, getDocumentContent, getDocumentFileBlob } from "@/lib/api";
+import { getHealth, getDocumentContent, getDocumentFileBlob, convertExistingDocument } from "@/lib/api";
 import type { DocumentMeta } from "@/lib/types";
 
 function activeUserId(): string {
@@ -46,6 +48,10 @@ export default function KnowledgeBaseView({
   const [chunks, setChunks] = useState<number | null>(null);
   const [embedding, setEmbedding] = useState<string>("");
   const [vectorStore, setVectorStore] = useState<string>("");
+
+  // Conversion state
+  const [converting, setConverting] = useState(false);
+  const [convertStatus, setConvertStatus] = useState<string | null>(null);
 
   // Full-file preview states
   const [previewDoc, setPreviewDoc] = useState<DocumentMeta | null>(null);
@@ -183,16 +189,40 @@ export default function KnowledgeBaseView({
     }
   };
 
+  const handleConvertDocument = async (doc: DocumentMeta, targetFormat: "pdf" | "docx") => {
+    setConverting(true);
+    setConvertStatus(`Converting ${doc.filename} to ${targetFormat.toUpperCase()}...`);
+    try {
+      const { blob, filename } = await convertExistingDocument(activeUserId(), doc.document_id, targetFormat);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setConvertStatus(`Downloaded ${filename}!`);
+      setTimeout(() => setConvertStatus(null), 3000);
+    } catch (err) {
+      setConvertStatus(err instanceof Error ? err.message : "Conversion failed.");
+      setTimeout(() => setConvertStatus(null), 4000);
+    } finally {
+      setConverting(false);
+    }
+  };
+
+
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#09090b]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 tracking-tight">
               Knowledge Base
             </h1>
-            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1 leading-relaxed">
+            <p className="text-xs sm:text-sm text-zinc-400 font-medium mt-1 leading-relaxed">
               Air-gap vector index and document knowledge base for semantic retrieval and tool augmentation.
             </p>
           </div>
@@ -215,45 +245,53 @@ export default function KnowledgeBaseView({
           </div>
         </div>
 
+        {/* Conversion & Notification Feedback */}
+        {convertStatus && (
+          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-red-950/40 border border-red-900/50 text-red-300 text-xs font-semibold animate-in fade-in">
+            <ArrowRightLeft className={`w-4 h-4 text-red-400 ${converting ? "animate-spin" : ""}`} />
+            <span>{convertStatus}</span>
+          </div>
+        )}
+
         {/* Status Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-          <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb] shrink-0">
+          <div className="bg-[#111115] border border-zinc-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-red-950/30 flex items-center justify-center text-[#7047eb] shrink-0">
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+              <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider block">
                 Total Documents
               </span>
-              <span className="text-lg font-bold text-slate-800">
+              <span className="text-lg font-bold text-zinc-100">
                 {documents ? documents.length : "—"}
               </span>
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb] shrink-0">
+          <div className="bg-[#111115] border border-zinc-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-red-950/30 flex items-center justify-center text-[#7047eb] shrink-0">
               <Database className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+              <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider block">
                 Indexed Chunks
               </span>
-              <span className="text-lg font-bold text-slate-800">
+              <span className="text-lg font-bold text-zinc-100">
                 {chunks !== null ? chunks : "—"}
               </span>
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb] shrink-0">
+          <div className="bg-[#111115] border border-zinc-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-red-950/30 flex items-center justify-center text-[#7047eb] shrink-0">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+              <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider block">
                 Embedding Model
               </span>
-              <span className="text-xs font-bold text-slate-800 truncate block max-w-[180px]">
+              <span className="text-xs font-bold text-zinc-100 truncate block max-w-[180px]">
                 {embedding || "Local SentenceTransformers"}
               </span>
             </div>
@@ -261,12 +299,12 @@ export default function KnowledgeBaseView({
         </div>
 
         {/* Documents Table */}
-        <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl flex flex-col overflow-hidden">
+        <div className="bg-[#111115] border border-zinc-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl flex flex-col overflow-hidden">
           {!documents || documents.length === 0 ? (
             <div className="p-16 flex flex-col items-center justify-center text-center space-y-2">
               <FileText className="w-12 h-12 text-slate-300 mb-2" />
-              <h3 className="text-base font-bold text-slate-800">No documents in index</h3>
-              <p className="text-xs text-slate-500 max-w-sm">
+              <h3 className="text-base font-bold text-zinc-100">No documents in index</h3>
+              <p className="text-xs text-zinc-400 max-w-sm">
                 Upload business documents (PDF, Word, TXT, or markdown) to empower your Sovereign AI assistant.
               </p>
             </div>
@@ -274,7 +312,7 @@ export default function KnowledgeBaseView({
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-100 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/30">
+                  <tr className="border-b border-zinc-800 text-xs font-semibold text-zinc-500 uppercase tracking-wider bg-[#18181b]/30">
                     <th className="py-3.5 px-5">Document Name</th>
                     <th className="py-3.5 px-5">Format</th>
                     <th className="py-3.5 px-5">Status</th>
@@ -283,24 +321,24 @@ export default function KnowledgeBaseView({
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {documents.map((doc) => (
-                    <tr key={doc.document_id} className="hover:bg-slate-50/50 transition-colors">
+                    <tr key={doc.document_id} className="hover:bg-[#18181b]/50 transition-colors">
                       <td className="py-3 px-5">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb] shrink-0">
+                          <div className="w-8 h-8 rounded-xl bg-red-950/30 flex items-center justify-center text-[#7047eb] shrink-0">
                             <FileText className="w-4 h-4" />
                           </div>
                           <div>
-                            <span className="font-semibold text-slate-800 block text-xs truncate max-w-xs sm:max-w-md">
+                            <span className="font-semibold text-zinc-100 block text-xs truncate max-w-xs sm:max-w-md">
                               {doc.filename}
                             </span>
-                            <span className="text-[10px] font-mono text-slate-400 block truncate">
+                            <span className="text-[10px] font-mono text-zinc-500 block truncate">
                               ID: {doc.document_id}
                             </span>
                           </div>
                         </div>
                       </td>
                       <td className="py-3 px-5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-[#7047eb] border border-purple-200/60 uppercase">
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-red-950/30 text-[#7047eb] border border-red-900/40/60 uppercase">
                           {doc.document_type || "txt"}
                         </span>
                       </td>
@@ -308,30 +346,55 @@ export default function KnowledgeBaseView({
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
                             doc.status === "ready"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
+                              ? "bg-emerald-950/40 text-emerald-400 border-emerald-900/50/60"
                               : doc.status === "failed"
-                              ? "bg-rose-50 text-rose-700 border-rose-200/60"
-                              : "bg-amber-50 text-amber-700 border-amber-200/60"
+                              ? "bg-rose-950/40 text-rose-400 border-rose-900/50/60"
+                              : "bg-amber-950/40 text-amber-400 border-amber-900/50/60"
                           }`}
                         >
                           {doc.status || "available"}
                         </span>
                       </td>
                       <td className="py-3 px-5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          {/* Conversion button */}
+                          {doc.document_type === "pdf" ? (
+                            <button
+                              type="button"
+                              disabled={converting}
+                              onClick={() => void handleConvertDocument(doc, "docx")}
+                              className="border border-zinc-800 bg-[#18181b] hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                              title="Convert to Microsoft Word (.docx)"
+                            >
+                              <ArrowRightLeft className="w-3 h-3 text-red-400" />
+                              <span>To Word</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={converting}
+                              onClick={() => void handleConvertDocument(doc, "pdf")}
+                              className="border border-zinc-800 bg-[#18181b] hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                              title="Convert to PDF (.pdf)"
+                            >
+                              <ArrowRightLeft className="w-3 h-3 text-red-400" />
+                              <span>To PDF</span>
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => void handleOpenPreview(doc)}
-                            className="border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            className="border border-zinc-800 bg-[#111115] hover:bg-[#18181b] text-zinc-200 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
                           >
-                            <Eye className="w-3.5 h-3.5 text-slate-500" />
+                            <Eye className="w-3.5 h-3.5 text-zinc-400" />
                             <span>Preview</span>
                           </button>
 
                           <button
                             type="button"
                             onClick={() => onDeleteDocument(doc.document_id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer inline-flex"
+                            className="p-1.5 text-zinc-500 hover:text-rose-600 hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer inline-flex"
                             title="Delete document"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -351,28 +414,28 @@ export default function KnowledgeBaseView({
       {previewDoc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 animate-fade-in">
           <div
-            className={`bg-white shadow-2xl border border-slate-200 flex flex-col overflow-hidden transition-all duration-200 ${
+            className={`bg-[#111115] shadow-2xl border border-zinc-800 flex flex-col overflow-hidden transition-all duration-200 ${
               isFullscreen
                 ? "fixed inset-2 rounded-2xl z-50"
                 : "rounded-3xl w-[95vw] max-w-6xl h-[88vh]"
             }`}
           >
             {/* Header / Toolbar */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200/80 bg-slate-50/80 shrink-0">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800 bg-[#18181b]/80 shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-2xl bg-purple-100 flex items-center justify-center text-[#7047eb] shrink-0 shadow-2xs">
+                <div className="w-9 h-9 rounded-2xl bg-red-950/40 border border-red-900/40 flex items-center justify-center text-red-400 shrink-0 shadow-2xs">
                   <BookOpen className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-slate-900 truncate max-w-sm sm:max-w-md md:max-w-lg" title={previewDoc.filename}>
+                    <h3 className="text-sm font-bold text-zinc-100 truncate max-w-sm sm:max-w-md md:max-w-lg" title={previewDoc.filename}>
                       {previewDoc.filename}
                     </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-[#7047eb] border border-purple-200 uppercase tracking-wide shrink-0">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-950/40 text-red-400 border border-red-900/40 uppercase tracking-wide shrink-0 font-mono">
                       {previewType}
                     </span>
                   </div>
-                  <span className="text-[11px] font-mono text-slate-400 block truncate">
+                  <span className="text-[11px] font-mono text-zinc-500 block truncate">
                     ID: {previewDoc.document_id} · Status: {previewDoc.status || "available"}
                   </span>
                 </div>
@@ -386,7 +449,7 @@ export default function KnowledgeBaseView({
                     type="button"
                     onClick={() => setActiveTab("document")}
                     className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
-                      activeTab === "document" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                      activeTab === "document" ? "bg-[#111115] text-zinc-100 shadow-2xs" : "text-zinc-400 hover:text-zinc-100"
                     }`}
                   >
                     Full File
@@ -395,7 +458,7 @@ export default function KnowledgeBaseView({
                     type="button"
                     onClick={() => setActiveTab("metadata")}
                     className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
-                      activeTab === "metadata" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                      activeTab === "metadata" ? "bg-[#111115] text-zinc-100 shadow-2xs" : "text-zinc-400 hover:text-zinc-100"
                     }`}
                   >
                     Index Details
@@ -409,8 +472,8 @@ export default function KnowledgeBaseView({
                       onClick={() => setWordWrap(!wordWrap)}
                       className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
                         wordWrap
-                          ? "bg-purple-50 border-purple-200 text-[#7047eb]"
-                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                          ? "bg-red-950/40 border-red-900/40 text-red-400"
+                          : "bg-[#111115] border-zinc-800 text-zinc-400 hover:bg-[#18181b]"
                       }`}
                       title="Toggle Word Wrap"
                     >
@@ -421,17 +484,17 @@ export default function KnowledgeBaseView({
                     <button
                       type="button"
                       onClick={handleCopy}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-800 bg-[#111115] hover:bg-[#18181b] text-zinc-200 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
                       title="Copy full text"
                     >
                       {copied ? (
                         <>
                           <Check className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="text-emerald-700 font-bold">Copied!</span>
+                          <span className="text-emerald-400 font-bold">Copied!</span>
                         </>
                       ) : (
                         <>
-                          <Copy className="w-3.5 h-3.5 text-slate-500" />
+                          <Copy className="w-3.5 h-3.5 text-zinc-400" />
                           <span>Copy</span>
                         </>
                       )}
@@ -442,7 +505,7 @@ export default function KnowledgeBaseView({
                 <button
                   type="button"
                   onClick={() => setIsFullscreen(!isFullscreen)}
-                  className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+                  className="p-2 text-zinc-400 hover:text-zinc-100 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
                   title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Preview"}
                 >
                   {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -451,7 +514,7 @@ export default function KnowledgeBaseView({
                 <button
                   type="button"
                   onClick={handleDownload}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-bold shadow-xs cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs cursor-pointer shadow-red-900/20"
                   title="Download raw document"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -461,7 +524,7 @@ export default function KnowledgeBaseView({
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="text-slate-400 hover:text-slate-700 cursor-pointer p-1.5 rounded-xl hover:bg-slate-200/60 transition-colors ml-1"
+                  className="text-zinc-500 hover:text-zinc-200 cursor-pointer p-1.5 rounded-xl hover:bg-slate-200/60 transition-colors ml-1"
                   title="Close preview"
                 >
                   <X className="w-4 h-4" />
@@ -470,107 +533,104 @@ export default function KnowledgeBaseView({
             </div>
 
             {/* Content Body */}
-            <div className="flex-1 min-h-0 overflow-hidden relative bg-slate-50 flex flex-col">
+            <div className="flex-1 min-h-0 overflow-hidden relative bg-[#18181b] flex flex-col">
               {loadingPreview ? (
-                <div className="flex flex-col items-center justify-center h-full text-xs text-slate-500 space-y-2">
-                  <div className="w-6 h-6 border-2 border-[#7047eb] border-t-transparent rounded-full animate-spin" />
+                <div className="flex flex-col items-center justify-center h-full text-xs text-zinc-400 space-y-2">
+                  <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
                   <span>Loading full document file...</span>
                 </div>
               ) : activeTab === "metadata" ? (
                 <div className="p-6 overflow-y-auto space-y-4 max-w-3xl mx-auto w-full">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    <div className="p-4 rounded-2xl bg-[#111115] border border-zinc-800 shadow-2xs">
+                      <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block mb-1">
                         Index Status
                       </span>
-                      <span className="font-bold text-slate-800 capitalize text-sm">
+                      <span className="font-bold text-zinc-100 capitalize text-sm">
                         {previewDoc.status || "available"}
                       </span>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    <div className="p-4 rounded-2xl bg-[#111115] border border-zinc-800 shadow-2xs">
+                      <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block mb-1">
                         Ingestion Engine
                       </span>
-                      <span className="font-bold text-slate-800 text-sm">
+                      <span className="font-bold text-zinc-100 text-sm">
                         Local Air-Gap Ingestion
                       </span>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    <div className="p-4 rounded-2xl bg-[#111115] border border-zinc-800 shadow-2xs">
+                      <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block mb-1">
                         Format
                       </span>
-                      <span className="font-bold text-slate-800 uppercase text-sm">
+                      <span className="font-bold text-zinc-100 uppercase text-sm">
                         {previewDoc.document_type || "txt"}
                       </span>
                     </div>
                   </div>
 
-                  <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2">
-                    <h4 className="font-bold text-slate-800 text-xs">Vector Store & Retrieval Specification</h4>
-                    <p className="text-slate-600 leading-relaxed text-xs">
+                  <div className="p-5 rounded-2xl bg-[#111115] border border-zinc-800 shadow-2xs space-y-2">
+                    <h4 className="font-bold text-zinc-100 text-xs">Vector Store & Retrieval Specification</h4>
+                    <p className="text-zinc-400 leading-relaxed text-xs">
                       This document is chunked and embedded in the local Sovereign vector store under user namespace <code>{activeUserId()}</code>.
                       The AI Assistant executes similarity queries against all chunks using cosine distance when using the <code>document_search</code> tool.
                     </p>
                   </div>
                 </div>
               ) : previewType === "pdf" && previewUrl ? (
-                <div className="w-full h-full flex flex-col p-2">
+                <div className="w-full h-full flex flex-col p-4 bg-zinc-950 items-center justify-center">
                   <iframe
                     src={previewUrl}
-                    className="w-full h-full border-0 rounded-2xl shadow-inner bg-white"
+                    className="w-full h-full border-0 rounded-xl shadow-2xl bg-white"
                     title={previewDoc.filename}
                   />
                 </div>
               ) : previewType === "image" && previewUrl ? (
-                <div className="w-full h-full flex items-center justify-center p-4 overflow-auto bg-slate-900/5">
+                <div className="w-full h-full flex items-center justify-center p-6 overflow-auto bg-zinc-950">
                   <img
                     src={previewUrl}
                     alt={previewDoc.filename}
-                    className="max-w-full max-h-full object-contain rounded-xl shadow-lg border border-slate-200"
+                    className="max-w-full max-h-full object-contain rounded-xl shadow-2xl border border-zinc-800 bg-white"
                   />
                 </div>
               ) : previewText !== null ? (
-                <div className="w-full h-full flex flex-col bg-white overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-100/70 text-[11px] font-mono text-slate-600 shrink-0">
-                    <span className="font-semibold text-slate-700">
-                      Full Document Text · {previewText.split("\n").length} lines · {previewText.trim().split(/\s+/).filter(Boolean).length} words
-                    </span>
-                    <span className="text-slate-400">Complete File Preview</span>
-                  </div>
-
-                  <div className="flex-1 overflow-auto flex min-h-0 p-4 font-mono text-xs bg-slate-950 text-slate-100">
-                    {/* Line numbers */}
-                    <div className="select-none pr-4 text-right text-slate-600 font-mono text-xs border-r border-slate-800 shrink-0 leading-relaxed">
-                      {previewText.split("\n").map((_, i) => (
-                        <div key={i}>{i + 1}</div>
-                      ))}
+                <div className="w-full h-full flex flex-col bg-zinc-950 overflow-hidden items-center p-4 sm:p-6">
+                  {/* Faithful Authentic White Paper Document Viewport */}
+                  <div className="w-full max-w-4xl flex-1 bg-white text-slate-900 rounded-xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+                    <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-slate-50 text-xs font-mono text-slate-700 shrink-0">
+                      <span className="font-bold text-slate-900 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                        Exact Format Document View: {previewDoc.filename}
+                      </span>
+                      <span className="text-slate-500">{previewText.split("\n").length} lines</span>
                     </div>
 
-                    {/* Content */}
-                    <pre
-                      className={`pl-4 font-mono text-xs text-slate-200 leading-relaxed select-text flex-1 overflow-x-auto ${
-                        wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"
-                      }`}
-                    >
-                      {previewText}
-                    </pre>
+                    <div className="flex-1 overflow-auto p-8 font-sans text-sm text-slate-800 leading-relaxed select-text">
+                      <pre
+                        className={`font-sans text-sm text-slate-800 leading-relaxed select-text ${
+                          wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"
+                        }`}
+                        style={{ fontFamily: "inherit" }}
+                      >
+                        {previewText}
+                      </pre>
+                    </div>
                   </div>
                 </div>
               ) : (
                 <div className="py-20 px-6 text-center space-y-3 m-auto">
-                  <FileCode className="w-12 h-12 text-[#7047eb] mx-auto opacity-70" />
-                  <h4 className="text-sm font-bold text-slate-800">
+                  <FileCode className="w-12 h-12 text-red-500 mx-auto opacity-70" />
+                  <h4 className="text-sm font-bold text-zinc-100">
                     Document Content Available
                   </h4>
-                  <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    Click download below to inspect the original binary document file.
+                  <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                    Click download below to inspect the original binary document file or convert it to Word / PDF.
                   </p>
                   <button
                     type="button"
                     onClick={handleDownload}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-bold shadow-xs cursor-pointer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs cursor-pointer shadow-red-900/20"
                   >
                     <Download className="w-4 h-4" />
                     <span>Download Original Document</span>
@@ -580,14 +640,14 @@ export default function KnowledgeBaseView({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 bg-white shrink-0">
-              <span className="text-xs text-slate-400 font-medium">
+            <div className="flex items-center justify-between px-5 py-3 border-t border-zinc-800 bg-[#111115] shrink-0">
+              <span className="text-xs text-zinc-500 font-medium">
                 Verified sovereign knowledge base document
               </span>
               <button
                 type="button"
                 onClick={handleClose}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-200 hover:bg-[#27272a] cursor-pointer"
               >
                 Close Preview
               </button>

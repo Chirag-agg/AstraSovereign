@@ -311,7 +311,7 @@ export default function CoworkPage() {
             </div>
           </div>
 
-          <div className="overflow-y-auto border-b px-2 py-1.5" style={{ borderColor: "var(--border-subtle)" }}>
+          <div className="max-h-48 shrink-0 overflow-y-auto border-b px-2 py-1.5" style={{ borderColor: "var(--border-subtle)" }}>
             {projects.length === 0 ? (
               <p className="px-1 py-2 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
                 No projects yet. Create one, then ask the agent to build something.

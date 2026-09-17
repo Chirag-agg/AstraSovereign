@@ -1,8 +1,12 @@
 "use client";
 
-import React from "react";
-import AstraSovereignDashboard from "@/components/AstraSovereignDashboard";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function SovereignDashboardPage() {
-  return <AstraSovereignDashboard />;
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/");
+  }, [router]);
+  return null;
 }

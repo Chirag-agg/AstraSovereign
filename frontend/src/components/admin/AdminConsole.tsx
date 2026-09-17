@@ -636,7 +636,7 @@ function SystemView() {
 function RoleSwitch({ role, onChange }: { role: DevRole; onChange: (r: DevRole) => void }) {
   return (
     <select
-      className="px-3 py-1.5 rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-700 cursor-pointer focus:outline-none focus:border-purple-500 shadow-xs"
+      className="px-3 py-1.5 rounded-full border border-zinc-800 bg-zinc-900 text-xs font-semibold text-zinc-300 cursor-pointer focus:outline-none focus:border-red-500 shadow-xs font-mono"
       aria-label="Development role"
       value={role}
       onChange={(e) => onChange(e.target.value as DevRole)}
@@ -663,33 +663,33 @@ export default function AdminConsole() {
 
   if (role !== "admin") {
     return (
-      <div className="admin bg-[#eef1f6] min-h-screen">
-        <div className="admin-top bg-white border-b border-slate-200/80 px-6 h-16 flex items-center justify-between shadow-xs">
+      <div className="admin bg-[#09090b] text-zinc-200 min-h-screen">
+        <div className="admin-top bg-[#0d0d12] border-b border-zinc-800 px-6 h-16 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white shadow-xs font-bold text-xs">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-red-600 to-red-700 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)] font-bold text-xs">
               <span>AS</span>
             </div>
             <div className="brand">
-              <span className="text-slate-900 font-extrabold text-sm tracking-tight">AstraSovereign</span>
-              <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+              <span className="text-white font-extrabold text-sm tracking-tight">AstraSovereign</span>
+              <span className="text-[11px] font-semibold text-red-400 bg-red-950/40 px-2 py-0.5 rounded-full border border-red-800/40 font-mono">
                 Operations console
               </span>
             </div>
           </div>
         </div>
-        <div className="max-w-md mx-auto my-20 p-8 bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] text-center space-y-4">
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Operations console</h2>
-          <p className="text-xs text-slate-500">
+        <div className="max-w-md mx-auto my-20 p-8 bg-[#111115] rounded-2xl border border-zinc-800 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] text-center space-y-4">
+          <h2 className="text-xl font-bold text-white tracking-tight">Operations console</h2>
+          <p className="text-xs text-zinc-400">
             This area provides platform operations, system diagnostics, and workload management for administrators.
           </p>
-          <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-100 text-xs text-purple-900 font-medium text-left">
+          <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-800/40 text-xs text-red-200 font-medium text-left font-mono">
             Select the <strong>Admin</strong> role below to open the console.
           </div>
           <div className="pt-2 flex flex-col items-center gap-3">
             <RoleSwitch role={role} onChange={changeRole} />
             <button
               type="button"
-              className="text-xs font-semibold text-purple-700 hover:text-purple-900 transition-colors cursor-pointer"
+              className="text-xs font-semibold text-red-400 hover:text-red-300 transition-colors cursor-pointer"
               onClick={() => router.push("/")}
             >
               ← Back to user workspace
@@ -703,15 +703,15 @@ export default function AdminConsole() {
   const title = SECTION_TITLES[section] ?? SECTION_TITLES.overview;
 
   return (
-    <div className="admin bg-[#eef1f6] min-h-screen flex flex-col">
-      <div className="admin-top bg-white border-b border-slate-200/80 px-6 h-16 flex items-center justify-between shadow-xs shrink-0">
+    <div className="admin bg-[#09090b] text-zinc-200 min-h-screen flex flex-col">
+      <div className="admin-top bg-[#0d0d12] border-b border-zinc-800 px-6 h-16 flex items-center justify-between shadow-xs shrink-0">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white shadow-xs font-bold text-xs">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-red-600 to-red-700 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)] font-bold text-xs">
             <span>AS</span>
           </div>
           <div className="brand">
-            <span className="text-slate-900 font-extrabold text-sm tracking-tight">AstraSovereign</span>
-            <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+            <span className="text-white font-extrabold text-sm tracking-tight">AstraSovereign</span>
+            <span className="text-[11px] font-semibold text-red-400 bg-red-950/40 px-2 py-0.5 rounded-full border border-red-800/40 font-mono">
               Operations console
             </span>
           </div>
@@ -721,7 +721,7 @@ export default function AdminConsole() {
           <RoleSwitch role={role} onChange={changeRole} />
           <Link
             href="/"
-            className="menu-btn flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-200 text-xs font-semibold text-slate-700 hover:text-purple-700 transition-colors shadow-xs"
+            className="menu-btn flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-xs font-semibold text-zinc-300 hover:text-white transition-colors shadow-xs"
           >
             <span>User workspace</span>
             <span aria-hidden="true">→</span>
@@ -730,10 +730,10 @@ export default function AdminConsole() {
       </div>
       <div className="admin-body flex flex-1 min-h-0">
         <nav
-          className="admin-nav w-60 bg-white border-r border-slate-200/80 p-4 space-y-1 shrink-0 overflow-y-auto"
+          className="admin-nav w-60 bg-[#0d0d12] border-r border-zinc-800 p-4 space-y-1 shrink-0 overflow-y-auto"
           aria-label="Admin sections"
         >
-          <div className="nav-head text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2">
+          <div className="nav-head text-[11px] font-bold text-zinc-500 uppercase tracking-wider px-3 mb-2 font-mono">
             Operations
           </div>
           {SECTIONS.map((s) => (
@@ -742,8 +742,8 @@ export default function AdminConsole() {
               href={`/admin/${s}`}
               className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                 section === s
-                  ? "bg-[#7047eb] text-white shadow-sm font-bold"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  ? "bg-red-950/60 text-red-300 border border-red-800/60 shadow-xs font-bold"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850"
               }`}
             >
               {s.charAt(0).toUpperCase() + s.slice(1)}
@@ -751,15 +751,15 @@ export default function AdminConsole() {
           ))}
         </nav>
         <main
-          className="admin-content flex-1 overflow-y-auto p-6 lg:p-8 bg-[#eef1f6] min-w-0 min-h-0"
+          className="admin-content flex-1 overflow-y-auto p-6 lg:p-8 bg-[#09090b] min-w-0 min-h-0"
           aria-label="Admin content"
         >
           <div className="max-w-[1500px] mx-auto space-y-6">
             <div className="mb-6">
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
                 {title.title}
               </h2>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">{title.sub}</p>
+              <p className="text-xs sm:text-sm text-zinc-400 mt-1">{title.sub}</p>
             </div>
             {section === "overview" ? <OverviewView /> : null}
             {section === "workloads" ? <WorkloadsView /> : null}

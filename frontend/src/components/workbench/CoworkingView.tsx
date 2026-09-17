@@ -91,10 +91,10 @@ const INITIAL_DEPARTMENTS: DepartmentInfo[] = [
     leadId: "user-005",
     leadName: "Dr. Victor Vance",
     description: "Local LLM inference clusters, Docker sandbox validation, and CUDA/NVLink kernel optimization.",
-    accentColor: "#7047eb",
-    bgLight: "bg-purple-50/70",
-    borderColor: "border-purple-200",
-    textColor: "text-purple-700",
+    accentColor: "#ef4444",
+    bgLight: "bg-red-500/10",
+    borderColor: "border-red-500/20",
+    textColor: "text-red-400",
     slaTarget: "< 2s Execution SLA",
   },
   {
@@ -105,9 +105,9 @@ const INITIAL_DEPARTMENTS: DepartmentInfo[] = [
     leadName: "Sarah Jenkins",
     description: "ITAR compliance verification, defense contract liability auditing, and export-control clearance.",
     accentColor: "#2563eb",
-    bgLight: "bg-blue-50/70",
-    borderColor: "border-blue-200",
-    textColor: "text-blue-700",
+    bgLight: "bg-blue-950/30",
+    borderColor: "border-blue-900/40",
+    textColor: "text-blue-400",
     slaTarget: "100% ITAR Verification",
   },
   {
@@ -118,9 +118,9 @@ const INITIAL_DEPARTMENTS: DepartmentInfo[] = [
     leadName: "Michael Sterling",
     description: "Cross-department budget reconciliations, vendor ledger analysis, and cryptographic payroll checks.",
     accentColor: "#059669",
-    bgLight: "bg-emerald-50/70",
-    borderColor: "border-emerald-200",
-    textColor: "text-emerald-700",
+    bgLight: "bg-emerald-950/30",
+    borderColor: "border-emerald-900/40",
+    textColor: "text-emerald-400",
     slaTarget: "Zero Egress Audited",
   },
   {
@@ -131,9 +131,9 @@ const INITIAL_DEPARTMENTS: DepartmentInfo[] = [
     leadName: "Capt. Ray Thornton",
     description: "Physical hardware custody, RapidOCR logistics waybill extraction, and edge token transportation.",
     accentColor: "#d97706",
-    bgLight: "bg-amber-50/70",
-    borderColor: "border-amber-200",
-    textColor: "text-amber-700",
+    bgLight: "bg-amber-950/30",
+    borderColor: "border-amber-900/40",
+    textColor: "text-amber-400",
     slaTarget: "Same-Day Manifest",
   },
   {
@@ -144,9 +144,9 @@ const INITIAL_DEPARTMENTS: DepartmentInfo[] = [
     leadName: "Clara Oswald",
     description: "Air-gap ethics governance, clearance level credentialing (L1-L4), and personnel security trails.",
     accentColor: "#e11d48",
-    bgLight: "bg-rose-50/70",
-    borderColor: "border-rose-200",
-    textColor: "text-rose-700",
+    bgLight: "bg-rose-950/30",
+    borderColor: "border-rose-900/40",
+    textColor: "text-rose-400",
     slaTarget: "L4 Officer Clearance",
   },
   {
@@ -157,9 +157,9 @@ const INITIAL_DEPARTMENTS: DepartmentInfo[] = [
     leadName: "Security Officer & Admin",
     description: "Topmost administrative sovereign authority, loopback socket enforcement, and network air-gap defense.",
     accentColor: "#475569",
-    bgLight: "bg-slate-100/70",
-    borderColor: "border-slate-200",
-    textColor: "text-slate-800",
+    bgLight: "bg-[#18181b]/70",
+    borderColor: "border-zinc-800",
+    textColor: "text-zinc-100",
     slaTarget: "Zero Packet Egress",
   },
 ];
@@ -791,42 +791,42 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in pb-10">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#09090b] text-zinc-100 space-y-8 animate-in fade-in pb-16">
       {/* ─────────────────────────────────────────────────────────────────
           1. HEADER & ACTIVE ACCOUNT HIERARCHY TRAIL SWITCHER
       ───────────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-2xs space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 border-b border-slate-100 pb-6">
+      <div className="bg-[#111115] rounded-3xl p-7 border border-zinc-800 shadow-2xs space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 border-b border-zinc-800 pb-6">
           <div className="space-y-1.5">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-purple-100 flex items-center justify-center text-purple-700 font-black text-sm shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-red-950/40 flex items-center justify-center text-red-400 font-black text-sm shrink-0">
                 {currentUser.avatar}
               </div>
               <div>
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  <h2 className="text-xl sm:text-2xl font-black text-zinc-100 tracking-tight">
                     {currentUser.name}
                   </h2>
                   <span
                     className={`px-3 py-0.5 rounded-full text-xs font-bold border ${
                       currentUser.rank === 4
-                        ? "bg-purple-100 text-purple-800 border-purple-300"
+                        ? "bg-red-950/40 text-red-300 border-red-900/50"
                         : currentUser.rank === 3
-                        ? "bg-blue-100 text-blue-800 border-blue-300"
+                        ? "bg-blue-950/40 text-blue-300 border-blue-900/50"
                         : currentUser.rank === 2
-                        ? "bg-amber-100 text-amber-800 border-amber-300"
-                        : "bg-slate-100 text-slate-700 border-slate-300"
+                        ? "bg-amber-950/40 text-amber-300 border-amber-900/50"
+                        : "bg-[#18181b] text-zinc-300 border-zinc-700"
                     }`}
                   >
                     Level {currentUser.rank}: {currentUser.clearance.split(":")[0]}
                   </span>
                   {isAdmin && (
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950/30 text-emerald-400 border border-emerald-900/40">
                       Topmost Admin
                     </span>
                   )}
                 </div>
-                <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                <p className="text-xs sm:text-sm text-zinc-400 font-medium">
                   {currentUser.roleTitle} &bull; {currentUser.department} &bull; Station: {currentUser.nodeIp}
                 </p>
               </div>
@@ -839,9 +839,9 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
             <button
               type="button"
               onClick={() => setTreeModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#18181b] hover:bg-[#18181b] border border-zinc-800 text-zinc-300 text-xs font-bold transition-all shadow-2xs cursor-pointer"
             >
-              <GitBranch className="w-4 h-4 text-purple-600" />
+              <GitBranch className="w-4 h-4 text-red-400" />
               <span>Org Hierarchy Tree</span>
             </button>
 
@@ -850,17 +850,17 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               <button
                 type="button"
                 onClick={() => setRoleSwitcherOpen(!roleSwitcherOpen)}
-                className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white border border-slate-200 hover:border-purple-300 text-slate-700 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#111115] border border-zinc-800 hover:border-red-900/50 text-zinc-300 text-xs font-bold transition-all shadow-2xs cursor-pointer"
                 title="Switch account persona to test hierarchy permissions"
               >
-                <Users className="w-4 h-4 text-slate-500" />
+                <Users className="w-4 h-4 text-zinc-400" />
                 <span>Switch Account Role</span>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
               </button>
 
               {roleSwitcherOpen && (
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 space-y-1 animate-in fade-in">
-                  <div className="text-[11px] font-bold text-slate-400 px-3 py-1.5 uppercase tracking-wider">
+                <div className="absolute right-0 mt-2 w-72 bg-[#111115] rounded-2xl shadow-xl border border-zinc-800 p-2 z-50 space-y-1 animate-in fade-in">
+                  <div className="text-[11px] font-bold text-zinc-500 px-3 py-1.5 uppercase tracking-wider">
                     Simulate Hierarchy Identity
                   </div>
                   {[
@@ -873,15 +873,15 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                       key={acc.id}
                       onClick={() => handleSwitchUser(acc.id)}
                       className={`w-full flex items-start gap-2.5 px-3 py-2 rounded-xl text-left transition-colors cursor-pointer ${
-                        activeUserId === acc.id ? "bg-purple-50 text-purple-900 font-bold" : "hover:bg-slate-50 text-slate-700"
+                        activeUserId === acc.id ? "bg-red-950/30 text-red-200 font-bold" : "hover:bg-[#18181b] text-zinc-300"
                       }`}
                     >
-                      <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 mt-0.5 shrink-0">
+                      <div className="w-6 h-6 rounded-lg bg-[#18181b] flex items-center justify-center text-[10px] font-bold text-zinc-400 mt-0.5 shrink-0">
                         {acc.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
                       </div>
                       <div>
                         <div className="text-xs font-semibold">{acc.name}</div>
-                        <div className="text-[10px] text-slate-400 font-medium">
+                        <div className="text-[10px] text-zinc-500 font-medium">
                           {acc.rank} &bull; {acc.dept}
                         </div>
                       </div>
@@ -894,11 +894,11 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
         </div>
 
         {/* Dynamic Authority Scope Banner based on Hierarchy */}
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+        <div className="p-4 rounded-2xl bg-[#18181b] border border-zinc-800 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2.5">
-            <Shield className="w-4.5 h-4.5 text-purple-600 shrink-0" />
+            <Shield className="w-4.5 h-4.5 text-red-400 shrink-0" />
             <div className="space-y-0.5">
-              <span className="font-bold text-slate-800">
+              <span className="font-bold text-zinc-100">
                 {currentUser.rank === 4
                   ? "Topmost Administrative Clearance (Rank 4)"
                   : currentUser.rank === 3
@@ -907,7 +907,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                   ? `Senior Specialist Scope: ${currentUser.department} (Rank 2)`
                   : `Associate / Operator Scope: ${currentUser.department} (Rank 1)`}
               </span>
-              <p className="text-slate-500">
+              <p className="text-zinc-400">
                 {currentUser.rank === 4
                   ? "Full cross-department directive authority. Cannot be assigned tasks by subordinates. Oversees all operations."
                   : currentUser.rank === 3
@@ -920,10 +920,10 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 font-semibold">
+            <span className="px-2.5 py-1 rounded-lg bg-[#111115] border border-zinc-800 text-zinc-400 font-semibold">
               Assigns: {currentUser.rank > 1 ? `L${currentUser.rank - 1} and below` : "None (Operator)"}
             </span>
-            <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 font-semibold">
+            <span className="px-2.5 py-1 rounded-lg bg-[#111115] border border-zinc-800 text-zinc-400 font-semibold">
               Requests: L{currentUser.rank} Peers
             </span>
           </div>
@@ -937,7 +937,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
         <div className="bg-gradient-to-r from-purple-900 to-indigo-900 rounded-3xl p-7 text-white space-y-6 shadow-md">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-purple-200">
+              <div className="w-10 h-10 rounded-2xl bg-[#111115]/10 flex items-center justify-center text-purple-200">
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <div>
@@ -945,7 +945,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                   <h3 className="text-lg font-bold tracking-tight">
                     Topmost Administrator Operations Monitor
                   </h3>
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold border border-emerald-400/30">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-950/300/20 text-emerald-300 text-[10px] font-extrabold border border-emerald-400/30">
                     AIR-GAP SUPERVISOR ACTIVE
                   </span>
                 </div>
@@ -960,7 +960,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               <button
                 type="button"
                 onClick={() => setCreateEmpModalOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white text-purple-900 hover:bg-purple-50 text-xs font-bold transition-all shadow-sm cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#111115] text-red-200 hover:bg-red-950/30 text-xs font-bold transition-all shadow-sm cursor-pointer"
               >
                 <UserPlus className="w-4 h-4" />
                 <span>+ Add Employee Manually</span>
@@ -969,7 +969,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               <button
                 type="button"
                 onClick={() => setDeptJobModalOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-700/80 hover:bg-purple-600 border border-purple-400/40 text-white text-xs font-bold transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-700/80 hover:bg-red-600 border border-purple-400/40 text-white text-xs font-bold transition-all cursor-pointer"
               >
                 <Send className="w-4 h-4" />
                 <span>Assign Job to Department</span>
@@ -979,7 +979,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
 
           {/* Org Key Metrics Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-1">
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+            <div className="p-4 rounded-2xl bg-[#111115]/5 border border-white/10">
               <span className="text-[11px] font-bold text-purple-200 uppercase tracking-wider block">
                 Total Departments
               </span>
@@ -987,7 +987,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               <span className="text-[11px] text-purple-300 mt-1 block">100% Isolated Mesh</span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+            <div className="p-4 rounded-2xl bg-[#111115]/5 border border-white/10">
               <span className="text-[11px] font-bold text-purple-200 uppercase tracking-wider block">
                 Total Personnel
               </span>
@@ -995,7 +995,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               <span className="text-[11px] text-purple-300 mt-1 block">L1 through L4 Cleared</span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+            <div className="p-4 rounded-2xl bg-[#111115]/5 border border-white/10">
               <span className="text-[11px] font-bold text-purple-200 uppercase tracking-wider block">
                 Work Orders In-Flight
               </span>
@@ -1005,7 +1005,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               </span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+            <div className="p-4 rounded-2xl bg-[#111115]/5 border border-white/10">
               <span className="text-[11px] font-bold text-purple-200 uppercase tracking-wider block">
                 Admin Task Inflow
               </span>
@@ -1022,11 +1022,11 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h3 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-purple-600" />
+            <h3 className="text-xl font-bold text-zinc-100 tracking-tight flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-red-400" />
               <span>Cross-Departmental Coworking Hub</span>
             </h3>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium">
+            <p className="text-xs sm:text-sm text-zinc-400 font-medium">
               Choose a department card below to drill down, run employee queries, or assign/request work according to hierarchy rules.
             </p>
           </div>
@@ -1035,7 +1035,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
             <button
               type="button"
               onClick={() => setSelectedDeptId(null)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer self-start sm:self-auto"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-zinc-300 text-xs font-bold transition-colors cursor-pointer self-start sm:self-auto"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back to All Departments</span>
@@ -1055,7 +1055,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                 <div
                   key={dept.id}
                   onClick={() => setSelectedDeptId(dept.name)}
-                  className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group flex flex-col justify-between space-y-6"
+                  className="bg-[#111115] rounded-3xl p-7 border border-zinc-800 shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group flex flex-col justify-between space-y-6"
                 >
                   <div className="space-y-4">
                     <div className="flex items-start justify-between gap-3">
@@ -1064,39 +1064,39 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                       >
                         <IconComp className="w-6 h-6" />
                       </div>
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200 text-slate-600">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#18181b] border border-zinc-800 text-zinc-400">
                         {dept.slaTarget}
                       </span>
                     </div>
 
                     <div>
-                      <h4 className="text-lg font-bold text-slate-900 group-hover:text-purple-600 transition-colors">
+                      <h4 className="text-lg font-bold text-zinc-100 group-hover:text-red-400 transition-colors">
                         {dept.name}
                       </h4>
-                      <p className="text-xs text-slate-500 leading-relaxed mt-1 font-medium">
+                      <p className="text-xs text-zinc-400 leading-relaxed mt-1 font-medium">
                         {dept.description}
                       </p>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-100 space-y-2 text-xs">
-                      <div className="flex items-center justify-between text-slate-600 font-medium">
+                    <div className="pt-2 border-t border-zinc-800 space-y-2 text-xs">
+                      <div className="flex items-center justify-between text-zinc-400 font-medium">
                         <span>Department Lead:</span>
-                        <span className="font-bold text-slate-800">{dept.leadName}</span>
+                        <span className="font-bold text-zinc-100">{dept.leadName}</span>
                       </div>
-                      <div className="flex items-center justify-between text-slate-600 font-medium">
+                      <div className="flex items-center justify-between text-zinc-400 font-medium">
                         <span>Personnel Count:</span>
-                        <span className="font-bold text-slate-800">{deptEmps.length} Employees</span>
+                        <span className="font-bold text-zinc-100">{deptEmps.length} Employees</span>
                       </div>
-                      <div className="flex items-center justify-between text-slate-600 font-medium">
+                      <div className="flex items-center justify-between text-zinc-400 font-medium">
                         <span>Active Tasks:</span>
-                        <span className="font-bold text-purple-700">{deptTasks.length} Work Orders</span>
+                        <span className="font-bold text-red-400">{deptTasks.length} Work Orders</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-400">Click to inspect roster &amp; work</span>
-                    <div className="flex items-center gap-1 text-xs font-bold text-purple-700 group-hover:translate-x-1 transition-transform">
+                  <div className="pt-4 border-t border-zinc-800 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-zinc-500">Click to inspect roster &amp; work</span>
+                    <div className="flex items-center gap-1 text-xs font-bold text-red-400 group-hover:translate-x-1 transition-transform">
                       <span>Inspect</span>
                       <ChevronRight className="w-4 h-4" />
                     </div>
@@ -1108,9 +1108,9 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
         ) : (
           /* ── MODE B: SELECTED DEPARTMENT DRILLDOWN WORKSPACE ── */
           activeDepartment && (
-            <div className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-2xs space-y-7 animate-in fade-in">
+            <div className="bg-[#111115] rounded-3xl p-7 border border-zinc-800 shadow-2xs space-y-7 animate-in fade-in">
               {/* Department Header */}
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-100">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-zinc-800">
                 <div className="flex items-center gap-3.5">
                   <div
                     className={`w-12 h-12 rounded-2xl flex items-center justify-center ${activeDepartment.bgLight} ${activeDepartment.textColor} border ${activeDepartment.borderColor} shrink-0`}
@@ -1119,14 +1119,14 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-xl font-black text-slate-900">
+                      <h3 className="text-xl font-black text-zinc-100">
                         {activeDepartment.name}
                       </h3>
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#18181b] text-zinc-300 border border-zinc-800">
                         Lead: {activeDepartment.leadName}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    <p className="text-xs text-zinc-400 font-medium mt-0.5">
                       {activeDepartment.description}
                     </p>
                   </div>
@@ -1141,7 +1141,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                         setNewEmpDept(activeDepartment.name);
                         setCreateEmpModalOpen(true);
                       }}
-                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors cursor-pointer"
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-950/30 hover:bg-red-950/40 text-red-400 text-xs font-bold transition-colors cursor-pointer"
                     >
                       <UserPlus className="w-4 h-4" />
                       <span>+ Add Employee to {activeDepartment.name}</span>
@@ -1153,7 +1153,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                         setTargetDeptForJob(activeDepartment.name);
                         setDeptJobModalOpen(true);
                       }}
-                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-zinc-100 text-xs font-bold transition-colors cursor-pointer"
                     >
                       <Send className="w-4 h-4" />
                       <span>Assign Job to Dept Queue</span>
@@ -1163,31 +1163,31 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               </div>
 
               {/* Natural Language / Query on Employees in this Department */}
-              <div className="p-5 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-3.5">
+              <div className="p-5 rounded-2xl bg-[#18181b]/70 border border-zinc-800 space-y-3.5">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                    <Sparkles className="w-4 h-4 text-purple-600" />
+                  <div className="flex items-center gap-2 text-xs font-bold text-zinc-300">
+                    <Sparkles className="w-4 h-4 text-red-400" />
                     <span>Query &amp; Search Personnel in {activeDepartment.name}</span>
                   </div>
-                  <span className="text-[11px] text-slate-400 font-medium">
+                  <span className="text-[11px] text-zinc-500 font-medium">
                     Showing {departmentEmployees.length} of {employees.filter((e) => e.department === activeDepartment.name).length} employees
                   </span>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center gap-3">
                   <div className="relative flex-1 w-full">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={empQuery}
                       onChange={(e) => setEmpQuery(e.target.value)}
                       placeholder={`Query employees (e.g. 'find L2 clearance', 'Docker', 'Elena', 'specialties')...`}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#111115] border border-zinc-800 text-xs sm:text-sm font-medium text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
                     />
                     {empQuery && (
                       <button
                         onClick={() => setEmpQuery("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-400"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -1199,7 +1199,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                     <select
                       value={empRankFilter}
                       onChange={(e) => setEmpRankFilter(e.target.value as any)}
-                      className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 cursor-pointer outline-none"
+                      className="px-3 py-2 rounded-xl text-xs font-bold bg-[#111115] border border-zinc-800 text-zinc-300 cursor-pointer outline-none"
                     >
                       <option value="all">All Levels</option>
                       <option value="L4">Level 4 (Directorate)</option>
@@ -1212,7 +1212,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                     <select
                       value={empStatusFilter}
                       onChange={(e) => setEmpStatusFilter(e.target.value as any)}
-                      className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 cursor-pointer outline-none"
+                      className="px-3 py-2 rounded-xl text-xs font-bold bg-[#111115] border border-zinc-800 text-zinc-300 cursor-pointer outline-none"
                     >
                       <option value="all">All Statuses</option>
                       <option value="available">Available / Idle</option>
@@ -1223,7 +1223,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
 
                 {/* Quick Query Template Chips */}
                 <div className="flex items-center gap-2 flex-wrap pt-1">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
                     Quick Queries:
                   </span>
                   {[
@@ -1237,7 +1237,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                       key={chip}
                       type="button"
                       onClick={() => setEmpQuery(chip === "Level 2 Reviewers" ? "L2" : chip === "Clearance L3" ? "L3" : chip)}
-                      className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-purple-300 text-slate-600 transition-colors cursor-pointer"
+                      className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-[#111115] border border-zinc-800 hover:border-red-900/50 text-zinc-400 transition-colors cursor-pointer"
                     >
                       {chip}
                     </button>
@@ -1250,7 +1250,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                         setEmpRankFilter("all");
                         setEmpStatusFilter("all");
                       }}
-                      className="text-xs font-bold text-purple-700 hover:underline ml-1 cursor-pointer"
+                      className="text-xs font-bold text-red-400 hover:underline ml-1 cursor-pointer"
                     >
                       Reset filters
                     </button>
@@ -1261,19 +1261,19 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               {/* Department Employees Grid */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-base font-bold text-slate-900">
+                  <h4 className="text-base font-bold text-zinc-100">
                     Department Personnel ({departmentEmployees.length})
                   </h4>
-                  <span className="text-xs text-slate-400 font-medium">
+                  <span className="text-xs text-zinc-500 font-medium">
                     Hierarchy rule: Assign downwards &bull; Request peer
                   </span>
                 </div>
 
                 {departmentEmployees.length === 0 ? (
-                  <div className="p-8 rounded-2xl bg-slate-50 border border-slate-100 text-center space-y-2">
-                    <Users className="w-8 h-8 text-slate-400 mx-auto" />
-                    <p className="text-sm font-bold text-slate-700">No personnel match current query</p>
-                    <p className="text-xs text-slate-400">
+                  <div className="p-8 rounded-2xl bg-[#18181b] border border-zinc-800 text-center space-y-2">
+                    <Users className="w-8 h-8 text-zinc-500 mx-auto" />
+                    <p className="text-sm font-bold text-zinc-300">No personnel match current query</p>
+                    <p className="text-xs text-zinc-500">
                       Try adjusting the search query or reset the filters.
                     </p>
                   </div>
@@ -1293,8 +1293,8 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                           key={emp.id}
                           className={`rounded-2xl p-5 border transition-all flex flex-col justify-between space-y-4 ${
                             isSelf
-                              ? "bg-purple-50/40 border-purple-200 ring-2 ring-purple-100"
-                              : "bg-white border-slate-200/90 shadow-2xs hover:shadow-xs hover:border-slate-300"
+                              ? "bg-red-950/30/40 border-red-900/40 ring-2 ring-purple-100"
+                              : "bg-[#111115] border-zinc-800/90 shadow-2xs hover:shadow-xs hover:border-zinc-700"
                           }`}
                         >
                           <div className="space-y-3">
@@ -1302,15 +1302,15 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-3">
                                 <div className="relative">
-                                  <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-800 font-extrabold text-xs flex items-center justify-center border border-slate-200">
+                                  <div className="w-10 h-10 rounded-xl bg-[#18181b] text-zinc-100 font-extrabold text-xs flex items-center justify-center border border-zinc-800">
                                     {emp.avatar}
                                   </div>
                                   <span
                                     className={`w-2.5 h-2.5 rounded-full border-2 border-white absolute -bottom-0.5 -right-0.5 ${
                                       emp.status === "online"
-                                        ? "bg-emerald-500"
+                                        ? "bg-emerald-950/300"
                                         : emp.status === "in-task"
-                                        ? "bg-amber-500"
+                                        ? "bg-amber-950/300"
                                         : "bg-slate-400"
                                     }`}
                                     title={`Status: ${emp.status}`}
@@ -1319,16 +1319,16 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
 
                                 <div>
                                   <div className="flex items-center gap-1.5 flex-wrap">
-                                    <h5 className="text-sm font-bold text-slate-900 leading-tight">
+                                    <h5 className="text-sm font-bold text-zinc-100 leading-tight">
                                       {emp.name}
                                     </h5>
                                     {isSelf && (
-                                      <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.2 rounded">
+                                      <span className="text-[10px] font-bold text-red-400 bg-red-950/40 px-1.5 py-0.2 rounded">
                                         You
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-xs text-slate-500 font-medium truncate max-w-[170px]">
+                                  <p className="text-xs text-zinc-400 font-medium truncate max-w-[170px]">
                                     {emp.roleTitle}
                                   </p>
                                 </div>
@@ -1338,12 +1338,12 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                               <span
                                 className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border shrink-0 ${
                                   emp.rank === 4
-                                    ? "bg-purple-50 text-purple-800 border-purple-200"
+                                    ? "bg-red-950/30 text-red-300 border-red-900/40"
                                     : emp.rank === 3
-                                    ? "bg-blue-50 text-blue-800 border-blue-200"
+                                    ? "bg-blue-950/30 text-blue-300 border-blue-900/40"
                                     : emp.rank === 2
-                                    ? "bg-amber-50 text-amber-800 border-amber-200"
-                                    : "bg-slate-100 text-slate-700 border-slate-200"
+                                    ? "bg-amber-950/30 text-amber-300 border-amber-900/40"
+                                    : "bg-[#18181b] text-zinc-300 border-zinc-800"
                                 }`}
                               >
                                 Level {emp.rank}
@@ -1351,14 +1351,14 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                             </div>
 
                             {/* Details & Specs */}
-                            <div className="space-y-1.5 pt-1 text-xs text-slate-600">
+                            <div className="space-y-1.5 pt-1 text-xs text-zinc-400">
                               <div className="flex items-center justify-between text-[11px]">
-                                <span className="text-slate-400">Station Node:</span>
-                                <span className="font-mono text-slate-700 font-semibold">{emp.nodeIp}</span>
+                                <span className="text-zinc-500">Station Node:</span>
+                                <span className="font-mono text-zinc-300 font-semibold">{emp.nodeIp}</span>
                               </div>
                               <div className="flex items-center justify-between text-[11px]">
-                                <span className="text-slate-400">Active Tasks:</span>
-                                <span className="font-bold text-purple-700">{emp.activeTasksCount} In-Flight</span>
+                                <span className="text-zinc-500">Active Tasks:</span>
+                                <span className="font-bold text-red-400">{emp.activeTasksCount} In-Flight</span>
                               </div>
                             </div>
 
@@ -1367,7 +1367,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                               {emp.specialties.slice(0, 3).map((tag) => (
                                 <span
                                   key={tag}
-                                  className="text-[10px] font-medium bg-slate-50 text-slate-600 px-2 py-0.5 rounded border border-slate-100"
+                                  className="text-[10px] font-medium bg-[#18181b] text-zinc-400 px-2 py-0.5 rounded border border-zinc-800"
                                 >
                                   {tag}
                                 </span>
@@ -1376,13 +1376,13 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                           </div>
 
                           {/* Action Row */}
-                          <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <div className="pt-3 border-t border-zinc-800 flex items-center justify-between gap-2">
                             {/* Delete Employee (Admin Only) */}
                             {isAdmin && !isSelf && (
                               <button
                                 type="button"
                                 onClick={() => handleDeleteEmployee(emp.id)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-600 hover:bg-rose-950/30 transition-colors cursor-pointer"
                                 title="Delete employee from sovereign roster"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -1391,24 +1391,24 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
 
                             <div className="flex items-center gap-2 ml-auto">
                               {isSelf ? (
-                                <span className="text-xs font-semibold text-slate-400 italic">
+                                <span className="text-xs font-semibold text-zinc-500 italic">
                                   Current User Session
                                 </span>
                               ) : isTargetAdmin && !isAdmin ? (
                                 <button
                                   type="button"
                                   onClick={() => handleOpenWorkModal(emp, "consult")}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-zinc-300 text-xs font-bold transition-colors cursor-pointer"
                                   title="Admin cannot be assigned tasks. Send consultation query."
                                 >
-                                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                                  <Lock className="w-3.5 h-3.5 text-zinc-400" />
                                   <span>Consult Admin</span>
                                 </button>
                               ) : canAssign ? (
                                 <button
                                   type="button"
                                   onClick={() => handleOpenWorkModal(emp, "assign")}
-                                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-2xs cursor-pointer"
                                   title="Assign directive downwards (Hierarchy Authorized)"
                                 >
                                   <Send className="w-3.5 h-3.5" />
@@ -1418,7 +1418,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                                 <button
                                   type="button"
                                   onClick={() => handleOpenWorkModal(emp, "request")}
-                                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors cursor-pointer"
+                                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-950/30 hover:bg-blue-950/40 text-blue-400 text-xs font-bold transition-colors cursor-pointer"
                                   title="Request collaboration from equal peer"
                                 >
                                   <Users className="w-3.5 h-3.5" />
@@ -1428,10 +1428,10 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                                 <button
                                   type="button"
                                   onClick={() => handleOpenWorkModal(emp, "consult")}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-zinc-300 text-xs font-bold transition-colors cursor-pointer"
                                   title="Senior rank. Submit consultative inquiry."
                                 >
-                                  <FileText className="w-3.5 h-3.5 text-slate-500" />
+                                  <FileText className="w-3.5 h-3.5 text-zinc-400" />
                                   <span>Consult Inquiry</span>
                                 </button>
                               )}
@@ -1451,19 +1451,19 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
       {/* ─────────────────────────────────────────────────────────────────
           4. ALL ACTIVE COWORKING TASKS & DISPATCH STREAM
       ───────────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-2xs space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+      <div className="bg-[#111115] rounded-3xl p-7 border border-zinc-800 shadow-2xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
           <div>
-            <h4 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              <Clock className="w-5 h-5 text-purple-600" />
+            <h4 className="text-lg font-bold text-zinc-100 tracking-tight flex items-center gap-2">
+              <Clock className="w-5 h-5 text-red-400" />
               <span>Cross-Department Live Work Orders</span>
             </h4>
-            <p className="text-xs text-slate-500 font-medium">
+            <p className="text-xs text-zinc-400 font-medium">
               Tasks assigned between upper and lower hierarchy, peer collaborations, and deliverables in progress.
             </p>
           </div>
 
-          <span className="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-200 self-start sm:self-auto">
+          <span className="text-xs font-bold text-red-400 bg-red-950/30 px-3 py-1 rounded-full border border-red-900/40 self-start sm:self-auto">
             {tasks.length} Active Directives
           </span>
         </div>
@@ -1471,7 +1471,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider text-[10.5px]">
+              <tr className="border-b border-zinc-800 text-zinc-500 font-bold uppercase tracking-wider text-[10.5px]">
                 <th className="pb-3 pr-4">Order ID</th>
                 <th className="pb-3 pr-4">Work Description</th>
                 <th className="pb-3 pr-4">Department</th>
@@ -1483,41 +1483,41 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
             </thead>
             <tbody className="divide-y divide-slate-100">
               {tasks.map((task) => (
-                <tr key={task.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="py-3.5 pr-4 font-mono font-bold text-purple-700">
+                <tr key={task.id} className="hover:bg-[#18181b]/70 transition-colors">
+                  <td className="py-3.5 pr-4 font-mono font-bold text-red-400">
                     {task.id}
                   </td>
-                  <td className="py-3.5 pr-4 font-bold text-slate-900 max-w-xs truncate">
+                  <td className="py-3.5 pr-4 font-bold text-zinc-100 max-w-xs truncate">
                     {task.title}
                   </td>
-                  <td className="py-3.5 pr-4 text-slate-600 font-medium">
+                  <td className="py-3.5 pr-4 text-zinc-400 font-medium">
                     {task.department}
                   </td>
                   <td className="py-3.5 pr-4">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center justify-center">
+                      <div className="w-6 h-6 rounded-lg bg-[#18181b] text-zinc-300 font-bold text-[10px] flex items-center justify-center">
                         {task.assignee.avatar}
                       </div>
-                      <span className="font-semibold text-slate-800">{task.assignee.name}</span>
+                      <span className="font-semibold text-zinc-100">{task.assignee.name}</span>
                     </div>
                   </td>
-                  <td className="py-3.5 pr-4 text-slate-500 font-medium">
+                  <td className="py-3.5 pr-4 text-zinc-400 font-medium">
                     {task.assignedBy || "Directorate"}
                   </td>
                   <td className="py-3.5 pr-4">
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
                         task.status === "Completed"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          ? "bg-emerald-950/30 text-emerald-400 border border-emerald-900/40"
                           : task.status === "In Progress"
-                          ? "bg-purple-50 text-purple-700 border border-purple-200"
-                          : "bg-amber-50 text-amber-700 border border-amber-200"
+                          ? "bg-red-950/30 text-red-400 border border-red-900/40"
+                          : "bg-amber-950/30 text-amber-400 border border-amber-900/40"
                       }`}
                     >
                       {task.status}
                     </span>
                   </td>
-                  <td className="py-3.5 text-right font-medium text-slate-500">
+                  <td className="py-3.5 text-right font-medium text-zinc-400">
                     {task.deadline}
                   </td>
                 </tr>
@@ -1532,12 +1532,12 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
       ───────────────────────────────────────────────────────────────── */}
       {workModalOpen && selectedTargetEmp && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-7 max-w-lg w-full shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95">
+          <div className="bg-[#111115] rounded-3xl p-7 max-w-lg w-full shadow-2xl border border-zinc-800 space-y-5 animate-in zoom-in-95">
             {/* Modal Header */}
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+            <div className="flex items-start justify-between gap-3 border-b border-zinc-800 pb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 className="text-lg font-bold text-zinc-100">
                     {workModalMode === "assign"
                       ? "Assign Work Order (Directive)"
                       : workModalMode === "request"
@@ -1545,15 +1545,15 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                       : "Submit Consultative Query"}
                   </h3>
                 </div>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Target: <strong className="text-slate-800">{selectedTargetEmp.name}</strong> ({selectedTargetEmp.roleTitle} &bull; Level {selectedTargetEmp.rank})
+                <p className="text-xs text-zinc-400 font-medium mt-0.5">
+                  Target: <strong className="text-zinc-100">{selectedTargetEmp.name}</strong> ({selectedTargetEmp.roleTitle} &bull; Level {selectedTargetEmp.rank})
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() => setWorkModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-400 hover:bg-[#18181b] transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1563,10 +1563,10 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
             <div
               className={`p-3.5 rounded-2xl border text-xs leading-relaxed ${
                 workModalMode === "assign"
-                  ? "bg-emerald-50/80 border-emerald-200 text-emerald-800"
+                  ? "bg-emerald-950/30/80 border-emerald-900/40 text-emerald-800"
                   : workModalMode === "request"
-                  ? "bg-blue-50/80 border-blue-200 text-blue-800"
-                  : "bg-amber-50/80 border-amber-200 text-amber-800"
+                  ? "bg-blue-950/30/80 border-blue-900/40 text-blue-300"
+                  : "bg-amber-950/30/80 border-amber-900/40 text-amber-300"
               }`}
             >
               {workModalMode === "assign" && (
@@ -1598,7 +1598,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
             {/* Form Fields */}
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
+                <label className="text-xs font-bold text-zinc-300 block mb-1">
                   Work Title / Directive Summary
                 </label>
                 <input
@@ -1606,19 +1606,19 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                   value={workTitle}
                   onChange={(e) => setWorkTitle(e.target.value)}
                   placeholder="e.g. Audit export compliance clauses across vendor schematics"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:border-purple-400 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#18181b] border border-zinc-800 text-xs sm:text-sm font-medium text-zinc-100 focus:bg-[#111115] focus:border-purple-400 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                  <label className="text-xs font-bold text-zinc-300 block mb-1">
                     Priority Level
                   </label>
                   <select
                     value={workPriority}
                     onChange={(e) => setWorkPriority(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-[#111115] border border-zinc-800 text-zinc-300 outline-none cursor-pointer"
                   >
                     <option value="P0">P0 - Critical / Immediate</option>
                     <option value="P1">P1 - High Priority</option>
@@ -1627,13 +1627,13 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                  <label className="text-xs font-bold text-zinc-300 block mb-1">
                     Target Deliverable
                   </label>
                   <select
                     value={workDeliverableType}
                     onChange={(e) => setWorkDeliverableType(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-[#111115] border border-zinc-800 text-zinc-300 outline-none cursor-pointer"
                   >
                     <option value="pdf">Signed PDF Document</option>
                     <option value="docx">Word Specification (DOCX)</option>
@@ -1644,13 +1644,13 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
+                <label className="text-xs font-bold text-zinc-300 block mb-1">
                   Deadline / SLA Target
                 </label>
                 <select
                   value={workDeadline}
                   onChange={(e) => setWorkDeadline(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                  className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-[#111115] border border-zinc-800 text-zinc-300 outline-none cursor-pointer"
                 >
                   <option value="Today, 5:00 PM">Today, 5:00 PM</option>
                   <option value="Tomorrow, 12:00 PM">Tomorrow, 12:00 PM</option>
@@ -1660,7 +1660,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
+                <label className="text-xs font-bold text-zinc-300 block mb-1">
                   Detailed Instructions / Context
                 </label>
                 <textarea
@@ -1668,17 +1668,17 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                   value={workNotes}
                   onChange={(e) => setWorkNotes(e.target.value)}
                   placeholder="Specify key constraints, required clearance levels, or references..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 focus:bg-white focus:border-purple-400 focus:outline-none resize-none"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#18181b] border border-zinc-800 text-xs font-medium text-zinc-100 focus:bg-[#111115] focus:border-purple-400 focus:outline-none resize-none"
                 />
               </div>
             </div>
 
             {/* Modal Actions */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+            <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => setWorkModalOpen(false)}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-zinc-400 hover:bg-[#18181b] transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -1687,7 +1687,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                 type="button"
                 onClick={handleDispatchWork}
                 disabled={!workTitle.trim()}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
               >
                 <Send className="w-4 h-4" />
                 <span>
@@ -1708,14 +1708,14 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
       ───────────────────────────────────────────────────────────────── */}
       {createEmpModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-7 max-w-md w-full shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95">
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="bg-[#111115] rounded-3xl p-7 max-w-md w-full shadow-2xl border border-zinc-800 space-y-5 animate-in zoom-in-95">
+            <div className="flex items-start justify-between gap-3 border-b border-zinc-800 pb-4">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <UserPlus className="w-5 h-5 text-purple-600" />
+                <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-red-400" />
                   <span>Manual Employee Creation</span>
                 </h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                <p className="text-xs text-zinc-400 font-medium mt-0.5">
                   Topmost Admin authority: Register new personnel into air-gap roster without query.
                 </p>
               </div>
@@ -1723,7 +1723,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               <button
                 type="button"
                 onClick={() => setCreateEmpModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-400 hover:bg-[#18181b] transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1731,7 +1731,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
 
             <form onSubmit={handleCreateEmployee} className="space-y-3.5">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
+                <label className="text-xs font-bold text-zinc-300 block mb-1">
                   Full Name
                 </label>
                 <input
@@ -1740,12 +1740,12 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                   value={newEmpName}
                   onChange={(e) => setNewEmpName(e.target.value)}
                   placeholder="e.g. Commander Jason Hayes"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:border-purple-400 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#18181b] border border-zinc-800 text-xs sm:text-sm font-medium text-zinc-100 focus:bg-[#111115] focus:border-purple-400 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
+                <label className="text-xs font-bold text-zinc-300 block mb-1">
                   Role Title
                 </label>
                 <input
@@ -1754,19 +1754,19 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                   value={newEmpRole}
                   onChange={(e) => setNewEmpRole(e.target.value)}
                   placeholder="e.g. Lead Cryptographic Systems Engineer"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:border-purple-400 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#18181b] border border-zinc-800 text-xs sm:text-sm font-medium text-zinc-100 focus:bg-[#111115] focus:border-purple-400 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                  <label className="text-xs font-bold text-zinc-300 block mb-1">
                     Department
                   </label>
                   <select
                     value={newEmpDept}
                     onChange={(e) => setNewEmpDept(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-[#111115] border border-zinc-800 text-zinc-300 outline-none cursor-pointer"
                   >
                     {departments.map((d) => (
                       <option key={d.id} value={d.name}>
@@ -1777,13 +1777,13 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                  <label className="text-xs font-bold text-zinc-300 block mb-1">
                     Clearance Hierarchy
                   </label>
                   <select
                     value={newEmpRank}
                     onChange={(e) => setNewEmpRank(Number(e.target.value) as any)}
-                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-[#111115] border border-zinc-800 text-zinc-300 outline-none cursor-pointer"
                   >
                     <option value={1}>Level 1: Contributor (Operator)</option>
                     <option value={2}>Level 2: Reviewer (Senior)</option>
@@ -1795,7 +1795,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                  <label className="text-xs font-bold text-zinc-300 block mb-1">
                     Workstation IP Node
                   </label>
                   <input
@@ -1803,12 +1803,12 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                     value={newEmpNode}
                     onChange={(e) => setNewEmpNode(e.target.value)}
                     placeholder="10.0.1.75"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-medium text-slate-800"
+                    className="w-full px-3 py-2 rounded-xl bg-[#18181b] border border-zinc-800 text-xs font-mono font-medium text-zinc-100"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                  <label className="text-xs font-bold text-zinc-300 block mb-1">
                     Email Address
                   </label>
                   <input
@@ -1816,13 +1816,13 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                     value={newEmpEmail}
                     onChange={(e) => setNewEmpEmail(e.target.value)}
                     placeholder="j.hayes@sovereign.local"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800"
+                    className="w-full px-3 py-2 rounded-xl bg-[#18181b] border border-zinc-800 text-xs font-medium text-zinc-100"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
+                <label className="text-xs font-bold text-zinc-300 block mb-1">
                   Specialties (Comma Separated)
                 </label>
                 <input
@@ -1830,21 +1830,21 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                   value={newEmpSpecialties}
                   onChange={(e) => setNewEmpSpecialties(e.target.value)}
                   placeholder="Python, ITAR, Hardware, Cryptography"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#18181b] border border-zinc-800 text-xs font-medium text-zinc-100"
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setCreateEmpModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-zinc-400 hover:bg-[#18181b] transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
                   <span>Create Employee</span>
@@ -1860,14 +1860,14 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
       ───────────────────────────────────────────────────────────────── */}
       {deptJobModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-7 max-w-md w-full shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95">
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="bg-[#111115] rounded-3xl p-7 max-w-md w-full shadow-2xl border border-zinc-800 space-y-5 animate-in zoom-in-95">
+            <div className="flex items-start justify-between gap-3 border-b border-zinc-800 pb-4">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Send className="w-5 h-5 text-purple-600" />
+                <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
+                  <Send className="w-5 h-5 text-red-400" />
                   <span>Assign Job to Department Queue</span>
                 </h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                <p className="text-xs text-zinc-400 font-medium mt-0.5">
                   Topmost Admin Directive: Dispatch work order to an entire department.
                 </p>
               </div>
@@ -1875,7 +1875,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               <button
                 type="button"
                 onClick={() => setDeptJobModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-400 hover:bg-[#18181b] transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1883,13 +1883,13 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
 
             <form onSubmit={handleAssignDeptJob} className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
+                <label className="text-xs font-bold text-zinc-300 block mb-1">
                   Target Department
                 </label>
                 <select
                   value={targetDeptForJob}
                   onChange={(e) => setTargetDeptForJob(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                  className="w-full px-3 py-2.5 rounded-xl text-xs font-semibold bg-[#111115] border border-zinc-800 text-zinc-300 outline-none cursor-pointer"
                 >
                   {departments.map((d) => (
                     <option key={d.id} value={d.name}>
@@ -1900,7 +1900,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
+                <label className="text-xs font-bold text-zinc-300 block mb-1">
                   Job Directive Title
                 </label>
                 <input
@@ -1909,19 +1909,19 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                   value={deptJobTitle}
                   onChange={(e) => setDeptJobTitle(e.target.value)}
                   placeholder="e.g. Q4 Defense Perimeter Security Audit & Stress Test"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:border-purple-400 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#18181b] border border-zinc-800 text-xs sm:text-sm font-medium text-zinc-100 focus:bg-[#111115] focus:border-purple-400 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                  <label className="text-xs font-bold text-zinc-300 block mb-1">
                     Priority
                   </label>
                   <select
                     value={deptJobPriority}
                     onChange={(e) => setDeptJobPriority(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-[#111115] border border-zinc-800 text-zinc-300 outline-none cursor-pointer"
                   >
                     <option value="P0">P0 - Critical</option>
                     <option value="P1">P1 - High</option>
@@ -1930,13 +1930,13 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                  <label className="text-xs font-bold text-zinc-300 block mb-1">
                     Deliverable Format
                   </label>
                   <select
                     value={deptJobDeliverable}
                     onChange={(e) => setDeptJobDeliverable(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 outline-none cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-[#111115] border border-zinc-800 text-zinc-300 outline-none cursor-pointer"
                   >
                     <option value="pdf">Signed PDF</option>
                     <option value="docx">Word Report (DOCX)</option>
@@ -1945,17 +1945,17 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setDeptJobModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-zinc-400 hover:bg-[#18181b] transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
                   <span>Assign to Department</span>
@@ -1971,14 +1971,14 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
       ───────────────────────────────────────────────────────────────── */}
       {treeModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-7 max-w-2xl w-full shadow-2xl border border-slate-100 space-y-6 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="bg-[#111115] rounded-3xl p-7 max-w-2xl w-full shadow-2xl border border-zinc-800 space-y-6 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3 border-b border-zinc-800 pb-4">
               <div>
-                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                  <GitBranch className="w-5 h-5 text-purple-600" />
+                <h3 className="text-xl font-black text-zinc-100 flex items-center gap-2">
+                  <GitBranch className="w-5 h-5 text-red-400" />
                   <span>Sovereign Organization Hierarchy Trail</span>
                 </h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                <p className="text-xs text-zinc-400 font-medium mt-0.5">
                   Visual reporting chain &amp; authority matrix across all 4 clearance tiers.
                 </p>
               </div>
@@ -1986,7 +1986,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               <button
                 type="button"
                 onClick={() => setTreeModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-400 hover:bg-[#18181b] transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1995,17 +1995,17 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
             {/* Tree Flow Visual Representation */}
             <div className="space-y-4">
               {/* Level 4: Topmost Admin */}
-              <div className="p-4 rounded-2xl bg-purple-50/80 border-2 border-purple-300 space-y-2">
+              <div className="p-4 rounded-2xl bg-red-950/30/80 border-2 border-red-900/50 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="px-2.5 py-0.5 rounded-md bg-purple-700 text-white text-xs font-black">
                     LEVEL 4: SOVEREIGN DIRECTORATE (TOPMOST ADMIN)
                   </span>
-                  <span className="text-xs font-bold text-purple-700">Root Authority</span>
+                  <span className="text-xs font-bold text-red-400">Root Authority</span>
                 </div>
-                <div className="text-sm font-bold text-slate-900">
+                <div className="text-sm font-bold text-zinc-100">
                   Security Officer &amp; Admin (admin-001)
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
+                <p className="text-xs text-zinc-400 leading-relaxed">
                   Monitors all department operations. Can create/delete employees, assign jobs to any department or individual. <strong>Cannot be assigned tasks by subordinates.</strong>
                 </p>
               </div>
@@ -2015,31 +2015,31 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               </div>
 
               {/* Level 3: Department Directors / Leads */}
-              <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200 space-y-2">
+              <div className="p-4 rounded-2xl bg-blue-950/30/80 border border-blue-900/40 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="px-2.5 py-0.5 rounded-md bg-blue-700 text-white text-xs font-black">
                     LEVEL 3: DEPARTMENT DIRECTORS / LEADS
                   </span>
-                  <span className="text-xs font-bold text-blue-700">Department Heads</span>
+                  <span className="text-xs font-bold text-blue-400">Department Heads</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-semibold text-slate-800 pt-1">
-                  <div className="p-2 rounded-lg bg-white border border-blue-100">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-semibold text-zinc-100 pt-1">
+                  <div className="p-2 rounded-lg bg-[#111115] border border-blue-100">
                     Dr. Victor Vance (AI &amp; Eng)
                   </div>
-                  <div className="p-2 rounded-lg bg-white border border-blue-100">
+                  <div className="p-2 rounded-lg bg-[#111115] border border-blue-100">
                     Sarah Jenkins (Legal)
                   </div>
-                  <div className="p-2 rounded-lg bg-white border border-blue-100">
+                  <div className="p-2 rounded-lg bg-[#111115] border border-blue-100">
                     Michael Sterling (Finance)
                   </div>
-                  <div className="p-2 rounded-lg bg-white border border-blue-100">
+                  <div className="p-2 rounded-lg bg-[#111115] border border-blue-100">
                     Capt. Ray Thornton (Supply)
                   </div>
-                  <div className="p-2 rounded-lg bg-white border border-blue-100">
+                  <div className="p-2 rounded-lg bg-[#111115] border border-blue-100">
                     Clara Oswald (HR)
                   </div>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed pt-1">
+                <p className="text-xs text-zinc-400 leading-relaxed pt-1">
                   Can assign directives to L2 and L1 personnel below them. Can request peer collaboration from other Level 3 leads. Cannot command Level 4 Admin.
                 </p>
               </div>
@@ -2049,28 +2049,28 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               </div>
 
               {/* Level 2: Senior Specialists / Reviewers */}
-              <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-2">
+              <div className="p-4 rounded-2xl bg-amber-950/30/80 border border-amber-900/40 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="px-2.5 py-0.5 rounded-md bg-amber-700 text-white text-xs font-black">
                     LEVEL 2: SENIOR SPECIALISTS / REVIEWERS
                   </span>
-                  <span className="text-xs font-bold text-amber-700">Audit &amp; Code Review</span>
+                  <span className="text-xs font-bold text-amber-400">Audit &amp; Code Review</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-semibold text-slate-800 pt-1">
-                  <div className="p-2 rounded-lg bg-white border border-amber-100">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-semibold text-zinc-100 pt-1">
+                  <div className="p-2 rounded-lg bg-[#111115] border border-amber-100">
                     Elena Rostova (AI)
                   </div>
-                  <div className="p-2 rounded-lg bg-white border border-amber-100">
+                  <div className="p-2 rounded-lg bg-[#111115] border border-amber-100">
                     David Morales (Legal)
                   </div>
-                  <div className="p-2 rounded-lg bg-white border border-amber-100">
+                  <div className="p-2 rounded-lg bg-[#111115] border border-amber-100">
                     Rachel Kim (Finance)
                   </div>
-                  <div className="p-2 rounded-lg bg-white border border-amber-100">
+                  <div className="p-2 rounded-lg bg-[#111115] border border-amber-100">
                     Julian Rossi (HR)
                   </div>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed pt-1">
+                <p className="text-xs text-zinc-400 leading-relaxed pt-1">
                   Can assign tasks downwards to Level 1 Operators. Can request peer collaboration with other Level 2 specialists. Cannot command L3 or L4 superiors.
                 </p>
               </div>
@@ -2080,38 +2080,38 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               </div>
 
               {/* Level 1: Associates / Operators */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="p-4 rounded-2xl bg-[#18181b] border border-zinc-800 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="px-2.5 py-0.5 rounded-md bg-slate-700 text-white text-xs font-black">
+                  <span className="px-2.5 py-0.5 rounded-md bg-red-900/60 text-white text-xs font-black">
                     LEVEL 1: ASSOCIATES / OPERATORS
                   </span>
-                  <span className="text-xs font-bold text-slate-600">Task Execution</span>
+                  <span className="text-xs font-bold text-zinc-400">Task Execution</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-semibold text-slate-800 pt-1">
-                  <div className="p-2 rounded-lg bg-white border border-slate-200">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-semibold text-zinc-100 pt-1">
+                  <div className="p-2 rounded-lg bg-[#111115] border border-zinc-800">
                     Marcus Chen (Docker)
                   </div>
-                  <div className="p-2 rounded-lg bg-white border border-slate-200">
+                  <div className="p-2 rounded-lg bg-[#111115] border border-zinc-800">
                     Aisha Patel (Records)
                   </div>
-                  <div className="p-2 rounded-lg bg-white border border-slate-200">
+                  <div className="p-2 rounded-lg bg-[#111115] border border-zinc-800">
                     Lucas Zhang (Ledger)
                   </div>
-                  <div className="p-2 rounded-lg bg-white border border-slate-200">
+                  <div className="p-2 rounded-lg bg-[#111115] border border-zinc-800">
                     Tanya Brooks (Hardware)
                   </div>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed pt-1">
+                <p className="text-xs text-zinc-400 leading-relaxed pt-1">
                   Executes assigned work orders. Can request peer collaboration with Level 1 operators. Cannot assign tasks upwards.
                 </p>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
+            <div className="pt-3 border-t border-zinc-800 flex items-center justify-end">
               <button
                 type="button"
                 onClick={() => setTreeModalOpen(false)}
-                className="px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+                className="px-5 py-2.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
               >
                 Close Hierarchy View
               </button>
@@ -2125,10 +2125,10 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
         <div
           className={`fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-2xl shadow-xl border flex items-center gap-3 text-xs font-bold animate-in slide-in-from-bottom-5 ${
             toastMessage.type === "success"
-              ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+              ? "bg-emerald-950/30 text-emerald-900 border-emerald-900/40"
               : toastMessage.type === "warning"
-              ? "bg-amber-50 text-amber-900 border-amber-200"
-              : "bg-purple-50 text-purple-900 border-purple-200"
+              ? "bg-amber-950/30 text-amber-900 border-amber-900/40"
+              : "bg-red-950/30 text-red-200 border-red-900/40"
           }`}
         >
           {toastMessage.type === "success" ? (
@@ -2136,7 +2136,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
           ) : toastMessage.type === "warning" ? (
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
           ) : (
-            <ShieldCheck className="w-4 h-4 text-purple-600 shrink-0" />
+            <ShieldCheck className="w-4 h-4 text-red-400 shrink-0" />
           )}
           <span>{toastMessage.text}</span>
         </div>

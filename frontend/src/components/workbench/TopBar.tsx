@@ -218,7 +218,7 @@ export default function TopBar({
   const isUserAdmin = devRole === "admin" || user.startsWith("admin") || userList.find((u) => u.id === user)?.isAdmin;
 
   return (
-    <header className="flex flex-col shrink-0 border-b border-zinc-200/80 bg-white select-none relative z-30">
+    <header className="flex flex-col shrink-0 border-b border-zinc-800/80 bg-[#0d0d12]/95 backdrop-blur-md select-none relative z-30">
       {/* Top Row: Greeting, Global Search Pill, AI Assistant & Quick Actions */}
       <div className="flex h-14 items-center justify-between px-4 sm:px-6 gap-3">
         {/* Left: Mobile Toggle & AstraSovereign Greeting */}
@@ -226,14 +226,14 @@ export default function TopBar({
           <button
             type="button"
             onClick={onOpenMobileNav}
-            className="menu-btn sidebar-toggle flex h-8 w-8 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-100 transition-colors md:hidden shrink-0"
+            className="menu-btn sidebar-toggle flex h-8 w-8 items-center justify-center rounded-xl border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors md:hidden shrink-0"
             aria-label="Open sidebar"
           >
             <Menu className="w-4 h-4" />
           </button>
 
           <div className="flex items-center gap-2 truncate">
-            <span className="text-[13.5px] font-semibold text-zinc-800 tracking-tight truncate">
+            <span className="text-[13.5px] font-semibold text-zinc-300 tracking-tight truncate">
               {timeString || "12:00 PM"}
             </span>
           </div>
@@ -244,13 +244,13 @@ export default function TopBar({
           <button
             type="button"
             onClick={onOpenCommandPalette}
-            className="w-full flex items-center justify-between px-4 py-1.5 rounded-full border border-zinc-200 bg-zinc-50/80 hover:bg-zinc-100/80 text-zinc-400 text-xs transition-all shadow-2xs hover:border-zinc-300 cursor-pointer"
+            className="w-full flex items-center justify-between px-4 py-1.5 rounded-full border border-zinc-800 bg-zinc-900/90 hover:bg-zinc-850 text-zinc-400 text-xs transition-all shadow-2xs hover:border-red-900/60 cursor-pointer"
           >
             <div className="flex items-center gap-2">
               <Search className="w-3.5 h-3.5 text-zinc-400" />
               <span>Search workbench or ask assistant...</span>
             </div>
-            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-medium text-zinc-500 bg-white border border-zinc-200 rounded-md shadow-2xs">
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-medium text-zinc-400 bg-zinc-950 border border-zinc-800 rounded-md shadow-2xs">
               Ctrl K
             </kbd>
           </button>
@@ -263,7 +263,7 @@ export default function TopBar({
             type="button"
             onClick={onOpenSystem}
             aria-label="Local"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 transition-colors cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-emerald-900/60 bg-emerald-950/30 text-emerald-400 text-xs font-semibold hover:bg-emerald-950/50 transition-colors cursor-pointer shadow-2xs"
             title="Local Air-Gap Sovereignty Status"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -274,22 +274,13 @@ export default function TopBar({
           {isUserAdmin && (
             <Link
               href="/admin"
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-red-900/50 bg-red-950/40 hover:bg-red-900/40 text-red-300 text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
               title="Open Operations Console"
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#7047eb]" />
+              <ShieldCheck className="w-3.5 h-3.5 text-red-500" />
               <span>Admin Console</span>
             </Link>
           )}
-
-          {/* Quick link to the exact Sovereign UI */}
-          <Link
-            href="/sovereign"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
-            title="Open Exact AstraSovereign UI"
-          >
-            <span className="text-[11px] font-bold">✨ Sovereign UI</span>
-          </Link>
 
           {/* User Account Switcher - dynamically populated */}
           <select
@@ -303,7 +294,7 @@ export default function TopBar({
                 onDevRoleChange("admin");
               }
             }}
-            className="user-select hidden sm:block rounded-xl border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs font-semibold text-zinc-700 transition-colors cursor-pointer focus:outline-none"
+            className="user-select hidden sm:block rounded-xl border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs font-semibold text-zinc-300 transition-colors cursor-pointer focus:outline-none focus:border-red-600"
           >
             {userList.map((u) => (
               <option key={u.id} value={u.id}>
@@ -317,19 +308,47 @@ export default function TopBar({
             type="button"
             onClick={onSignOut}
             aria-label="Sign out"
-            className="menu-btn flex items-center gap-1 rounded-xl border border-zinc-200 hover:bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors cursor-pointer"
+            className="menu-btn flex items-center gap-1 rounded-xl border border-zinc-800 hover:bg-zinc-800 px-2.5 py-1 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Sign out</span>
           </button>
+
+          {/* Windows 11 Window Controls */}
+          <div className="hidden sm:flex items-center ml-1 pl-2 border-l border-zinc-800 gap-0.5">
+            <button
+              type="button"
+              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+              title="Minimize"
+              onClick={() => onSelectSection("home")}
+            >
+              <span className="block w-3 h-0.5 bg-current rounded-full" />
+            </button>
+            <button
+              type="button"
+              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+              title="Maximize / Restore"
+            >
+              <span className="block w-2.5 h-2.5 border border-current rounded-xs" />
+            </button>
+            <button
+              type="button"
+              onClick={onNewJob}
+              className="p-1.5 rounded-lg hover:bg-red-600 hover:text-white text-zinc-400 transition-colors cursor-pointer"
+              title="Close / New Task"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Sub-row: Navigation Tabs & Worker Custom Tabs */}
-      <div className="flex items-center gap-1 px-4 sm:px-6 overflow-x-auto border-t border-zinc-100 py-1.5 scrollbar-none">
-        <div className="flex items-center gap-1 text-xs font-medium text-zinc-600 shrink-0">
-          <span className="flex items-center gap-1 font-bold text-zinc-800 pr-2 border-r border-zinc-200">
-            AstraSovereign <ChevronDown className="w-3 h-3 text-zinc-400" />
+      {/* Sub-row: Navigation Tabs & Worker Custom Tabs (hidden in AI Chatbot mode for a clean single-row header) */}
+      {currentSection !== "agent" && (
+        <div className="flex items-center gap-1 px-4 sm:px-6 overflow-x-auto border-t border-zinc-800/60 py-1.5 scrollbar-none bg-[#0a0a0d]">
+        <div className="flex items-center gap-1 text-xs font-medium text-zinc-400 shrink-0">
+          <span className="flex items-center gap-1 font-bold text-zinc-200 pr-2 border-r border-zinc-800">
+            AstraSovereign <ChevronDown className="w-3 h-3 text-zinc-500" />
           </span>
 
           {/* Standard Navigation Tabs */}
@@ -342,8 +361,8 @@ export default function TopBar({
                 onClick={() => onSelectSection(tab.id)}
                 className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs transition-all cursor-pointer ${
                   isActive
-                    ? "bg-[#ede9fe] text-[#6d28d9] font-bold"
-                    : "text-slate-600 hover:bg-slate-100"
+                    ? "bg-red-950/60 text-red-300 font-bold border border-red-800/50 shadow-[0_0_8px_rgba(239,68,68,0.2)]"
+                    : "text-zinc-400 hover:bg-zinc-850 hover:text-zinc-200"
                 }`}
               >
                 <span>{tab.label}</span>
@@ -360,16 +379,16 @@ export default function TopBar({
                 onClick={() => onSelectSection(ct.targetSection)}
                 className={`group flex items-center gap-1.5 pl-3 pr-2 py-1 rounded-full text-xs transition-all cursor-pointer border ${
                   isActive
-                    ? "bg-purple-100 text-[#6d28d9] font-bold border-purple-300"
-                    : "bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200"
+                    ? "bg-red-950/50 text-red-200 font-bold border-red-700/60"
+                    : "bg-zinc-900/60 text-zinc-300 hover:bg-zinc-800 border-zinc-800"
                 }`}
               >
-                <Sparkles className="w-3 h-3 text-[#7047eb] shrink-0" />
+                <Sparkles className="w-3 h-3 text-red-400 shrink-0" />
                 <span>{ct.label}</span>
                 <button
                   type="button"
                   onClick={(e) => handleRemoveCustomTab(ct.id, e)}
-                  className="w-3.5 h-3.5 rounded-full hover:bg-slate-300/60 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors ml-0.5"
+                  className="w-3.5 h-3.5 rounded-full hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-colors ml-0.5"
                   title="Remove custom tab"
                 >
                   <X className="w-2.5 h-2.5" />
@@ -382,38 +401,39 @@ export default function TopBar({
           <button
             type="button"
             onClick={() => setIsAddTabModalOpen(true)}
-            className="flex items-center justify-center w-6 h-6 rounded-full text-zinc-500 hover:text-[#7047eb] hover:bg-purple-50 transition-colors ml-1 border border-zinc-200 hover:border-purple-300 cursor-pointer"
+            className="flex items-center justify-center w-6 h-6 rounded-full text-zinc-400 hover:text-red-400 hover:bg-red-950/30 transition-colors ml-1 border border-zinc-800 hover:border-red-800 cursor-pointer"
             title="Add customizable workbench tab"
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
+      )}
 
       {/* Modal: Add Worker Custom Tab (Properly centered & framed, never clipped) */}
       {isAddTabModalOpen && (
         <div
-          className="fixed inset-0 z-[100] flex items-start justify-center pt-16 sm:pt-24 bg-slate-900/40 backdrop-blur-xs p-4 animate-fade-in"
+          className="fixed inset-0 z-[100] flex items-start justify-center pt-16 sm:pt-24 bg-black/70 backdrop-blur-xs p-4 animate-fade-in"
           onClick={() => setIsAddTabModalOpen(false)}
         >
           <div
-            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-zinc-200 space-y-4 max-h-[85vh] overflow-y-auto"
+            className="bg-[#111115] rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-zinc-800 space-y-4 max-h-[85vh] overflow-y-auto text-zinc-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-purple-50 flex items-center justify-center text-[#7047eb]">
+                <div className="w-9 h-9 rounded-2xl bg-red-950/50 border border-red-800/60 flex items-center justify-center text-red-500">
                   <Plus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-zinc-900">Add Workspace Tab</h3>
-                  <p className="text-xs text-zinc-500">Pin your favorite feature or tool to the top bar</p>
+                  <h3 className="text-base font-bold text-white">Add Workspace Tab</h3>
+                  <p className="text-xs text-zinc-400">Pin your favorite feature or tool to the top bar</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAddTabModalOpen(false)}
-                className="text-zinc-400 hover:text-zinc-700 p-1.5 rounded-xl hover:bg-zinc-100 transition-colors cursor-pointer"
+                className="text-zinc-400 hover:text-white p-1.5 rounded-xl hover:bg-zinc-800 transition-colors cursor-pointer"
                 aria-label="Close dialog"
               >
                 <X className="w-5 h-5" />
@@ -422,7 +442,7 @@ export default function TopBar({
 
             {/* Quick Feature Presets */}
             <div>
-              <label className="block font-semibold text-zinc-700 mb-2">Choose Feature to Add</label>
+              <label className="block font-semibold text-zinc-300 mb-2">Choose Feature to Add</label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {[
                   { label: "Code Sandbox", target: "sandbox", icon: Code, desc: "Docker runner" },
@@ -447,15 +467,15 @@ export default function TopBar({
                       }}
                       className={`flex flex-col items-start p-2.5 rounded-2xl border text-left cursor-pointer transition-all ${
                         isSelected
-                          ? "border-[#7047eb] bg-purple-50/80 ring-1 ring-[#7047eb] shadow-2xs"
-                          : "border-zinc-200 hover:border-purple-200 hover:bg-zinc-50"
+                          ? "border-red-600 bg-red-950/40 ring-1 ring-red-500 shadow-2xs text-white"
+                          : "border-zinc-800 hover:border-red-900/50 hover:bg-zinc-900 text-zinc-300"
                       }`}
                     >
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-800">
-                        <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-[#7047eb]" : "text-zinc-500"}`} />
+                      <div className="flex items-center gap-1.5 text-xs font-bold">
+                        <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-red-400" : "text-zinc-500"}`} />
                         <span className="truncate">{preset.label}</span>
                       </div>
-                      <span className="text-[10.5px] text-zinc-400 mt-0.5">{preset.desc}</span>
+                      <span className="text-[10.5px] text-zinc-500 mt-0.5">{preset.desc}</span>
                     </button>
                   );
                 })}
@@ -463,25 +483,25 @@ export default function TopBar({
             </div>
 
             {/* Custom Tab Form */}
-            <form onSubmit={handleAddCustomTab} className="space-y-3.5 text-xs pt-2 border-t border-zinc-100">
+            <form onSubmit={handleAddCustomTab} className="space-y-3.5 text-xs pt-2 border-t border-zinc-800">
               <div>
-                <label className="block font-semibold text-zinc-700 mb-1">Tab Display Name</label>
+                <label className="block font-semibold text-zinc-300 mb-1">Tab Display Name</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. My Sandbox, Audit Log, AI Lead..."
                   value={newTabLabel}
                   onChange={(e) => setNewTabLabel(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:border-purple-500 text-xs text-zinc-800 bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-800 focus:outline-none focus:border-red-500 text-xs text-zinc-100 bg-zinc-950"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-700 mb-1">Target Section</label>
+                <label className="block font-semibold text-zinc-300 mb-1">Target Section</label>
                 <select
                   value={newTabTarget}
                   onChange={(e) => setNewTabTarget(e.target.value as WorkbenchSection)}
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:border-purple-500 text-xs cursor-pointer bg-white text-zinc-800"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-800 focus:outline-none focus:border-red-500 text-xs cursor-pointer bg-zinc-950 text-zinc-200"
                 >
                   {SECTION_OPTIONS.map((opt) => (
                     <option key={opt.id} value={opt.id}>
@@ -491,17 +511,17 @@ export default function TopBar({
                 </select>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
                 <button
                   type="button"
                   onClick={() => setIsAddTabModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-zinc-200 hover:bg-zinc-50 text-zinc-700 font-medium cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-zinc-800 hover:bg-zinc-800 text-zinc-300 font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#7047eb] hover:bg-[#5f36dd] text-white font-semibold shadow-xs cursor-pointer flex items-center gap-1.5"
+                  className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Pin Tab to Top Bar</span>

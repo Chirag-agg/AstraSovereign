@@ -281,7 +281,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
                       void handleExecute();
                     }}
                     disabled={isRunning || !promptText.trim()}
-                    className="px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7047eb] text-xs font-bold border border-purple-200 transition-colors disabled:opacity-50 cursor-pointer shrink-0"
+                    className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 text-xs font-bold border border-red-500/30 transition-colors disabled:opacity-50 cursor-pointer shrink-0"
                   >
                     Run Prompt
                   </button>
@@ -290,7 +290,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
 
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <Code className="w-3.5 h-3.5 text-purple-600" />
+                  <Code className="w-3.5 h-3.5 text-red-500" />
                   Python Execution Code
                 </label>
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -303,7 +303,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
                         setPromptText(preset.title);
                         setCode(preset.code);
                       }}
-                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-purple-100 text-slate-700 hover:text-purple-700 transition-colors cursor-pointer"
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-700 transition-colors cursor-pointer"
                     >
                       {preset.title}
                     </button>
@@ -317,7 +317,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="# Enter Python code to execute in isolated sandbox..."
-                  className="w-full p-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-emerald-300 focus:outline-none focus:border-purple-500 transition-all resize-y leading-relaxed shadow-inner"
+                  className="w-full p-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-emerald-300 focus:outline-none focus:border-red-500 transition-all resize-y leading-relaxed shadow-inner"
                   spellCheck={false}
                 />
               </div>
@@ -332,7 +332,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
                   type="button"
                   onClick={() => void handleExecute()}
                   disabled={isRunning || !code.trim()}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#7047eb] hover:bg-[#5e38d6] active:bg-[#522ec4] text-white text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-40"
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-40 shadow-red-950/20"
                 >
                   {isRunning ? (
                     <>

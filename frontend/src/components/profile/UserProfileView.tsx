@@ -69,26 +69,26 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
       {/* ─────────────────────────────────────────────────────────────────
           HEADER & SLEEK GEOMETRIC AURORA BANNER
       ───────────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-        {/* Cover Banner: Deep slate with soft violet aurora mesh */}
-        <div className="relative h-44 sm:h-52 w-full bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 overflow-hidden">
-          {/* Aurora Mesh Glow Overlays */}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(99,102,241,0.25),transparent_60%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_70%,rgba(168,85,247,0.2),transparent_55%)]" />
+      <div className="bg-[#111115] text-zinc-100 rounded-3xl border border-zinc-800 shadow-[0_4px_24px_rgba(0,0,0,0.5)] overflow-hidden">
+        {/* Cover Banner: Deep black with crimson mesh */}
+        <div className="relative h-44 sm:h-52 w-full bg-gradient-to-r from-zinc-950 via-[#1c0505] to-[#2c0b0b] overflow-hidden">
+          {/* Red Mesh Glow Overlays */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(239,68,68,0.25),transparent_60%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_70%,rgba(220,38,38,0.15),transparent_55%)]" />
           
-          {/* Subtle Geometric Wireframe Grid */}
-          <div className="absolute inset-0 opacity-15 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
+          {/* Geometric Technical Wireframe Grid */}
+          <div className="absolute inset-0 opacity-20 bg-[linear-gradient(to_right,#ef444415_1px,transparent_1px),linear-gradient(to_bottom,#ef444415_1px,transparent_1px)] bg-[size:24px_24px]" />
 
           {/* Top Right Controls */}
           <div className="absolute top-4 right-4 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-900/80 backdrop-blur-md text-emerald-400 border border-emerald-500/30">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-zinc-950/80 backdrop-blur-md text-emerald-400 border border-emerald-500/30">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               Airgap Node Online
             </span>
             {onClose && (
               <button
                 onClick={onClose}
-                className="px-3 py-1 rounded-full text-xs font-bold bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white border border-slate-700 cursor-pointer"
+                className="px-3 py-1 rounded-full text-xs font-bold bg-zinc-950/80 backdrop-blur-md text-zinc-300 hover:text-white border border-zinc-700 cursor-pointer"
               >
                 Close
               </button>
@@ -99,23 +99,27 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
         {/* Profile Identity Bar */}
         <div className="px-6 sm:px-8 pb-6 pt-0 relative">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-14 sm:-mt-16 mb-5">
-            {/* 96px Avatar Unit with Camera Button */}
-            <div className="relative group w-24 h-24 sm:w-28 sm:h-28 rounded-full ring-4 ring-white bg-gradient-to-br from-indigo-500 to-purple-600 shadow-xl flex items-center justify-center text-white font-black text-2xl select-none shrink-0 overflow-hidden">
-              <span>{fullName.slice(0, 2).toUpperCase()}</span>
+            {/* 96px Avatar Unit with Camera Button & Photo Display */}
+            <div className="relative group w-24 h-24 sm:w-28 sm:h-28 rounded-2xl ring-4 ring-zinc-900 bg-gradient-to-br from-zinc-950 to-[#2b0808] shadow-xl flex items-center justify-center text-white font-black text-2xl select-none shrink-0 overflow-hidden border border-red-900/60">
+              {/* Employee ID Portrait Placeholder */}
+              <div className="flex flex-col items-center justify-center">
+                <span className="text-xl font-bold tracking-wider text-red-400">{fullName.slice(0, 2).toUpperCase()}</span>
+                <span className="text-[9px] font-mono text-red-500 mt-0.5">EMP #{1000 + avatarSeed}</span>
+              </div>
               
               {/* Editable Camera Overlay Button */}
               <button
                 type="button"
                 onClick={() => setAvatarSeed((s) => s + 1)}
-                className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-80 transition-opacity flex flex-col items-center justify-center text-white cursor-pointer"
-                title="Change Avatar Profile Photo"
+                className="absolute inset-0 bg-black/85 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white cursor-pointer"
+                title="Change Employee Photo / Badge ID"
               >
-                <Camera className="w-5 h-5 mb-0.5" />
-                <span className="text-[9px] font-bold uppercase tracking-wider">Upload</span>
+                <Camera className="w-5 h-5 mb-0.5 text-red-400" />
+                <span className="text-[9px] font-bold uppercase tracking-wider">Change ID</span>
               </button>
 
               {/* Status Indicator Dot */}
-              <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white ring-1 ring-emerald-400 animate-pulse" />
+              <span className="absolute bottom-1.5 right-1.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-zinc-900 animate-pulse" />
             </div>
 
             {/* Actions: Edit Profile Toggle */}
@@ -123,10 +127,10 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
               <button
                 type="button"
                 onClick={() => setIsEditing(!isEditing)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs border ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs border ${
                   isEditing
-                    ? "bg-purple-600 text-white border-purple-600"
-                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    ? "bg-red-600 text-white border-red-600 shadow-[0_0_10px_rgba(239,68,68,0.3)]"
+                    : "bg-zinc-900 text-zinc-200 border-zinc-800 hover:bg-zinc-800"
                 }`}
               >
                 <Edit2 className="w-3.5 h-3.5" />
@@ -143,10 +147,10 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="text-2xl sm:text-3xl font-black text-slate-900 border-b border-purple-400 focus:outline-none bg-purple-50/40 px-1 py-0.5 rounded"
+                  className="text-2xl sm:text-3xl font-black text-white border-b border-red-500 focus:outline-none bg-red-950/40 px-1 py-0.5 rounded"
                 />
               ) : (
-                <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                   {fullName}
                 </h1>
               )}
@@ -156,18 +160,18 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
                   type="text"
                   value={handle}
                   onChange={(e) => setHandle(e.target.value)}
-                  className="text-sm font-bold text-purple-600 font-mono border-b border-purple-300 focus:outline-none bg-purple-50/40 px-1 rounded"
+                  className="text-sm font-bold text-red-400 font-mono border-b border-red-500 focus:outline-none bg-red-950/40 px-1 rounded"
                 />
               ) : (
-                <span className="text-sm font-bold text-slate-400 font-mono">
+                <span className="text-sm font-bold text-zinc-500 font-mono">
                   {handle}
                 </span>
               )}
 
               {/* Prominent L4 Clearance Pill Badge */}
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-purple-600" />
-                <span>L4 Sovereign Directorate</span>
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-950/40 text-red-300 border border-red-800/50 shadow-2xs flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-red-500" />
+                <span>L4 Sovereign Officer</span>
               </span>
             </div>
 
@@ -179,7 +183,7 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
                   type="text"
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
-                  className="text-xs font-semibold text-slate-800 border-b border-purple-300 bg-purple-50/30 px-1 rounded"
+                  className="text-xs font-semibold text-slate-800 border-b border-sky-300 bg-sky-50/30 px-1 rounded"
                 />
               ) : (
                 <span className="text-slate-800">{department}</span>
@@ -193,7 +197,7 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
                   rows={2}
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  className="w-full text-xs sm:text-sm text-slate-700 p-2.5 rounded-xl border border-purple-300 bg-purple-50/30 focus:outline-none resize-none leading-relaxed"
+                  className="w-full text-xs sm:text-sm text-slate-700 p-2.5 rounded-xl border border-sky-300 bg-sky-50/30 focus:outline-none resize-none leading-relaxed"
                 />
               ) : (
                 <p className="text-xs sm:text-sm text-slate-600 max-w-3xl leading-relaxed">
@@ -205,13 +209,13 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
         </div>
 
         {/* Sub-Navigation Tabs */}
-        <div className="flex items-center gap-2 px-6 sm:px-8 border-t border-slate-100 bg-slate-50/50">
+        <div className="flex items-center gap-2 px-6 sm:px-8 border-t border-zinc-800 bg-[#0c0c10]">
           <button
             onClick={() => setActiveTab("overview")}
             className={`py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === "overview"
-                ? "border-purple-600 text-purple-700"
-                : "border-transparent text-slate-500 hover:text-slate-800"
+                ? "border-red-600 text-red-400"
+                : "border-transparent text-zinc-400 hover:text-zinc-200"
             }`}
           >
             <Activity className="w-4 h-4" />
@@ -222,8 +226,8 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
             onClick={() => setActiveTab("credentials")}
             className={`py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === "credentials"
-                ? "border-purple-600 text-purple-700"
-                : "border-transparent text-slate-500 hover:text-slate-800"
+                ? "border-red-600 text-red-400"
+                : "border-transparent text-zinc-400 hover:text-zinc-200"
             }`}
           >
             <Key className="w-4 h-4" />
@@ -234,8 +238,8 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
             onClick={() => setActiveTab("sessions")}
             className={`py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === "sessions"
-                ? "border-purple-600 text-purple-700"
-                : "border-transparent text-slate-500 hover:text-slate-800"
+                ? "border-red-600 text-red-400"
+                : "border-transparent text-zinc-400 hover:text-zinc-200"
             }`}
           >
             <Laptop className="w-4 h-4" />
@@ -251,8 +255,8 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
         <div className="space-y-6 animate-in fade-in">
           {/* Quick Metrics Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] space-y-1">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <div className="bg-[#111115] p-5 rounded-2xl border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)] space-y-1">
+              <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
                 Total Dispatched Tasks
               </span>
               <div className="text-3xl font-black text-slate-900">142 Tasks</div>

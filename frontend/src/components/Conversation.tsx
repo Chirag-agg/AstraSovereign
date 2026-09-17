@@ -131,22 +131,22 @@ export default function Conversation({
 
   if (!job) {
     return (
-      <div className="welcome font-mono text-left p-6 rounded-2xl border border-purple-100 bg-white shadow-xs space-y-4">
-        <div className="flex items-center gap-2 mb-2 text-xs text-purple-600 font-semibold uppercase tracking-wider">
-          <span className="h-1.5 w-1.5 rounded-full bg-purple-600" />
+      <div className="welcome font-mono text-left p-6 rounded-2xl border border-red-900/40 bg-[#111115] shadow-xs space-y-4">
+        <div className="flex items-center gap-2 mb-2 text-xs text-red-400 font-bold uppercase tracking-wider">
+          <span className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
           <span>ON-PREMISE AI ENGINEERING WORKBENCH</span>
         </div>
-        <h2 className="text-lg font-semibold text-slate-800 tracking-tight mb-1">
+        <h2 className="text-lg font-bold text-white tracking-tight mb-1">
           Agent Execution & Inference Workspace
         </h2>
-        <p className="text-slate-500 text-xs leading-relaxed max-w-xl mb-3">
+        <p className="text-zinc-400 text-xs leading-relaxed max-w-xl mb-3">
           Submit tasks, review documents, or verify code in a fully air-gapped environment. Models, OCR pipelines, vector stores, and execution sandboxes execute strictly on this machine.
         </p>
         <button
           type="button"
           aria-label={`Try the demo: ${DEMO_TASK}`}
           onClick={() => onSubmit(DEMO_TASK)}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-mono transition-colors cursor-pointer"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-red-900/40 bg-red-950/30 hover:bg-red-950/50 text-red-400 text-xs font-mono transition-colors cursor-pointer"
         >
           <span>Try the demo — “{DEMO_TASK}”</span>
         </button>
@@ -169,12 +169,12 @@ export default function Conversation({
   return (
     <div className="conversation font-mono">
       {/* user message */}
-      <div className="msg-user rounded-2xl border border-purple-100 bg-purple-50/50 p-4 mb-3 shadow-xs">
-        <div className="flex items-center gap-2 mb-1.5 text-xs text-purple-700">
-          <span className="px-2 py-0.5 rounded-md border border-purple-200 bg-purple-100 text-[10.5px] font-bold text-purple-800">
+      <div className="msg-user rounded-2xl border border-red-900/30 bg-red-950/30/50 p-4 mb-3 shadow-xs">
+        <div className="flex items-center gap-2 mb-1.5 text-xs text-red-400">
+          <span className="px-2 py-0.5 rounded-md border border-red-900/40 bg-red-950/50 text-[10.5px] font-bold text-red-300">
             {userId.toUpperCase()}
           </span>
-          <span className="text-xs font-semibold text-purple-900">User Prompt</span>
+          <span className="text-xs font-semibold text-red-200">User Prompt</span>
         </div>
         <div className="text-sm text-slate-800 leading-relaxed font-sans">{job.message}</div>
         {attachedDocuments.length > 0 ? (
@@ -185,7 +185,7 @@ export default function Conversation({
             {attachedDocuments.map((document) => (
               <span
                 key={document.document_id}
-                className="inline-flex items-center rounded-md border border-purple-200 bg-white/80 px-2 py-0.5 text-[10.5px] font-medium text-purple-900 shadow-2xs"
+                className="inline-flex items-center rounded-md border border-red-900/40 bg-white/80 px-2 py-0.5 text-[10.5px] font-medium text-red-200 shadow-2xs"
               >
                 {document.filename}
               </span>
@@ -195,14 +195,14 @@ export default function Conversation({
       </div>
 
       {/* assistant */}
-      <div className="msg-assistant rounded-2xl border border-slate-200/90 bg-white p-4.5 shadow-xs">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3.5 text-xs">
+      <div className="msg-assistant rounded-2xl border border-zinc-800 bg-[#111115] p-4.5 shadow-xs">
+        <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2.5 mb-3.5 text-xs">
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-md border border-emerald-200 bg-emerald-50 text-[10.5px] font-bold text-emerald-700">
+            <span className="px-2 py-0.5 rounded-md border border-red-900/50 bg-red-950/40 text-[10.5px] font-bold text-red-400">
               AGENT
             </span>
-            <span className="font-bold text-slate-900">Execution Engine</span>
-            <span className="text-slate-400 text-xs">· {statusLine(job)}</span>
+            <span className="font-bold text-white">Execution Engine</span>
+            <span className="text-zinc-400 text-xs">· {statusLine(job)}</span>
           </div>
           <span className="text-xs text-slate-400 font-mono">SOCKET: /run/ollama.sock</span>
         </div>
@@ -216,9 +216,9 @@ export default function Conversation({
 
         {job.status === "running" ? (
           onCancel ? (
-            <div className="my-2 p-3 rounded-xl border border-purple-100 bg-purple-50/60 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-purple-700 font-semibold">
-                <span className="h-2.5 w-2.5 rounded-full bg-purple-600 animate-pulse" />
+            <div className="my-2 p-3 rounded-xl border border-red-900/30 bg-red-950/30/60 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-red-400 font-semibold">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
                 <span>Working on it — the agent is executing locally on GPU</span>
               </div>
               <button
@@ -244,11 +244,11 @@ export default function Conversation({
         ) : null}
 
         {job.status === "completed" ? (
-          <div className="assistant-content text-slate-800 font-sans">
+          <div className="assistant-content text-zinc-100 font-sans text-[15px] leading-relaxed">
             {job.response ? (
               <Markdown text={job.response} />
             ) : (
-              <div className="loading-row text-slate-500">Completed.</div>
+              <div className="loading-row text-zinc-400">Completed.</div>
             )}
             {job.artifacts.length > 0 ? (
               <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>

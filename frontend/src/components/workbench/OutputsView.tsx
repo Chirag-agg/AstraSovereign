@@ -44,6 +44,14 @@ function getArtifactChecksum(artifact: ArtifactSummary): string {
   return `sha256:d82e81fc04910e53a258a1835e0766ff0571c69b${hex}`.slice(0, 48);
 }
 
+function formatBytes(bytes?: number): string {
+  if (!bytes || bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
 const PPTX_SLIDES = [
   {
     slideNumber: 1,
@@ -271,42 +279,78 @@ export default function OutputsView({
     setTimeout(() => setCopiedSha(null), 2000);
   };
 
+  // Format conversion state
+  const [converting, setConverting] = useState(false);
+  const [convertStatus, setConvertStatus] = useState<string | null>(null);
+
+  const handleConvertArtifact = async (artifact: ArtifactSummary, targetFormat: "pdf" | "docx") => {
+    setConverting(true);
+    setConvertStatus(`Converting ${artifact.filename} to ${targetFormat.toUpperCase()}...`);
+    try {
+      const { convertJobArtifact } = await import("@/lib/api");
+      const { blob, filename } = await convertJobArtifact(activeUserId(), artifact.job_id, artifact.artifact_id, targetFormat);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setConvertStatus(`Downloaded ${filename}!`);
+      setTimeout(() => setConvertStatus(null), 3000);
+    } catch (err) {
+      setConvertStatus(err instanceof Error ? err.message : "Conversion failed.");
+      setTimeout(() => setConvertStatus(null), 4000);
+    } finally {
+      setConverting(false);
+    }
+  };
+
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#F8FAFC]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#09090b]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
         {/* Header with Title & Ambient Green Audit Stamp */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 bg-white p-5 rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800 bg-[#111115] p-5 rounded-2xl shadow-2xs">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full">
+              <span className="text-xs font-bold uppercase tracking-wider text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-0.5 rounded-full font-mono">
                 Cryptographic Deliverables
               </span>
-              <span className="text-xs font-bold text-slate-500">
+              <span className="text-xs font-bold text-zinc-400">
                 {displayArtifacts.length} items ready
               </span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-black text-zinc-100 tracking-tight">
               Deliverables &amp; Artifacts
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
-              Inspect, preview slide decks &amp; Word reports, verify tamper-evident SHA-256 checksums, and export deliverables.
+            <p className="text-xs sm:text-sm text-zinc-400 font-medium mt-0.5">
+              Inspect, preview slide decks &amp; Word reports in exact document format, convert across formats, and verify SHA-256 checksums.
             </p>
           </div>
 
           {/* Ambient Green Audit Stamp */}
-          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold shadow-2xs shrink-0 self-start sm:self-auto">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-950/40 text-emerald-400 border border-emerald-900/50 text-xs font-bold shadow-2xs shrink-0 self-start sm:self-auto">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>Audit Trail Signed: 0 External Leakage</span>
           </div>
         </div>
 
+        {/* Conversion feedback banner */}
+        {convertStatus && (
+          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-red-950/40 border border-red-900/50 text-red-300 text-xs font-semibold animate-in fade-in">
+            <TrendingUp className={`w-4 h-4 text-red-400 ${converting ? "animate-spin" : ""}`} />
+            <span>{convertStatus}</span>
+          </div>
+        )}
+
         {/* Deliverables List Table */}
-        <div className="bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] rounded-2xl flex flex-col overflow-hidden">
+        <div className="bg-[#111115] border border-zinc-800 shadow-2xs rounded-2xl flex flex-col overflow-hidden">
           {displayArtifacts.length === 0 ? (
             <div className="p-16 flex flex-col items-center justify-center text-center space-y-2">
-              <Archive className="w-12 h-12 text-slate-300 mb-2" />
-              <h3 className="text-base font-bold text-slate-800">No deliverables yet</h3>
-              <p className="text-xs text-slate-500 max-w-sm">
+              <Archive className="w-12 h-12 text-zinc-600 mb-2" />
+              <h3 className="text-base font-bold text-zinc-200">No deliverables yet</h3>
+              <p className="text-xs text-zinc-400 max-w-sm">
                 Generated documents, PowerPoint presentations, reports, and code artifacts will appear here as tasks complete.
               </p>
             </div>
@@ -314,7 +358,7 @@ export default function OutputsView({
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-50/70">
+                  <tr className="border-b border-zinc-800 text-xs font-bold text-zinc-400 uppercase tracking-wider bg-[#18181b]">
                     <th className="py-3.5 px-5">Deliverable</th>
                     <th className="py-3.5 px-5">Type</th>
                     <th className="py-3.5 px-5">Verified SHA-256 Checksum</th>
@@ -322,22 +366,23 @@ export default function OutputsView({
                     <th className="py-3.5 px-5 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-zinc-800/80">
                   {displayArtifacts.map((artifact) => {
                     const checksum = getArtifactChecksum(artifact);
                     const isPptx = artifact.filename.endsWith(".pptx");
                     const isDocx = artifact.filename.endsWith(".docx");
+                    const isPdf = artifact.filename.endsWith(".pdf");
 
                     return (
-                      <tr key={artifact.artifact_id} className="hover:bg-slate-50/70 transition-colors">
+                      <tr key={artifact.artifact_id} className="hover:bg-[#18181b]/60 transition-colors">
                         <td className="py-3 px-5">
                           <div className="flex items-center gap-3">
                             <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                               isPptx
-                                ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                ? "bg-amber-950/40 text-amber-400 border border-amber-900/50"
                                 : isDocx
-                                ? "bg-blue-50 text-blue-700 border border-blue-200"
-                                : "bg-purple-50 text-[#7047eb] border border-purple-200"
+                                ? "bg-blue-950/40 text-blue-400 border border-blue-900/50"
+                                : "bg-red-950/40 text-red-400 border border-red-900/50"
                             }`}>
                               {isPptx ? (
                                 <Presentation className="w-4 h-4" />
@@ -348,66 +393,71 @@ export default function OutputsView({
                               )}
                             </div>
                             <div className="min-w-0">
-                              <span className="font-bold text-slate-900 block text-xs truncate max-w-xs sm:max-w-md">
+                              <span className="font-bold text-zinc-100 block text-xs truncate max-w-xs sm:max-w-md">
                                 {artifact.filename}
                               </span>
-                              <span className="text-[10px] font-mono text-slate-400 block truncate">
+                              <span className="text-[10px] font-mono text-zinc-500 block truncate">
                                 ID: {artifact.artifact_id} · Job: {artifact.job_id.slice(0, 14)}...
                               </span>
                             </div>
                           </div>
                         </td>
                         <td className="py-3 px-5">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase border ${
-                            isPptx
-                              ? "bg-amber-50 text-amber-800 border-amber-200"
-                              : isDocx
-                              ? "bg-blue-50 text-blue-800 border-blue-200"
-                              : "bg-purple-50 text-purple-800 border-purple-200"
-                          }`}>
-                            {isPptx ? "Slide Deck" : isDocx ? "Word Report" : artifact.type || "Document"}
+                          <span className="text-xs font-semibold text-zinc-300">
+                            {formatBytes(artifact.size_bytes)}
                           </span>
                         </td>
                         <td className="py-3 px-5">
-                          <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-600">
-                            <span className="truncate max-w-[170px]" title={checksum}>
-                              {checksum.slice(0, 18)}...{checksum.slice(-6)}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopyChecksum(checksum)}
-                              className="p-1 hover:bg-slate-200 rounded transition-colors cursor-pointer text-slate-400 hover:text-slate-700"
-                              title="Copy verified SHA-256 digest"
-                            >
-                              {copiedSha === checksum ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          </div>
+                          <span className="text-[11px] font-mono text-zinc-400 bg-[#18181b] px-2 py-0.5 rounded-md border border-zinc-800 truncate block max-w-[200px]" title={checksum}>
+                            {checksum.slice(0, 20)}...
+                          </span>
                         </td>
                         <td className="py-3 px-5">
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80">
-                            <Shield className="w-3 h-3 text-purple-600" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-950/40 text-emerald-400 border border-emerald-900/50">
+                            <Shield className="w-3 h-3 text-emerald-400" />
                             <span>{activeUserId()} (L4)</span>
                           </span>
                         </td>
                         <td className="py-3 px-5 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            {/* Conversion button */}
+                            {isPdf ? (
+                              <button
+                                type="button"
+                                disabled={converting}
+                                onClick={() => void handleConvertArtifact(artifact, "docx")}
+                                className="border border-zinc-800 bg-[#18181b] hover:bg-zinc-800 text-zinc-200 hover:text-white rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                title="Convert to Microsoft Word (.docx)"
+                              >
+                                <FileCheck className="w-3 h-3 text-red-400" />
+                                <span>To Word</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={converting}
+                                onClick={() => void handleConvertArtifact(artifact, "pdf")}
+                                className="border border-zinc-800 bg-[#18181b] hover:bg-zinc-800 text-zinc-200 hover:text-white rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                title="Convert to PDF (.pdf)"
+                              >
+                                <FileText className="w-3 h-3 text-red-400" />
+                                <span>To PDF</span>
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               onClick={() => void handleOpenPreview(artifact)}
-                              className="border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs hover:border-purple-300"
+                              className="border border-zinc-800 bg-[#18181b] hover:bg-zinc-800 text-zinc-200 rounded-xl px-3 py-1.5 text-xs font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs hover:border-red-900/50"
                             >
-                              <Eye className="w-3.5 h-3.5 text-purple-600" />
+                              <Eye className="w-3.5 h-3.5 text-red-400" />
                               <span>Preview</span>
                             </button>
 
                             <button
                               type="button"
                               onClick={() => onDownloadArtifact(artifact)}
-                              className="border border-purple-200 bg-purple-50 hover:bg-purple-100 text-[#7047eb] rounded-xl px-3 py-1.5 text-xs font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                              className="border border-red-800/40 bg-red-950/40 hover:bg-red-900/40 text-red-300 rounded-xl px-3 py-1.5 text-xs font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs font-mono"
                               title={`Owner-scoped export: ${activeUserId()}`}
                             >
                               <Download className="w-3.5 h-3.5" />
@@ -438,11 +488,11 @@ export default function OutputsView({
             {/* Header / Toolbar */}
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200/80 bg-slate-50/90 shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center text-[#7047eb] shrink-0 shadow-2xs">
+                <div className="w-9 h-9 rounded-xl bg-red-950/40 border border-red-900/40 flex items-center justify-center text-red-400 shrink-0 shadow-2xs">
                   {previewType === "pptx" ? (
-                    <Presentation className="w-5 h-5 text-amber-600" />
+                    <Presentation className="w-5 h-5 text-amber-500" />
                   ) : previewType === "docx" ? (
-                    <FileCheck className="w-5 h-5 text-blue-600" />
+                    <FileCheck className="w-5 h-5 text-blue-400" />
                   ) : (
                     <FileText className="w-5 h-5" />
                   )}
@@ -452,7 +502,7 @@ export default function OutputsView({
                     <h3 className="text-sm font-bold text-slate-900 truncate max-w-sm sm:max-w-md md:max-w-lg" title={previewArtifact.filename}>
                       {previewArtifact.filename}
                     </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-[#7047eb] border border-purple-200 uppercase tracking-wide shrink-0">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-950/40 text-red-400 border border-red-900/40 uppercase tracking-wide shrink-0">
                       {previewType}
                     </span>
                     <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -475,7 +525,7 @@ export default function OutputsView({
                       onClick={() => setWordWrap(!wordWrap)}
                       className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
                         wordWrap
-                          ? "bg-purple-50 border-purple-200 text-[#7047eb]"
+                          ? "bg-red-950/40 border-red-900/40 text-red-400"
                           : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                       title="Toggle Word Wrap"
@@ -707,28 +757,27 @@ export default function OutputsView({
                   />
                 </div>
               ) : previewText !== null ? (
-                <div className="w-full h-full flex flex-col bg-white overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-100/70 text-[11px] font-mono text-slate-600 shrink-0">
-                    <span className="font-semibold text-slate-700">
-                      Source Content · {previewText.split("\n").length} lines · {previewText.trim().split(/\s+/).filter(Boolean).length} words
-                    </span>
-                    <span className="text-slate-400">Complete Deliverable Preview</span>
-                  </div>
-
-                  <div className="flex-1 overflow-auto flex min-h-0 p-4 font-mono text-xs bg-slate-950 text-slate-100">
-                    <div className="select-none pr-4 text-right text-slate-600 font-mono text-xs border-r border-slate-800 shrink-0 leading-relaxed">
-                      {previewText.split("\n").map((_, i) => (
-                        <div key={i}>{i + 1}</div>
-                      ))}
+                <div className="w-full h-full flex flex-col bg-zinc-950 overflow-hidden items-center p-4 sm:p-6">
+                  {/* Faithful Authentic White Paper Document Viewport */}
+                  <div className="w-full max-w-4xl flex-1 bg-white text-slate-900 rounded-xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+                    <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-slate-50 text-xs font-mono text-slate-700 shrink-0">
+                      <span className="font-bold text-slate-900 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                        Exact Format Document View: {previewArtifact.filename}
+                      </span>
+                      <span className="text-slate-500">{previewText.split("\n").length} lines · {previewText.trim().split(/\s+/).filter(Boolean).length} words</span>
                     </div>
 
-                    <pre
-                      className={`pl-4 font-mono text-xs text-slate-200 leading-relaxed select-text flex-1 overflow-x-auto ${
-                        wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"
-                      }`}
-                    >
-                      {previewText}
-                    </pre>
+                    <div className="flex-1 overflow-auto p-8 font-sans text-sm text-slate-800 leading-relaxed select-text">
+                      <pre
+                        className={`font-sans text-sm text-slate-800 leading-relaxed select-text ${
+                          wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"
+                        }`}
+                        style={{ fontFamily: "inherit" }}
+                      >
+                        {previewText}
+                      </pre>
+                    </div>
                   </div>
                 </div>
               ) : (

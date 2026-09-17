@@ -232,3 +232,156 @@ async def delete_document(
         )
     return {"document_id": document_id, "deleted": True}
 
+
+@router.post("/convert")
+async def convert_document(
+    file: UploadFile,
+    target_format: str = "pdf",
+    user_id: str = Depends(get_user_id),
+) -> FileResponse:
+    """Convert an uploaded document (PDF, DOCX, PPTX) to target_format (pdf or docx) on the fly."""
+    from app.services.document_converter import (
+        DocumentConversionError,
+        convert_docx_to_pdf,
+        convert_pdf_to_docx,
+        convert_pptx_to_pdf,
+    )
+    import tempfile
+
+    target = target_format.lower().strip().replace(".", "")
+    filename = _safe_filename(file.filename or "input_document")
+    ext = filename.split(".")[-1].lower() if "." in filename else ""
+
+    content = await file.read()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        input_path = Path(tmpdir) / filename
+        input_path.write_bytes(content)
+
+        if ext == "pdf" and target in ("docx", "doc", "word"):
+            out_filename = f"{input_path.stem}.docx"
+            out_path = Path(tmpdir) / out_filename
+            try:
+                convert_pdf_to_docx(input_path, out_path)
+            except DocumentConversionError as e:
+                raise HTTPException(status_code=422, detail=str(e))
+            return FileResponse(
+                out_path,
+                filename=out_filename,
+                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+
+        elif ext in ("docx", "doc") and target == "pdf":
+            out_filename = f"{input_path.stem}.pdf"
+            out_path = Path(tmpdir) / out_filename
+            try:
+                convert_docx_to_pdf(input_path, out_path)
+            except DocumentConversionError as e:
+                raise HTTPException(status_code=422, detail=str(e))
+            return FileResponse(
+                out_path,
+                filename=out_filename,
+                media_type="application/pdf",
+            )
+
+        elif ext in ("pptx", "ppt") and target == "pdf":
+            out_filename = f"{input_path.stem}.pdf"
+            out_path = Path(tmpdir) / out_filename
+            try:
+                convert_pptx_to_pdf(input_path, out_path)
+            except DocumentConversionError as e:
+                raise HTTPException(status_code=422, detail=str(e))
+            return FileResponse(
+                out_path,
+                filename=out_filename,
+                media_type="application/pdf",
+            )
+
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported conversion from .{ext} to .{target}. Supported: PDF -> DOCX, DOCX -> PDF, PPTX -> PDF.",
+            )
+
+
+@router.post("/{document_id}/convert")
+async def convert_existing_document(
+    document_id: str,
+    target_format: str = "pdf",
+    request: Request = None,
+    user_id: str = Depends(get_user_id),
+) -> FileResponse:
+    """Convert an existing knowledge-base document to target_format (pdf or docx) and stream it."""
+    from app.services.document_converter import (
+        DocumentConversionError,
+        convert_docx_to_pdf,
+        convert_pdf_to_docx,
+        convert_pptx_to_pdf,
+    )
+
+    knowledge_base = request.app.state.knowledge_base
+    doc = await knowledge_base.get_document(user_id, document_id)
+    if doc is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "document_not_found", "message": "Document not found."},
+        )
+
+    uploads_root = Path(request.app.state.settings.uploads_root)
+    user_dir = uploads_root / WorkspaceManager.safe_component(user_id)
+    file_path = user_dir / doc.filename
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "file_not_found", "message": "Raw document file not found on disk."},
+        )
+
+    target = target_format.lower().strip().replace(".", "")
+    ext = doc.filename.split(".")[-1].lower() if "." in doc.filename else doc.document_type
+    stem = Path(doc.filename).stem
+
+    if ext == "pdf" and target in ("docx", "doc", "word"):
+        out_filename = f"{stem}_converted.docx"
+        out_path = user_dir / out_filename
+        try:
+            convert_pdf_to_docx(file_path, out_path)
+        except DocumentConversionError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        return FileResponse(
+            out_path,
+            filename=out_filename,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+    elif ext in ("docx", "doc") and target == "pdf":
+        out_filename = f"{stem}_converted.pdf"
+        out_path = user_dir / out_filename
+        try:
+            convert_docx_to_pdf(file_path, out_path)
+        except DocumentConversionError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        return FileResponse(
+            out_path,
+            filename=out_filename,
+            media_type="application/pdf",
+        )
+
+    elif ext in ("pptx", "ppt") and target == "pdf":
+        out_filename = f"{stem}_converted.pdf"
+        out_path = user_dir / out_filename
+        try:
+            convert_pptx_to_pdf(file_path, out_path)
+        except DocumentConversionError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        return FileResponse(
+            out_path,
+            filename=out_filename,
+            media_type="application/pdf",
+        )
+
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported conversion from .{ext} to .{target}. Supported: PDF -> DOCX, DOCX -> PDF, PPTX -> PDF.",
+        )
+
+

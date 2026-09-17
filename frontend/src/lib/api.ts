@@ -368,6 +368,98 @@ export function getArtifactPreview(userId: string, jobId: string, artifactId: st
   return request<ArtifactPreviewResult>(`/api/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(artifactId)}/preview`, {}, userId);
 }
 
+export async function convertDocumentFile(
+  userId: string,
+  file: File,
+  targetFormat: "pdf" | "docx",
+): Promise<{ blob: Blob; filename: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(
+    `${API_BASE_URL}/api/documents/convert?target_format=${encodeURIComponent(targetFormat)}`,
+    {
+      method: "POST",
+      headers: { "X-User-ID": userId },
+      body: form,
+    },
+  );
+  if (!response.ok) {
+    let err = "Conversion failed";
+    try {
+      const data = await response.json();
+      err = data.detail || err;
+    } catch {
+      // ignore
+    }
+    throw new ApiError(response.status, err);
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  const filename = match ? match[1] : `converted.${targetFormat}`;
+  return { blob, filename };
+}
+
+export async function convertExistingDocument(
+  userId: string,
+  documentId: string,
+  targetFormat: "pdf" | "docx",
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/documents/${encodeURIComponent(documentId)}/convert?target_format=${encodeURIComponent(targetFormat)}`,
+    {
+      method: "POST",
+      headers: { "X-User-ID": userId },
+    },
+  );
+  if (!response.ok) {
+    let err = "Conversion failed";
+    try {
+      const data = await response.json();
+      err = data.detail || err;
+    } catch {
+      // ignore
+    }
+    throw new ApiError(response.status, err);
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  const filename = match ? match[1] : `converted.${targetFormat}`;
+  return { blob, filename };
+}
+
+export async function convertJobArtifact(
+  userId: string,
+  jobId: string,
+  artifactId: string,
+  targetFormat: "pdf" | "docx",
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(artifactId)}/convert?target_format=${encodeURIComponent(targetFormat)}`,
+    {
+      method: "POST",
+      headers: { "X-User-ID": userId },
+    },
+  );
+  if (!response.ok) {
+    let err = "Conversion failed";
+    try {
+      const data = await response.json();
+      err = data.detail || err;
+    } catch {
+      // ignore
+    }
+    throw new ApiError(response.status, err);
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  const filename = match ? match[1] : `converted.${targetFormat}`;
+  return { blob, filename };
+}
+
+
 
 // -------------------------------------------------------------- cowork
 

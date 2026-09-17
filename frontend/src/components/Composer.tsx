@@ -25,7 +25,7 @@ const STATE_CONFIG: Record<
   },
   processing: {
     label: "indexing",
-    color: "bg-purple-50 text-purple-700 border-purple-200",
+    color: "bg-red-950/40 text-red-300 border-red-800/40",
     icon: Clock,
   },
   ready: {
@@ -96,10 +96,10 @@ export default function Composer({
 
   return (
     <div
-      className={`rounded-2xl border transition-all duration-200 bg-white ${
+      className={`rounded-2xl border transition-all duration-200 bg-[#111115] text-zinc-100 ${
         isDragging
-          ? "border-purple-500 ring-2 ring-purple-100 bg-purple-50/20"
-          : "border-slate-200/90 shadow-2xs hover:border-slate-300 focus-within:border-purple-500 focus-within:ring-2 focus-within:ring-purple-100"
+          ? "border-red-500 ring-2 ring-red-950 bg-red-950/20"
+          : "border-zinc-800 shadow-2xs hover:border-zinc-700 focus-within:border-red-600 focus-within:ring-2 focus-within:ring-red-950/50"
       }`}
       onDragOver={(e) => {
         e.preventDefault();
@@ -127,9 +127,9 @@ export default function Composer({
 
       {/* Attached Files Tray */}
       {attachments.length > 0 && (
-        <div className="p-3 border-b border-slate-100 bg-slate-50/60 rounded-t-2xl flex flex-wrap gap-2 items-center">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 flex items-center gap-1">
-            <Paperclip className="w-3 h-3 text-purple-600" />
+        <div className="p-3 border-b border-zinc-800 bg-zinc-900/60 rounded-t-2xl flex flex-wrap gap-2 items-center">
+          <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider mr-1 flex items-center gap-1">
+            <Paperclip className="w-3 h-3 text-red-500" />
             Attachments ({attachments.length}):
           </span>
           {attachments.map((chip) => {
@@ -138,10 +138,10 @@ export default function Composer({
             return (
               <div
                 key={chip.id}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-slate-200 shadow-2xs text-xs"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-zinc-950 border border-zinc-800 shadow-2xs text-xs"
               >
-                <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span className="font-semibold text-slate-800 max-w-[160px] truncate" title={chip.filename}>
+                <FileText className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <span className="font-semibold text-zinc-200 max-w-[160px] truncate" title={chip.filename}>
                   {chip.filename}
                 </span>
                 <span
@@ -153,7 +153,7 @@ export default function Composer({
                 <button
                   type="button"
                   onClick={() => onRemoveAttachment(chip.id)}
-                  className="w-4 h-4 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors cursor-pointer"
+                  className="w-4 h-4 rounded-md text-zinc-400 hover:text-red-400 hover:bg-red-950/40 flex items-center justify-center transition-colors cursor-pointer"
                   title={`Remove ${chip.filename}`}
                 >
                   <X className="w-3 h-3" />
@@ -166,11 +166,11 @@ export default function Composer({
 
       {pickerOpen && (
         <div
-          className="p-3 border-b border-purple-100 bg-purple-50/40 flex flex-wrap gap-1.5 items-center text-xs"
+          className="p-3 border-b border-zinc-800 bg-zinc-900/80 flex flex-wrap gap-1.5 items-center text-xs"
           aria-label="Attach documents from the knowledge base"
         >
           {readyLibrary.length === 0 ? (
-            <span className="text-slate-400 text-xs">No indexed documents yet.</span>
+            <span className="text-zinc-500 text-xs">No indexed documents yet.</span>
           ) : (
             readyLibrary.map((document) => {
               const attached = attachedDocIds.has(document.document_id);
@@ -183,8 +183,8 @@ export default function Composer({
                   type="button"
                   className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
                     attached
-                      ? "bg-purple-600 text-white border-purple-600 shadow-2xs"
-                      : "bg-white text-slate-700 border-slate-200 hover:border-purple-300"
+                      ? "bg-red-600 text-white border-red-600 shadow-2xs"
+                      : "bg-zinc-950 text-zinc-300 border-zinc-800 hover:border-red-900/60"
                   }`}
                   aria-pressed={attached}
                   onClick={() =>
@@ -215,22 +215,22 @@ export default function Composer({
               send();
             }
           }}
-          className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none resize-none leading-relaxed font-sans"
+          className="w-full bg-transparent text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none resize-none leading-relaxed font-sans"
         />
       </div>
 
       {/* Composer Action Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-slate-50/40 rounded-b-2xl border-t border-slate-100">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-zinc-900/40 rounded-b-2xl border-t border-zinc-800/80">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Explicit Attach File Button */}
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={running || disabled}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-purple-50 hover:text-purple-700 border border-slate-200/90 hover:border-purple-200 shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-zinc-200 bg-zinc-950 hover:bg-red-950/50 hover:text-red-300 border border-zinc-700 hover:border-red-700 shadow-sm transition-all cursor-pointer disabled:opacity-50"
             title="Attach file to prompt context (.pdf, .docx, .txt, .py, .csv, .md, .png)"
           >
-            <Paperclip className="w-3.5 h-3.5 text-purple-600" />
+            <Paperclip className="w-4 h-4 text-red-500" />
             <span>Attach File</span>
           </button>
           <button
@@ -240,32 +240,32 @@ export default function Composer({
             title="Attach documents from the knowledge base"
             aria-pressed={pickerOpen}
             disabled={running || disabled}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50 border shadow-2xs ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer disabled:opacity-50 border shadow-sm ${
               pickerOpen
-                ? "bg-purple-600 text-white border-purple-600"
-                : "bg-white text-slate-700 hover:bg-purple-50 hover:text-purple-700 border-slate-200/90 hover:border-purple-200"
+                ? "bg-red-600 text-white border-red-600"
+                : "bg-zinc-950 text-zinc-200 hover:bg-red-950/50 hover:text-red-300 border-zinc-700 hover:border-red-700"
             }`}
           >
             <span>Docs</span>
           </button>
-          <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer select-none" title="Send every ready document as context">
+          <label className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-300 cursor-pointer select-none" title="Send every ready document as context">
             <input
               type="checkbox"
               aria-label="Use all documents"
               checked={useAllDocuments}
               onChange={(e) => onToggleUseAllDocuments(e.target.checked)}
               disabled={running || disabled}
-              className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+              className="rounded border-zinc-700 bg-zinc-900 text-red-600 focus:ring-red-500 w-3.5 h-3.5"
             />
             <span>All Docs</span>
           </label>
-          <span className="text-[11px] text-slate-400 hidden sm:inline">
+          <span className="text-[11px] text-zinc-500 hidden sm:inline">
             PDF, DOCX, Code, CSV &bull; Zero Egress
           </span>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <span className="text-[11px] text-slate-400 hidden md:inline">
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-zinc-400 hidden md:inline font-mono">
             {running ? "Agent is working…" : "Enter ↵ to send &bull; Shift+Enter for new line"}
           </span>
 
@@ -274,7 +274,7 @@ export default function Composer({
               type="button"
               onClick={onCancel}
               aria-label="Cancel task"
-              className="px-4 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition-colors cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-red-950/60 hover:bg-red-950 text-red-200 font-bold text-sm border border-red-800/80 transition-colors cursor-pointer shadow-sm"
             >
               Cancel task
             </button>
@@ -284,13 +284,13 @@ export default function Composer({
               onClick={send}
               aria-label="Send"
               disabled={!canSend}
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl font-bold text-xs transition-all shadow-2xs cursor-pointer ${
+              className={`inline-flex items-center gap-2 px-5 py-2 rounded-xl font-extrabold text-sm transition-all shadow-md cursor-pointer ${
                 canSend
-                  ? "bg-[#7047eb] hover:bg-[#5e38d6] text-white shadow-purple-500/20"
-                  : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                  ? "bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white shadow-[0_4px_16px_rgba(239,68,68,0.45)] hover:scale-[1.02] active:scale-[0.98]"
+                  : "bg-zinc-800 text-zinc-500 border border-zinc-800 cursor-not-allowed"
               }`}
             >
-              <ArrowUp className="w-3.5 h-3.5" />
+              <ArrowUp className="w-4 h-4" />
               <span>Send</span>
             </button>
           )}

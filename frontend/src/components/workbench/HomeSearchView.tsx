@@ -23,6 +23,19 @@ import {
   RefreshCw,
   Zap,
   Layers,
+  FileText,
+  Calculator,
+  Image as ImageIcon,
+  User as UserIcon,
+  Activity,
+  Lock,
+  Brain,
+  ScrollText,
+  Paperclip,
+  MessageSquare,
+  CheckCircle2,
+  Clock,
+  XCircle,
 } from "lucide-react";
 import type { ArtifactSummary, DocumentMeta, JobSummary } from "@/lib/types";
 
@@ -181,22 +194,22 @@ const BARS_DATA: Record<TimeRange, ReturnType<typeof generateBars>> = {
 };
 
 const TASK_BREAKDOWN = [
-  { label: "Analysis",  pct: 45, color: "#14b8a6" },
+  { label: "Analysis",  pct: 45, color: "#ef4444" },
   { label: "Code Gen",  pct: 28, color: "#0ea5e9" },
   { label: "Doc OCR",   pct: 17, color: "#f59e0b" },
   { label: "Reasoning", pct: 10, color: "#a78bfa" },
 ];
 
 const RECENT_JOBS_DEMO = [
-  { icon: "🔎", name: "Contract Risk Scan",     dept: "Legal",   delta: "-2 risks found",   ago: "2 min ago",   sign: -1 },
-  { icon: "🧮", name: "Budget Variance Calc",   dept: "Finance", delta: "+$3,500 savings",  ago: "10 min ago",  sign:  1 },
-  { icon: "🖼️", name: "Invoice OCR Batch",      dept: "Ops",     delta: "48 docs parsed",   ago: "2 h ago",     sign:  1 },
-  { icon: "👤", name: "HR Policy Audit",         dept: "HR",      delta: "3 gaps flagged",   ago: "Yesterday",   sign: -1 },
-  { icon: "⚡", name: "API Endpoint Test",       dept: "Eng",     delta: "4/4 passed",       ago: "12 Jul 2026", sign:  1 },
+  { icon: <FileText className="w-4 h-4 text-sky-500" />, name: "Contract Risk Scan",     dept: "Legal",   delta: "-2 risks found",   ago: "2 min ago",   sign: -1 },
+  { icon: <Calculator className="w-4 h-4 text-emerald-500" />, name: "Budget Variance Calc",   dept: "Finance", delta: "+$3,500 savings",  ago: "10 min ago",  sign:  1 },
+  { icon: <ImageIcon className="w-4 h-4 text-amber-500" />, name: "Invoice OCR Batch",      dept: "Ops",     delta: "48 docs parsed",   ago: "2 h ago",     sign:  1 },
+  { icon: <UserIcon className="w-4 h-4 text-indigo-500" />, name: "HR Policy Audit",         dept: "HR",      delta: "3 gaps flagged",   ago: "Yesterday",   sign: -1 },
+  { icon: <Activity className="w-4 h-4 text-red-500" />, name: "API Endpoint Test",       dept: "Eng",     delta: "4/4 passed",       ago: "12 Jul 2026", sign:  1 },
 ];
 
 const STAT_CARDS = [
-  { label: "Total Jobs Run",  rawVal: 1284,  display: "1,284",  icon: <Layers    className="w-4 h-4"/>, delta: "+12.5%", up: true,  accent: "#14b8a6" },
+  { label: "Total Jobs Run",  rawVal: 1284,  display: "1,284",  icon: <Layers    className="w-4 h-4"/>, delta: "+12.5%", up: true,  accent: "#ef4444" },
   { label: "Tokens Used",     rawVal: 8750,  display: "8.75M",  icon: <Zap       className="w-4 h-4"/>, delta: "+12%",   up: true,  accent: "#0ea5e9" },
   { label: "Active Agents",   rawVal: 4,     display: "4",      icon: <Cpu       className="w-4 h-4"/>, delta: "+1",     up: true,  accent: "#a78bfa" },
   { label: "Zero Egress",     rawVal: 0,     display: "0 B",    icon: <ShieldCheck className="w-4 h-4"/>, delta: "✓ Clean", up: true, accent: "#10b981" },
@@ -270,7 +283,7 @@ function BarChart({ data, range }: { data: ReturnType<typeof generateBars>; rang
               y={PAD_T + chartH - jobH}
               width={barW} height={jobH}
               rx={3}
-              fill={isHov ? "#0d9488" : "#14b8a6"}
+              fill={isHov ? "#0d9488" : "#ef4444"}
               opacity={isHov ? 1 : 0.82}
               style={{
                 transition: "height 0.65s cubic-bezier(0.4,0,0.2,1), y 0.65s cubic-bezier(0.4,0,0.2,1), fill 0.2s, opacity 0.2s",
@@ -302,7 +315,7 @@ function BarChart({ data, range }: { data: ReturnType<typeof generateBars>; rang
                   style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.1))" }}
                 />
                 <text x={cx} y={PAD_T + chartH - Math.max(jobH, tokH) - 28}
-                  textAnchor="middle" fontSize="9" fontWeight="700" fill="#14b8a6">
+                  textAnchor="middle" fontSize="9" fontWeight="700" fill="#ef4444">
                   {d.jobs} jobs
                 </text>
                 <text x={cx} y={PAD_T + chartH - Math.max(jobH, tokH) - 16}
@@ -316,7 +329,7 @@ function BarChart({ data, range }: { data: ReturnType<typeof generateBars>; rang
             <text
               x={cx} y={H - 4}
               textAnchor="middle" fontSize="8.5"
-              fill={isHov ? "#14b8a6" : "#94a3b8"}
+              fill={isHov ? "#ef4444" : "#94a3b8"}
               fontWeight={isHov ? "700" : "400"}
               style={{ transition: "fill 0.2s, font-weight 0.2s" }}
             >
@@ -406,7 +419,7 @@ function DonutChart({ segments }: { segments: { pct: number; color: string }[] }
 /* ══════════════════════════════════════════════════════════════
    LIVE PULSE DOT
 ══════════════════════════════════════════════════════════════ */
-function PulseDot({ color = "#14b8a6" }: { color?: string }) {
+function PulseDot({ color = "#ef4444" }: { color?: string }) {
   return (
     <span className="relative inline-flex w-2 h-2">
       <span
@@ -470,19 +483,19 @@ function AiPanel({ onSubmit }: { onSubmit: (q: string) => void }) {
 
   return (
     <aside
-      className="flex flex-col h-full bg-white border-l border-slate-100"
+      className="flex flex-col h-full bg-[#111115] border-l border-zinc-800"
       style={{ width: 280, minWidth: 220, maxWidth: 320 }}
     >
       {/* header */}
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+      <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
-          <PulseDot color="#14b8a6" />
-          <span className="text-sm font-bold text-slate-800">AI Inbox</span>
+          <PulseDot color="#ef4444" />
+          <span className="text-sm font-bold text-zinc-200">AI Inbox</span>
         </div>
         <RippleButton
           onClick={() => send("Summarise my dashboard performance")}
           className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-xl text-white cursor-pointer transition-all hover:opacity-90 active:scale-95"
-          style={{ background: "linear-gradient(135deg,#14b8a6,#0ea5e9)", boxShadow: "0 2px 12px #14b8a640" }}
+          style={{ background: "linear-gradient(135deg,#ef4444,#0ea5e9)", boxShadow: "0 2px 12px #ef444440" }}
         >
           Summarise performance
         </RippleButton>
@@ -500,23 +513,23 @@ function AiPanel({ onSubmit }: { onSubmit: (q: string) => void }) {
           >
             {m.role === "ai" && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                  <span className="w-4 h-4 rounded-full bg-teal-50 border border-teal-200 flex items-center justify-center">
-                    <Bot className="w-2.5 h-2.5 text-teal-500" />
+                <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                  <span className="w-4 h-4 rounded-full bg-red-950/40 border border-red-900/40 flex items-center justify-center">
+                    <Bot className="w-2.5 h-2.5 text-red-500" />
                   </span>
                   Thought for 4 seconds ·
                   {m.sources && (
-                    <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-500">
+                    <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-zinc-400">
                       {m.sources} sources
                     </span>
                   )}
                 </div>
-                <div className="text-[12px] text-slate-600 leading-relaxed">{m.text}</div>
+                <div className="text-[12px] text-zinc-400 leading-relaxed">{m.text}</div>
                 {m.bullets?.map((b, i) => {
                   const parts = b.split(" — ");
                   return (
-                    <div key={i} className="text-[11.5px] text-slate-600 pl-2 border-l-2 border-teal-200">
-                      <span className="font-bold text-slate-800">{parts[0]}</span>
+                    <div key={i} className="text-[11.5px] text-zinc-400 pl-2 border-l-2 border-red-900/40">
+                      <span className="font-bold text-zinc-200">{parts[0]}</span>
                       {parts[1] ? ` — ${parts[1]}` : ""}
                     </div>
                   );
@@ -527,7 +540,7 @@ function AiPanel({ onSubmit }: { onSubmit: (q: string) => void }) {
               <div className="flex justify-end">
                 <div
                   className="text-[12px] text-white rounded-2xl rounded-tr-sm px-3 py-2 max-w-[90%]"
-                  style={{ background: "linear-gradient(135deg,#14b8a6,#0ea5e9)", boxShadow: "0 2px 12px #14b8a630" }}
+                  style={{ background: "linear-gradient(135deg,#ef4444,#0ea5e9)", boxShadow: "0 2px 12px #ef444430" }}
                 >
                   {m.text}
                 </div>
@@ -537,9 +550,9 @@ function AiPanel({ onSubmit }: { onSubmit: (q: string) => void }) {
         ))}
 
         {loading && (
-          <div className="flex items-center gap-2 text-[11px] text-slate-400" style={{ animation: "fadeSlideUp 0.3s ease forwards" }}>
-            <span className="w-4 h-4 rounded-full bg-teal-50 border border-teal-200 flex items-center justify-center">
-              <Bot className="w-2.5 h-2.5 text-teal-500 animate-pulse" />
+          <div className="flex items-center gap-2 text-[11px] text-zinc-500" style={{ animation: "fadeSlideUp 0.3s ease forwards" }}>
+            <span className="w-4 h-4 rounded-full bg-red-950/40 border border-red-900/40 flex items-center justify-center">
+              <Bot className="w-2.5 h-2.5 text-red-500 animate-pulse" />
             </span>
             <span className="flex gap-1">
               <span style={{ animation: "bounce 0.8s infinite 0ms" }}>·</span>
@@ -557,7 +570,7 @@ function AiPanel({ onSubmit }: { onSubmit: (q: string) => void }) {
           <RippleButton
             key={p}
             onClick={() => send(p)}
-            className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-teal-50 border border-slate-200 hover:border-teal-300 text-slate-600 hover:text-teal-700 cursor-pointer transition-all active:scale-95"
+            className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-[#18181b] hover:bg-red-950/40 border border-zinc-800 hover:border-red-800/40 text-zinc-400 hover:text-teal-700 cursor-pointer transition-all active:scale-95"
             style={{ background: undefined }}
           >
             {p}
@@ -566,10 +579,10 @@ function AiPanel({ onSubmit }: { onSubmit: (q: string) => void }) {
       </div>
 
       {/* input */}
-      <div className="px-4 pb-4 pt-1 border-t border-slate-100 shrink-0">
-        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-teal-400 focus-within:shadow-[0_0_0_3px_rgba(20,184,166,0.12)] transition-all duration-200">
+      <div className="px-4 pb-4 pt-1 border-t border-zinc-800 shrink-0">
+        <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-[#18181b] px-3 py-2 focus-within:border-red-600 focus-within:shadow-[0_0_0_3px_rgba(20,184,166,0.12)] transition-all duration-200">
           <input
-            className="flex-1 text-[12px] bg-transparent outline-none placeholder:text-slate-400 text-slate-800"
+            className="flex-1 text-[12px] bg-transparent outline-none placeholder:text-zinc-500 text-zinc-200"
             placeholder="Ask me anything"
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -579,21 +592,25 @@ function AiPanel({ onSubmit }: { onSubmit: (q: string) => void }) {
             ref={sendRef}
             type="button"
             onClick={e => { sendTrigger(e); send(input); }}
-            className="text-teal-500 hover:text-teal-600 cursor-pointer transition-all hover:scale-110 active:scale-90"
+            className="text-red-500 hover:text-red-400 cursor-pointer transition-all hover:scale-110 active:scale-90"
           >
             <Send className="w-3.5 h-3.5" />
           </button>
         </div>
 
         <div className="mt-2 flex items-center justify-between">
-          <div className="flex items-center gap-3 text-[10px] text-slate-400">
-            <button type="button" className="hover:text-slate-600 cursor-pointer transition-transform hover:scale-110 active:scale-90">📎</button>
-            <button type="button" className="hover:text-slate-600 cursor-pointer transition-transform hover:scale-110 active:scale-90">💬</button>
-            <button type="button" className="hover:text-slate-600 cursor-pointer flex items-center gap-1 transition-colors">
-              <RefreshCw className="w-3 h-3" /> Improve prompt
+          <div className="flex items-center gap-3 text-[10px] text-zinc-500">
+            <button type="button" className="hover:text-zinc-400 cursor-pointer transition-colors" title="Attach file">
+              <Paperclip className="w-3.5 h-3.5" />
+            </button>
+            <button type="button" className="hover:text-zinc-400 cursor-pointer transition-colors" title="Chat prompt">
+              <MessageSquare className="w-3.5 h-3.5" />
+            </button>
+            <button type="button" className="hover:text-zinc-400 cursor-pointer flex items-center gap-1 transition-colors">
+              <RefreshCw className="w-3 h-3" /> Optimize prompt
             </button>
           </div>
-          <div className="flex items-center gap-1 text-[10px] text-slate-400">
+          <div className="flex items-center gap-1 text-[10px] text-zinc-500">
             <span>Connect apps</span>
             {["$","≡","⚙"].map((s, i) => (
               <span key={i} className={`px-1.5 py-0.5 rounded font-mono text-[9px] cursor-pointer hover:scale-110 transition-transform active:scale-90 inline-block ${
@@ -617,15 +634,15 @@ function DashboardContent({
   const sparkData = [30, 45, 38, 60, 52, 70, 65, 80, 72, 90, 85, 95];
 
   return (
-    <div className="flex-1 overflow-y-auto min-h-0 bg-[#f6f8fa]">
+    <div className="flex-1 overflow-y-auto min-h-0 bg-[#09090b]">
       {/* top bar */}
       <div className="flex items-center justify-between px-7 pt-7 pb-5">
         <Reveal delay={0}>
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-              Welcome back 👋
+            <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">
+              Console Overview
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
+            <p className="text-xs text-zinc-400 mt-0.5 flex items-center gap-1.5">
               <PulseDot color="#10b981" />
               All systems sovereign &amp; air-gapped
             </p>
@@ -635,7 +652,7 @@ function DashboardContent({
           <RippleButton
             onClick={() => onNavigate("agent")}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white cursor-pointer transition-all hover:scale-105 active:scale-95 hover:shadow-lg"
-            style={{ background: "linear-gradient(135deg,#14b8a6,#0ea5e9)", boxShadow: "0 4px 16px #14b8a640" }}
+            style={{ background: "linear-gradient(135deg,#ef4444,#0ea5e9)", boxShadow: "0 4px 16px #ef444440" }}
           >
             <Plus className="w-4 h-4" /> New Task
           </RippleButton>
@@ -648,11 +665,11 @@ function DashboardContent({
           {STAT_CARDS.map((c, i) => (
             <Reveal key={i} delay={i * 70}>
               <div
-                className="group bg-white rounded-2xl p-5 border border-slate-100 shadow-xs cursor-default transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+                className="group bg-[#111115] rounded-2xl p-5 border border-zinc-800 shadow-xs cursor-default transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
                 style={{ borderTop: `3px solid ${c.accent}` }}
               >
                 <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
                     <span
                       className="p-1.5 rounded-lg transition-transform duration-300 group-hover:scale-110"
                       style={{ background: `${c.accent}18`, color: c.accent }}
@@ -663,7 +680,7 @@ function DashboardContent({
                   </div>
                 </div>
                 <div className="flex items-end justify-between">
-                  <span className="text-2xl font-black text-slate-900">
+                  <span className="text-2xl font-black text-zinc-100">
                     {c.rawVal === 0 ? "0 B" : c.rawVal < 10 ? c.rawVal :
                       <CountUp target={c.rawVal} />}
                   </span>
@@ -684,40 +701,40 @@ function DashboardContent({
 
         {/* ── BAR CHART ── */}
         <Reveal delay={120}>
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6">
+          <div className="bg-[#111115] rounded-2xl border border-zinc-800 shadow-xs p-6">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <div>
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                  <BarChart2 className="w-3.5 h-3.5 text-teal-500" /> Total job throughput
+                <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide flex items-center gap-1.5">
+                  <BarChart2 className="w-3.5 h-3.5 text-red-500" /> Total job throughput
                 </p>
                 <div className="flex items-center gap-6 mt-1">
                   <div>
-                    <span className="text-2xl font-black text-slate-900">
+                    <span className="text-2xl font-black text-zinc-100">
                       <CountUp target={1284} />
                     </span>
                     <span className="ml-2 text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-lg">↑12%</span>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Jobs last period</p>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">Jobs last period</p>
                   </div>
                   <div>
-                    <span className="text-2xl font-black text-slate-900">
+                    <span className="text-2xl font-black text-zinc-100">
                       <CountUp target={8750} suffix="K" />
                     </span>
-                    <span className="ml-2 text-xs font-bold text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded-lg">↑3%</span>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Tokens processed</p>
+                    <span className="ml-2 text-xs font-bold text-red-400 bg-red-950/40 px-1.5 py-0.5 rounded-lg">↑3%</span>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">Tokens processed</p>
                   </div>
                 </div>
               </div>
 
               {/* time range switcher */}
-              <div className="flex items-center gap-1 border border-slate-200 rounded-xl p-1 bg-slate-50">
+              <div className="flex items-center gap-1 border border-zinc-800 rounded-xl p-1 bg-[#18181b]">
                 {(["7d","30d","90d"] as TimeRange[]).map(r => (
                   <RippleButton
                     key={r}
                     onClick={() => setTimeRange(r)}
                     className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
                       timeRange === r
-                        ? "bg-white text-teal-600 shadow-xs border border-slate-200 scale-105"
-                        : "text-slate-500 hover:text-slate-700 hover:bg-white/60"
+                        ? "bg-[#111115] text-red-400 shadow-xs border border-zinc-800 scale-105"
+                        : "text-zinc-400 hover:text-zinc-300 hover:bg-[#111115]/60"
                     }`}
                   >
                     {r}
@@ -726,9 +743,9 @@ function DashboardContent({
               </div>
             </div>
 
-            <div className="flex items-center gap-5 mb-3 text-[10.5px] font-semibold text-slate-500">
+            <div className="flex items-center gap-5 mb-3 text-[10.5px] font-semibold text-zinc-400">
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-1.5 rounded-full bg-teal-500 inline-block"/>Jobs run
+                <span className="w-3 h-1.5 rounded-full bg-red-950/400 inline-block"/>Jobs run
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="w-3 h-1.5 rounded-full bg-indigo-200 inline-block"/>Token volume
@@ -743,12 +760,12 @@ function DashboardContent({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Task breakdown */}
           <Reveal delay={160} from="left">
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 h-full">
+            <div className="bg-[#111115] rounded-2xl border border-zinc-800 shadow-xs p-6 h-full">
               <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-bold text-slate-800">Task Breakdown</p>
+                <p className="text-sm font-bold text-zinc-200">Task Breakdown</p>
                 <RippleButton
                   onClick={() => onNavigate("jobs")}
-                  className="text-[11px] font-semibold text-teal-600 hover:text-teal-700 cursor-pointer px-2 py-1 rounded-lg hover:bg-teal-50 transition-all active:scale-95"
+                  className="text-[11px] font-semibold text-red-400 hover:text-teal-700 cursor-pointer px-2 py-1 rounded-lg hover:bg-red-950/40 transition-all active:scale-95"
                 >
                   View all →
                 </RippleButton>
@@ -757,11 +774,11 @@ function DashboardContent({
               <div className="flex items-center gap-5 mb-4">
                 <DonutChart segments={TASK_BREAKDOWN} />
                 <div className="space-y-1.5 flex-1">
-                  <p className="text-2xl font-black text-slate-900">
+                  <p className="text-2xl font-black text-zinc-100">
                     <CountUp target={1284} />
                   </p>
                   <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg inline-block">+2.3%</span>
-                  <p className="text-[10px] text-slate-400">Total tasks</p>
+                  <p className="text-[10px] text-zinc-500">Total tasks</p>
                 </div>
               </div>
 
@@ -774,7 +791,7 @@ function DashboardContent({
                   />
                 ))}
               </div>
-              <div className="flex flex-wrap gap-3 text-[10.5px] font-semibold text-slate-500 mb-4">
+              <div className="flex flex-wrap gap-3 text-[10.5px] font-semibold text-zinc-400 mb-4">
                 {TASK_BREAKDOWN.map(s => (
                   <span key={s.label} className="flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full" style={{ background: s.color }}/>
@@ -785,13 +802,13 @@ function DashboardContent({
 
               {/* table */}
               <div className="space-y-0.5">
-                <div className="grid grid-cols-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 pb-1 border-b border-slate-100">
+                <div className="grid grid-cols-3 text-[10px] font-bold text-zinc-500 uppercase tracking-wider px-1 pb-1 border-b border-zinc-800">
                   <span>Category</span><span className="text-right">Share</span><span className="text-right">Jobs</span>
                 </div>
                 {TASK_BREAKDOWN.map((s, i) => (
                   <div
                     key={s.label}
-                    className="grid grid-cols-3 text-[11.5px] font-medium text-slate-700 px-1 py-1.5 hover:bg-slate-50 rounded-lg transition-colors cursor-default group"
+                    className="grid grid-cols-3 text-[11.5px] font-medium text-zinc-300 px-1 py-1.5 hover:bg-[#18181b] rounded-lg transition-colors cursor-default group"
                     style={{ animationDelay: `${i*80}ms` }}
                   >
                     <span className="flex items-center gap-2">
@@ -804,7 +821,7 @@ function DashboardContent({
                       {s.label}
                     </span>
                     <span className="text-right font-bold">{s.pct}%</span>
-                    <span className="text-right text-slate-500">{Math.round(1284 * s.pct / 100)}</span>
+                    <span className="text-right text-zinc-400">{Math.round(1284 * s.pct / 100)}</span>
                   </div>
                 ))}
               </div>
@@ -813,12 +830,12 @@ function DashboardContent({
 
           {/* Recent Tasks */}
           <Reveal delay={200} from="right">
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 h-full">
+            <div className="bg-[#111115] rounded-2xl border border-zinc-800 shadow-xs p-6 h-full">
               <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-bold text-slate-800">Recent Tasks</p>
+                <p className="text-sm font-bold text-zinc-200">Recent Tasks</p>
                 <RippleButton
                   onClick={() => onNavigate("jobs")}
-                  className="text-[11px] font-semibold text-teal-600 hover:text-teal-700 cursor-pointer px-2 py-1 rounded-lg hover:bg-teal-50 transition-all active:scale-95"
+                  className="text-[11px] font-semibold text-red-400 hover:text-teal-700 cursor-pointer px-2 py-1 rounded-lg hover:bg-red-950/40 transition-all active:scale-95"
                 >
                   View all →
                 </RippleButton>
@@ -827,7 +844,15 @@ function DashboardContent({
               <div className="space-y-0.5">
                 {(jobs && jobs.length > 0
                   ? jobs.slice(0,5).map(j => ({
-                      icon: j.status==="completed"?"✅":j.status==="running"?"⚡":j.status==="failed"?"❌":"⏳",
+                      icon: j.status==="completed" ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      ) : j.status==="running" ? (
+                        <Zap className="w-4 h-4 text-sky-500 animate-pulse" />
+                      ) : j.status==="failed" ? (
+                        <XCircle className="w-4 h-4 text-rose-500" />
+                      ) : (
+                        <Clock className="w-4 h-4 text-amber-500" />
+                      ),
                       name: j.message?.slice(0,32) ?? j.job_id.slice(0,16),
                       dept: j.user_id ?? "User",
                       delta: j.status,
@@ -838,7 +863,7 @@ function DashboardContent({
                 ).map((item, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-3 px-2 py-2.5 rounded-xl cursor-pointer transition-all duration-200 hover:bg-slate-50 hover:translate-x-1 active:scale-[0.98]"
+                    className="flex items-center gap-3 px-2 py-2.5 rounded-xl cursor-pointer transition-all duration-200 hover:bg-[#18181b] hover:translate-x-1 active:scale-[0.98]"
                     onClick={() => onNavigate("jobs")}
                     style={{
                       opacity: 0,
@@ -849,14 +874,14 @@ function DashboardContent({
                       {item.icon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12.5px] font-semibold text-slate-800 truncate">{item.name}</p>
-                      <p className="text-[10.5px] text-slate-400">{item.dept}</p>
+                      <p className="text-[12.5px] font-semibold text-zinc-200 truncate">{item.name}</p>
+                      <p className="text-[10.5px] text-zinc-500">{item.dept}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <p className={`text-[12px] font-bold ${item.sign > 0 ? "text-emerald-600" : "text-rose-500"}`}>
                         {item.delta}
                       </p>
-                      <p className="text-[10px] text-slate-400">{item.ago}</p>
+                      <p className="text-[10px] text-zinc-500">{item.ago}</p>
                     </div>
                   </div>
                 ))}
@@ -888,20 +913,20 @@ function DashSidebar({
 }: { activeTab: DashTab; onTab: (t: DashTab) => void; onNavigate: (s: any) => void; user: string }) {
   return (
     <aside
-      className="flex flex-col bg-white border-r border-slate-100 py-5 shrink-0"
+      className="flex flex-col bg-[#111115] border-r border-zinc-800 py-5 shrink-0"
       style={{ width: 200, minWidth: 180 }}
     >
       {/* Logo */}
       <div className="px-5 mb-6 flex items-center gap-2.5">
         <div
           className="w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs text-white transition-transform hover:scale-110 cursor-default"
-          style={{ background: "linear-gradient(135deg,#14b8a6,#0ea5e9)", boxShadow: "0 2px 10px #14b8a640" }}
+          style={{ background: "linear-gradient(135deg,#ef4444,#0ea5e9)", boxShadow: "0 2px 10px #ef444440" }}
         >
           AS
         </div>
         <div>
-          <p className="text-[13px] font-extrabold text-slate-900 leading-none">AstraSovereign</p>
-          <p className="text-[10px] text-slate-400 flex items-center gap-1">
+          <p className="text-[13px] font-extrabold text-zinc-100 leading-none">AstraSovereign</p>
+          <p className="text-[10px] text-zinc-500 flex items-center gap-1">
             <PulseDot color="#10b981" />
             {user}
           </p>
@@ -910,7 +935,7 @@ function DashSidebar({
 
       {/* Track */}
       <div className="px-3 mb-4">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 px-2">Track</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 px-2">Track</p>
         {TRACK_NAV.map(n => {
           const isActive = (activeTab as string) === n.id;
           const Icon = n.icon;
@@ -920,16 +945,16 @@ function DashSidebar({
               onClick={() => { onTab(n.id as DashTab); if (n.id !== "overview") onNavigate(n.id); }}
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-semibold cursor-pointer transition-all mb-0.5 text-left
                 ${isActive
-                  ? "bg-teal-50 text-teal-700 border border-teal-100 shadow-xs"
-                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 hover:translate-x-0.5"
+                  ? "bg-red-950/40 text-teal-700 border border-teal-100 shadow-xs"
+                  : "text-zinc-400 hover:bg-[#18181b] hover:text-zinc-200 hover:translate-x-0.5"
                 }`}
             >
-              <Icon className={`w-4 h-4 shrink-0 transition-transform ${isActive ? "text-teal-500 scale-110" : "text-slate-400"}`} />
+              <Icon className={`w-4 h-4 shrink-0 transition-transform ${isActive ? "text-red-500 scale-110" : "text-zinc-500"}`} />
               {n.label}
               {isActive && (
                 <span
                   className="ml-auto w-1.5 h-1.5 rounded-full"
-                  style={{ background: "#14b8a6", boxShadow: "0 0 6px #14b8a6" }}
+                  style={{ background: "#ef4444", boxShadow: "0 0 6px #ef4444" }}
                 />
               )}
             </RippleButton>
@@ -939,16 +964,16 @@ function DashSidebar({
 
       {/* Services */}
       <div className="px-3 mb-4">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 px-2">Services</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 px-2">Services</p>
         {SERVICE_NAV.map(n => {
           const Icon = n.icon;
           return (
             <RippleButton
               key={n.id}
               onClick={() => onNavigate(n.id)}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-semibold cursor-pointer transition-all mb-0.5 text-left text-slate-500 hover:bg-slate-50 hover:text-slate-800 hover:translate-x-0.5"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-semibold cursor-pointer transition-all mb-0.5 text-left text-zinc-400 hover:bg-[#18181b] hover:text-zinc-200 hover:translate-x-0.5"
             >
-              <Icon className="w-4 h-4 text-slate-400 shrink-0" />
+              <Icon className="w-4 h-4 text-zinc-500 shrink-0" />
               {n.label}
             </RippleButton>
           );
@@ -958,19 +983,19 @@ function DashSidebar({
       <div className="flex-1"/>
 
       {/* User */}
-      <div className="px-4 pt-4 border-t border-slate-100">
-        <div className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-all group">
+      <div className="px-4 pt-4 border-t border-zinc-800">
+        <div className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-[#18181b] cursor-pointer transition-all group">
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white shrink-0 transition-transform group-hover:scale-110"
-            style={{ background: "linear-gradient(135deg,#14b8a6,#0ea5e9)" }}
+            style={{ background: "linear-gradient(135deg,#ef4444,#0ea5e9)" }}
           >
             {user.slice(0,2).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <p className="text-[12px] font-bold text-slate-800 truncate">{user}</p>
-            <p className="text-[10px] text-slate-400 truncate">info@sovereign.local</p>
+            <p className="text-[12px] font-bold text-zinc-200 truncate">{user}</p>
+            <p className="text-[10px] text-zinc-500 truncate">info@sovereign.local</p>
           </div>
-          <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-auto transition-transform group-hover:translate-y-0.5" />
+          <ChevronDown className="w-3.5 h-3.5 text-zinc-500 shrink-0 ml-auto transition-transform group-hover:translate-y-0.5" />
         </div>
       </div>
     </aside>
@@ -1026,7 +1051,7 @@ export default function HomeSearchView({
         }
       `}</style>
 
-      <div className="flex h-full w-full overflow-hidden" style={{ background: "#f6f8fa" }}>
+      <div className="flex h-full w-full overflow-hidden" style={{ background: "#09090b" }}>
         {/* LEFT */}
         <DashSidebar activeTab={activeTab} onTab={switchTab} onNavigate={onNavigate} user={user} />
 
@@ -1039,11 +1064,11 @@ export default function HomeSearchView({
           {activeTab === "jobs" && (
             <div className="flex-1 overflow-y-auto p-8" style={{ height: "100%" }}>
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-extrabold text-slate-900">Task Queue</h2>
+                <h2 className="text-xl font-extrabold text-zinc-100">Task Queue</h2>
                 <RippleButton
                   onClick={() => onNavigate("agent")}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white cursor-pointer hover:scale-105 active:scale-95 transition-all"
-                  style={{ background: "linear-gradient(135deg,#14b8a6,#0ea5e9)" }}
+                  style={{ background: "linear-gradient(135deg,#ef4444,#0ea5e9)" }}
                 >
                   <Plus className="w-4 h-4"/> New Task
                 </RippleButton>
@@ -1052,7 +1077,7 @@ export default function HomeSearchView({
                 {(jobs ?? []).slice(0, 20).map((j, i) => (
                   <div
                     key={j.job_id}
-                    className="flex items-center gap-4 bg-white rounded-2xl px-5 py-4 border border-slate-100 shadow-xs hover:shadow-md cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-teal-200"
+                    className="flex items-center gap-4 bg-[#111115] rounded-2xl px-5 py-4 border border-zinc-800 shadow-xs hover:shadow-md cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-red-900/40"
                     style={{ animation: `fadeSlideUp 0.35s ease ${i*40}ms both` }}
                     onClick={() => onNavigate("jobs")}
                   >
@@ -1061,23 +1086,23 @@ export default function HomeSearchView({
                       j.status==="completed"?"bg-emerald-400":
                       j.status==="failed"?"bg-rose-400":"bg-slate-300"}`}
                     />
-                    <p className="flex-1 text-[13px] font-semibold text-slate-800 truncate">
+                    <p className="flex-1 text-[13px] font-semibold text-zinc-200 truncate">
                       {j.message ?? j.job_id}
                     </p>
                     <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg ${
-                      j.status==="running"?"bg-teal-50 text-teal-700":
+                      j.status==="running"?"bg-red-950/40 text-teal-700":
                       j.status==="completed"?"bg-emerald-50 text-emerald-700":
-                      j.status==="failed"?"bg-rose-50 text-rose-700":"bg-slate-100 text-slate-600"}`}>
+                      j.status==="failed"?"bg-rose-50 text-rose-700":"bg-slate-100 text-zinc-400"}`}>
                       {j.status}
                     </span>
                   </div>
                 ))}
                 {(!jobs || jobs.length === 0) && (
-                  <p className="text-slate-400 text-sm">
+                  <p className="text-zinc-500 text-sm">
                     No tasks yet.{" "}
                     <RippleButton
                       onClick={() => onNavigate("agent")}
-                      className="text-teal-600 font-semibold cursor-pointer hover:underline"
+                      className="text-red-400 font-semibold cursor-pointer hover:underline"
                     >
                       Start a new task →
                     </RippleButton>
@@ -1093,23 +1118,31 @@ export default function HomeSearchView({
                 className="text-center"
                 style={{ animation: "fadeSlideUp 0.4s ease both" }}
               >
-                <div className="text-6xl mb-5" style={{ animation: "bounce 2s ease infinite" }}>
-                  {activeTab==="sandbox"?"🔒":activeTab==="models"?"🧠":"📜"}
+                <div className="flex items-center justify-center mb-5">
+                  <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-zinc-300 border border-zinc-800">
+                    {activeTab === "sandbox" ? (
+                      <Lock className="w-8 h-8 text-sky-600" />
+                    ) : activeTab === "models" ? (
+                      <Brain className="w-8 h-8 text-indigo-600" />
+                    ) : (
+                      <ScrollText className="w-8 h-8 text-red-400" />
+                    )}
+                  </div>
                 </div>
-                <h3 className="text-2xl font-extrabold text-slate-700 mb-2">
+                <h3 className="text-2xl font-bold text-zinc-200 mb-2">
                   {activeTab==="sandbox"?"Docker Sandbox":activeTab==="models"?"Model Registry":"Audit Chain"}
                 </h3>
-                <p className="text-slate-400 text-sm mb-6">
+                <p className="text-zinc-400 text-sm mb-6">
                   {activeTab==="sandbox"?"Isolated execution with --network none":""}
                   {activeTab==="models"?"On-premise model routing matrix":""}
                   {activeTab==="audit"?"Tamper-proof cryptographic log chain":""}
                 </p>
                 <RippleButton
                   onClick={() => onNavigate(activeTab)}
-                  className="flex items-center gap-2 px-8 py-4 rounded-2xl text-base font-bold text-white cursor-pointer mx-auto transition-all hover:scale-105 active:scale-95"
+                  className="flex items-center gap-2 px-8 py-3.5 rounded-xl text-sm font-semibold text-white cursor-pointer mx-auto transition-all hover:scale-105 active:scale-95"
                   style={{
-                    background: "linear-gradient(135deg,#14b8a6,#0ea5e9)",
-                    boxShadow: "0 8px 32px #14b8a640",
+                    background: "linear-gradient(135deg,#0284c7,#2563eb)",
+                    boxShadow: "0 4px 16px rgba(2, 132, 199, 0.25)",
                   }}
                 >
                   Open Full View →

@@ -11,22 +11,22 @@ function activeUserId(): string {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  success: "bg-emerald-50 text-emerald-700 border-emerald-200/60",
-  ok: "bg-emerald-50 text-emerald-700 border-emerald-200/60",
-  completed: "bg-emerald-50 text-emerald-700 border-emerald-200/60",
-  allowed: "bg-emerald-50 text-emerald-700 border-emerald-200/60",
-  denied: "bg-rose-50 text-rose-700 border-rose-200/60",
-  blocked: "bg-rose-50 text-rose-700 border-rose-200/60",
-  failed: "bg-rose-50 text-rose-700 border-rose-200/60",
-  running: "bg-amber-50 text-amber-700 border-amber-200/60",
-  queued: "bg-slate-100 text-slate-600 border-slate-200/60",
+  success: "bg-emerald-950/40 text-emerald-400 border-emerald-900/50/60",
+  ok: "bg-emerald-950/40 text-emerald-400 border-emerald-900/50/60",
+  completed: "bg-emerald-950/40 text-emerald-400 border-emerald-900/50/60",
+  allowed: "bg-emerald-950/40 text-emerald-400 border-emerald-900/50/60",
+  denied: "bg-rose-950/40 text-rose-400 border-rose-900/50/60",
+  blocked: "bg-rose-950/40 text-rose-400 border-rose-900/50/60",
+  failed: "bg-rose-950/40 text-rose-400 border-rose-900/50/60",
+  running: "bg-amber-950/40 text-amber-400 border-amber-900/50/60",
+  queued: "bg-slate-100 text-zinc-400 border-zinc-800/60",
 };
 
 function statusClass(status: string): string {
   const key = status.toLowerCase();
   return (
     STATUS_COLORS[key] ||
-    "bg-slate-100 text-slate-600 border-slate-200/60"
+    "bg-slate-100 text-zinc-400 border-zinc-800/60"
   );
 }
 
@@ -117,14 +117,14 @@ export default function AuditLogsView() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#09090b]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 tracking-tight">
               Audit Trail
             </h1>
-            <p className="text-sm text-slate-600 font-medium mt-1 leading-relaxed">
+            <p className="text-sm text-zinc-400 font-medium mt-1 leading-relaxed">
               Tamper-evident verification, immutable execution trail, and downloadable regulatory audit logs
             </p>
           </div>
@@ -134,10 +134,10 @@ export default function AuditLogsView() {
               type="button"
               onClick={handleDownloadCSV}
               disabled={filtered.length === 0}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 px-3.5 py-2 text-xs font-semibold text-zinc-300 hover:text-white transition-all cursor-pointer shadow-xs disabled:opacity-50 font-mono"
               title="Download Audit Report as CSV spreadsheet"
             >
-              <Download className="w-3.5 h-3.5 text-[#7047eb]" />
+              <Download className="w-3.5 h-3.5 text-red-500" />
               <span>Export CSV</span>
             </button>
 
@@ -145,10 +145,10 @@ export default function AuditLogsView() {
               type="button"
               onClick={handleDownloadJSON}
               disabled={filtered.length === 0}
-              className="flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 px-3.5 py-2 text-xs font-semibold text-[#7047eb] transition-all cursor-pointer shadow-xs disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl border border-red-800/50 bg-red-950/40 hover:bg-red-900/50 px-3.5 py-2 text-xs font-semibold text-red-300 transition-all cursor-pointer shadow-xs disabled:opacity-50 font-mono"
               title="Download Audit Report as JSON file"
             >
-              <FileText className="w-3.5 h-3.5 text-[#7047eb]" />
+              <FileText className="w-3.5 h-3.5 text-red-400" />
               <span>Export JSON</span>
             </button>
 
@@ -156,7 +156,7 @@ export default function AuditLogsView() {
               type="button"
               onClick={() => void load()}
               disabled={loading}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors cursor-pointer disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 px-3.5 py-2 text-xs font-semibold text-zinc-300 hover:text-white transition-colors cursor-pointer disabled:opacity-60 font-mono"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
               <span>Refresh</span>
@@ -165,14 +165,14 @@ export default function AuditLogsView() {
         </div>
 
         {downloadSuccess && (
-          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-xs font-semibold animate-fade-in shadow-xs">
+          <div className="flex items-center gap-2 bg-emerald-950/40 border border-emerald-900/50 text-emerald-800 rounded-xl px-4 py-2.5 text-xs font-semibold animate-fade-in shadow-xs">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{downloadSuccess}</span>
           </div>
         )}
 
         {error && (
-          <div className="flex items-center gap-2 bg-rose-50 border border-rose-200/80 text-rose-700 rounded-xl px-4 py-3 text-sm font-medium">
+          <div className="flex items-center gap-2 bg-rose-950/40 border border-rose-900/50/80 text-rose-400 rounded-xl px-4 py-3 text-sm font-medium">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -186,8 +186,8 @@ export default function AuditLogsView() {
               onClick={() => setStatusFilter(st)}
               className={`px-3 py-1 rounded-lg cursor-pointer transition-colors text-xs font-semibold capitalize border ${
                 statusFilter === st
-                  ? "bg-white shadow-sm text-slate-800 border-slate-200/80"
-                  : "bg-transparent text-slate-500 hover:text-slate-700 border-transparent"
+                  ? "bg-[#111115] shadow-sm text-zinc-100 border-zinc-800"
+                  : "bg-transparent text-zinc-400 hover:text-zinc-200 border-transparent"
               }`}
             >
               {st}
@@ -195,9 +195,9 @@ export default function AuditLogsView() {
           ))}
         </div>
 
-        <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl flex flex-col overflow-hidden">
+        <div className="bg-[#111115] border border-zinc-800 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl flex flex-col overflow-hidden">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 text-slate-500 text-sm py-16">
+            <div className="flex items-center justify-center gap-2 text-zinc-400 text-sm py-16">
               <RefreshCw className="w-4 h-4 animate-spin" />
               Loading audit trail...
             </div>
@@ -205,7 +205,7 @@ export default function AuditLogsView() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-100 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/30">
+                  <tr className="border-b border-zinc-800 text-xs font-semibold text-zinc-500 uppercase tracking-wider bg-[#18181b]/30">
                     <th className="py-3 px-5">Time</th>
                     <th className="py-3 px-5">Event type</th>
                     <th className="py-3 px-5">Component</th>
@@ -216,29 +216,29 @@ export default function AuditLogsView() {
                 <tbody className="divide-y divide-slate-100">
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-12 text-center text-slate-500 text-sm">
+                      <td colSpan={5} className="py-12 text-center text-zinc-400 text-sm">
                         No audit events recorded.
                       </td>
                     </tr>
                   ) : (
                     filtered.map((ev) => (
-                      <tr key={ev.event_id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-3 px-5 text-slate-600 whitespace-nowrap">
+                      <tr key={ev.event_id} className="hover:bg-[#18181b]/50 transition-colors">
+                        <td className="py-3 px-5 text-zinc-400 whitespace-nowrap">
                           {formatTime(ev.timestamp)}
                         </td>
-                        <td className="py-3 px-5 font-medium text-slate-700">
+                        <td className="py-3 px-5 font-medium text-zinc-200">
                           <span className="flex items-center gap-1.5">
-                            <ScrollText className="w-3.5 h-3.5 text-slate-400" />
+                            <ScrollText className="w-3.5 h-3.5 text-zinc-500" />
                             {ev.event_type}
                           </span>
                         </td>
-                        <td className="py-3 px-5 text-slate-600">{ev.component}</td>
+                        <td className="py-3 px-5 text-zinc-400">{ev.component}</td>
                         <td className="py-3 px-5">
                           <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusClass(ev.status)}`}>
                             {ev.status}
                           </span>
                         </td>
-                        <td className="py-3 px-5 text-xs font-mono text-slate-500 whitespace-nowrap">
+                        <td className="py-3 px-5 text-xs font-mono text-zinc-400 whitespace-nowrap">
                           {ev.job_id || ev.user_id || "—"}
                         </td>
                       </tr>

@@ -20,6 +20,8 @@ import MonitoringView from "@/components/workbench/MonitoringView";
 import AuditLogsView from "@/components/workbench/AuditLogsView";
 import TeamView from "@/components/workbench/TeamView";
 import SecurityConsoleView from "@/components/workbench/SecurityConsoleView";
+import EnterpriseSettingsView from "@/components/settings/EnterpriseSettingsView";
+import UserProfileView from "@/components/profile/UserProfileView";
 import SandboxView from "@/components/workbench/SandboxView";
 import CommandPalette from "@/components/workbench/CommandPalette";
 import HomeSearchView from "@/components/workbench/HomeSearchView";
@@ -27,6 +29,7 @@ import SystemDrawer from "@/components/SystemDrawer";
 import Login from "@/components/Login";
 import LandingPage from "@/components/LandingPage";
 import AstraSovereignDashboard from "@/components/AstraSovereignDashboard";
+import WindowsTaskbar, { WALLPAPER_PRESETS } from "@/components/workbench/WindowsTaskbar";
 
 import {
   ApiError,
@@ -165,7 +168,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [chips, setChips] = useState<AttachmentChip[]>([]);
   const [useAllDocuments, setUseAllDocuments] = useState(false);
-  const [theme, setTheme] = useState<"dark" | "light">("light");
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   // Switching users must reset any in-flight/selected job (no cross-user leakage).
   useEffect(() => {
@@ -192,6 +195,39 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const { documents, error: docsError } = useDocuments(user);
   const { artifacts, error: artifactsError } = useArtifacts(user);
 
+  // Wallpaper State (Faded desktop backdrop)
+  const [wallpaper, setWallpaper] = useState<string>("crimson-void");
+  const [wallpaperOpacity, setWallpaperOpacity] = useState<number>(18);
+
+  useEffect(() => {
+    try {
+      const savedWp = window.localStorage.getItem("sovereign.wallpaper");
+      if (savedWp) setWallpaper(savedWp);
+      const savedOp = window.localStorage.getItem("sovereign.wallpaperOpacity");
+      if (savedOp) setWallpaperOpacity(Number(savedOp));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleWallpaperChange = useCallback((wp: string) => {
+    setWallpaper(wp);
+    try {
+      window.localStorage.setItem("sovereign.wallpaper", wp);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleWallpaperOpacityChange = useCallback((op: number) => {
+    setWallpaperOpacity(op);
+    try {
+      window.localStorage.setItem("sovereign.wallpaperOpacity", String(op));
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Sync theme
   useEffect(() => {
     try {
@@ -200,12 +236,12 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
         setTheme(stored);
         document.documentElement.dataset.theme = stored;
       } else {
-        setTheme("light");
-        document.documentElement.dataset.theme = "light";
+        setTheme("dark");
+        document.documentElement.dataset.theme = "dark";
       }
     } catch {
-      setTheme("light");
-      document.documentElement.dataset.theme = "light";
+      setTheme("dark");
+      document.documentElement.dataset.theme = "dark";
     }
   }, []);
 
@@ -362,35 +398,51 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   );
 
   const running = activeStatus === "queued" || activeStatus === "running";
+  const activeWallpaper = WALLPAPER_PRESETS.find((wp) => wp.id === wallpaper) || WALLPAPER_PRESETS[0];
 
   return (
     <div
-      className="flex h-screen w-screen overflow-hidden bg-[#eef1f6] text-[#181b24]"
+      className="relative flex flex-col h-screen w-screen overflow-hidden bg-[#09090b] text-zinc-100 select-none"
     >
-      {/* 1. Left Navigation Sidebar */}
-      <Sidebar
-        currentSection={currentSection}
-        onSelectSection={(sec) => setCurrentSection(sec)}
-        onNewJob={startNew}
-        jobs={jobs}
-        activeJobId={activeJobId}
-        onSelectJob={(jobId) => {
-          setActiveJobId(jobId);
-          setActiveStatus(null);
-          setCurrentSection("agent");
-          setSidebarOpen(false);
+      {/* 0. Background Wallpaper Layer (Faded behind utility boxes & text) */}
+      <div
+        className="absolute inset-0 pointer-events-none transition-all duration-700 z-0"
+        style={{
+          background: activeWallpaper.bg,
+          opacity: wallpaperOpacity / 100,
         }}
-        documents={documents}
-        isOpenMobile={sidebarOpen}
-        onCloseMobile={() => setSidebarOpen(false)}
-        user={user}
-        onSignOut={onSignOut}
+      />
+      {/* Subtle technical grid overlay with crimson matrix touch */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.04] z-0 bg-[radial-gradient(#ef4444_1px,transparent_1px)] [background-size:24px_24px]"
       />
 
-      {/* 2. Main Workbench Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-        {/* Top Bar */}
-        <TopBar
+      {/* OS Desktop Workspace Area - Blended seamless frame */}
+      <div className="relative z-10 flex flex-1 min-h-0 min-w-0 overflow-hidden p-0 sm:p-1.5 gap-0 sm:gap-1.5">
+        {/* 1. Left Navigation Sidebar */}
+        <Sidebar
+          currentSection={currentSection}
+          onSelectSection={(sec) => setCurrentSection(sec)}
+          onNewJob={startNew}
+          jobs={jobs}
+          activeJobId={activeJobId}
+          onSelectJob={(jobId) => {
+            setActiveJobId(jobId);
+            setActiveStatus(null);
+            setCurrentSection("agent");
+            setSidebarOpen(false);
+          }}
+          documents={documents}
+          isOpenMobile={sidebarOpen}
+          onCloseMobile={() => setSidebarOpen(false)}
+          user={user}
+          onSignOut={onSignOut}
+        />
+
+        {/* 2. Main Windows App Window (Seamless Blended Obsidian Frame with Red Highlight) */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden bg-[#0d0d12]/95 backdrop-blur-md rounded-none sm:rounded-xl border-0 sm:border sm:border-zinc-800/80 shadow-[0_8px_32px_rgba(0,0,0,0.6)] text-zinc-100">
+          {/* Top Bar / Window Title Bar */}
+          <TopBar
           onOpenMobileNav={() => setSidebarOpen(true)}
           onOpenCommandPalette={() => setCommandPaletteOpen(true)}
           onSelectSection={(sec) => setCurrentSection(sec)}
@@ -755,15 +807,64 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
               flex: 1,
               minHeight: 0,
               flexDirection: "column",
+              overflowY: "auto",
             }}
+            className="p-3 sm:p-6"
           >
-            <SecurityConsoleView />
+            <EnterpriseSettingsView />
+          </div>
+
+          <div
+            style={{
+              display: currentSection === "profile" ? "flex" : "none",
+              height: "100%",
+              width: "100%",
+              flex: 1,
+              minHeight: 0,
+              flexDirection: "column",
+              overflowY: "auto",
+            }}
+            className="p-3 sm:p-6"
+          >
+            <UserProfileView />
           </div>
         </main>
       </div>
+    </div>
 
-      {/* Local System and Privacy Drawer */}
-      <SystemDrawer
+    {/* Windows Desktop Taskbar */}
+    <WindowsTaskbar
+      currentSection={currentSection}
+      onSelectSection={(sec) => setCurrentSection(sec)}
+      onNewJob={startNew}
+      jobs={jobs}
+      activeJobId={activeJobId}
+      onSelectJob={(jobId) => {
+        setActiveJobId(jobId);
+        setActiveStatus(null);
+        setCurrentSection("agent");
+        setSidebarOpen(false);
+      }}
+      onOpenSystem={() => setSystemOpen(true)}
+      onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+      user={user}
+      onUserChange={changeUser}
+      devRole={devRole}
+      onDevRoleChange={(next) => {
+        setDevRole(next);
+        router.replace(next === "admin" ? "/admin" : "/");
+      }}
+      onSignOut={onSignOut}
+      running={running}
+      healthError={healthError}
+      wallpaper={wallpaper}
+      onWallpaperChange={handleWallpaperChange}
+      wallpaperOpacity={wallpaperOpacity}
+      onWallpaperOpacityChange={handleWallpaperOpacityChange}
+    />
+
+    {/* Local System and Privacy Drawer */}
+    <SystemDrawer
         open={systemOpen}
         onClose={() => setSystemOpen(false)}
         health={health}

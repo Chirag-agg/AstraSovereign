@@ -42,7 +42,7 @@ import {
 /* =========================================================================
    THEMES CONFIGURATION (Exact Finixia Violet by default + optional switchers)
 ========================================================================= */
-export type ColorTheme = "violet" | "emerald" | "cobalt" | "amber";
+export type ColorTheme = "crimson" | "emerald" | "cobalt" | "amber";
 
 interface ThemeStyles {
   name: string;
@@ -55,14 +55,14 @@ interface ThemeStyles {
 }
 
 const THEMES: Record<ColorTheme, ThemeStyles> = {
-  violet: {
-    name: "Finixia Violet (Original)",
-    primary: "#7047eb",
-    primaryLight: "#906efa",
-    primarySoft: "#f3effe",
-    secondaryBar: "#ddd6fe",
-    accentBadge: "text-purple-700 bg-purple-50 border-purple-200",
-    glow: "rgba(112, 71, 235, 0.25)",
+  crimson: {
+    name: "Sovereign Crimson (Red)",
+    primary: "#ef4444",
+    primaryLight: "#f87171",
+    primarySoft: "rgba(239, 68, 68, 0.1)",
+    secondaryBar: "#fca5a5",
+    accentBadge: "text-red-400 bg-red-950/40 border-red-900/40",
+    glow: "rgba(239, 68, 68, 0.25)",
   },
   emerald: {
     name: "Sovereign Emerald",
@@ -120,7 +120,7 @@ const MONTH_DATA: MonthBar[] = [
 /* =========================================================================
    FINIXIA FLOWER / STAR ICON (Custom SVG matching the exact screenshot)
 ========================================================================= */
-function FinixiaLogo({ color = "#7047eb", size = 26 }: { color?: string; size?: number }) {
+function FinixiaLogo({ color = "#ef4444", size = 26 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
       <g transform="translate(16,16)">
@@ -133,8 +133,6 @@ function FinixiaLogo({ color = "#7047eb", size = 26 }: { color?: string; size?: 
             opacity={i % 2 === 0 ? 1 : 0.85}
           />
         ))}
-        <circle cx="0" cy="0" r="3" fill="#ffffff" />
-        <circle cx="0" cy="0" r="1.5" fill={color} />
       </g>
     </svg>
   );
@@ -222,7 +220,7 @@ const TRANSACTIONS: TransactionItem[] = [
 ========================================================================= */
 export default function FinixiaExactDashboard() {
   const [activeTab, setActiveTab] = useState<string>("overview");
-  const [themeKey, setThemeKey] = useState<ColorTheme>("violet");
+  const [themeKey, setThemeKey] = useState<ColorTheme>("crimson");
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>("Last 30 days");
   const [dropdownOpen, setDropdownOpen] = useState(false);

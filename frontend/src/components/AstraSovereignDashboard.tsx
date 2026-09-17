@@ -146,18 +146,19 @@ interface ThemeStyles {
 
 const THEMES: Record<ColorTheme, ThemeStyles> = {
   violet: {
-    name: "Sovereign Violet",
-    primary: "#7047eb",
-    primaryLight: "#906efa",
-    primarySoft: "#f3effe",
-    secondaryBar: "#ddd6fe",
-    accentBadge: "text-purple-700 bg-purple-50 border-purple-200",
-    bg: "#f4f5f8",
-    sidebarBg: "#ffffff",
-    cardBg: "#ffffff",
-    textColor: "#0f172a",
-    subtextColor: "#64748b",
-    borderColor: "#f1f5f9",
+    name: "Sovereign Obsidian Red",
+    primary: "#ef4444",
+    primaryLight: "#f87171",
+    primarySoft: "#18181b",
+    secondaryBar: "#7f1d1d",
+    accentBadge: "text-red-400 bg-red-950/40 border-red-800/40",
+    bg: "#09090b",
+    sidebarBg: "#0d0d12",
+    cardBg: "#111115",
+    textColor: "#fafafa",
+    subtextColor: "#a1a1aa",
+    borderColor: "#27272a",
+    isDark: true,
   },
   emerald: {
     name: "Air-Gap Emerald",
@@ -165,7 +166,7 @@ const THEMES: Record<ColorTheme, ThemeStyles> = {
     primaryLight: "#10b981",
     primarySoft: "#ecfdf5",
     secondaryBar: "#a7f3d0",
-    accentBadge: "text-emerald-700 bg-emerald-50 border-emerald-200",
+    accentBadge: "text-emerald-400 bg-emerald-950/40 border-emerald-900/50",
     bg: "#f0fdf4",
     sidebarBg: "#f8fef9",
     cardBg: "#ffffff",
@@ -193,7 +194,7 @@ const THEMES: Record<ColorTheme, ThemeStyles> = {
     primaryLight: "#f59e0b",
     primarySoft: "#fffbeb",
     secondaryBar: "#fde68a",
-    accentBadge: "text-amber-700 bg-amber-50 border-amber-200",
+    accentBadge: "text-amber-400 bg-amber-950/40 border-amber-900/50",
     bg: "#fffdf5",
     sidebarBg: "#fffef8",
     cardBg: "#ffffff",
@@ -207,7 +208,7 @@ const THEMES: Record<ColorTheme, ThemeStyles> = {
     primaryLight: "#f43f5e",
     primarySoft: "#fff1f2",
     secondaryBar: "#fecdd3",
-    accentBadge: "text-rose-700 bg-rose-50 border-rose-200",
+    accentBadge: "text-rose-400 bg-rose-950/40 border-rose-900/50",
     bg: "#fff5f7",
     sidebarBg: "#fffbfc",
     cardBg: "#ffffff",
@@ -272,7 +273,7 @@ const HOURLY_THROUGHPUT_DATA: ThroughputBar[] = [
   { time: "22:00", tokensPerSec: 68, latencyMs: 15, model: "RapidOCR + Llama" },
 ];
 
-function AstraEmblem({ color = "#7047eb", size = 26 }: { color?: string; size?: number }) {
+function AstraEmblem({ color = "#ef4444", size = 26 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
       <g transform="translate(16,16)">
@@ -379,35 +380,35 @@ function ClearanceGuardTab({
 }) {
   const tabLabel = SIDEBAR_ITEMS.find((s) => s.id === activeTab)?.label || "Restricted Subsystem";
   return (
-    <div className="bg-white rounded-3xl p-8 sm:p-12 border border-amber-200/80 shadow-2xs animate-in fade-in flex flex-col items-center text-center max-w-2xl mx-auto my-8 space-y-6">
-      <div className="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shadow-xs">
+    <div className="bg-[#111115] rounded-3xl p-8 sm:p-12 border border-amber-900/50/80 shadow-2xs animate-in fade-in flex flex-col items-center text-center max-w-2xl mx-auto my-8 space-y-6">
+      <div className="w-16 h-16 rounded-3xl bg-amber-950/40 border border-amber-900/50 flex items-center justify-center text-amber-600 shadow-xs">
         <Lock className="w-8 h-8" />
       </div>
       <div className="space-y-2">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100/80 border border-amber-200 text-amber-800 text-xs font-bold">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100/80 border border-amber-900/50 text-amber-800 text-xs font-bold">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
           <span>Security Clearance Level 4 Required</span>
         </div>
-        <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+        <h2 className="text-2xl font-black text-zinc-100 tracking-tight">
           Restricted Administrative Subsystem: {tabLabel}
         </h2>
-        <p className="text-slate-500 text-sm leading-relaxed max-w-lg">
-          Direct configuration and management of the <span className="font-semibold text-slate-700">{tabLabel}</span> module is restricted to Sovereign Directorate Officers with Level 4 Clearance. Your current session is authenticated as <span className="font-semibold text-slate-700">Normal User ({user})</span> under Level 2 operational clearance.
+        <p className="text-zinc-400 text-sm leading-relaxed max-w-lg">
+          Direct configuration and management of the <span className="font-semibold text-zinc-200">{tabLabel}</span> module is restricted to Sovereign Directorate Officers with Level 4 Clearance. Your current session is authenticated as <span className="font-semibold text-zinc-200">Normal User ({user})</span> under Level 2 operational clearance.
         </p>
       </div>
 
-      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs text-slate-600 font-mono text-left w-full space-y-1.5">
+      <div className="p-4 rounded-2xl bg-[#18181b] border border-zinc-800 text-xs text-zinc-400 font-mono text-left w-full space-y-1.5">
         <div className="flex justify-between">
-          <span className="text-slate-400">ACCESS_STATUS:</span>
+          <span className="text-zinc-500">ACCESS_STATUS:</span>
           <span className="font-bold text-rose-600">DENIED (L2_RESTRICTED)</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-400">REQUIRED_CLEARANCE:</span>
-          <span className="font-bold text-slate-800">LEVEL 4 SOVEREIGN ADMIN</span>
+          <span className="text-zinc-500">REQUIRED_CLEARANCE:</span>
+          <span className="font-bold text-zinc-100">LEVEL 4 SOVEREIGN ADMIN</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-400">SUBSYSTEM_KEY:</span>
-          <span className="font-bold text-purple-700">SOV-{activeTab.toUpperCase()}-AIRGAP</span>
+          <span className="text-zinc-500">SUBSYSTEM_KEY:</span>
+          <span className="font-bold text-red-500">SOV-{activeTab.toUpperCase()}-AIRGAP</span>
         </div>
       </div>
 
@@ -519,14 +520,14 @@ export default function AstraSovereignDashboard({
 
   const PRESET_PALETTES: CustomThemeConfig[] = [
     {
-      name: "Astra Sovereign Violet (Default)",
-      primary: "#7047eb",
-      bg: "#f4f5f8",
-      cardBg: "#ffffff",
-      sidebarBg: "#ffffff",
-      terminalBg: "#0a0d14",
-      terminalText: "#f0f6fc",
-      previewBg: "#0f172a",
+      name: "Sovereign Obsidian Red (Default)",
+      primary: "#ef4444",
+      bg: "#09090b",
+      cardBg: "#111115",
+      sidebarBg: "#0d0d12",
+      terminalBg: "#050507",
+      terminalText: "#fca5a5",
+      previewBg: "#18181b",
     },
     {
       name: "Antigravity Cyber Dark",
@@ -909,7 +910,7 @@ export default function AstraSovereignDashboard({
         secondaryBar: appliedCustomTheme.primary + "40",
         accentBadge: isDark
           ? "text-sky-300 bg-sky-950/60 border-sky-800"
-          : "text-slate-800 bg-slate-100 border-slate-200",
+          : "text-zinc-100 bg-slate-100 border-zinc-800",
         bg: appliedCustomTheme.bg,
         sidebarBg: appliedCustomTheme.sidebarBg,
         cardBg: appliedCustomTheme.cardBg,
@@ -1041,7 +1042,7 @@ export default function AstraSovereignDashboard({
         backgroundColor: theme.bg,
         color: theme.textColor,
       }}
-      className="flex h-screen w-screen overflow-hidden font-sans selection:bg-purple-200 transition-colors duration-200"
+      className="flex h-screen w-screen overflow-hidden font-sans selection:bg-red-950/300/30 transition-colors duration-200"
     >
       
       {/* ===================================================================
@@ -1157,7 +1158,7 @@ export default function AstraSovereignDashboard({
                     />
                     <span className="truncate flex-1">{item.label}</span>
                     {item.id === "notifications" && unreadCount > 0 && (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-500 text-white shadow-xs">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-950/400 text-white shadow-xs">
                         {unreadCount}
                       </span>
                     )}
@@ -1192,7 +1193,7 @@ export default function AstraSovereignDashboard({
                         className="p-2 rounded-xl hover:opacity-85 cursor-pointer text-sm flex items-center gap-2.5 group transition-colors"
                         style={{ color: theme.textColor }}
                       >
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${j.status === "completed" ? "bg-emerald-500" : "bg-purple-500"}`} />
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${j.status === "completed" ? "bg-emerald-950/400" : "bg-red-950/300"}`} />
                         <span className="truncate font-medium text-[13px]">
                           {j.message || j.job_id}
                         </span>
@@ -1252,7 +1253,7 @@ export default function AstraSovereignDashboard({
                   if (onSignOut) onSignOut();
                   else setActiveTab("home");
                 }}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-600 hover:bg-rose-950/40 transition-colors cursor-pointer"
                 title="Sign Out"
               >
                 <LogOut className="w-4 h-4" />
@@ -1337,8 +1338,8 @@ export default function AstraSovereignDashboard({
                   {activeTab === "home" ? "Home & Workspace" : (SIDEBAR_ITEMS.find((item) => item.id === activeTab)?.label || "Dashboard")}
                 </h1>
                 {activeTab === "home" ? (
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 border whitespace-nowrap inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 border whitespace-nowrap inline-flex items-center gap-1.5 bg-emerald-950/40 text-emerald-400 border-emerald-900/50">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-950/400 animate-pulse" />
                     NetworkGuard: 100% Offline Loopback (127.0.0.1:11434)
                   </span>
                 ) : (
@@ -1355,7 +1356,7 @@ export default function AstraSovereignDashboard({
                 )}
               </div>
               <p
-                className="text-xs font-medium text-slate-500 hidden md:block mt-0.5 whitespace-nowrap"
+                className="text-xs font-medium text-zinc-400 hidden md:block mt-0.5 whitespace-nowrap"
                 style={{ color: theme.subtextColor }}
               >
                 {activeTab === "home"
@@ -1384,7 +1385,7 @@ export default function AstraSovereignDashboard({
                 color: activeTab === "home" ? theme.primary : theme.textColor,
               }}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 border rounded-lg text-xs font-bold hover:opacity-90 transition-all shadow-2xs cursor-pointer whitespace-nowrap ${
-                activeTab === "home" ? "ring-1 ring-purple-300" : ""
+                activeTab === "home" ? "ring-1 ring-red-500/40" : ""
               }`}
               title="Go to Home Overview (stays authenticated)"
             >
@@ -1408,7 +1409,7 @@ export default function AstraSovereignDashboard({
                   className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-black/15"
                   style={{ backgroundColor: theme.primary }}
                 />
-                <Palette className="w-3.5 h-3.5 text-slate-400" />
+                <Palette className="w-3.5 h-3.5 text-zinc-500" />
                 <span className="font-bold hidden sm:inline">{theme.name.split(" ")[0]}</span>
               </button>
 
@@ -1459,8 +1460,8 @@ export default function AstraSovereignDashboard({
             <div
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold shadow-2xs select-none whitespace-nowrap ${
                 isAdmin
-                  ? "bg-purple-50 text-purple-700 border-purple-200"
-                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  ? "bg-red-950/30 text-red-400 border-red-900/40"
+                  : "bg-emerald-950/40 text-emerald-400 border-emerald-900/50"
               }`}
               title={`Authenticated Identity: ${user} (${isAdmin ? "L4 Sovereign Directorate Admin" : "L2 Staff Analyst"})`}
             >
@@ -1471,7 +1472,7 @@ export default function AstraSovereignDashboard({
             {/* 4. Quick Tools Side Drawer Trigger */}
             <button
               onClick={() => setQuickToolsOpen(!quickToolsOpen)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer whitespace-nowrap"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-950/40 hover:bg-amber-100 text-amber-800 border border-amber-900/50 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer whitespace-nowrap"
               title="Toggle Closable Quick Tools Widget"
             >
               <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
@@ -1487,7 +1488,7 @@ export default function AstraSovereignDashboard({
                 color: aiPanelOpen ? theme.primary : theme.textColor,
               }}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 border rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer hover:opacity-90 whitespace-nowrap ${
-                aiPanelOpen ? "ring-1 ring-purple-300" : ""
+                aiPanelOpen ? "ring-1 ring-red-500/40" : ""
               }`}
               title="Toggle AI Inbox Panel"
             >
@@ -1508,10 +1509,10 @@ export default function AstraSovereignDashboard({
               }`}
               title="Notifications & Alerts"
             >
-              <Bell className="w-3.5 h-3.5 text-slate-400" />
+              <Bell className="w-3.5 h-3.5 text-zinc-500" />
               <span className="font-bold hidden sm:inline">Alerts</span>
               {unreadCount > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black animate-pulse">
+                <span className="px-1.5 py-0.5 rounded-full bg-rose-950/400 text-white text-[10px] font-black animate-pulse">
                   {unreadCount}
                 </span>
               )}
@@ -1567,11 +1568,11 @@ export default function AstraSovereignDashboard({
             1. HOME / OVERVIEW TAB (Task-Centric Dashboard: Pending, Priority, New Tasks)
         ───────────────────────────────────────────────────────────────── */}
         {activeTab === "home" && (
-          <div className="max-w-[1440px] mx-auto p-6 space-y-6 bg-[#F8FAFC] min-h-screen text-slate-800 antialiased">
+          <div className="max-w-[1440px] mx-auto p-6 space-y-6 bg-[#F8FAFC] min-h-screen text-zinc-100 antialiased">
             {/* 0. WORKSPACE ORGANIZER & ACCORDION CONTROLS (User Request: Prevent Flooding) */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl p-3 border border-slate-200/80 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#111115] rounded-2xl p-3 border border-zinc-800 shadow-2xs">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-2 hidden sm:inline">
+                <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mr-2 hidden sm:inline">
                   Focused View:
                 </span>
                 {[
@@ -1620,8 +1621,8 @@ export default function AstraSovereignDashboard({
                     }}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       homeCategoryFilter === tab.id
-                        ? "bg-purple-600 text-white shadow-2xs"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                        ? "bg-red-600 text-white shadow-2xs"
+                        : "text-zinc-400 hover:text-zinc-100 hover:bg-[#18181b]"
                     }`}
                   >
                     {tab.label}
@@ -1633,14 +1634,14 @@ export default function AstraSovereignDashboard({
                 <button
                   type="button"
                   onClick={expandAllHomeSections}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-purple-700 hover:bg-purple-50 border border-slate-200 transition-colors cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-zinc-400 hover:text-red-400 hover:bg-red-950/30 border border-zinc-800 transition-colors cursor-pointer"
                 >
                   Expand All
                 </button>
                 <button
                   type="button"
                   onClick={collapseAllHomeSections}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-zinc-400 hover:text-zinc-100 hover:bg-[#27272a] border border-zinc-800 transition-colors cursor-pointer"
                 >
                   Fold All
                 </button>
@@ -1651,25 +1652,25 @@ export default function AstraSovereignDashboard({
             {homeSectionsFolded.kpis ? (
               <div
                 onClick={() => toggleHomeSection("kpis")}
-                className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center justify-between cursor-pointer hover:border-purple-200 transition-all group"
+                className="bg-[#111115] rounded-2xl p-4 border border-zinc-800 shadow-2xs flex items-center justify-between cursor-pointer hover:border-red-900/40 transition-all group"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 font-bold shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-red-950/30 flex items-center justify-center text-red-400 font-bold shrink-0">
                     <BarChart3 className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-800">Executive KPI Telemetry</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="text-xs font-bold text-zinc-100">Executive KPI Telemetry</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-950/40 text-emerald-400 border border-emerald-900/50">
                         Active Loopback
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-zinc-500">
                       7 Pending (3 P0 Critical) &bull; 18 Dispatched Today &bull; 29 Deliverables Ready &bull; Click to expand
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 text-xs text-purple-600 font-bold group-hover:translate-x-0.5 transition-transform">
+                <div className="flex items-center gap-1 text-xs text-red-400 font-bold group-hover:translate-x-0.5 transition-transform">
                   <span>Unfold</span>
                   <ChevronRight className="w-4 h-4" />
                 </div>
@@ -1677,13 +1678,13 @@ export default function AstraSovereignDashboard({
             ) : (
               <div className="space-y-2">
                 <div className="flex items-center justify-between px-1">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
                     Executive KPI Overview
                   </span>
                   <button
                     type="button"
                     onClick={() => toggleHomeSection("kpis")}
-                    className="text-xs font-bold text-slate-400 hover:text-purple-600 flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-bold text-zinc-500 hover:text-red-400 flex items-center gap-1 cursor-pointer"
                   >
                     <span>Fold</span>
                     <ChevronDown className="w-3.5 h-3.5" />
@@ -1693,24 +1694,24 @@ export default function AstraSovereignDashboard({
                   {/* Card 1: Pending Tasks */}
                   <div
                     onClick={() => setPriorityFilter("pending")}
-                    className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group"
+                    className="bg-[#111115] rounded-2xl p-5 border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group"
                   >
                     <div className="flex items-center justify-between mb-3.5">
-                      <div className="flex items-center gap-2.5 text-sm font-bold text-slate-600">
+                      <div className="flex items-center gap-2.5 text-sm font-bold text-zinc-400">
                         <Clock className="w-5 h-5 text-amber-500" />
                         <span>Pending Tasks</span>
                       </div>
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-400 bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-900/50">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-950/400 animate-pulse" />
                         Active Queue
                       </span>
                     </div>
                     <div className="flex items-baseline justify-between">
-                      <span className="text-3xl sm:text-[32px] font-black text-slate-900 tracking-tight">
+                      <span className="text-3xl sm:text-[32px] font-black text-zinc-100 tracking-tight">
                         7 Pending
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-2 font-medium">
+                    <p className="text-xs text-zinc-500 mt-2 font-medium">
                       3 in-flight &bull; 4 queued
                     </p>
                   </div>
@@ -1718,14 +1719,14 @@ export default function AstraSovereignDashboard({
                   {/* Card 2: Critical Priority (P0) */}
                   <div
                     onClick={() => setPriorityFilter("P0")}
-                    className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group"
+                    className="bg-[#111115] rounded-2xl p-5 border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group"
                   >
                     <div className="flex items-center justify-between mb-3.5">
-                      <div className="flex items-center gap-2.5 text-sm font-bold text-slate-600">
+                      <div className="flex items-center gap-2.5 text-sm font-bold text-zinc-400">
                         <AlertTriangle className="w-5 h-5 text-rose-500" />
                         <span>Critical Priority (P0)</span>
                       </div>
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-400 bg-rose-950/40 px-2.5 py-0.5 rounded-full border border-rose-900/50">
                         High Attention
                       </span>
                     </div>
@@ -1734,7 +1735,7 @@ export default function AstraSovereignDashboard({
                         3 Critical
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-2 font-medium">
+                    <p className="text-xs text-zinc-500 mt-2 font-medium">
                       Requires officer clearance before deliverable generation
                     </p>
                   </div>
@@ -1742,23 +1743,23 @@ export default function AstraSovereignDashboard({
                   {/* Card 3: New Tasks Today */}
                   <div
                     onClick={() => setPriorityFilter("all")}
-                    className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group"
+                    className="bg-[#111115] rounded-2xl p-5 border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group"
                   >
                     <div className="flex items-center justify-between mb-3.5">
-                      <div className="flex items-center gap-2.5 text-sm font-bold text-slate-600">
-                        <Sparkles className="w-5 h-5 text-purple-500" />
+                      <div className="flex items-center gap-2.5 text-sm font-bold text-zinc-400">
+                        <Sparkles className="w-5 h-5 text-red-400" />
                         <span>New Tasks Today</span>
                       </div>
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-red-400 bg-red-950/30 px-2.5 py-0.5 rounded-full border border-red-900/40">
                         +4 This Hour
                       </span>
                     </div>
                     <div className="flex items-baseline justify-between">
-                      <span className="text-3xl sm:text-[32px] font-black text-slate-900 tracking-tight">
+                      <span className="text-3xl sm:text-[32px] font-black text-zinc-100 tracking-tight">
                         18 Dispatched
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-2 font-medium">
+                    <p className="text-xs text-zinc-500 mt-2 font-medium">
                       +24% on-premise throughput
                     </p>
                   </div>
@@ -1766,10 +1767,10 @@ export default function AstraSovereignDashboard({
                   {/* Card 4: Deliverables Ready */}
                   <div
                     onClick={() => setActiveTab("outputs")}
-                    className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group"
+                    className="bg-[#111115] rounded-2xl p-5 border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group"
                   >
                     <div className="flex items-center justify-between mb-3.5">
-                      <div className="flex items-center gap-2.5 text-sm font-bold text-slate-600">
+                      <div className="flex items-center gap-2.5 text-sm font-bold text-zinc-400">
                         <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                         <span>Deliverables Ready</span>
                       </div>
@@ -1778,7 +1779,7 @@ export default function AstraSovereignDashboard({
                           e.stopPropagation();
                           handleOpenDocument("defense_audit");
                         }}
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-200 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-950/40 hover:bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-900/50 transition-colors cursor-pointer"
                         title="Preview multi-device signed deliverable"
                       >
                         <Eye className="w-3.5 h-3.5" />
@@ -1790,7 +1791,7 @@ export default function AstraSovereignDashboard({
                         29 Ready
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-2 font-medium">
+                    <p className="text-xs text-zinc-500 mt-2 font-medium">
                       100% on-premise signed documents ready for export
                     </p>
                   </div>
@@ -1806,49 +1807,49 @@ export default function AstraSovereignDashboard({
                 {homeSectionsFolded.slaBreakdown ? (
                   <div
                     onClick={() => toggleHomeSection("slaBreakdown")}
-                    className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs flex items-center justify-between cursor-pointer hover:border-purple-200 transition-all group"
+                    className="bg-[#111115] rounded-2xl p-5 border border-zinc-800 shadow-2xs flex items-center justify-between cursor-pointer hover:border-red-900/40 transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 font-bold shrink-0">
+                      <div className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-900/30 flex items-center justify-center text-red-400 font-bold shrink-0">
                         <TrendingUp className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-bold text-slate-900">
+                          <h3 className="text-sm font-bold text-zinc-100">
                             Performance Monitor &amp; Weekly SLA Breakdown
                           </h3>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-950/40 text-emerald-400 border border-emerald-900/50">
                             98.4% On-Time SLA
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <p className="text-xs text-zinc-500 mt-0.5">
                           Throughput and compliance status &bull; Click to unfold SLA micro-bars
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-purple-600 font-bold group-hover:translate-x-0.5 transition-transform">
+                    <div className="flex items-center gap-1 text-xs text-red-400 font-bold group-hover:translate-x-0.5 transition-transform">
                       <span>Unfold</span>
                       <ChevronRight className="w-4 h-4" />
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-5 animate-in fade-in">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                  <div className="bg-[#111115] rounded-2xl p-6 border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-5 animate-in fade-in">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 font-bold shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-900/30 flex items-center justify-center text-red-400 font-bold shrink-0">
                           <TrendingUp className="w-5 h-5" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                            <h3 className="text-base font-bold text-zinc-100 tracking-tight">
                               Performance Monitor &amp; Weekly SLA Breakdown
                             </h3>
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-950/40 text-emerald-400 border border-emerald-900/50 flex items-center gap-1">
                               <Award className="w-3 h-3" />
                               Tier-1 Sovereign SLA (98.4% On-Time)
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 font-medium mt-0.5">
+                          <p className="text-xs text-zinc-400 font-medium mt-0.5">
                             Throughput and compliance status across active agent pipelines.
                           </p>
                         </div>
@@ -1856,15 +1857,15 @@ export default function AstraSovereignDashboard({
 
                       <div className="flex items-center gap-2">
                         {/* Time range toggle: [This Week] | [Last 30 Days] */}
-                        <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200/80 text-xs font-semibold self-start sm:self-auto">
+                        <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-zinc-800 text-xs font-semibold self-start sm:self-auto">
                           {["This Week", "Last 30 Days"].map((range) => (
                             <button
                               key={range}
                               onClick={() => setSelectedPerformanceRange(range)}
                               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                                 selectedPerformanceRange === range
-                                  ? "bg-white text-slate-900 font-bold shadow-2xs"
-                                  : "text-slate-600 hover:text-slate-900"
+                                  ? "bg-[#111115] text-zinc-100 font-bold shadow-2xs"
+                                  : "text-zinc-400 hover:text-zinc-100"
                               }`}
                             >
                               {range}
@@ -1874,7 +1875,7 @@ export default function AstraSovereignDashboard({
                         <button
                           type="button"
                           onClick={() => toggleHomeSection("slaBreakdown")}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-[#27272a] transition-colors cursor-pointer"
                           title="Fold section"
                         >
                           <ChevronDown className="w-4 h-4" />
@@ -1885,7 +1886,7 @@ export default function AstraSovereignDashboard({
                     {/* 4 Status Mini-Cards */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       {/* Completed: 54 Tasks (96.4%) */}
-                      <div className="p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-200/80 space-y-1.5">
+                      <div className="p-3.5 rounded-xl bg-emerald-950/40/50 border border-emerald-900/50/80 space-y-1.5">
                         <div className="flex items-center justify-between text-xs font-bold text-emerald-800">
                           <span>Completed</span>
                           <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">96.4%</span>
@@ -1909,19 +1910,19 @@ export default function AstraSovereignDashboard({
                       </div>
 
                       {/* Delayed: 3 Tasks (5.4%) */}
-                      <div className="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200/80 space-y-1.5">
+                      <div className="p-3.5 rounded-xl bg-amber-950/40/50 border border-amber-900/50/80 space-y-1.5">
                         <div className="flex items-center justify-between text-xs font-bold text-amber-800">
                           <span>Delayed</span>
                           <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">5.4%</span>
                         </div>
                         <div className="text-lg sm:text-xl font-black text-amber-900">3 Tasks</div>
                         <div className="w-full h-1.5 bg-amber-200/60 rounded-full overflow-hidden">
-                          <div className="h-full bg-amber-500 rounded-full w-[5.4%]" />
+                          <div className="h-full bg-amber-950/400 rounded-full w-[5.4%]" />
                         </div>
                       </div>
 
                       {/* SLA Breach: 1 Task (1.8%) */}
-                      <div className="p-3.5 rounded-xl bg-rose-50/50 border border-rose-200/80 space-y-1.5">
+                      <div className="p-3.5 rounded-xl bg-rose-950/40/50 border border-rose-900/50/80 space-y-1.5">
                         <div className="flex items-center justify-between text-xs font-bold text-rose-800">
                           <span>SLA Breach</span>
                           <span className="text-[10px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded">1.8%</span>
@@ -1936,20 +1937,20 @@ export default function AstraSovereignDashboard({
                     {/* Weekly Slender SLA Micro-Bars */}
                     <div className="space-y-3 pt-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                        <span className="text-xs font-bold text-zinc-100 uppercase tracking-wider">
                           Weekly SLA Distribution (Mon &ndash; Sun)
                         </span>
                         <div className="flex items-center gap-3 text-[11px] font-bold">
-                          <span className="flex items-center gap-1 text-slate-600">
-                            <span className="w-2.5 h-2.5 rounded-sm bg-purple-600 inline-block" />
+                          <span className="flex items-center gap-1 text-zinc-400">
+                            <span className="w-2.5 h-2.5 rounded-sm bg-red-600 inline-block" />
                             On-Time
                           </span>
-                          <span className="flex items-center gap-1 text-slate-600">
+                          <span className="flex items-center gap-1 text-zinc-400">
                             <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block" />
                             Delay
                           </span>
-                          <span className="flex items-center gap-1 text-slate-600">
-                            <span className="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block" />
+                          <span className="flex items-center gap-1 text-zinc-400">
+                            <span className="w-2.5 h-2.5 rounded-sm bg-rose-950/400 inline-block" />
                             Breach
                           </span>
                         </div>
@@ -1976,7 +1977,7 @@ export default function AstraSovereignDashboard({
                                 {d.failed > 0 && (
                                   <div
                                     style={{ height: `${failedH}px` }}
-                                    className="w-full bg-rose-500 rounded-t-xs"
+                                    className="w-full bg-rose-950/400 rounded-t-xs"
                                     title={`${d.failed} Policy Breach`}
                                   />
                                 )}
@@ -1989,12 +1990,12 @@ export default function AstraSovereignDashboard({
                                 )}
                                 <div
                                   style={{ height: `${onTimeH}px` }}
-                                  className="w-full bg-purple-600 rounded-b-xs"
+                                  className="w-full bg-red-600 rounded-b-xs"
                                   title={`${d.onTime} On-Time`}
                                 />
                               </div>
-                              <span className="text-xs font-bold text-slate-700">{d.day}</span>
-                              <span className="text-[10px] text-slate-400 font-mono">{total} tasks</span>
+                              <span className="text-xs font-bold text-zinc-200">{d.day}</span>
+                              <span className="text-[10px] text-zinc-500 font-mono">{total} tasks</span>
                             </div>
                           );
                         })}
@@ -2007,36 +2008,36 @@ export default function AstraSovereignDashboard({
                 {homeSectionsFolded.liveQueue ? (
                   <div
                     onClick={() => toggleHomeSection("liveQueue")}
-                    className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs flex items-center justify-between cursor-pointer hover:border-purple-200 transition-all group"
+                    className="bg-[#111115] rounded-2xl p-5 border border-zinc-800 shadow-2xs flex items-center justify-between cursor-pointer hover:border-red-900/40 transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 font-bold shrink-0">
+                      <div className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-900/30 flex items-center justify-center text-red-400 font-bold shrink-0">
                         <ListFilter className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-bold text-slate-900">
+                          <h3 className="text-sm font-bold text-zinc-100">
                             Pending Tasks Live Queue
                           </h3>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-950/40 text-amber-400 border border-amber-900/50">
                             {pendingTasks.length} In Pipeline
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <p className="text-xs text-zinc-500 mt-0.5">
                           Real-time air-gapped queue table &bull; Click to unfold execution list
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-purple-600 font-bold group-hover:translate-x-0.5 transition-transform">
+                    <div className="flex items-center gap-1 text-xs text-red-400 font-bold group-hover:translate-x-0.5 transition-transform">
                       <span>Unfold</span>
                       <ChevronRight className="w-4 h-4" />
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4 animate-in fade-in">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                      <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-                        <ListFilter className="w-4 h-4 text-purple-600" />
+                  <div className="bg-[#111115] rounded-2xl p-6 border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4 animate-in fade-in">
+                    <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+                      <div className="flex items-center gap-2 text-sm font-bold text-zinc-100">
+                        <ListFilter className="w-4 h-4 text-red-400" />
                         <span>Pending Tasks Live Queue</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -2047,8 +2048,8 @@ export default function AstraSovereignDashboard({
                               onClick={() => setPriorityFilter(pf)}
                               className={`px-2 py-0.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                                 priorityFilter === pf
-                                  ? "bg-purple-100 text-purple-800"
-                                  : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                                  ? "bg-red-950/50 text-red-300"
+                                  : "text-zinc-500 hover:text-zinc-200 hover:bg-[#27272a]"
                               }`}
                             >
                               {pf === "all" ? "All" : pf}
@@ -2058,7 +2059,7 @@ export default function AstraSovereignDashboard({
                         <button
                           type="button"
                           onClick={() => toggleHomeSection("liveQueue")}
-                          className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                          className="p-1 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-[#27272a] transition-colors cursor-pointer"
                           title="Fold section"
                         >
                           <ChevronDown className="w-4 h-4" />
@@ -2069,7 +2070,7 @@ export default function AstraSovereignDashboard({
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
-                          <tr className="border-b border-slate-100 text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
+                          <tr className="border-b border-zinc-800 text-zinc-500 font-semibold uppercase text-[10px] tracking-wider">
                             <th className="pb-2.5">Task ID</th>
                             <th className="pb-2.5">Description</th>
                             <th className="pb-2.5">Priority</th>
@@ -2082,9 +2083,9 @@ export default function AstraSovereignDashboard({
                           {pendingTasks
                             .filter((t) => (priorityFilter === "all" ? true : t.priority === priorityFilter))
                             .map((task) => (
-                              <tr key={task.id} className="hover:bg-slate-50/70 transition-colors">
-                                <td className="py-3 font-mono font-bold text-slate-800">{task.id}</td>
-                                <td className="py-3 max-w-[220px] truncate text-slate-700">{task.title}</td>
+                              <tr key={task.id} className="hover:bg-[#18181b]/70 transition-colors">
+                                <td className="py-3 font-mono font-bold text-zinc-100">{task.id}</td>
+                                <td className="py-3 max-w-[220px] truncate text-zinc-200">{task.title}</td>
                                 <td className="py-3">
                                   <span
                                     className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
@@ -2092,25 +2093,25 @@ export default function AstraSovereignDashboard({
                                         ? "bg-rose-100 text-rose-800"
                                         : task.priority === "P1"
                                         ? "bg-amber-100 text-amber-800"
-                                        : "bg-purple-100 text-purple-800"
+                                        : "bg-red-950/50 text-red-300"
                                     }`}
                                   >
                                     {task.priority}
                                   </span>
                                 </td>
-                                <td className="py-3 text-slate-500 font-mono text-[11px]">{task.model}</td>
+                                <td className="py-3 text-zinc-400 font-mono text-[11px]">{task.model}</td>
                                 <td className="py-3">
                                   <span
                                     className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                       task.status === "running"
-                                        ? "bg-purple-100 text-purple-800"
-                                        : "bg-slate-100 text-slate-600"
+                                        ? "bg-red-950/50 text-red-300"
+                                        : "bg-slate-100 text-zinc-400"
                                     }`}
                                   >
                                     <span
                                       className={`w-1.5 h-1.5 rounded-full ${
                                         task.status === "running"
-                                          ? "bg-purple-600 animate-pulse"
+                                          ? "bg-red-600 animate-pulse"
                                           : "bg-slate-400"
                                       }`}
                                     />
@@ -2123,7 +2124,7 @@ export default function AstraSovereignDashboard({
                                       setActiveJobId(task.id);
                                       setActiveTab("agent");
                                     }}
-                                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-purple-50 text-slate-700 hover:text-purple-700 font-bold text-[11px] transition-colors cursor-pointer"
+                                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-red-950/30 text-zinc-200 hover:text-red-400 font-bold text-[11px] transition-colors cursor-pointer"
                                   >
                                     Open
                                   </button>
@@ -2135,17 +2136,17 @@ export default function AstraSovereignDashboard({
                     </div>
 
                     {/* Bottom SLA adherence micro-banner */}
-                    <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                        <span className="text-[11px] text-slate-500 font-bold uppercase block">Median Response</span>
-                        <span className="text-xl font-black text-slate-900 mt-0.5 block">1.8s</span>
+                    <div className="pt-3 border-t border-zinc-800 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
+                      <div className="p-3 rounded-xl bg-[#18181b] border border-zinc-800">
+                        <span className="text-[11px] text-zinc-400 font-bold uppercase block">Median Response</span>
+                        <span className="text-xl font-black text-zinc-100 mt-0.5 block">1.8s</span>
                       </div>
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                        <span className="text-[11px] text-slate-500 font-bold uppercase block">Token Velocity</span>
-                        <span className="text-xl font-black text-slate-900 mt-0.5 block">142 t/s</span>
+                      <div className="p-3 rounded-xl bg-[#18181b] border border-zinc-800">
+                        <span className="text-[11px] text-zinc-400 font-bold uppercase block">Token Velocity</span>
+                        <span className="text-xl font-black text-zinc-100 mt-0.5 block">142 t/s</span>
                       </div>
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                        <span className="text-[11px] text-slate-500 font-bold uppercase block">Dropped Packets</span>
+                      <div className="p-3 rounded-xl bg-[#18181b] border border-zinc-800">
+                        <span className="text-[11px] text-zinc-400 font-bold uppercase block">Dropped Packets</span>
                         <span className="text-xl font-black text-emerald-600 mt-0.5 block">0 (Airgap)</span>
                       </div>
                     </div>
@@ -2159,46 +2160,46 @@ export default function AstraSovereignDashboard({
                 {homeSectionsFolded.taskDispatch ? (
                   <div
                     onClick={() => toggleHomeSection("taskDispatch")}
-                    className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs flex items-center justify-between cursor-pointer hover:border-purple-200 transition-all group"
+                    className="bg-[#111115] rounded-2xl p-5 border border-zinc-800 shadow-2xs flex items-center justify-between cursor-pointer hover:border-red-900/40 transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 font-bold shrink-0">
+                      <div className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-900/30 flex items-center justify-center text-red-400 font-bold shrink-0">
                         <Send className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-bold text-slate-900">
+                          <h3 className="text-sm font-bold text-zinc-100">
                             Dispatch Sovereign Task
                           </h3>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold text-red-400 bg-red-950/30 border border-red-900/40">
                             Air-Gap Queue
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <p className="text-xs text-zinc-500 mt-0.5">
                           Task prompt console &bull; Click to unfold dispatch controls
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-purple-600 font-bold group-hover:translate-x-0.5 transition-transform">
+                    <div className="flex items-center gap-1 text-xs text-red-400 font-bold group-hover:translate-x-0.5 transition-transform">
                       <span>Unfold</span>
                       <ChevronRight className="w-4 h-4" />
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4 animate-in fade-in">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                      <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                        <Send className="w-4 h-4 text-purple-600" />
+                  <div className="bg-[#111115] rounded-2xl p-6 border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4 animate-in fade-in">
+                    <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+                      <div className="flex items-center gap-2 text-sm font-bold text-zinc-100">
+                        <Send className="w-4 h-4 text-red-400" />
                         <span>Dispatch Sovereign Task</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                        <span className="text-[10px] font-bold text-red-400 bg-red-950/30 px-2 py-0.5 rounded border border-red-900/40">
                           Air-Gap Queue
                         </span>
                         <button
                           type="button"
                           onClick={() => toggleHomeSection("taskDispatch")}
-                          className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                          className="p-1 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-[#27272a] transition-colors cursor-pointer"
                           title="Fold section"
                         >
                           <ChevronDown className="w-4 h-4" />
@@ -2213,12 +2214,12 @@ export default function AstraSovereignDashboard({
                         value={newTaskPrompt}
                         onChange={(e) => setNewTaskPrompt(e.target.value)}
                         placeholder="Describe task instructions for the local air-gapped agent..."
-                        className="w-full text-xs font-medium p-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-purple-300 focus:outline-none resize-none leading-relaxed"
+                        className="w-full text-xs font-medium p-3 rounded-xl border border-zinc-800 bg-[#18181b]/50 focus:bg-[#111115] focus:border-red-500/40 focus:outline-none resize-none leading-relaxed"
                       />
 
                       {/* Priority Pills: Segmented horizontal buttons with soft semantic fills */}
                       <div className="space-y-1">
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                        <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block">
                           Priority Level
                         </span>
                         <div className="grid grid-cols-4 gap-1.5">
@@ -2228,18 +2229,18 @@ export default function AstraSovereignDashboard({
                               p === "P0"
                                 ? isSelected
                                   ? "bg-rose-600 text-white border-rose-600"
-                                  : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                                  : "bg-rose-950/40 text-rose-400 border-rose-900/50 hover:bg-rose-100"
                                 : p === "P1"
                                 ? isSelected
                                   ? "bg-amber-600 text-white border-amber-600"
-                                  : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                                  : "bg-amber-950/40 text-amber-400 border-amber-900/50 hover:bg-amber-100"
                                 : p === "P2"
                                 ? isSelected
-                                  ? "bg-purple-600 text-white border-purple-600"
-                                  : "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
+                                  ? "bg-red-600 text-white border-red-600"
+                                  : "bg-red-950/30 text-red-400 border-red-900/40 hover:bg-red-900/30"
                                 : isSelected
                                 ? "bg-slate-800 text-white border-slate-800"
-                                : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200";
+                                : "bg-slate-100 text-zinc-200 border-zinc-800 hover:bg-slate-200";
 
                             return (
                               <button
@@ -2257,13 +2258,13 @@ export default function AstraSovereignDashboard({
 
                       {/* Local Model Selector Dropdown */}
                       <div className="space-y-1">
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                        <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block">
                           Assigned Model
                         </span>
                         <select
                           value={newTaskModel}
                           onChange={(e) => setNewTaskModel(e.target.value)}
-                          className="w-full text-xs font-semibold p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none"
+                          className="w-full text-xs font-semibold p-2.5 rounded-xl border border-zinc-800 bg-[#18181b]/50 focus:outline-none"
                         >
                           <option value="qwen2.5-coder:14b">qwen2.5-coder:14b</option>
                           <option value="qwen2.5-coder:3b">qwen2.5-coder:3b</option>
@@ -2273,7 +2274,7 @@ export default function AstraSovereignDashboard({
 
                       {/* Quick Template Chips */}
                       <div className="space-y-1 pt-1">
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                        <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block">
                           Quick Templates
                         </span>
                         <div className="flex flex-col gap-1.5">
@@ -2285,7 +2286,7 @@ export default function AstraSovereignDashboard({
                               key={tpl}
                               type="button"
                               onClick={() => setNewTaskPrompt(tpl)}
-                              className="text-left text-xs bg-slate-50 hover:bg-purple-50/50 text-slate-700 hover:text-purple-700 p-2 rounded-lg border border-slate-200 transition-colors cursor-pointer truncate"
+                              className="text-left text-xs bg-[#18181b] hover:bg-red-950/30/50 text-zinc-200 hover:text-red-400 p-2 rounded-lg border border-zinc-800 transition-colors cursor-pointer truncate"
                             >
                               &bull; {tpl}
                             </button>
@@ -2297,14 +2298,14 @@ export default function AstraSovereignDashboard({
                       <button
                         type="button"
                         onClick={handleDispatchNewTask}
-                        className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer mt-2"
+                        className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer mt-2"
                       >
                         <Plus className="w-4 h-4" />
                         <span>+ Dispatch to Air-Gap Queue</span>
                       </button>
 
                       {taskFeedback && (
-                        <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold text-center animate-in fade-in">
+                        <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-900/50 text-emerald-800 text-xs font-bold text-center animate-in fade-in">
                           {taskFeedback}
                         </div>
                       )}
@@ -2316,46 +2317,46 @@ export default function AstraSovereignDashboard({
                 {homeSectionsFolded.hardwareTelemetry ? (
                   <div
                     onClick={() => toggleHomeSection("hardwareTelemetry")}
-                    className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs flex items-center justify-between cursor-pointer hover:border-purple-200 transition-all group"
+                    className="bg-[#111115] rounded-2xl p-5 border border-zinc-800 shadow-2xs flex items-center justify-between cursor-pointer hover:border-red-900/40 transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 font-bold shrink-0">
+                      <div className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-900/30 flex items-center justify-center text-red-400 font-bold shrink-0">
                         <Cpu className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-bold text-slate-800">
+                          <h3 className="text-sm font-bold text-zinc-100">
                             Local Hardware &amp; VRAM Telemetry
                           </h3>
-                          <span className="text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                          <span className="text-xs font-mono font-bold text-red-400 bg-red-950/30 px-2 py-0.5 rounded border border-red-900/40">
                             6.8 / 16 GB (42%)
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <p className="text-xs text-zinc-500 mt-0.5">
                           RTX 4090 &bull; 52&deg;C Optimal &bull; Click to unfold hardware metrics
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-purple-600 font-bold group-hover:translate-x-0.5 transition-transform">
+                    <div className="flex items-center gap-1 text-xs text-red-400 font-bold group-hover:translate-x-0.5 transition-transform">
                       <span>Unfold</span>
                       <ChevronRight className="w-4 h-4" />
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4 animate-in fade-in">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                      <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-                        <Cpu className="w-4 h-4 text-purple-600" />
+                  <div className="bg-[#111115] rounded-2xl p-6 border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4 animate-in fade-in">
+                    <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+                      <div className="flex items-center gap-2 text-sm font-bold text-zinc-100">
+                        <Cpu className="w-4 h-4 text-red-400" />
                         <span>Local Hardware &amp; VRAM Telemetry</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                        <span className="text-xs font-mono font-bold text-red-400 bg-red-950/30 px-2 py-0.5 rounded border border-red-900/40">
                           RTX 4090
                         </span>
                         <button
                           type="button"
                           onClick={() => toggleHomeSection("hardwareTelemetry")}
-                          className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                          className="p-1 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-[#27272a] transition-colors cursor-pointer"
                           title="Fold section"
                         >
                           <ChevronDown className="w-4 h-4" />
@@ -2365,23 +2366,23 @@ export default function AstraSovereignDashboard({
 
                     <div className="space-y-3">
                       <div>
-                        <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-1.5">
+                        <div className="flex items-center justify-between text-xs font-bold text-zinc-200 mb-1.5">
                           <span>VRAM Allocation (qwen2.5 + llava)</span>
-                          <span className="font-mono text-purple-700">6.8 / 16 GB (42%)</span>
+                          <span className="font-mono text-red-400">6.8 / 16 GB (42%)</span>
                         </div>
-                        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
-                          <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-600 w-[42%]" />
+                        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-zinc-800">
+                          <div className="h-full rounded-full bg-gradient-to-r from-red-500 to-indigo-600 w-[42%]" />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                          <span className="text-slate-400 font-bold block text-[10px]">Core Temp</span>
-                          <span className="text-slate-800 font-bold mt-0.5 block">52&deg;C Optimal</span>
+                        <div className="p-2.5 rounded-xl bg-[#18181b] border border-zinc-800">
+                          <span className="text-zinc-500 font-bold block text-[10px]">Core Temp</span>
+                          <span className="text-zinc-100 font-bold mt-0.5 block">52&deg;C Optimal</span>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                          <span className="text-slate-400 font-bold block text-[10px]">PCIe Bus</span>
-                          <span className="text-slate-800 font-bold mt-0.5 block">Gen4 x16</span>
+                        <div className="p-2.5 rounded-xl bg-[#18181b] border border-zinc-800">
+                          <span className="text-zinc-500 font-bold block text-[10px]">PCIe Bus</span>
+                          <span className="text-zinc-100 font-bold mt-0.5 block">Gen4 x16</span>
                         </div>
                       </div>
                     </div>
@@ -2392,50 +2393,50 @@ export default function AstraSovereignDashboard({
                 {homeSectionsFolded.latestDeliverables ? (
                   <div
                     onClick={() => toggleHomeSection("latestDeliverables")}
-                    className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs flex items-center justify-between cursor-pointer hover:border-purple-200 transition-all group"
+                    className="bg-[#111115] rounded-2xl p-5 border border-zinc-800 shadow-2xs flex items-center justify-between cursor-pointer hover:border-red-900/40 transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700 font-bold shrink-0">
+                      <div className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-900/30 flex items-center justify-center text-red-400 font-bold shrink-0">
                         <FileText className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-bold text-slate-800">
+                          <h3 className="text-sm font-bold text-zinc-100">
                             Latest Deliverables
                           </h3>
-                          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          <span className="text-xs font-bold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-900/50">
                             2 Ready for Export
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <p className="text-xs text-zinc-500 mt-0.5">
                           Exec_Brief_Q3.pptx &bull; Telemetry_Audit.docx &bull; Click to unfold
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-purple-600 font-bold group-hover:translate-x-0.5 transition-transform">
+                    <div className="flex items-center gap-1 text-xs text-red-400 font-bold group-hover:translate-x-0.5 transition-transform">
                       <span>Unfold</span>
                       <ChevronRight className="w-4 h-4" />
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4 animate-in fade-in">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                      <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-                        <FileText className="w-4 h-4 text-purple-600" />
+                  <div className="bg-[#111115] rounded-2xl p-6 border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4 animate-in fade-in">
+                    <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+                      <div className="flex items-center gap-2 text-sm font-bold text-zinc-100">
+                        <FileText className="w-4 h-4 text-red-400" />
                         <span>Latest Deliverables</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => setActiveTab("outputs")}
-                          className="text-xs text-purple-600 hover:text-purple-700 font-bold cursor-pointer"
+                          className="text-xs text-red-400 hover:text-red-400 font-bold cursor-pointer"
                         >
                           View All &rarr;
                         </button>
                         <button
                           type="button"
                           onClick={() => toggleHomeSection("latestDeliverables")}
-                          className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                          className="p-1 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-[#27272a] transition-colors cursor-pointer"
                           title="Fold section"
                         >
                           <ChevronDown className="w-4 h-4" />
@@ -2445,20 +2446,20 @@ export default function AstraSovereignDashboard({
 
                     <div className="space-y-2.5">
                       {/* Deliverable 1: Exec_Brief_Q3.pptx */}
-                      <div className="p-3 rounded-xl border border-slate-200 hover:border-amber-300 bg-white flex items-center justify-between gap-2 group transition-all">
+                      <div className="p-3 rounded-xl border border-zinc-800 hover:border-amber-300 bg-[#111115] flex items-center justify-between gap-2 group transition-all">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <Presentation className="w-4 h-4 text-amber-600 shrink-0" />
                           <div className="truncate">
-                            <span className="text-xs font-bold text-slate-800 block truncate">
+                            <span className="text-xs font-bold text-zinc-100 block truncate">
                               Exec_Brief_Q3.pptx
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono">1.4 MB &bull; Signed</span>
+                            <span className="text-[10px] text-zinc-500 font-mono">1.4 MB &bull; Signed</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             onClick={() => handleOpenDocument("exec_brief")}
-                            className="px-2 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                            className="px-2 py-1 rounded-lg bg-[#18181b] hover:bg-[#27272a] text-zinc-400 text-xs font-bold flex items-center gap-1 cursor-pointer"
                           >
                             <Eye className="w-3 h-3" />
                             <span>Preview</span>
@@ -2475,7 +2476,7 @@ export default function AstraSovereignDashboard({
                                 created_at: new Date().toISOString(),
                               })
                             }
-                            className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                            className="px-2 py-1 rounded-lg bg-red-950/30 hover:bg-red-900/30 text-red-400 border border-red-900/40 text-xs font-bold flex items-center gap-1 cursor-pointer"
                           >
                             <Download className="w-3 h-3" />
                             <span>Download</span>
@@ -2484,20 +2485,20 @@ export default function AstraSovereignDashboard({
                       </div>
 
                       {/* Deliverable 2: Telemetry_Audit.docx */}
-                      <div className="p-3 rounded-xl border border-slate-200 hover:border-blue-300 bg-white flex items-center justify-between gap-2 group transition-all">
+                      <div className="p-3 rounded-xl border border-zinc-800 hover:border-blue-300 bg-[#111115] flex items-center justify-between gap-2 group transition-all">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <FileCheck className="w-4 h-4 text-blue-600 shrink-0" />
                           <div className="truncate">
-                            <span className="text-xs font-bold text-slate-800 block truncate">
+                            <span className="text-xs font-bold text-zinc-100 block truncate">
                               Telemetry_Audit.docx
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono">2.8 MB &bull; Sealed</span>
+                            <span className="text-[10px] text-zinc-500 font-mono">2.8 MB &bull; Sealed</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             onClick={() => handleOpenDocument("defense_audit")}
-                            className="px-2 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                            className="px-2 py-1 rounded-lg bg-[#18181b] hover:bg-[#27272a] text-zinc-400 text-xs font-bold flex items-center gap-1 cursor-pointer"
                           >
                             <Eye className="w-3 h-3" />
                             <span>Preview</span>
@@ -2514,7 +2515,7 @@ export default function AstraSovereignDashboard({
                                 created_at: new Date().toISOString(),
                               })
                             }
-                            className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                            className="px-2 py-1 rounded-lg bg-red-950/30 hover:bg-red-900/30 text-red-400 border border-red-900/40 text-xs font-bold flex items-center gap-1 cursor-pointer"
                           >
                             <Download className="w-3 h-3" />
                             <span>Download</span>
@@ -2532,22 +2533,22 @@ export default function AstraSovereignDashboard({
             NOTIFICATIONS & CLEARANCE ALERTS TAB (User Request)
         ───────────────────────────────────────────────────────────────── */}
         {activeTab === "notifications" && (
-          <div className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-2xs space-y-6 animate-in fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="bg-[#111115] rounded-3xl p-7 border border-zinc-800/90 shadow-2xs space-y-6 animate-in fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-700">
+                <div className="w-10 h-10 rounded-2xl bg-red-950/30 flex items-center justify-center text-red-400">
                   <Bell className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
+                  <h2 className="text-2xl font-bold text-zinc-100 tracking-tight flex items-center gap-2.5">
                     <span>Notification Center</span>
                     {unreadCount > 0 && (
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500 text-white">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-950/400 text-white">
                         {unreadCount} Unread
                       </span>
                     )}
                   </h2>
-                  <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+                  <p className="text-xs sm:text-sm text-zinc-400 font-medium mt-0.5">
                     Real-time alerts for priority escalations, air-gap defense verification, and deliverable sign-offs.
                   </p>
                 </div>
@@ -2558,9 +2559,9 @@ export default function AstraSovereignDashboard({
                   onClick={() =>
                     setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })))
                   }
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-zinc-800 text-xs font-semibold text-zinc-200 hover:bg-[#18181b] transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <CheckCheck className="w-3.5 h-3.5 text-slate-500" />
+                  <CheckCheck className="w-3.5 h-3.5 text-zinc-400" />
                   <span>Mark all as read</span>
                 </button>
               </div>
@@ -2580,8 +2581,8 @@ export default function AstraSovereignDashboard({
                   onClick={() => setNotificationFilter(f.id as any)}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                     notificationFilter === f.id
-                      ? "bg-purple-600 text-white shadow-xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      ? "bg-red-600 text-white shadow-xs"
+                      : "bg-slate-100 text-zinc-400 hover:bg-slate-200"
                   }`}
                 >
                   {f.label}
@@ -2604,18 +2605,18 @@ export default function AstraSovereignDashboard({
                     key={notif.id}
                     className={`p-4.5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-start justify-between gap-4 ${
                       notif.unread
-                        ? "border-purple-200 bg-purple-50/20 shadow-2xs"
-                        : "border-slate-100 bg-white hover:bg-slate-50/60"
+                        ? "border-red-900/40 bg-red-950/30/20 shadow-2xs"
+                        : "border-zinc-800 bg-[#111115] hover:bg-[#18181b]/60"
                     }`}
                   >
                     <div className="flex items-start gap-3.5">
                       <div
                         className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 mt-0.5 ${
                           notif.priority === "P0"
-                            ? "bg-rose-100 text-rose-700"
+                            ? "bg-rose-100 text-rose-400"
                             : notif.category === "deliverable"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-purple-100 text-purple-700"
+                            ? "bg-emerald-100 text-emerald-400"
+                            : "bg-red-950/50 text-red-400"
                         }`}
                       >
                         {notif.priority === "P0" ? (
@@ -2632,30 +2633,30 @@ export default function AstraSovereignDashboard({
                           <span
                             className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold ${
                               notif.priority === "P0"
-                                ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                ? "bg-rose-950/40 text-rose-400 border border-rose-900/50"
                                 : notif.priority === "P1"
-                                ? "bg-amber-50 text-amber-700 border border-amber-200"
-                                : "bg-purple-50 text-purple-700 border border-purple-200"
+                                ? "bg-amber-950/40 text-amber-400 border border-amber-900/50"
+                                : "bg-red-950/30 text-red-400 border border-red-900/40"
                             }`}
                           >
                             {notif.priority}
                           </span>
-                          <h4 className="text-sm font-bold text-slate-900 leading-snug">
+                          <h4 className="text-sm font-bold text-zinc-100 leading-snug">
                             {notif.title}
                           </h4>
                           {notif.unread && (
-                            <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                            <span className="w-2 h-2 rounded-full bg-rose-950/400 shrink-0" />
                           )}
                         </div>
 
-                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-3xl">
+                        <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed max-w-3xl">
                           {notif.desc}
                         </p>
 
-                        <div className="flex items-center gap-3 text-xs text-slate-400 pt-1 font-medium">
+                        <div className="flex items-center gap-3 text-xs text-zinc-500 pt-1 font-medium">
                           <span>{notif.time}</span>
                           <span>·</span>
-                          <span className="uppercase tracking-wider text-[10px] font-bold text-slate-500">
+                          <span className="uppercase tracking-wider text-[10px] font-bold text-zinc-400">
                             {notif.category}
                           </span>
                         </div>
@@ -2669,7 +2670,7 @@ export default function AstraSovereignDashboard({
                             prev.map((n) => (n.id === notif.id ? { ...n, unread: !n.unread } : n))
                           );
                         }}
-                        className="text-xs text-slate-400 hover:text-slate-700 font-semibold px-2 py-1 rounded cursor-pointer"
+                        className="text-xs text-zinc-500 hover:text-zinc-200 font-semibold px-2 py-1 rounded cursor-pointer"
                       >
                         {notif.unread ? "Mark read" : "Mark unread"}
                       </button>
@@ -2677,7 +2678,7 @@ export default function AstraSovereignDashboard({
                       {notif.category === "deliverable" && (
                         <button
                           onClick={() => handleOpenDocument("defense_audit")}
-                          className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-100 text-emerald-400 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
                           title="Preview deliverable document"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -2687,7 +2688,7 @@ export default function AstraSovereignDashboard({
 
                       <button
                         onClick={() => setActiveTab(notif.actionTab)}
-                        className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition-colors cursor-pointer"
+                        className="px-3.5 py-1.5 rounded-xl bg-red-950/30 hover:bg-red-900/30 text-red-400 text-xs font-bold transition-colors cursor-pointer"
                       >
                         {notif.actionLabel}
                       </button>
@@ -2718,14 +2719,14 @@ export default function AstraSovereignDashboard({
         {activeTab === "agent" && (
           <div className="space-y-4 animate-in fade-in">
             {/* View Switcher: Single Agent vs Multi-Agent Swarm (Multitasking) */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl p-3 border border-slate-200/80 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#111115] rounded-2xl p-3 border border-zinc-800 shadow-2xs">
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setAgentViewMode("single")}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     agentViewMode === "single"
-                      ? "bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                      ? "bg-red-950/30 text-red-400 border border-red-900/40 shadow-2xs"
+                      : "text-zinc-400 hover:text-zinc-100 hover:bg-[#18181b]"
                   }`}
                 >
                   <Terminal className="w-4 h-4" />
@@ -2735,26 +2736,26 @@ export default function AstraSovereignDashboard({
                   onClick={() => setAgentViewMode("swarm")}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     agentViewMode === "swarm"
-                      ? "bg-purple-600 text-white shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                      ? "bg-red-600 text-white shadow-2xs"
+                      : "text-zinc-400 hover:text-zinc-100 hover:bg-[#18181b]"
                   }`}
                 >
                   <Bot className="w-4 h-4" />
                   <span>Multi-Agent Swarm (Multitasking)</span>
-                  <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-900 text-[10px] font-black uppercase tracking-wider">
+                  <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-zinc-100 text-[10px] font-black uppercase tracking-wider">
                     Swarm
                   </span>
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="flex items-center gap-2 text-xs text-zinc-400 font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-950/400 animate-pulse" />
                 <span>On-Premise NVLink Engine · Air-Gapped Swarm Multitasking</span>
               </div>
             </div>
 
             {agentViewMode === "single" ? (
-              <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in min-h-[680px] flex flex-col">
+              <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in min-h-[680px] flex flex-col">
                 <AgentWorkspaceView
                   user={user}
                   activeJob={activeJob}
@@ -2788,7 +2789,7 @@ export default function AstraSovereignDashboard({
             4. DOCKER SANDBOX (SECURE AIR-GAPPED CODE RUNNER)
         ───────────────────────────────────────────────────────────────── */}
         {activeTab === "sandbox" && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in">
+          <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in">
             <SandboxView user={user} />
           </div>
         )}
@@ -2797,7 +2798,7 @@ export default function AstraSovereignDashboard({
             4B. CODE EDITOR TAB (VS CODE STYLE WITH AI ASSISTANT)
         ───────────────────────────────────────────────────────────────── */}
         {activeTab === "editor" && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in">
+          <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in">
             <VsCodeEditorView user={user} />
           </div>
         )}
@@ -2806,7 +2807,7 @@ export default function AstraSovereignDashboard({
             5. TASK HISTORY TAB (JOBS)
         ───────────────────────────────────────────────────────────────── */}
         {activeTab === "jobs" && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in">
+          <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in">
             <JobsView
               jobs={jobs}
               onSelectJob={(id) => {
@@ -2825,15 +2826,15 @@ export default function AstraSovereignDashboard({
             6. KNOWLEDGE BASE TAB
         ───────────────────────────────────────────────────────────────── */}
         {activeTab === "knowledge" && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in space-y-4">
+          <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-blue-50/60 rounded-2xl border border-blue-100">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 shrink-0">
                   <Library className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800">Air-Gapped Document Viewer</h3>
-                  <p className="text-xs text-slate-500 font-medium">Examine ingested technical specs and documents with Phone notch, Tablet, and Desktop letterhead preview.</p>
+                  <h3 className="text-sm font-bold text-zinc-100">Air-Gapped Document Viewer</h3>
+                  <p className="text-xs text-zinc-400 font-medium">Examine ingested technical specs and documents with Phone notch, Tablet, and Desktop letterhead preview.</p>
                 </div>
               </div>
               <button
@@ -2857,20 +2858,20 @@ export default function AstraSovereignDashboard({
             7. DELIVERABLES TAB (OUTPUTS)
         ───────────────────────────────────────────────────────────────── */}
         {activeTab === "outputs" && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in space-y-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-purple-50/60 rounded-2xl border border-purple-100">
+          <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-red-950/30/60 rounded-2xl border border-red-900/30">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700 shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-red-950/50 flex items-center justify-center text-red-400 shrink-0">
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800">Multi-Device Deliverables Inspection</h3>
-                  <p className="text-xs text-slate-500 font-medium">Preview compliance PDFs, work orders, and audit files on Phone, Tablet, or Desktop Paper view.</p>
+                  <h3 className="text-sm font-bold text-zinc-100">Multi-Device Deliverables Inspection</h3>
+                  <p className="text-xs text-zinc-400 font-medium">Preview compliance PDFs, work orders, and audit files on Phone, Tablet, or Desktop Paper view.</p>
                 </div>
               </div>
               <button
                 onClick={() => handleOpenDocument("defense_audit")}
-                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-2 shrink-0"
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-2 shrink-0"
               >
                 <Eye className="w-4 h-4" />
                 <span>Open Multi-Device Preview</span>
@@ -2887,7 +2888,7 @@ export default function AstraSovereignDashboard({
             8. WORKSPACE FILES TAB
         ───────────────────────────────────────────────────────────────── */}
         {activeTab === "files" && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in">
+          <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in">
             <FilesView />
           </div>
         )}
@@ -2899,7 +2900,7 @@ export default function AstraSovereignDashboard({
           !isAdmin ? (
             <ClearanceGuardTab activeTab={activeTab} user={user} onHome={() => setActiveTab("home")} />
           ) : (
-            <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in">
+            <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in">
               <ModelsView />
             </div>
           )
@@ -2912,7 +2913,7 @@ export default function AstraSovereignDashboard({
           !isAdmin ? (
             <ClearanceGuardTab activeTab={activeTab} user={user} onHome={() => setActiveTab("home")} />
           ) : (
-            <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in">
+            <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in">
               <ToolsView />
             </div>
           )
@@ -2925,7 +2926,7 @@ export default function AstraSovereignDashboard({
           !isAdmin ? (
             <ClearanceGuardTab activeTab={activeTab} user={user} onHome={() => setActiveTab("home")} />
           ) : (
-            <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in">
+            <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in">
               <WorkflowsView />
             </div>
           )
@@ -2938,7 +2939,7 @@ export default function AstraSovereignDashboard({
           !isAdmin ? (
             <ClearanceGuardTab activeTab={activeTab} user={user} onHome={() => setActiveTab("home")} />
           ) : (
-            <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in">
+            <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in">
               <ComputeView />
             </div>
           )
@@ -2948,7 +2949,7 @@ export default function AstraSovereignDashboard({
             13. SYSTEM HEALTH TAB (MONITORING)
         ───────────────────────────────────────────────────────────────── */}
         {activeTab === "monitoring" && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in">
+          <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in">
             <MonitoringView />
           </div>
         )}
@@ -2960,7 +2961,7 @@ export default function AstraSovereignDashboard({
           !isAdmin ? (
             <ClearanceGuardTab activeTab={activeTab} user={user} onHome={() => setActiveTab("home")} />
           ) : (
-            <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in">
+            <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in">
               <AuditLogsView />
             </div>
           )
@@ -2970,7 +2971,7 @@ export default function AstraSovereignDashboard({
             15. TEAM & ROLES TAB (CLEARANCE L1-L4)
         ───────────────────────────────────────────────────────────────── */}
         {activeTab === "team" && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in">
+          <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in">
             <TeamView user={user} devRole={devRole} />
           </div>
         )}
@@ -2979,7 +2980,7 @@ export default function AstraSovereignDashboard({
             16. SETTINGS & WORKSPACE THEME STUDIO (User Request: Custom Color Combinations)
         ───────────────────────────────────────────────────────────────── */}
         {activeTab === "settings" && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-100/90 shadow-2xs animate-in fade-in">
+          <div className="bg-[#111115] rounded-3xl p-6 border border-zinc-800/90 shadow-2xs animate-in fade-in">
             <EnterpriseSettingsView />
           </div>
         )}
@@ -3025,8 +3026,8 @@ export default function AstraSovereignDashboard({
                   >
                     AI Inbox
                   </h2>
-                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-950/400 animate-pulse" />
                     Air-Gap
                   </span>
                 </div>
@@ -3037,7 +3038,7 @@ export default function AstraSovereignDashboard({
                     onClick={() =>
                       setAiInboxDisplayMode(aiInboxDisplayMode === "docked" ? "overlay" : "docked")
                     }
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                    className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-[#27272a] transition-colors cursor-pointer"
                     title={
                       aiInboxDisplayMode === "docked"
                         ? "Switch to Slide-Over Overlay (prevents any page squeezing)"
@@ -3054,7 +3055,7 @@ export default function AstraSovereignDashboard({
                   {/* Close AI Inbox button */}
                   <button
                     onClick={() => setAiPanelOpen(false)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                    className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-600 hover:bg-rose-950/40 transition-colors cursor-pointer"
                     title="Close AI Inbox"
                   >
                     <X className="w-4 h-4" />
@@ -3075,16 +3076,16 @@ export default function AstraSovereignDashboard({
               {/* AI Response Card */}
               <div className="space-y-3.5 pt-1">
                 {/* Collapsible Reasoning Steps (User Request) */}
-                <div className="border border-slate-200/80 rounded-xl p-2.5 bg-slate-50/70 space-y-2 transition-all">
-                  <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+                <div className="border border-zinc-800 rounded-xl p-2.5 bg-[#18181b]/70 space-y-2 transition-all">
+                  <div className="flex items-center justify-between text-xs font-semibold text-zinc-400">
                     <button
                       type="button"
                       onClick={() => setReasoningExpanded(!reasoningExpanded)}
-                      className="flex items-center gap-1.5 hover:text-purple-700 transition-colors cursor-pointer group"
+                      className="flex items-center gap-1.5 hover:text-red-400 transition-colors cursor-pointer group"
                       title="Toggle local model chain-of-thought breakdown"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-amber-500 group-hover:rotate-12 transition-transform" />
-                      <span className="font-bold text-slate-700 group-hover:text-purple-700">
+                      <span className="font-bold text-zinc-200 group-hover:text-red-400">
                         Thought for 2.4s (local model) {reasoningExpanded ? "▾" : ">"}
                       </span>
                     </button>
@@ -3094,33 +3095,33 @@ export default function AstraSovereignDashboard({
                   </div>
 
                   {reasoningExpanded && (
-                    <div className="pt-2 border-t border-slate-200/70 space-y-2 text-[11px] text-slate-600 font-mono animate-in fade-in">
+                    <div className="pt-2 border-t border-zinc-800/70 space-y-2 text-[11px] text-zinc-400 font-mono animate-in fade-in">
                       <div className="flex items-start gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-950/400 mt-1.5 shrink-0" />
                         <div>
-                          <span className="font-bold text-slate-800">1. Security Bounds:</span>
-                          <span className="text-slate-500 ml-1">Verified 0 outbound TCP sockets. Loopback bound to 127.0.0.1:11434 (0.4s)</span>
+                          <span className="font-bold text-zinc-100">1. Security Bounds:</span>
+                          <span className="text-zinc-400 ml-1">Verified 0 outbound TCP sockets. Loopback bound to 127.0.0.1:11434 (0.4s)</span>
                         </div>
                       </div>
                       <div className="flex items-start gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 shrink-0" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-950/300 mt-1.5 shrink-0" />
                         <div>
-                          <span className="font-bold text-slate-800">2. Vector Search:</span>
-                          <span className="text-slate-500 ml-1">Retrieved 9 policy & compliance chunks from local encrypted ChromaDB (0.8s)</span>
+                          <span className="font-bold text-zinc-100">2. Vector Search:</span>
+                          <span className="text-zinc-400 ml-1">Retrieved 9 policy & compliance chunks from local encrypted ChromaDB (0.8s)</span>
                         </div>
                       </div>
                       <div className="flex items-start gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
                         <div>
-                          <span className="font-bold text-slate-800">3. Neural Inference:</span>
-                          <span className="text-slate-500 ml-1">Qwen 2.5 32B + Llama 3.3 70B on PCIe NVLink synthesized 3-pillar response (1.1s)</span>
+                          <span className="font-bold text-zinc-100">3. Neural Inference:</span>
+                          <span className="text-zinc-400 ml-1">Qwen 2.5 32B + Llama 3.3 70B on PCIe NVLink synthesized 3-pillar response (1.1s)</span>
                         </div>
                       </div>
                       <div className="flex items-start gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-950/400 mt-1.5 shrink-0" />
                         <div>
-                          <span className="font-bold text-slate-800">4. Ledger Seal:</span>
-                          <span className="text-slate-500 ml-1">Generated cryptographic SHA-256 deliverable verification token (0.1s)</span>
+                          <span className="font-bold text-zinc-100">4. Ledger Seal:</span>
+                          <span className="text-zinc-400 ml-1">Generated cryptographic SHA-256 deliverable verification token (0.1s)</span>
                         </div>
                       </div>
                     </div>
@@ -3131,41 +3132,41 @@ export default function AstraSovereignDashboard({
                   <div className="shrink-0 mt-0.5">
                     <AstraEmblem color={theme.primary} size={20} />
                   </div>
-                  <div className="space-y-3.5 text-sm text-slate-600 leading-relaxed">
+                  <div className="space-y-3.5 text-sm text-zinc-400 leading-relaxed">
                     <p>
                       Your sovereign workbench dashboard provides a verified overview of local model inference, physical network isolation, and task throughput. The audit report centers on three core pillars:
                     </p>
 
-                    <div className="space-y-2.5 text-slate-700">
+                    <div className="space-y-2.5 text-zinc-200">
                       <div>
-                        <div className="font-bold text-sm text-slate-900">1. Air-Gap Network Isolation</div>
-                        <div className="text-slate-500 text-xs sm:text-[13px] leading-normal">
+                        <div className="font-bold text-sm text-zinc-100">1. Air-Gap Network Isolation</div>
+                        <div className="text-zinc-400 text-xs sm:text-[13px] leading-normal">
                           Loopback bound strictly to 127.0.0.1. Zero external egress detected across all active worker threads.
                         </div>
                       </div>
 
                       <div>
-                        <div className="font-bold text-sm text-slate-900">2. Local Model Allocation</div>
-                        <div className="text-slate-500 text-xs sm:text-[13px] leading-normal">
+                        <div className="font-bold text-sm text-zinc-100">2. Local Model Allocation</div>
+                        <div className="text-zinc-400 text-xs sm:text-[13px] leading-normal">
                           Inference distributed between Llama 3.3, Qwen 2.5 Coder, and RapidOCR on local PCIe NVLink bus.
                         </div>
                       </div>
 
                       <div>
-                        <div className="font-bold text-sm text-slate-900">3. Risk &amp; Compliance</div>
-                        <div className="text-slate-500 text-xs sm:text-[13px] leading-normal">
+                        <div className="font-bold text-sm text-zinc-100">3. Risk &amp; Compliance</div>
+                        <div className="text-zinc-400 text-xs sm:text-[13px] leading-normal">
                           All deliverables require department sign-off. Cryptographic SHA-256 ledger tamper-evident and verified.
                         </div>
                       </div>
                     </div>
 
                     {/* Action Icons */}
-                    <div className="flex items-center justify-between pt-1.5 text-slate-400">
+                    <div className="flex items-center justify-between pt-1.5 text-zinc-500">
                       <div className="flex items-center gap-3">
-                        <button className="hover:text-slate-700 transition-colors cursor-pointer" title="Helpful">
+                        <button className="hover:text-zinc-200 transition-colors cursor-pointer" title="Helpful">
                           <ThumbsUp className="w-4 h-4" />
                         </button>
-                        <button className="hover:text-slate-700 transition-colors cursor-pointer" title="Unhelpful">
+                        <button className="hover:text-zinc-200 transition-colors cursor-pointer" title="Unhelpful">
                           <ThumbsDown className="w-4 h-4" />
                         </button>
                         <button
@@ -3173,19 +3174,19 @@ export default function AstraSovereignDashboard({
                             setCopiedResponse(true);
                             setTimeout(() => setCopiedResponse(false), 2000);
                           }}
-                          className="hover:text-slate-700 transition-colors cursor-pointer"
+                          className="hover:text-zinc-200 transition-colors cursor-pointer"
                           title="Copy Response"
                         >
                           {copiedResponse ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                         </button>
-                        <button className="hover:text-slate-700 transition-colors cursor-pointer" title="Retry">
+                        <button className="hover:text-zinc-200 transition-colors cursor-pointer" title="Retry">
                           <RotateCw className="w-4 h-4" />
                         </button>
                       </div>
 
                       <button
                         onClick={() => setActiveTab("agent")}
-                        className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                        className="flex items-center gap-1.5 text-xs font-semibold text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                         <span>Personalize message</span>
@@ -3204,14 +3205,14 @@ export default function AstraSovereignDashboard({
                         </div>
                       </div>
                     ) : (
-                      <div className="flex gap-3 items-start bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                      <div className="flex gap-3 items-start bg-[#18181b] p-3.5 rounded-2xl border border-zinc-800">
                         <AstraEmblem color={theme.primary} size={18} />
-                        <div className="text-sm text-slate-600 space-y-2 leading-relaxed">
+                        <div className="text-sm text-zinc-400 space-y-2 leading-relaxed">
                           <p>{msg.text}</p>
                           {msg.pillars?.map((p, i) => (
                             <div key={i} className="pt-1">
-                              <span className="font-bold text-slate-800 text-sm">{p.title}</span>
-                              <p className="text-slate-500 text-xs sm:text-[13px]">{p.desc}</p>
+                              <span className="font-bold text-zinc-100 text-sm">{p.title}</span>
+                              <p className="text-zinc-400 text-xs sm:text-[13px]">{p.desc}</p>
                             </div>
                           ))}
                         </div>
@@ -3221,7 +3222,7 @@ export default function AstraSovereignDashboard({
                 ))}
 
                 {isThinking && (
-                  <div className="flex items-center gap-2 text-xs text-purple-600 bg-purple-50 p-3 rounded-xl animate-pulse">
+                  <div className="flex items-center gap-2 text-xs text-red-400 bg-red-950/30 p-3 rounded-xl animate-pulse">
                     <AstraEmblem color={theme.primary} size={16} />
                     <span className="font-semibold text-xs">Processing on-premise inference...</span>
                   </div>
@@ -3238,18 +3239,18 @@ export default function AstraSovereignDashboard({
                 onChange={handleInboxFileUpload}
                 className="hidden"
               />
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3.5 space-y-3">
+              <div className="bg-[#111115] rounded-2xl border border-zinc-800 shadow-sm p-3.5 space-y-3">
                 {/* Attached file chips in AI Inbox */}
                 {inboxAttachments.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1 pb-1 border-b border-slate-100">
+                  <div className="flex flex-wrap gap-1.5 pt-1 pb-1 border-b border-zinc-800">
                     {inboxAttachments.map((att) => (
                       <div
                         key={att.id}
-                        className="flex items-center gap-1.5 px-2 py-1 bg-purple-50 border border-purple-200 rounded-lg text-xs font-semibold text-purple-800 animate-in fade-in"
+                        className="flex items-center gap-1.5 px-2 py-1 bg-red-950/30 border border-red-900/40 rounded-lg text-xs font-semibold text-red-300 animate-in fade-in"
                       >
-                        <FileText className="w-3 h-3 text-purple-600 shrink-0" />
+                        <FileText className="w-3 h-3 text-red-400 shrink-0" />
                         <span className="truncate max-w-[120px]">{att.name}</span>
-                        <span className="text-[10px] text-purple-500">({att.size})</span>
+                        <span className="text-[10px] text-red-400">({att.size})</span>
                         <button
                           type="button"
                           onClick={() => setInboxAttachments((prev) => prev.filter((p) => p.id !== att.id))}
@@ -3286,7 +3287,7 @@ export default function AstraSovereignDashboard({
                         ? "Ask assistant about attached file(s)..."
                         : "Ask Sovereign Assistant anything..."
                     }
-                    className="w-full text-sm text-slate-800 placeholder:text-slate-400 bg-transparent outline-none font-medium"
+                    className="w-full text-sm text-zinc-100 placeholder:text-zinc-500 bg-transparent outline-none font-medium"
                   />
                   <button
                     onClick={() => {
@@ -3300,17 +3301,17 @@ export default function AstraSovereignDashboard({
                         setInboxAttachments([]);
                       }
                     }}
-                    className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-transform active:scale-90 cursor-pointer shrink-0"
+                    className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-zinc-200 flex items-center justify-center transition-transform active:scale-90 cursor-pointer shrink-0"
                   >
                     <ArrowUp className="w-4 h-4" />
                   </button>
                 </div>
 
-                <div className="flex items-center gap-3.5 text-slate-400 text-xs border-b border-slate-100 pb-2.5">
+                <div className="flex items-center gap-3.5 text-zinc-500 text-xs border-b border-zinc-800 pb-2.5">
                   <button
                     type="button"
                     onClick={() => inboxFileInputRef.current?.click()}
-                    className="hover:text-purple-700 text-purple-600 transition-colors cursor-pointer flex items-center gap-1 font-semibold"
+                    className="hover:text-red-400 text-red-400 transition-colors cursor-pointer flex items-center gap-1 font-semibold"
                     title="Attach File from Local Device"
                   >
                     <Paperclip className="w-4 h-4" />
@@ -3319,7 +3320,7 @@ export default function AstraSovereignDashboard({
                   <button
                     type="button"
                     onClick={() => inboxFileInputRef.current?.click()}
-                    className="hover:text-slate-600 transition-colors cursor-pointer"
+                    className="hover:text-zinc-400 transition-colors cursor-pointer"
                     title="Upload / Scan Document from Device"
                   >
                     <ImageIcon className="w-4 h-4" />
@@ -3327,26 +3328,26 @@ export default function AstraSovereignDashboard({
                   <button
                     type="button"
                     onClick={() => handleSubmitTask("Optimize model performance and audit security posture")}
-                    className="flex items-center gap-1.5 hover:text-slate-600 transition-colors cursor-pointer text-xs font-medium"
+                    className="flex items-center gap-1.5 hover:text-zinc-400 transition-colors cursor-pointer text-xs font-medium"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                     <span>Improve prompt</span>
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between pt-0.5 text-xs text-slate-400">
+                <div className="flex items-center justify-between pt-0.5 text-xs text-zinc-500">
                   <div className="flex items-center gap-1.5">
-                    <Cpu className="w-3.5 h-3.5 text-slate-400" />
+                    <Cpu className="w-3.5 h-3.5 text-zinc-500" />
                     <span>Sovereign Nodes</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="px-2 py-0.5 rounded bg-purple-50 border border-purple-200 text-purple-700 font-bold text-[10px]">
+                    <span className="px-2 py-0.5 rounded bg-red-950/30 border border-red-900/40 text-red-400 font-bold text-[10px]">
                       OLLAMA
                     </span>
                     <span className="px-2 py-0.5 rounded bg-cyan-50 border border-cyan-200 text-cyan-700 font-bold text-[10px]">
                       DOCKER
                     </span>
-                    <span className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-[10px]">
+                    <span className="px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-900/50 text-emerald-400 font-bold text-[10px]">
                       OCR
                     </span>
                   </div>
@@ -3363,7 +3364,7 @@ export default function AstraSovereignDashboard({
       {!quickToolsOpen && (
         <button
           onClick={() => setQuickToolsOpen(true)}
-          className="fixed right-0 top-1/2 -translate-y-1/2 z-30 bg-purple-600 hover:bg-purple-700 text-white py-3.5 px-2 rounded-l-2xl shadow-xl flex flex-col items-center gap-2 cursor-pointer transition-transform hover:-translate-x-1 border border-r-0 border-purple-400/40 group"
+          className="fixed right-0 top-1/2 -translate-y-1/2 z-30 bg-red-600 hover:bg-red-700 text-white py-3.5 px-2 rounded-l-2xl shadow-xl flex flex-col items-center gap-2 cursor-pointer transition-transform hover:-translate-x-1 border border-r-0 border-red-500/40 group"
           title="Open Quick Access Tools Drawer"
         >
           <Zap className="w-4 h-4 text-amber-300 animate-pulse group-hover:scale-110 transition-transform" />
@@ -3404,7 +3405,7 @@ export default function AstraSovereignDashboard({
               className="p-5 border-b flex items-center justify-between"
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-600 shadow-2xs">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-900/50 flex items-center justify-center text-amber-600 shadow-2xs">
                   <Zap className="w-5 h-5" />
                 </div>
                 <div>
@@ -3425,7 +3426,7 @@ export default function AstraSovereignDashboard({
 
               <button
                 onClick={() => setQuickToolsOpen(false)}
-                className="w-8 h-8 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center cursor-pointer transition-colors"
+                className="w-8 h-8 rounded-xl bg-[#111115] hover:bg-[#27272a] border border-zinc-800 text-zinc-400 hover:text-zinc-100 flex items-center justify-center cursor-pointer transition-colors"
                 title="Close Quick Access Panel"
               >
                 <X className="w-4 h-4" />
@@ -3435,13 +3436,13 @@ export default function AstraSovereignDashboard({
             {/* Scrollable Tool Content */}
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
               {/* Tool 1: Instant Air-Gap Dispatcher */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+              <div className="p-4 rounded-2xl bg-[#18181b] border border-zinc-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <Send className="w-3.5 h-3.5 text-purple-600" />
+                  <span className="text-xs font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
+                    <Send className="w-3.5 h-3.5 text-red-400" />
                     Instant Task Dispatcher
                   </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-950/50 text-red-400">
                     Local GPU
                   </span>
                 </div>
@@ -3457,7 +3458,7 @@ export default function AstraSovereignDashboard({
                       }
                     }}
                     placeholder="Enter prompt for instant air-gap execution..."
-                    className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-500 text-slate-800 font-medium"
+                    className="w-full text-xs px-3 py-2 bg-[#111115] border border-zinc-800 rounded-xl outline-none focus:border-red-500 text-zinc-100 font-medium"
                   />
                   <div className="flex items-center gap-2">
                     <button
@@ -3468,7 +3469,7 @@ export default function AstraSovereignDashboard({
                         }
                       }}
                       disabled={!quickPromptInput.trim()}
-                      className="flex-1 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Play className="w-3 h-3" />
                       <span>Dispatch Instantly</span>
@@ -3477,7 +3478,7 @@ export default function AstraSovereignDashboard({
                       onClick={() => {
                         setQuickPromptInput("Verify NIST 800-171 physical compliance across all local nodes");
                       }}
-                      className="px-2.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold cursor-pointer"
+                      className="px-2.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-zinc-200 text-xs font-semibold cursor-pointer"
                       title="Load Sample Compliance Prompt"
                     >
                       Sample
@@ -3487,9 +3488,9 @@ export default function AstraSovereignDashboard({
               </div>
 
               {/* Tool 2: Quick Document OCR Scanner & Ingestion */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+              <div className="p-4 rounded-2xl bg-[#18181b] border border-zinc-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
                     <FileText className="w-3.5 h-3.5 text-blue-600" />
                     Quick Document Scanner &amp; Preview
                   </span>
@@ -3503,15 +3504,15 @@ export default function AstraSovereignDashboard({
                       handleOpenDocument("brief_q3");
                       setQuickToolsOpen(false);
                     }}
-                    className="w-full p-2.5 rounded-xl bg-white hover:bg-amber-50/50 border border-slate-200 hover:border-amber-300 text-left transition-all cursor-pointer flex items-center justify-between group"
+                    className="w-full p-2.5 rounded-xl bg-[#111115] hover:bg-amber-950/40/50 border border-zinc-800 hover:border-amber-300 text-left transition-all cursor-pointer flex items-center justify-between group"
                   >
                     <div>
-                      <div className="text-xs font-bold text-slate-800 group-hover:text-amber-700">
+                      <div className="text-xs font-bold text-zinc-100 group-hover:text-amber-400">
                         Exec_Brief_Q3.pptx
                       </div>
-                      <div className="text-[11px] text-slate-500">3 Slides • Executive Briefing Deck</div>
+                      <div className="text-[11px] text-zinc-400">3 Slides • Executive Briefing Deck</div>
                     </div>
-                    <Presentation className="w-4 h-4 text-slate-400 group-hover:text-amber-600" />
+                    <Presentation className="w-4 h-4 text-zinc-500 group-hover:text-amber-600" />
                   </button>
 
                   <button
@@ -3519,15 +3520,15 @@ export default function AstraSovereignDashboard({
                       handleOpenDocument("telemetry_audit");
                       setQuickToolsOpen(false);
                     }}
-                    className="w-full p-2.5 rounded-xl bg-white hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 text-left transition-all cursor-pointer flex items-center justify-between group"
+                    className="w-full p-2.5 rounded-xl bg-[#111115] hover:bg-blue-50/50 border border-zinc-800 hover:border-blue-300 text-left transition-all cursor-pointer flex items-center justify-between group"
                   >
                     <div>
-                      <div className="text-xs font-bold text-slate-800 group-hover:text-blue-700">
+                      <div className="text-xs font-bold text-zinc-100 group-hover:text-blue-700">
                         Telemetry_Audit.docx
                       </div>
-                      <div className="text-[11px] text-slate-500">2 Sections • Hardware Loopback Audit</div>
+                      <div className="text-[11px] text-zinc-400">2 Sections • Hardware Loopback Audit</div>
                     </div>
-                    <FileCheck className="w-4 h-4 text-slate-400 group-hover:text-blue-600" />
+                    <FileCheck className="w-4 h-4 text-zinc-500 group-hover:text-blue-600" />
                   </button>
 
                   <button
@@ -3535,15 +3536,15 @@ export default function AstraSovereignDashboard({
                       handleOpenDocument("defense_audit");
                       setQuickToolsOpen(false);
                     }}
-                    className="w-full p-2.5 rounded-xl bg-white hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 text-left transition-all cursor-pointer flex items-center justify-between group"
+                    className="w-full p-2.5 rounded-xl bg-[#111115] hover:bg-blue-50/50 border border-zinc-800 hover:border-blue-300 text-left transition-all cursor-pointer flex items-center justify-between group"
                   >
                     <div>
-                      <div className="text-xs font-bold text-slate-800 group-hover:text-blue-700">
+                      <div className="text-xs font-bold text-zinc-100 group-hover:text-blue-700">
                         Defense Contract Compliance Audit
                       </div>
-                      <div className="text-[11px] text-slate-500">12 Pages • Active Ingestion Beam</div>
+                      <div className="text-[11px] text-zinc-400">12 Pages • Active Ingestion Beam</div>
                     </div>
-                    <Eye className="w-4 h-4 text-slate-400 group-hover:text-blue-600" />
+                    <Eye className="w-4 h-4 text-zinc-500 group-hover:text-blue-600" />
                   </button>
 
                   <button
@@ -3551,27 +3552,27 @@ export default function AstraSovereignDashboard({
                       handleOpenDocument("inspection_report");
                       setQuickToolsOpen(false);
                     }}
-                    className="w-full p-2.5 rounded-xl bg-white hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 text-left transition-all cursor-pointer flex items-center justify-between group"
+                    className="w-full p-2.5 rounded-xl bg-[#111115] hover:bg-blue-50/50 border border-zinc-800 hover:border-blue-300 text-left transition-all cursor-pointer flex items-center justify-between group"
                   >
                     <div>
-                      <div className="text-xs font-bold text-slate-800 group-hover:text-blue-700">
+                      <div className="text-xs font-bold text-zinc-100 group-hover:text-blue-700">
                         Astra Aircraft Quality Inspection
                       </div>
-                      <div className="text-[11px] text-slate-500">6 Pages • Active OCR Scanning</div>
+                      <div className="text-[11px] text-zinc-400">6 Pages • Active OCR Scanning</div>
                     </div>
-                    <Eye className="w-4 h-4 text-slate-400 group-hover:text-blue-600" />
+                    <Eye className="w-4 h-4 text-zinc-500 group-hover:text-blue-600" />
                   </button>
                 </div>
               </div>
 
               {/* Tool 3: Isolated Python Scratchpad Sandbox */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+              <div className="p-4 rounded-2xl bg-[#18181b] border border-zinc-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
                     <Code className="w-3.5 h-3.5 text-emerald-600" />
                     Air-Gap Python Scratchpad
                   </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-400">
                     Docker 0-Net
                   </span>
                 </div>
@@ -3601,7 +3602,7 @@ export default function AstraSovereignDashboard({
                     {quickScratchOutput && (
                       <button
                         onClick={() => setQuickScratchOutput(null)}
-                        className="text-[11px] text-slate-400 hover:text-slate-600 font-semibold cursor-pointer"
+                        className="text-[11px] text-zinc-500 hover:text-zinc-400 font-semibold cursor-pointer"
                       >
                         Clear Output
                       </button>
@@ -3617,46 +3618,46 @@ export default function AstraSovereignDashboard({
               </div>
 
               {/* Tool 4: Real-time GPU & VRAM Sensor */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+              <div className="p-4 rounded-2xl bg-[#18181b] border border-zinc-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <Cpu className="w-3.5 h-3.5 text-purple-600" />
+                  <span className="text-xs font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
+                    <Cpu className="w-3.5 h-3.5 text-red-400" />
                     Hardware VRAM &amp; PCIe Sensors
                   </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-950/50 text-red-400">
                     RTX 4090
                   </span>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex justify-between text-xs font-semibold text-slate-700">
+                  <div className="flex justify-between text-xs font-semibold text-zinc-200">
                     <span>VRAM Allocated</span>
-                    <span className="font-mono text-purple-700">14.2 / 24.0 GB (59.2%)</span>
+                    <span className="font-mono text-red-400">14.2 / 24.0 GB (59.2%)</span>
                   </div>
                   <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
-                    <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 w-[59.2%]" />
+                    <div className="h-full rounded-full bg-gradient-to-r from-red-500 to-indigo-500 w-[59.2%]" />
                   </div>
-                  <div className="grid grid-cols-2 gap-2 pt-1 text-[11px] text-slate-500">
-                    <div className="bg-white p-2 rounded-lg border border-slate-200">
-                      <span className="block text-slate-400">Core Temp</span>
-                      <span className="font-bold text-slate-800">52°C (Optimal)</span>
+                  <div className="grid grid-cols-2 gap-2 pt-1 text-[11px] text-zinc-400">
+                    <div className="bg-[#111115] p-2 rounded-lg border border-zinc-800">
+                      <span className="block text-zinc-500">Core Temp</span>
+                      <span className="font-bold text-zinc-100">52°C (Optimal)</span>
                     </div>
-                    <div className="bg-white p-2 rounded-lg border border-slate-200">
-                      <span className="block text-slate-400">PCIe Bandwidth</span>
-                      <span className="font-bold text-slate-800">Gen4 x16 (Active)</span>
+                    <div className="bg-[#111115] p-2 rounded-lg border border-zinc-800">
+                      <span className="block text-zinc-500">PCIe Bandwidth</span>
+                      <span className="font-bold text-zinc-100">Gen4 x16 (Active)</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Tool 5: Zero-Egress Loopback Ping Verifier */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+              <div className="p-4 rounded-2xl bg-[#18181b] border border-zinc-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
                     <Shield className="w-3.5 h-3.5 text-emerald-600" />
                     Zero-Egress Loopback Ping
                   </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-400">
                     127.0.0.1
                   </span>
                 </div>
@@ -3667,19 +3668,19 @@ export default function AstraSovereignDashboard({
                       setQuickPingStatus("testing");
                       setTimeout(() => setQuickPingStatus("verified"), 600);
                     }}
-                    className="w-full py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="w-full py-2 rounded-xl bg-[#111115] hover:bg-[#27272a] border border-zinc-800 text-zinc-200 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <Activity className="w-3.5 h-3.5 text-purple-600" />
+                    <Activity className="w-3.5 h-3.5 text-red-400" />
                     <span>{quickPingStatus === "testing" ? "Probing Loopback Socket..." : "Verify Loopback Isolation"}</span>
                   </button>
 
                   {quickPingStatus === "verified" && (
-                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs space-y-1 animate-in fade-in">
+                    <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-900/50 text-emerald-800 text-xs space-y-1 animate-in fade-in">
                       <div className="flex items-center gap-1.5 font-bold">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                         <span>100% Zero-Egress Air-Gap Verified</span>
                       </div>
-                      <p className="text-[11px] text-emerald-700 leading-normal">
+                      <p className="text-[11px] text-emerald-400 leading-normal">
                         All local AI worker threads strictly bound to 127.0.0.1 loopback socket. 0 outgoing packets recorded.
                       </p>
                     </div>
@@ -3689,7 +3690,7 @@ export default function AstraSovereignDashboard({
 
               {/* Tool 6: Quick Navigation Jumps */}
               <div className="space-y-2 pt-1">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">
                   Quick Navigation
                 </span>
                 <div className="grid grid-cols-2 gap-2">
@@ -3698,10 +3699,10 @@ export default function AstraSovereignDashboard({
                       setActiveTab("sandbox");
                       setQuickToolsOpen(false);
                     }}
-                    className="p-2.5 rounded-xl bg-white border border-slate-200 hover:border-purple-300 hover:bg-purple-50/50 text-left cursor-pointer transition-all flex items-center gap-2"
+                    className="p-2.5 rounded-xl bg-[#111115] border border-zinc-800 hover:border-red-500/40 hover:bg-red-950/30/50 text-left cursor-pointer transition-all flex items-center gap-2"
                   >
-                    <Code className="w-4 h-4 text-purple-600" />
-                    <span className="text-xs font-bold text-slate-700">Code Editor</span>
+                    <Code className="w-4 h-4 text-red-400" />
+                    <span className="text-xs font-bold text-zinc-200">Code Editor</span>
                   </button>
 
                   <button
@@ -3709,10 +3710,10 @@ export default function AstraSovereignDashboard({
                       setActiveTab("agent");
                       setQuickToolsOpen(false);
                     }}
-                    className="p-2.5 rounded-xl bg-white border border-slate-200 hover:border-purple-300 hover:bg-purple-50/50 text-left cursor-pointer transition-all flex items-center gap-2"
+                    className="p-2.5 rounded-xl bg-[#111115] border border-zinc-800 hover:border-red-500/40 hover:bg-red-950/30/50 text-left cursor-pointer transition-all flex items-center gap-2"
                   >
-                    <Terminal className="w-4 h-4 text-purple-600" />
-                    <span className="text-xs font-bold text-slate-700">AI Assistant</span>
+                    <Terminal className="w-4 h-4 text-red-400" />
+                    <span className="text-xs font-bold text-zinc-200">AI Assistant</span>
                   </button>
 
                   <button
@@ -3720,10 +3721,10 @@ export default function AstraSovereignDashboard({
                       setActiveTab("coworking");
                       setQuickToolsOpen(false);
                     }}
-                    className="p-2.5 rounded-xl bg-white border border-slate-200 hover:border-purple-300 hover:bg-purple-50/50 text-left cursor-pointer transition-all flex items-center gap-2"
+                    className="p-2.5 rounded-xl bg-[#111115] border border-zinc-800 hover:border-red-500/40 hover:bg-red-950/30/50 text-left cursor-pointer transition-all flex items-center gap-2"
                   >
-                    <Users className="w-4 h-4 text-purple-600" />
-                    <span className="text-xs font-bold text-slate-700">Coworking</span>
+                    <Users className="w-4 h-4 text-red-400" />
+                    <span className="text-xs font-bold text-zinc-200">Coworking</span>
                   </button>
 
                   <button
@@ -3731,10 +3732,10 @@ export default function AstraSovereignDashboard({
                       setActiveTab("settings");
                       setQuickToolsOpen(false);
                     }}
-                    className="p-2.5 rounded-xl bg-white border border-slate-200 hover:border-purple-300 hover:bg-purple-50/50 text-left cursor-pointer transition-all flex items-center gap-2"
+                    className="p-2.5 rounded-xl bg-[#111115] border border-zinc-800 hover:border-red-500/40 hover:bg-red-950/30/50 text-left cursor-pointer transition-all flex items-center gap-2"
                   >
-                    <Palette className="w-4 h-4 text-purple-600" />
-                    <span className="text-xs font-bold text-slate-700">Theme Studio</span>
+                    <Palette className="w-4 h-4 text-red-400" />
+                    <span className="text-xs font-bold text-zinc-200">Theme Studio</span>
                   </button>
                 </div>
               </div>
@@ -3758,7 +3759,7 @@ export default function AstraSovereignDashboard({
       ───────────────────────────────────────────────────────────────── */}
       {profileModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in overflow-y-auto">
-          <div className="max-w-5xl w-full max-h-[92vh] overflow-y-auto bg-white rounded-3xl shadow-2xl border border-slate-200">
+          <div className="max-w-5xl w-full max-h-[92vh] overflow-y-auto bg-[#111115] rounded-3xl shadow-2xl border border-zinc-800">
             <UserProfileView onClose={() => setProfileModalOpen(false)} />
           </div>
         </div>

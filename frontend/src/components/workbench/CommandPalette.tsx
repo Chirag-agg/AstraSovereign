@@ -215,21 +215,21 @@ export default function CommandPalette({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden font-sans text-xs flex flex-col"
+        className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-[#0d0d12] shadow-2xl overflow-hidden font-sans text-xs flex flex-col text-zinc-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Header */}
-        <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-slate-100">
-          <Search className="w-4 h-4 text-slate-400" />
+        <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-zinc-800/80 bg-[#111115]">
+          <Search className="w-4 h-4 text-zinc-400" />
           <input
             autoFocus
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Type a command or jump to workbench section..."
-            className="flex-1 bg-transparent text-slate-800 placeholder:text-slate-400 outline-none text-xs"
+            className="flex-1 bg-transparent text-zinc-100 placeholder:text-zinc-500 outline-none text-xs"
           />
-          <kbd className="px-1.5 py-0.5 rounded-md border border-slate-200 text-[10px] font-mono text-slate-400 bg-slate-50">
+          <kbd className="px-1.5 py-0.5 rounded-md border border-zinc-700 text-[10px] font-mono text-zinc-400 bg-zinc-800">
             ESC
           </kbd>
         </div>
@@ -237,7 +237,7 @@ export default function CommandPalette({
         {/* Command list */}
         <div className="max-h-80 overflow-y-auto p-2 space-y-0.5">
           {filtered.length === 0 ? (
-            <div className="py-6 text-center text-slate-400 text-xs">
+            <div className="py-6 text-center text-zinc-500 text-xs">
               No matching commands found.
             </div>
           ) : (
@@ -248,11 +248,11 @@ export default function CommandPalette({
                   key={cmd.id}
                   type="button"
                   onClick={cmd.action}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-purple-50 transition-colors text-slate-700 hover:text-purple-900 cursor-pointer group"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-red-950/30 hover:border hover:border-red-900/40 transition-colors text-zinc-300 hover:text-red-300 cursor-pointer group"
                 >
-                  <Icon className="w-4 h-4 text-slate-400 group-hover:text-[#7047eb] transition-colors" />
+                  <Icon className="w-4 h-4 text-zinc-400 group-hover:text-red-400 transition-colors" />
                   <span className="flex-1 font-medium">{cmd.label}</span>
-                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-purple-600">
+                  <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-red-400">
                     {cmd.category}
                   </span>
                 </button>
@@ -261,7 +261,7 @@ export default function CommandPalette({
           )}
         </div>
 
-        <div className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-400 flex justify-between bg-slate-50/50">
+        <div className="border-t border-zinc-800/80 px-4 py-2 text-[11px] text-zinc-500 flex justify-between bg-[#111115]">
           <span>Navigate with click</span>
           <span>Command Palette</span>
         </div>

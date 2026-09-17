@@ -16,7 +16,8 @@ export type WorkbenchSection =
   | "audit"
   | "team"
   | "sandbox"
-  | "settings";
+  | "settings"
+  | "profile";
 
 export type AuthorizationLevel =
   | "L1: Contributor"
