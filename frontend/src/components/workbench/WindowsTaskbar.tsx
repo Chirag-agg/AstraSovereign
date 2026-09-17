@@ -29,6 +29,15 @@ import {
   Layers,
   ChevronUp,
   Settings,
+  Activity,
+  Cpu,
+  Workflow,
+  Wrench,
+  Boxes,
+  FileText,
+  LayoutDashboard,
+  Home,
+  Briefcase,
 } from "lucide-react";
 import type { WorkbenchSection } from "./types";
 import type { JobSummary } from "@/lib/types";
@@ -55,7 +64,51 @@ interface WindowsTaskbarProps {
   onWallpaperOpacityChange?: (opacity: number) => void;
 }
 
-const APPS: { id: WorkbenchSection; label: string; icon: React.ElementType }[] = [
+export interface ModuleItem {
+  id: WorkbenchSection;
+  label: string;
+  icon: React.ElementType;
+  category: "Core Intelligence" | "Operations & Team" | "Knowledge & Assets" | "Infrastructure & System";
+  description: string;
+}
+
+export const ALL_MODULES: ModuleItem[] = [
+  // Core Intelligence
+  { id: "agent", label: "AI Assistant", icon: Bot, category: "Core Intelligence", description: "Autonomous LLM reasoning & agent loop" },
+  { id: "coworking", label: "Coworking War-Room", icon: Users2, category: "Core Intelligence", description: "Multi-department collaborative execution" },
+  { id: "workflows", label: "Pipelines & Workflows", icon: Workflow, category: "Core Intelligence", description: "Multi-agent automated task chains" },
+  { id: "models", label: "Local Model Registry", icon: Boxes, category: "Core Intelligence", description: "Ollama & vLLM on-premise weights" },
+  { id: "tools", label: "Local Tool Registry", icon: Wrench, category: "Core Intelligence", description: "Native system function calling" },
+
+  // Operations & Team
+  { id: "home", label: "Command Center", icon: Home, category: "Operations & Team", description: "Global operational hub & quick search" },
+  { id: "dashboard", label: "Executive Dashboard", icon: LayoutDashboard, category: "Operations & Team", description: "Real-time task telemetry & status" },
+  { id: "jobs", label: "Task History & Queues", icon: Briefcase, category: "Operations & Team", description: "Inspection of queued & executed tasks" },
+  { id: "team", label: "Department Access", icon: Users2, category: "Operations & Team", description: "Multi-department clearance & roles" },
+
+  // Knowledge & Assets
+  { id: "knowledge", label: "Knowledge Vault", icon: Library, category: "Knowledge & Assets", description: "RAG vector indices & secure embeddings" },
+  { id: "documents", label: "Document Archives", icon: FileText, category: "Knowledge & Assets", description: "Classified enterprise document store" },
+  { id: "files", label: "File Explorer", icon: FolderTree, category: "Knowledge & Assets", description: "Air-gapped local file management" },
+  { id: "outputs", label: "Deliverables & Artifacts", icon: Archive, category: "Knowledge & Assets", description: "Generated code, reports, and binaries" },
+
+  // Infrastructure & System
+  { id: "sandbox", label: "Docker Sandbox", icon: Code, category: "Infrastructure & System", description: "Isolated safe execution environment" },
+  { id: "compute", label: "Compute & GPU VRAM", icon: Cpu, category: "Infrastructure & System", description: "Hardware telemetry & GPU allocation" },
+  { id: "monitoring", label: "System Health & Logs", icon: Activity, category: "Infrastructure & System", description: "Air-gap daemon & performance metrics" },
+  { id: "audit", label: "Audit & Compliance", icon: ScrollText, category: "Infrastructure & System", description: "Tamper-evident PGP signed ledger" },
+  { id: "settings", label: "Enterprise Settings", icon: Settings, category: "Infrastructure & System", description: "Governance, air-gap, and model config" },
+  { id: "profile", label: "Security Profile", icon: User, category: "Infrastructure & System", description: "User credentials, PGP keys, and passkeys" },
+];
+
+export const MODULE_CATEGORIES = [
+  "Core Intelligence",
+  "Operations & Team",
+  "Knowledge & Assets",
+  "Infrastructure & System",
+] as const;
+
+const PINNED_APPS: { id: WorkbenchSection; label: string; icon: React.ElementType }[] = [
   { id: "agent", label: "Assistant", icon: Bot },
   { id: "knowledge", label: "Knowledge Vault", icon: Library },
   { id: "sandbox", label: "Code Sandbox", icon: Code },
@@ -96,9 +149,18 @@ export default function WindowsTaskbar({
   onWallpaperOpacityChange,
 }: WindowsTaskbarProps) {
   const [startMenuOpen, setStartMenuOpen] = useState(false);
+  const [startTab, setStartTab] = useState<"pinned" | "all">("pinned");
+  const [searchQuery, setSearchQuery] = useState("");
   const [timeString, setTimeString] = useState("");
   const [dateString, setDateString] = useState("");
   const startMenuRef = useRef<HTMLDivElement>(null);
+
+  const filteredModules = ALL_MODULES.filter(
+    (m) =>
+      m.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Live Digital Clock
   useEffect(() => {
@@ -139,28 +201,18 @@ export default function WindowsTaskbar({
           ref={startMenuRef}
           className="fixed bottom-14 left-2 sm:left-4 z-50 w-[96vw] max-w-md sm:max-w-lg bg-[#0d0d12]/95 backdrop-blur-2xl rounded-2xl border border-zinc-800 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] p-5 flex flex-col space-y-4 animate-in slide-in-from-bottom-5 duration-200 select-none text-zinc-200"
         >
-          {/* Start Menu Search Bar */}
-          <button
-            type="button"
-            onClick={() => {
-              setStartMenuOpen(false);
-              onOpenCommandPalette();
-            }}
-            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 text-xs transition-colors cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <Search className="w-3.5 h-3.5 text-zinc-400" />
-              <span>Search apps, knowledge, commands...</span>
-            </div>
-            <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-zinc-950 rounded border border-zinc-800 text-zinc-400">
-              Ctrl K
-            </kbd>
-          </button>
-
-          {/* Pinned Applications */}
+          {/* Start Menu Header & Search */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-[10px] font-bold tracking-wider uppercase text-zinc-400 px-1">
-              <span>Pinned Modules</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center text-white shadow-xs">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                </div>
+                <span className="text-xs font-bold text-white tracking-tight">Astra Sovereign OS</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-950/80 border border-red-800/60 text-red-300 font-mono">
+                  v2.4 AIRGAP
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -168,45 +220,228 @@ export default function WindowsTaskbar({
                   onSelectSection("agent");
                   setStartMenuOpen(false);
                 }}
-                className="text-red-400 hover:text-red-300 font-semibold lowercase transition-colors cursor-pointer text-xs"
+                className="text-red-400 hover:text-red-300 font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1 hover:underline"
               >
-                + new task
+                + New Task
               </button>
             </div>
-            <div className="grid grid-cols-4 gap-2 text-center">
-              {APPS.map((app) => {
-                const Icon = app.icon;
-                const isActive = currentSection === app.id;
-                return (
-                  <button
-                    key={app.id}
-                    type="button"
-                    onClick={() => {
-                      onSelectSection(app.id);
-                      setStartMenuOpen(false);
-                    }}
-                    className={`p-2.5 rounded-xl flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
-                      isActive
-                        ? "bg-red-950/40 text-red-300 border border-red-800/60 shadow-xs"
-                        : "hover:bg-zinc-850 text-zinc-300 border border-transparent"
-                    }`}
-                  >
-                    <div
-                      className={`w-9 h-9 rounded-lg flex items-center justify-center shadow-xs ${
+
+            {/* Live Filter / Search Bar */}
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search all modules, tools & system apps..."
+                className="w-full pl-9 pr-20 py-2 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600/50 transition-all"
+              />
+              <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <button
+                type="button"
+                onClick={() => {
+                  setStartMenuOpen(false);
+                  onOpenCommandPalette();
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-mono bg-zinc-950 rounded border border-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                title="Open Command Palette"
+              >
+                Ctrl K
+              </button>
+            </div>
+          </div>
+
+          {/* Start Menu View Mode Tabs */}
+          {!searchQuery && (
+            <div className="flex items-center gap-1 border-b border-zinc-800/80 pb-2">
+              <button
+                type="button"
+                onClick={() => setStartTab("pinned")}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  startTab === "pinned"
+                    ? "bg-red-950/60 text-red-300 border border-red-800/60"
+                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850"
+                }`}
+              >
+                Pinned
+              </button>
+              <button
+                type="button"
+                onClick={() => setStartTab("all")}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  startTab === "all"
+                    ? "bg-red-950/60 text-red-300 border border-red-800/60"
+                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850"
+                }`}
+              >
+                <span>All Modules</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-zinc-800 text-zinc-300 font-mono">
+                  {ALL_MODULES.length}
+                </span>
+              </button>
+            </div>
+          )}
+
+          {/* Module Grid or Search Results */}
+          <div className="max-h-56 overflow-y-auto pr-1 space-y-3">
+            {searchQuery ? (
+              <div className="space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 px-1">
+                  Matching Modules ({filteredModules.length})
+                </div>
+                {filteredModules.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-zinc-500 italic">
+                    No matching modules found for &ldquo;{searchQuery}&rdquo;.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {filteredModules.map((mod) => {
+                      const Icon = mod.icon;
+                      const isActive = currentSection === mod.id;
+                      return (
+                        <button
+                          key={mod.id}
+                          type="button"
+                          onClick={() => {
+                            onSelectSection(mod.id);
+                            setStartMenuOpen(false);
+                            setSearchQuery("");
+                          }}
+                          className={`p-2 rounded-xl flex items-center gap-2.5 transition-all cursor-pointer text-left ${
+                            isActive
+                              ? "bg-red-950/50 text-red-200 border border-red-800/60 font-medium"
+                              : "hover:bg-zinc-850 text-zinc-300 border border-transparent"
+                          }`}
+                        >
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                            isActive ? "bg-red-600 text-white" : "bg-zinc-800 text-zinc-400"
+                          }`}>
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="min-w-0 flex-1 truncate">
+                            <span className="text-xs font-semibold block truncate leading-tight">{mod.label}</span>
+                            <span className="text-[10px] text-zinc-500 block truncate">{mod.category}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : startTab === "pinned" ? (
+              <div className="grid grid-cols-4 gap-2 text-center">
+                {PINNED_APPS.map((app) => {
+                  const Icon = app.icon;
+                  const isActive = currentSection === app.id;
+                  return (
+                    <button
+                      key={app.id}
+                      type="button"
+                      onClick={() => {
+                        onSelectSection(app.id);
+                        setStartMenuOpen(false);
+                      }}
+                      className={`p-2.5 rounded-xl flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
                         isActive
-                          ? "bg-gradient-to-br from-red-600 to-red-700 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]"
-                          : "bg-zinc-850 text-zinc-300 border border-zinc-800"
+                          ? "bg-red-950/40 text-red-300 border border-red-800/60 shadow-xs"
+                          : "hover:bg-zinc-850 text-zinc-300 border border-transparent"
                       }`}
                     >
-                      <Icon className="w-4.5 h-4.5" />
+                      <div
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center shadow-xs ${
+                          isActive
+                            ? "bg-gradient-to-br from-red-600 to-red-700 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]"
+                            : "bg-zinc-850 text-zinc-300 border border-zinc-800"
+                        }`}
+                      >
+                        <Icon className="w-4.5 h-4.5" />
+                      </div>
+                      <span className="text-[11px] font-medium truncate max-w-full">
+                        {app.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              /* All Modules Categorized Directory */
+              <div className="space-y-3">
+                {MODULE_CATEGORIES.map((cat) => {
+                  const categoryModules = ALL_MODULES.filter((m) => m.category === cat);
+                  return (
+                    <div key={cat} className="space-y-1">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-red-400/90 px-1">
+                        {cat}
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {categoryModules.map((mod) => {
+                          const Icon = mod.icon;
+                          const isActive = currentSection === mod.id;
+                          return (
+                            <button
+                              key={mod.id}
+                              type="button"
+                              onClick={() => {
+                                onSelectSection(mod.id);
+                                setStartMenuOpen(false);
+                              }}
+                              className={`p-2 rounded-xl flex items-center gap-2.5 transition-all cursor-pointer text-left ${
+                                isActive
+                                  ? "bg-red-950/50 text-red-200 border border-red-800/60 font-medium"
+                                  : "hover:bg-zinc-850 text-zinc-300 border border-transparent"
+                              }`}
+                            >
+                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                                isActive ? "bg-red-600 text-white" : "bg-zinc-800 text-zinc-400"
+                              }`}>
+                                <Icon className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0 flex-1 truncate">
+                                <span className="text-xs font-semibold block truncate leading-tight">{mod.label}</span>
+                                <span className="text-[10px] text-zinc-500 block truncate">{mod.description}</span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <span className="text-[11px] font-medium truncate max-w-full">
-                      {app.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Quick System Shortcuts Row */}
+          <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between gap-1 text-[11px]">
+            <Link
+              href="/admin"
+              onClick={() => setStartMenuOpen(false)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-red-400" />
+              <span>Admin Console</span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                onOpenSystem();
+                setStartMenuOpen(false);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+            >
+              <Activity className="w-3.5 h-3.5 text-emerald-400" />
+              <span>System &amp; Airgap</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSelectSection("settings");
+                setStartMenuOpen(false);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+            >
+              <Settings className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Settings</span>
+            </button>
           </div>
 
           {/* Wallpaper Customizer */}
@@ -265,13 +500,13 @@ export default function WindowsTaskbar({
               <span>Recent Tasks</span>
               <span className="text-[10px] font-mono">{jobs ? jobs.length : 0}</span>
             </div>
-            <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+            <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
               {!jobs || jobs.length === 0 ? (
-                <div className="p-3 text-center text-xs text-zinc-500 italic">
+                <div className="p-2.5 text-center text-xs text-zinc-500 italic">
                   No previous tasks recorded.
                 </div>
               ) : (
-                jobs.slice(0, 4).map((job) => {
+                jobs.slice(0, 3).map((job) => {
                   const active = activeJobId === job.job_id;
                   return (
                     <button
@@ -282,7 +517,7 @@ export default function WindowsTaskbar({
                         onSelectSection("agent");
                         setStartMenuOpen(false);
                       }}
-                      className={`w-full flex items-center gap-2.5 p-2 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                      className={`w-full flex items-center gap-2.5 p-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
                         active
                           ? "bg-red-950/60 text-red-300 border border-red-800/60 font-semibold"
                           : "text-zinc-300 hover:bg-zinc-850"
@@ -391,7 +626,7 @@ export default function WindowsTaskbar({
 
           {/* Taskbar App Icons */}
           <div className="flex items-center gap-0.5 sm:gap-1">
-            {APPS.slice(0, 5).map((app) => {
+            {PINNED_APPS.slice(0, 6).map((app) => {
               const Icon = app.icon;
               const isActive = currentSection === app.id;
               return (

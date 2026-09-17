@@ -50,7 +50,7 @@ const PILLARS = [
   {
     icon: <ShieldCheck className="w-8 h-8" />,
     accent: "#ef4444",
-    bg: "from-red-950 to-zinc-950",
+    bg: "from-red-950/90 to-zinc-950",
     label: "AIR-GAP VERIFIED",
     title: "Zero Cloud Egress",
     body: "Every byte stays on your hardware. Strict iptables rules drop all outbound traffic — no telemetry, no cloud calls, ever.",
@@ -58,8 +58,8 @@ const PILLARS = [
   },
   {
     icon: <Terminal className="w-8 h-8" />,
-    accent: "#f59e0b",
-    bg: "from-amber-950 to-amber-900",
+    accent: "#f87171",
+    bg: "from-[#200707] to-zinc-950",
     label: "SANDBOX SECURE",
     title: "Docker Isolation",
     body: "Untrusted code runs inside ephemeral containers with --network none, 512 MB RAM cap and auto-wiped storage on exit.",
@@ -67,8 +67,8 @@ const PILLARS = [
   },
   {
     icon: <Users2 className="w-8 h-8" />,
-    accent: "#10b981",
-    bg: "from-emerald-950 to-emerald-900",
+    accent: "#dc2626",
+    bg: "from-red-950/70 to-zinc-950",
     label: "MULTI-TIER",
     title: "L1–L4 Clearance",
     body: "Department-grade sign-off hierarchy. Admins dispatch, managers delegate, deliverables require clearance before release.",
@@ -76,8 +76,8 @@ const PILLARS = [
   },
   {
     icon: <Cpu className="w-8 h-8" />,
-    accent: "#38bdf8",
-    bg: "from-sky-950 to-sky-900",
+    accent: "#ef4444",
+    bg: "from-[#2a0808] to-zinc-950",
     label: "LOCAL MODELS",
     title: "On-Prem Inference",
     body: "Llama 3, Qwen 2.5 Coder, DeepSeek R1 and RapidOCR all run on bare-metal GPU — no SaaS API keys required.",
@@ -85,8 +85,8 @@ const PILLARS = [
   },
   {
     icon: <Lock className="w-8 h-8" />,
-    accent: "#f43f5e",
-    bg: "from-rose-950 to-rose-900",
+    accent: "#fca5a5",
+    bg: "from-red-950/80 to-zinc-950",
     label: "ENCRYPTED",
     title: "AES-256 Vectors",
     body: "All RAG embeddings and ephemeral scratch vectors are encrypted at rest. Hash-chained audit logs cannot be tampered with.",
@@ -95,7 +95,7 @@ const PILLARS = [
   {
     icon: <Server className="w-8 h-8" />,
     accent: "#ef4444",
-    bg: "from-red-950 to-zinc-950",
+    bg: "from-red-950/90 to-zinc-950",
     label: "BARE-METAL",
     title: "Sovereign Stack",
     body: "Runs entirely offline on your own infrastructure. No subscriptions, no vendor lock-in, no hidden data flows.",
@@ -118,16 +118,16 @@ const SLIDES = [
     headline: "Code Runs\nIn Isolation.",
     sub: "Ephemeral containers. Network disabled. Auto-cleaned. No blast radius, no data escape.",
     cta: "See the Sandbox",
-    bg: "bg-[#0c0a06]",
-    accent: "#f59e0b",
+    bg: "bg-[#0a0505]",
+    accent: "#dc2626",
   },
   {
     tag: "CLEARANCE SYSTEM",
     headline: "L1 to L4\nChain of Trust.",
     sub: "Every deliverable passes through department-grade sign-offs. Immutable cryptographic audit logs.",
     cta: "Explore Clearance",
-    bg: "bg-[#060f0a]",
-    accent: "#10b981",
+    bg: "bg-[#0c0505]",
+    accent: "#f87171",
   },
 ];
 
@@ -171,9 +171,9 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
 
   return (
     <div
-      className="min-h-screen w-full bg-[#0A0E17] text-white font-sans overflow-x-hidden"
+      className="min-h-screen w-full bg-[#09090b] text-white font-sans overflow-x-hidden"
       style={{
-        backgroundImage: "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(112, 71, 235, 0.22), transparent 70%), radial-gradient(circle at 50% 25%, rgba(99, 102, 241, 0.10), transparent 60%)",
+        backgroundImage: "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(239, 68, 68, 0.20), transparent 70%), radial-gradient(circle at 50% 25%, rgba(185, 28, 28, 0.10), transparent 60%)",
       }}
     >
 
@@ -465,8 +465,8 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
       </section>
 
       {/* ── STAT STRIP ───────────────────────────────────────── */}
-      <div className="bg-[#0d0d1a] border-y border-white/5 py-6 overflow-hidden">
-        <div className="flex items-stretch gap-0 max-w-5xl mx-auto divide-x divide-white/10 flex-wrap justify-center">
+      <div className="bg-[#0e0e12] border-y border-red-950/40 py-6 overflow-hidden">
+        <div className="flex items-stretch gap-0 max-w-5xl mx-auto divide-x divide-zinc-800 flex-wrap justify-center">
           {[
             ["0 BYTES", "Cloud Egress — ever"],
             ["100%", "Air-Gapped Local Execution"],
@@ -475,7 +475,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
           ].map(([val, label], i) => (
             <div key={i} className="flex-1 min-w-[160px] text-center px-6 py-2">
               <div className="text-2xl sm:text-3xl font-black text-white">{val}</div>
-              <div className="text-[11px] font-semibold text-white/40 uppercase tracking-wider mt-1">{label}</div>
+              <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mt-1">{label}</div>
             </div>
           ))}
         </div>
@@ -490,7 +490,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
           }`}
         >
           <div className="mb-14 text-center">
-            <span className="text-[11px] font-mono font-bold tracking-[0.2em] text-violet-400 uppercase">
+            <span className="text-[11px] font-mono font-bold tracking-[0.2em] text-red-400 uppercase">
               Platform Capabilities
             </span>
             <h2 className="mt-3 text-4xl sm:text-5xl font-black tracking-tight">
@@ -502,7 +502,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
             {PILLARS.map((p, i) => (
               <div
                 key={i}
-                className={`group relative bg-gradient-to-br ${p.bg} rounded-3xl p-7 border border-white/5 cursor-default overflow-hidden transition-all duration-300 hover:scale-[1.03] hover:border-white/20`}
+                className={`group relative bg-gradient-to-br ${p.bg} rounded-3xl p-7 border border-zinc-800/80 cursor-default overflow-hidden transition-all duration-300 hover:scale-[1.03] hover:border-red-800/50 shadow-lg`}
                 style={{ animationDelay: `${i * 80}ms` }}
               >
                 {/* glow on hover */}
@@ -526,7 +526,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
                 </span>
 
                 <h3 className="text-xl font-black text-white mb-3">{p.title}</h3>
-                <p className="text-sm text-white/50 leading-relaxed mb-5">{p.body}</p>
+                <p className="text-sm text-zinc-400 leading-relaxed mb-5">{p.body}</p>
 
                 <div
                   className="inline-block text-xs font-mono font-bold px-3 py-1 rounded-lg"
@@ -543,7 +543,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
       {/* ── ARCHITECTURE VISUAL ──────────────────────────────── */}
       <section
         id="architecture"
-        className="py-24 px-6 sm:px-12 bg-[#08080f]"
+        className="py-24 px-6 sm:px-12 bg-[#09090b] border-t border-red-950/30"
       >
         <div
           ref={s2.ref}
@@ -552,13 +552,13 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
           }`}
         >
           <div className="mb-14 text-center">
-            <span className="text-[11px] font-mono font-bold tracking-[0.2em] text-emerald-400 uppercase">
+            <span className="text-[11px] font-mono font-bold tracking-[0.2em] text-red-400 uppercase">
               How It Works
             </span>
             <h2 className="mt-3 text-4xl sm:text-5xl font-black tracking-tight">
               Data never leaves the perimeter.
             </h2>
-            <p className="mt-4 text-white/50 max-w-xl mx-auto font-medium">
+            <p className="mt-4 text-zinc-400 max-w-xl mx-auto font-medium">
               A chain of strictly local subsystems handles every stage — from prompt routing to signed audit delivery.
             </p>
           </div>
@@ -567,20 +567,20 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
           <div className="relative flex flex-col md:flex-row items-stretch gap-0 md:gap-0">
             {[
               { n: "01", color: "#ef4444", title: "Prompt Received", sub: "User sends task via local workbench — no internet required." },
-              { n: "02", color: "#f59e0b", title: "Model Router", sub: "Deterministic classifier selects the right local model instantly." },
-              { n: "03", color: "#10b981", title: "Sandbox Exec", sub: "Any code runs in an ephemeral Docker container, network off." },
-              { n: "04", color: "#38bdf8", title: "Signed Output", sub: "Result is hash-signed and appended to the tamper-proof audit chain." },
+              { n: "02", color: "#f87171", title: "Model Router", sub: "Deterministic classifier selects the right local model instantly." },
+              { n: "03", color: "#dc2626", title: "Sandbox Exec", sub: "Any code runs in an ephemeral Docker container, network off." },
+              { n: "04", color: "#b91c1c", title: "Signed Output", sub: "Result is hash-signed and appended to the tamper-proof audit chain." },
             ].map((step, i, arr) => (
               <div key={i} className="flex-1 flex flex-col md:flex-row items-stretch">
-                <div className="flex-1 relative rounded-2xl border border-white/8 bg-white/[0.03] p-7 flex flex-col gap-3 hover:bg-white/[0.06] transition-colors">
+                <div className="flex-1 relative rounded-2xl border border-zinc-800 bg-[#111115] p-7 flex flex-col gap-3 hover:border-red-800/40 transition-colors">
                   <div
                     className="text-4xl font-black"
-                    style={{ color: `${step.color}55` }}
+                    style={{ color: `${step.color}88` }}
                   >
                     {step.n}
                   </div>
                   <div className="text-lg font-bold text-white">{step.title}</div>
-                  <div className="text-sm text-white/45 leading-relaxed">{step.sub}</div>
+                  <div className="text-sm text-zinc-400 leading-relaxed">{step.sub}</div>
                   <div
                     className="absolute bottom-0 left-6 right-6 h-0.5 rounded-full"
                     style={{ background: step.color }}
@@ -588,7 +588,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
                 </div>
                 {/* connector arrow */}
                 {i < arr.length - 1 && (
-                  <div className="hidden md:flex items-center justify-center px-2 text-white/20">
+                  <div className="hidden md:flex items-center justify-center px-2 text-zinc-600">
                     <ArrowRight className="w-5 h-5" />
                   </div>
                 )}
@@ -599,7 +599,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
       </section>
 
       {/* ── CLEARANCE SECTION ────────────────────────────────── */}
-      <section id="clearance" className="py-24 px-6 sm:px-12">
+      <section id="clearance" className="py-24 px-6 sm:px-12 bg-[#0c0c10] border-t border-red-950/30">
         <div
           ref={s3.ref}
           className={`max-w-5xl mx-auto transition-all duration-700 ${
@@ -607,7 +607,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
           }`}
         >
           <div className="mb-14 text-center">
-            <span className="text-[11px] font-mono font-bold tracking-[0.2em] text-rose-400 uppercase">
+            <span className="text-[11px] font-mono font-bold tracking-[0.2em] text-red-400 uppercase">
               Access Control
             </span>
             <h2 className="mt-3 text-4xl sm:text-5xl font-black tracking-tight">
@@ -618,18 +618,18 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
           <div className="flex flex-col gap-4">
             {[
               { tier: "L4", label: "System Administrator", color: "#ef4444", rights: ["Deploy infrastructure", "Manage all users", "Full audit access", "Override clearances"] },
-              { tier: "L3", label: "Department Lead", color: "#f59e0b", rights: ["Dispatch cross-dept tasks", "Approve L2 deliverables", "Review audit logs"] },
-              { tier: "L2", label: "Senior Analyst", color: "#10b981", rights: ["Assign tasks to juniors", "Sign off on L1 output", "Access knowledge base"] },
-              { tier: "L1", label: "Junior Analyst", color: "#38bdf8", rights: ["Submit tasks", "View own outputs", "Request file access"] },
+              { tier: "L3", label: "Department Lead", color: "#f87171", rights: ["Dispatch cross-dept tasks", "Approve L2 deliverables", "Review audit logs"] },
+              { tier: "L2", label: "Senior Analyst", color: "#dc2626", rights: ["Assign tasks to juniors", "Sign off on L1 output", "Access knowledge base"] },
+              { tier: "L1", label: "Junior Analyst", color: "#e11d48", rights: ["Submit tasks", "View own outputs", "Request file access"] },
             ].map((tier, i) => (
               <div
                 key={i}
-                className="flex flex-col sm:flex-row items-start sm:items-center gap-5 rounded-2xl border border-white/8 bg-white/[0.03] p-6 hover:bg-white/[0.06] transition-colors group"
+                className="flex flex-col sm:flex-row items-start sm:items-center gap-5 rounded-2xl border border-zinc-800 bg-[#111115] p-6 hover:border-red-900/40 transition-colors group"
                 style={{ transitionDelay: `${i * 50}ms` }}
               >
                 <div
-                  className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black"
-                  style={{ background: `${tier.color}20`, color: tier.color, border: `2px solid ${tier.color}44` }}
+                  className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black shadow-xs"
+                  style={{ background: `${tier.color}20`, color: tier.color, border: `2px solid ${tier.color}55` }}
                 >
                   {tier.tier}
                 </div>
@@ -640,7 +640,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
                       <span
                         key={j}
                         className="text-xs font-semibold px-3 py-1 rounded-lg font-mono"
-                        style={{ background: `${tier.color}15`, color: tier.color, border: `1px solid ${tier.color}25` }}
+                        style={{ background: `${tier.color}15`, color: tier.color, border: `1px solid ${tier.color}35` }}
                       >
                         {r}
                       </span>
@@ -654,7 +654,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
       </section>
 
       {/* ── FINAL CTA ────────────────────────────────────────── */}
-      <section className="py-24 px-6 relative overflow-hidden bg-[#08080f]">
+      <section className="py-24 px-6 relative overflow-hidden bg-[#09090b] border-t border-red-950/30">
         <div
           className="absolute inset-0 pointer-events-none opacity-20"
           style={{ background: "radial-gradient(ellipse 60% 60% at 50% 50%, #ef4444, transparent 70%)" }}
@@ -664,7 +664,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
             Ready to go<br />
             <span style={{ color: "#ef4444" }}>sovereign?</span>
           </h2>
-          <p className="text-white/50 text-lg mb-10 font-medium">
+          <p className="text-zinc-400 text-lg mb-10 font-medium">
             Authenticate with your department credentials and take full control of your AI pipeline — completely offline.
           </p>
           <button
@@ -679,7 +679,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
       </section>
 
       {/* ── FOOTER ───────────────────────────────────────────── */}
-      <footer className="border-t border-white/5 bg-[#06070d] py-8 px-6 text-center">
+      <footer className="border-t border-zinc-800 bg-[#09090b] py-8 px-6 text-center">
         <div className="flex items-center justify-center gap-3 mb-3">
           <div
             className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs bg-gradient-to-tr from-red-600 to-red-700 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]"

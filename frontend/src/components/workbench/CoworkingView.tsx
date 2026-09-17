@@ -934,10 +934,10 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
           2. DEDICATED TOPMOST ADMIN MONITORING PANEL (When currentUser is Admin)
       ───────────────────────────────────────────────────────────────── */}
       {isAdmin && (
-        <div className="bg-gradient-to-r from-purple-900 to-indigo-900 rounded-3xl p-7 text-white space-y-6 shadow-md">
+        <div className="bg-gradient-to-r from-red-950 via-zinc-900 to-zinc-950 rounded-3xl p-7 text-white space-y-6 shadow-md border border-red-900/50">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-[#111115]/10 flex items-center justify-center text-purple-200">
+              <div className="w-10 h-10 rounded-2xl bg-red-950/40 border border-red-800/40 flex items-center justify-center text-red-300">
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <div>
@@ -945,7 +945,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                   <h3 className="text-lg font-bold tracking-tight">
                     Topmost Administrator Operations Monitor
                   </h3>
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-950/300/20 text-emerald-300 text-[10px] font-extrabold border border-emerald-400/30">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-950/40 text-emerald-300 text-[10px] font-extrabold border border-emerald-400/30">
                     AIR-GAP SUPERVISOR ACTIVE
                   </span>
                 </div>

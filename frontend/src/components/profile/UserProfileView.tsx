@@ -176,17 +176,17 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
             </div>
 
             {/* Department */}
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+            <div className="flex items-center gap-2 text-xs font-bold text-zinc-400">
               <span>Department:</span>
               {isEditing ? (
                 <input
                   type="text"
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
-                  className="text-xs font-semibold text-slate-800 border-b border-sky-300 bg-sky-50/30 px-1 rounded"
+                  className="text-xs font-semibold text-white border-b border-red-500 bg-red-950/40 px-1 rounded focus:outline-none"
                 />
               ) : (
-                <span className="text-slate-800">{department}</span>
+                <span className="text-zinc-200">{department}</span>
               )}
             </div>
 
@@ -197,10 +197,10 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
                   rows={2}
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  className="w-full text-xs sm:text-sm text-slate-700 p-2.5 rounded-xl border border-sky-300 bg-sky-50/30 focus:outline-none resize-none leading-relaxed"
+                  className="w-full text-xs sm:text-sm text-zinc-100 p-2.5 rounded-xl border border-red-500 bg-red-950/30 focus:outline-none resize-none leading-relaxed"
                 />
               ) : (
-                <p className="text-xs sm:text-sm text-slate-600 max-w-3xl leading-relaxed">
+                <p className="text-xs sm:text-sm text-zinc-400 max-w-3xl leading-relaxed">
                   {bio}
                 </p>
               )}
@@ -259,115 +259,115 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
               <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
                 Total Dispatched Tasks
               </span>
-              <div className="text-3xl font-black text-slate-900">142 Tasks</div>
-              <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+              <div className="text-3xl font-black text-white">142 Tasks</div>
+              <p className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" /> 100% on-premise loopback execution
               </p>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] space-y-1">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <div className="bg-[#111115] p-5 rounded-2xl border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)] space-y-1">
+              <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
                 Deliverables Generated
               </span>
-              <div className="text-3xl font-black text-purple-700">38 Slides/Docs</div>
-              <p className="text-[11px] text-slate-500 font-medium">
+              <div className="text-3xl font-black text-red-400">38 Slides/Docs</div>
+              <p className="text-[11px] text-zinc-400 font-medium">
                 PPTX slide decks, DOCX reports, OCR sheets
               </p>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] space-y-1">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <div className="bg-[#111115] p-5 rounded-2xl border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)] space-y-1">
+              <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
                 Audit Signature Hash
               </span>
-              <div className="flex items-center gap-1.5 font-mono text-xs text-slate-800 pt-1">
+              <div className="flex items-center gap-1.5 font-mono text-xs text-zinc-200 pt-1">
                 <span className="truncate max-w-[170px]" title={auditHash}>
                   {auditHash.slice(0, 16)}...{auditHash.slice(-6)}
                 </span>
                 <button
                   type="button"
                   onClick={handleCopyHash}
-                  className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
+                  className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 cursor-pointer transition-colors"
                   title="Copy SHA-256 Audit Signature"
                 >
                   {copiedHash ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
                   ) : (
                     <Copy className="w-3.5 h-3.5" />
                   )}
                 </button>
               </div>
-              <p className="text-[11px] text-emerald-700 font-semibold">
+              <p className="text-[11px] text-emerald-400 font-semibold">
                 Genesis Block #8493 notarized
               </p>
             </div>
           </div>
 
           {/* Quick Activity Feed */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">Recent Sovereign Activity</h3>
-              <span className="text-xs text-slate-400 font-medium">Synced with Local Ledger</span>
+          <div className="bg-[#111115] rounded-2xl border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)] p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <h3 className="text-base font-bold text-white">Recent Sovereign Activity</h3>
+              <span className="text-xs text-zinc-400 font-medium">Synced with Local Ledger</span>
             </div>
 
-            <div className="space-y-3.5 divide-y divide-slate-100">
+            <div className="space-y-3.5 divide-y divide-zinc-800/80">
               <div className="flex items-start gap-3.5 pt-3 first:pt-0">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-xl bg-red-950/40 text-red-400 border border-red-800/40 flex items-center justify-center shrink-0 mt-0.5">
                   <Terminal className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm font-bold text-slate-800">
+                  <p className="text-xs sm:text-sm font-bold text-zinc-200">
                     Executed sandbox test on anomaly_detect.py
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-zinc-400">
                     Ephemeral Docker runtime • 0 bytes egress detected • Memory capped at 512MB
                   </p>
                 </div>
-                <span className="text-xs text-slate-400 font-medium shrink-0">2h ago</span>
+                <span className="text-xs text-zinc-500 font-medium shrink-0">2h ago</span>
               </div>
 
               <div className="flex items-start gap-3.5 pt-3">
-                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-xl bg-red-950/30 text-rose-400 border border-red-900/30 flex items-center justify-center shrink-0 mt-0.5">
                   <Presentation className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm font-bold text-slate-800">
+                  <p className="text-xs sm:text-sm font-bold text-zinc-200">
                     Generated Exec_Brief_Q3.pptx slide deck
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-zinc-400">
                     3 Slides • Hardware Telemetry &amp; NVLink Benchmarks • Signed with SHA-256
                   </p>
                 </div>
-                <span className="text-xs text-slate-400 font-medium shrink-0">4h ago</span>
+                <span className="text-xs text-zinc-500 font-medium shrink-0">4h ago</span>
               </div>
 
               <div className="flex items-start gap-3.5 pt-3">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-xl bg-zinc-900 text-red-400 border border-zinc-800 flex items-center justify-center shrink-0 mt-0.5">
                   <FileCheck className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm font-bold text-slate-800">
+                  <p className="text-xs sm:text-sm font-bold text-zinc-200">
                     Signed Telemetry_Audit.docx with local PGP key
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-zinc-400">
                     Hardware loopback isolation report • NIST SP 800-171 criteria verified
                   </p>
                 </div>
-                <span className="text-xs text-slate-400 font-medium shrink-0">6h ago</span>
+                <span className="text-xs text-zinc-500 font-medium shrink-0">6h ago</span>
               </div>
 
               <div className="flex items-start gap-3.5 pt-3">
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-950/30 text-emerald-400 border border-emerald-800/30 flex items-center justify-center shrink-0 mt-0.5">
                   <Shield className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm font-bold text-slate-800">
+                  <p className="text-xs sm:text-sm font-bold text-zinc-200">
                     Cleared Defense Contract Compliance Audit 2026
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-zinc-400">
                     12 Pages • L4 Directorate clearance seal attached
                   </p>
                 </div>
-                <span className="text-xs text-slate-400 font-medium shrink-0">1d ago</span>
+                <span className="text-xs text-zinc-500 font-medium shrink-0">1d ago</span>
               </div>
             </div>
           </div>
@@ -377,64 +377,64 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
       {activeTab === "credentials" && (
         <div className="space-y-5 animate-in fade-in">
           {/* Card 1: Hardware Passkey */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] space-y-4">
+          <div className="bg-[#111115] p-6 rounded-2xl border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)] space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-700">
+                <div className="w-10 h-10 rounded-2xl bg-red-950/40 border border-red-800/40 flex items-center justify-center text-red-400">
                   <Fingerprint className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900">FIDO2 Hardware Security Passkey</h4>
-                  <p className="text-xs text-slate-500">Physical hardware token for L4 authorization gating</p>
+                  <h4 className="text-sm font-bold text-white">FIDO2 Hardware Security Passkey</h4>
+                  <p className="text-xs text-zinc-400">Physical hardware token for L4 authorization gating</p>
                 </div>
               </div>
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/40 text-emerald-400 border border-emerald-800/50">
                 YubiKey 5C NFC • Active
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-slate-400 block font-semibold text-[11px]">Hardware Serial</span>
-                <span className="font-mono font-bold text-slate-800">#9482-1049-NFC</span>
+              <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                <span className="text-zinc-400 block font-semibold text-[11px]">Hardware Serial</span>
+                <span className="font-mono font-bold text-zinc-200">#9482-1049-NFC</span>
               </div>
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-slate-400 block font-semibold text-[11px]">Key Algorithm</span>
-                <span className="font-mono font-bold text-slate-800">FIDO2 / ECC P-256</span>
+              <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                <span className="text-zinc-400 block font-semibold text-[11px]">Key Algorithm</span>
+                <span className="font-mono font-bold text-zinc-200">FIDO2 / ECC P-256</span>
               </div>
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-slate-400 block font-semibold text-[11px]">Touch Policy</span>
-                <span className="font-bold text-emerald-700">Enforced &amp; Verified</span>
+              <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                <span className="text-zinc-400 block font-semibold text-[11px]">Touch Policy</span>
+                <span className="font-bold text-emerald-400">Enforced &amp; Verified</span>
               </div>
             </div>
           </div>
 
           {/* Card 2: Local PGP Signing Key */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] space-y-4">
+          <div className="bg-[#111115] p-6 rounded-2xl border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)] space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700">
+                <div className="w-10 h-10 rounded-2xl bg-red-950/40 border border-red-800/40 flex items-center justify-center text-red-400">
                   <Key className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900">Local PGP Deliverable Signing Key</h4>
-                  <p className="text-xs text-slate-500">Signs Word (.docx) and PowerPoint (.pptx) artifacts offline</p>
+                  <h4 className="text-sm font-bold text-white">Local PGP Deliverable Signing Key</h4>
+                  <p className="text-xs text-zinc-400">Signs Word (.docx) and PowerPoint (.pptx) artifacts offline</p>
                 </div>
               </div>
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-950/40 text-red-300 border border-red-800/50">
                 RSA 4096 • Active
               </span>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-slate-900 text-white font-mono text-xs flex items-center justify-between">
+            <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 text-white font-mono text-xs flex items-center justify-between">
               <div className="space-y-0.5 truncate mr-2">
-                <span className="text-[10px] uppercase tracking-wider text-slate-400 block">Fingerprint</span>
-                <span className="text-purple-300 font-bold">{pgpFingerprint}</span>
+                <span className="text-[10px] uppercase tracking-wider text-zinc-400 block">Fingerprint</span>
+                <span className="text-red-400 font-bold">{pgpFingerprint}</span>
               </div>
               <button
                 type="button"
                 onClick={handleCopyPgp}
-                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-colors cursor-pointer shrink-0"
+                className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold transition-colors cursor-pointer shrink-0"
               >
                 {copiedPgp ? "Copied!" : "Copy Key"}
               </button>
@@ -442,34 +442,34 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
           </div>
 
           {/* Card 3: Docker Sandbox Identity */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] space-y-4">
+          <div className="bg-[#111115] p-6 rounded-2xl border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)] space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
+                <div className="w-10 h-10 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400">
                   <Terminal className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900">Docker Sandbox Ephemeral Identity</h4>
-                  <p className="text-xs text-slate-500">Non-root sandboxed execution privileges</p>
+                  <h4 className="text-sm font-bold text-white">Docker Sandbox Ephemeral Identity</h4>
+                  <p className="text-xs text-zinc-400">Non-root sandboxed execution privileges</p>
                 </div>
               </div>
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/40 text-emerald-400 border border-emerald-800/50">
                 workbench-sandbox:py312
               </span>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs text-slate-700 space-y-1">
+            <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 font-mono text-xs text-zinc-300 space-y-1">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">UID / GID:</span>
-                <span className="font-bold text-slate-900">uid=1001(sovereign-agent) gid=1001(airgap-sandbox)</span>
+                <span className="text-zinc-500">UID / GID:</span>
+                <span className="font-bold text-zinc-200">uid=1001(sovereign-agent) gid=1001(airgap-sandbox)</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Isolation Boundary:</span>
-                <span className="font-bold text-emerald-700">--network none (Drop all sockets)</span>
+                <span className="text-zinc-500">Isolation Boundary:</span>
+                <span className="font-bold text-emerald-400">--network none (Drop all sockets)</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Root Filesystem:</span>
-                <span className="font-bold text-slate-900">--read-only (Wiped after task termination)</span>
+                <span className="text-zinc-500">Root Filesystem:</span>
+                <span className="font-bold text-zinc-200">--read-only (Wiped after task termination)</span>
               </div>
             </div>
           </div>
@@ -479,62 +479,62 @@ export default function UserProfileView({ onClose }: UserProfileViewProps) {
       {activeTab === "sessions" && (
         <div className="space-y-5 animate-in fade-in">
           {/* Active Sessions List */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="bg-[#111115] p-6 rounded-2xl border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)] space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
               <div>
-                <h4 className="text-sm font-bold text-slate-900">Active Local Sessions</h4>
-                <p className="text-xs text-slate-500">Authenticated loopback endpoints accessing this node</p>
+                <h4 className="text-sm font-bold text-white">Active Local Sessions</h4>
+                <p className="text-xs text-zinc-400">Authenticated loopback endpoints accessing this node</p>
               </div>
               <button
                 type="button"
                 onClick={handleRevokeSessions}
-                className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                className="px-3.5 py-1.5 rounded-xl bg-red-950/50 hover:bg-red-900/60 text-red-300 border border-red-800/60 text-xs font-bold transition-all cursor-pointer shadow-2xs"
               >
                 Revoke All Other Local Sessions
               </button>
             </div>
 
             {revokedNotice && (
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold animate-in fade-in flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/50 text-emerald-300 text-xs font-bold animate-in fade-in flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 <span>All secondary sessions revoked. Only current local session remains active.</span>
               </div>
             )}
 
             <div className="space-y-3">
               {/* Session 1: Current */}
-              <div className="p-4 rounded-xl border border-purple-200 bg-purple-50/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="p-4 rounded-xl border border-red-800/60 bg-red-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-red-950/60 text-red-400 border border-red-800/40 flex items-center justify-center shrink-0">
                     <Laptop className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-900">Windows 11 Localhost (Electron / Browser)</span>
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-600 text-white">Current Session</span>
+                      <span className="text-xs font-bold text-white">Windows 11 Localhost (Electron / Browser)</span>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-600 text-white">Current Session</span>
                     </div>
-                    <span className="text-[11px] font-mono text-slate-500">
+                    <span className="text-[11px] font-mono text-zinc-400">
                       IP: 127.0.0.1 Loopback &bull; Chrome 128 &bull; Authenticated L4
                     </span>
                   </div>
                 </div>
-                <span className="text-xs font-bold text-emerald-600">Active Now</span>
+                <span className="text-xs font-bold text-emerald-400">Active Now</span>
               </div>
 
               {/* Session 2: Local CLI */}
-              <div className="p-4 rounded-xl border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="p-4 rounded-xl border border-zinc-800 bg-[#141419] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-zinc-850 text-zinc-400 border border-zinc-800 flex items-center justify-center shrink-0">
                     <Terminal className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-slate-900 block">Localhost CLI Shell (PowerShell)</span>
-                    <span className="text-[11px] font-mono text-slate-500">
+                    <span className="text-xs font-bold text-white block">Localhost CLI Shell (PowerShell)</span>
+                    <span className="text-[11px] font-mono text-zinc-400">
                       IP: 127.0.0.1:8000 &bull; PID 14920 &bull; Background Worker
                     </span>
                   </div>
                 </div>
-                <span className="text-xs text-slate-400 font-medium">Active 45m ago</span>
+                <span className="text-xs text-zinc-500 font-medium">Active 45m ago</span>
               </div>
             </div>
           </div>

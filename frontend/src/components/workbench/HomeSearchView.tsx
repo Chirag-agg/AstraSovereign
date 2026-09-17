@@ -195,24 +195,24 @@ const BARS_DATA: Record<TimeRange, ReturnType<typeof generateBars>> = {
 
 const TASK_BREAKDOWN = [
   { label: "Analysis",  pct: 45, color: "#ef4444" },
-  { label: "Code Gen",  pct: 28, color: "#0ea5e9" },
-  { label: "Doc OCR",   pct: 17, color: "#f59e0b" },
-  { label: "Reasoning", pct: 10, color: "#a78bfa" },
+  { label: "Code Gen",  pct: 28, color: "#f87171" },
+  { label: "Doc OCR",   pct: 17, color: "#dc2626" },
+  { label: "Reasoning", pct: 10, color: "#b91c1c" },
 ];
 
 const RECENT_JOBS_DEMO = [
-  { icon: <FileText className="w-4 h-4 text-sky-500" />, name: "Contract Risk Scan",     dept: "Legal",   delta: "-2 risks found",   ago: "2 min ago",   sign: -1 },
-  { icon: <Calculator className="w-4 h-4 text-emerald-500" />, name: "Budget Variance Calc",   dept: "Finance", delta: "+$3,500 savings",  ago: "10 min ago",  sign:  1 },
-  { icon: <ImageIcon className="w-4 h-4 text-amber-500" />, name: "Invoice OCR Batch",      dept: "Ops",     delta: "48 docs parsed",   ago: "2 h ago",     sign:  1 },
-  { icon: <UserIcon className="w-4 h-4 text-indigo-500" />, name: "HR Policy Audit",         dept: "HR",      delta: "3 gaps flagged",   ago: "Yesterday",   sign: -1 },
+  { icon: <FileText className="w-4 h-4 text-red-400" />, name: "Contract Risk Scan",     dept: "Legal",   delta: "-2 risks found",   ago: "2 min ago",   sign: -1 },
+  { icon: <Calculator className="w-4 h-4 text-red-500" />, name: "Budget Variance Calc",   dept: "Finance", delta: "+$3,500 savings",  ago: "10 min ago",  sign:  1 },
+  { icon: <ImageIcon className="w-4 h-4 text-rose-400" />, name: "Invoice OCR Batch",      dept: "Ops",     delta: "48 docs parsed",   ago: "2 h ago",     sign:  1 },
+  { icon: <UserIcon className="w-4 h-4 text-zinc-400" />, name: "HR Policy Audit",         dept: "HR",      delta: "3 gaps flagged",   ago: "Yesterday",   sign: -1 },
   { icon: <Activity className="w-4 h-4 text-red-500" />, name: "API Endpoint Test",       dept: "Eng",     delta: "4/4 passed",       ago: "12 Jul 2026", sign:  1 },
 ];
 
 const STAT_CARDS = [
   { label: "Total Jobs Run",  rawVal: 1284,  display: "1,284",  icon: <Layers    className="w-4 h-4"/>, delta: "+12.5%", up: true,  accent: "#ef4444" },
-  { label: "Tokens Used",     rawVal: 8750,  display: "8.75M",  icon: <Zap       className="w-4 h-4"/>, delta: "+12%",   up: true,  accent: "#0ea5e9" },
-  { label: "Active Agents",   rawVal: 4,     display: "4",      icon: <Cpu       className="w-4 h-4"/>, delta: "+1",     up: true,  accent: "#a78bfa" },
-  { label: "Zero Egress",     rawVal: 0,     display: "0 B",    icon: <ShieldCheck className="w-4 h-4"/>, delta: "✓ Clean", up: true, accent: "#10b981" },
+  { label: "Tokens Used",     rawVal: 8750,  display: "8.75M",  icon: <Zap       className="w-4 h-4"/>, delta: "+12%",   up: true,  accent: "#f87171" },
+  { label: "Active Agents",   rawVal: 4,     display: "4",      icon: <Cpu       className="w-4 h-4"/>, delta: "+1",     up: true,  accent: "#dc2626" },
+  { label: "Zero Egress",     rawVal: 0,     display: "0 B",    icon: <ShieldCheck className="w-4 h-4"/>, delta: "✓ Clean", up: true, accent: "#b91c1c" },
 ];
 
 /* ══════════════════════════════════════════════════════════════
@@ -745,10 +745,10 @@ function DashboardContent({
 
             <div className="flex items-center gap-5 mb-3 text-[10.5px] font-semibold text-zinc-400">
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-1.5 rounded-full bg-red-950/400 inline-block"/>Jobs run
+                <span className="w-3 h-1.5 rounded-full bg-red-500 inline-block"/>Jobs run
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-1.5 rounded-full bg-indigo-200 inline-block"/>Token volume
+                <span className="w-3 h-1.5 rounded-full bg-zinc-600 inline-block"/>Token volume
               </span>
             </div>
 
@@ -1119,11 +1119,11 @@ export default function HomeSearchView({
                 style={{ animation: "fadeSlideUp 0.4s ease both" }}
               >
                 <div className="flex items-center justify-center mb-5">
-                  <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-zinc-300 border border-zinc-800">
+                  <div className="w-16 h-16 rounded-2xl bg-[#18181b] flex items-center justify-center text-zinc-300 border border-zinc-800">
                     {activeTab === "sandbox" ? (
-                      <Lock className="w-8 h-8 text-sky-600" />
+                      <Lock className="w-8 h-8 text-red-400" />
                     ) : activeTab === "models" ? (
-                      <Brain className="w-8 h-8 text-indigo-600" />
+                      <Brain className="w-8 h-8 text-red-500" />
                     ) : (
                       <ScrollText className="w-8 h-8 text-red-400" />
                     )}

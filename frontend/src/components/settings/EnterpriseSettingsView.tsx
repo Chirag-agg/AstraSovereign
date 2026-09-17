@@ -46,8 +46,8 @@ export function ToggleSwitch({
     <div className="flex items-start justify-between gap-4">
       {(label || description) && (
         <div className="space-y-0.5">
-          {label && <span className="text-xs font-bold text-slate-900 block">{label}</span>}
-          {description && <p className="text-xs text-slate-500 leading-relaxed">{description}</p>}
+          {label && <span className="text-xs font-bold text-white block">{label}</span>}
+          {description && <p className="text-xs text-zinc-400 leading-relaxed">{description}</p>}
         </div>
       )}
       <button
@@ -57,7 +57,7 @@ export function ToggleSwitch({
         disabled={disabled}
         onClick={() => !disabled && onChange(!checked)}
         className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-          checked ? "bg-[#7047eb]" : "bg-slate-300"
+          checked ? "bg-red-600 shadow-[0_0_12px_rgba(239,68,68,0.4)]" : "bg-zinc-800"
         } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
       >
         <span
@@ -92,8 +92,8 @@ export function SliderWithLabel({
   return (
     <div className="space-y-2">
       <div className="flex justify-between items-center text-xs">
-        <span className="font-bold text-slate-800">{label}</span>
-        <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+        <span className="font-bold text-zinc-200">{label}</span>
+        <span className="font-mono font-bold text-red-300 bg-red-950/60 px-2 py-0.5 rounded-md border border-red-800/60">
           {value} {unit}
         </span>
       </div>
@@ -104,9 +104,9 @@ export function SliderWithLabel({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#7047eb]"
+        className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-red-600"
       />
-      {hint && <p className="text-[11px] text-slate-400 font-medium">{hint}</p>}
+      {hint && <p className="text-[11px] text-zinc-500 font-medium">{hint}</p>}
     </div>
   );
 }
@@ -125,17 +125,17 @@ export function SettingsCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5 sm:p-6 space-y-4">
-      <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-100">
+    <div className="bg-[#111115] rounded-2xl border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)] p-5 sm:p-6 space-y-4">
+      <div className="flex items-start justify-between gap-4 pb-3 border-b border-zinc-800">
         <div className="flex items-center gap-3">
           {Icon && (
-            <div className="w-9 h-9 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700 shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-red-950/40 border border-red-800/50 flex items-center justify-center text-red-400 shrink-0">
               <Icon className="w-4.5 h-4.5" />
             </div>
           )}
           <div>
-            <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">{title}</h3>
-            {subtitle && <p className="text-xs text-slate-500 font-medium mt-0.5">{subtitle}</p>}
+            <h3 className="text-sm sm:text-base font-bold text-white leading-snug">{title}</h3>
+            {subtitle && <p className="text-xs text-zinc-400 font-medium mt-0.5">{subtitle}</p>}
           </div>
         </div>
         {badge}
@@ -275,30 +275,30 @@ export default function EnterpriseSettingsView() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#F8FAFC]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#09090b]">
       <div className="max-w-[1440px] mx-auto w-full space-y-6">
         {/* Header Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 bg-white p-5 rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800 bg-[#111115] p-5 rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.4)]">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full">
+              <span className="text-xs font-bold uppercase tracking-wider text-red-300 bg-red-950/60 border border-red-800/60 px-2.5 py-0.5 rounded-full font-mono">
                 Enterprise Node Governance
               </span>
-              <span className="text-xs font-bold text-slate-500">
+              <span className="text-xs font-bold text-zinc-500 font-mono">
                 config/models.yaml &bull; Local Only
               </span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
               Enterprise Settings &amp; Configuration
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+            <p className="text-xs sm:text-sm text-zinc-400 font-medium mt-0.5">
               Configure on-premise model routing, hardware quotas, NetworkGuard egress rules, and Docker sandboxes.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-800/50 shadow-2xs font-mono">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
               Airgap Node Config Synced
             </span>
           </div>
@@ -307,16 +307,16 @@ export default function EnterpriseSettingsView() {
         {/* 2-Column Layout: Left Sub-Tabs + Right Dynamic Canvas */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left Navigation Sub-Tabs */}
-          <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-3 space-y-1.5">
+          <div className="lg:col-span-3 bg-[#111115] rounded-2xl border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)] p-3 space-y-1.5">
             <button
               onClick={() => setActiveSubTab("general")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-left transition-all cursor-pointer ${
                 activeSubTab === "general"
-                  ? "bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-red-950/60 text-red-300 border border-red-800/60 shadow-2xs"
+                  : "text-zinc-400 hover:bg-zinc-850 hover:text-white"
               }`}
             >
-              <Settings className="w-4 h-4 text-purple-600 shrink-0" />
+              <Settings className={`w-4 h-4 shrink-0 ${activeSubTab === "general" ? "text-red-400" : "text-zinc-400"}`} />
               <span>General &amp; Workspace</span>
             </button>
 
@@ -324,11 +324,11 @@ export default function EnterpriseSettingsView() {
               onClick={() => setActiveSubTab("models")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-left transition-all cursor-pointer ${
                 activeSubTab === "models"
-                  ? "bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-red-950/60 text-red-300 border border-red-800/60 shadow-2xs"
+                  : "text-zinc-400 hover:bg-zinc-850 hover:text-white"
               }`}
             >
-              <Bot className="w-4 h-4 text-purple-600 shrink-0" />
+              <Bot className={`w-4 h-4 shrink-0 ${activeSubTab === "models" ? "text-red-400" : "text-zinc-400"}`} />
               <span>Local Models &amp; Routing</span>
             </button>
 
@@ -336,11 +336,11 @@ export default function EnterpriseSettingsView() {
               onClick={() => setActiveSubTab("compute")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-left transition-all cursor-pointer ${
                 activeSubTab === "compute"
-                  ? "bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-red-950/60 text-red-300 border border-red-800/60 shadow-2xs"
+                  : "text-zinc-400 hover:bg-zinc-850 hover:text-white"
               }`}
             >
-              <Cpu className="w-4 h-4 text-purple-600 shrink-0" />
+              <Cpu className={`w-4 h-4 shrink-0 ${activeSubTab === "compute" ? "text-red-400" : "text-zinc-400"}`} />
               <span>Compute &amp; VRAM Quotas</span>
             </button>
 
@@ -348,11 +348,11 @@ export default function EnterpriseSettingsView() {
               onClick={() => setActiveSubTab("airgap")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-left transition-all cursor-pointer ${
                 activeSubTab === "airgap"
-                  ? "bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-red-950/60 text-red-300 border border-red-800/60 shadow-2xs"
+                  : "text-zinc-400 hover:bg-zinc-850 hover:text-white"
               }`}
             >
-              <Shield className="w-4 h-4 text-purple-600 shrink-0" />
+              <Shield className={`w-4 h-4 shrink-0 ${activeSubTab === "airgap" ? "text-red-400" : "text-zinc-400"}`} />
               <span>Airgap &amp; NetworkGuard</span>
             </button>
 
@@ -360,11 +360,11 @@ export default function EnterpriseSettingsView() {
               onClick={() => setActiveSubTab("docker")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-left transition-all cursor-pointer ${
                 activeSubTab === "docker"
-                  ? "bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-red-950/60 text-red-300 border border-red-800/60 shadow-2xs"
+                  : "text-zinc-400 hover:bg-zinc-850 hover:text-white"
               }`}
             >
-              <Box className="w-4 h-4 text-purple-600 shrink-0" />
+              <Box className={`w-4 h-4 shrink-0 ${activeSubTab === "docker" ? "text-red-400" : "text-zinc-400"}`} />
               <span>Docker Sandbox Environment</span>
             </button>
 
@@ -372,11 +372,11 @@ export default function EnterpriseSettingsView() {
               onClick={() => setActiveSubTab("office")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-left transition-all cursor-pointer ${
                 activeSubTab === "office"
-                  ? "bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-red-950/60 text-red-300 border border-red-800/60 shadow-2xs"
+                  : "text-zinc-400 hover:bg-zinc-850 hover:text-white"
               }`}
             >
-              <FileText className="w-4 h-4 text-purple-600 shrink-0" />
+              <FileText className={`w-4 h-4 shrink-0 ${activeSubTab === "office" ? "text-red-400" : "text-zinc-400"}`} />
               <span>Office Deliverables &amp; Themes</span>
             </button>
           </div>
@@ -394,7 +394,7 @@ export default function EnterpriseSettingsView() {
                 >
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-800">Workspace Node Name</label>
+                      <label className="text-xs font-bold text-zinc-200">Workspace Node Name</label>
                       <input
                         type="text"
                         value={workspaceName}
@@ -402,24 +402,24 @@ export default function EnterpriseSettingsView() {
                           setWorkspaceName(e.target.value);
                           triggerChange();
                         }}
-                        className="w-full text-xs font-medium p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:border-purple-500"
+                        className="w-full text-xs font-medium p-2.5 rounded-xl border border-zinc-800 bg-zinc-900 text-white focus:outline-none focus:border-red-600"
                       />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase block">
+                      <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                        <span className="text-[11px] font-bold text-zinc-400 uppercase block font-mono">
                           Project Storage Root
                         </span>
-                        <span className="font-mono text-xs font-bold text-slate-800 block mt-0.5">
+                        <span className="font-mono text-xs font-bold text-zinc-200 block mt-0.5">
                           /data/projects
                         </span>
                       </div>
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase block">
+                      <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                        <span className="text-[11px] font-bold text-zinc-400 uppercase block font-mono">
                           Cowork Workspace Root
                         </span>
-                        <span className="font-mono text-xs font-bold text-slate-800 block mt-0.5">
+                        <span className="font-mono text-xs font-bold text-zinc-200 block mt-0.5">
                           /data/workspaces
                         </span>
                       </div>
@@ -434,8 +434,8 @@ export default function EnterpriseSettingsView() {
                 >
                   <div className="space-y-5">
                     <div>
-                      <label className="text-xs font-bold text-slate-800 block mb-2">Theme Mode</label>
-                      <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200 gap-1">
+                      <label className="text-xs font-bold text-zinc-200 block mb-2">Theme Mode</label>
+                      <div className="inline-flex p-1 rounded-xl bg-zinc-900 border border-zinc-800 gap-1">
                         {(["light", "dark", "system"] as const).map((m) => (
                           <button
                             key={m}
@@ -446,8 +446,8 @@ export default function EnterpriseSettingsView() {
                             }}
                             className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all cursor-pointer ${
                               themeMode === m
-                                ? "bg-white text-purple-700 shadow-xs border border-slate-200"
-                                : "text-slate-600 hover:text-slate-900"
+                                ? "bg-red-950/60 text-red-300 shadow-xs border border-red-800/60"
+                                : "text-zinc-400 hover:text-white"
                             }`}
                           >
                             {m === "system" ? "System Sync" : m}
@@ -491,12 +491,12 @@ export default function EnterpriseSettingsView() {
                         setOllamaEndpoint(e.target.value);
                         triggerChange();
                       }}
-                      className="flex-1 w-full text-xs font-mono p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:border-purple-500"
+                      className="flex-1 w-full text-xs font-mono p-2.5 rounded-xl border border-zinc-800 bg-zinc-900 text-white focus:outline-none focus:border-red-600"
                     />
                     <button
                       type="button"
                       onClick={testOllama}
-                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs shrink-0"
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs shrink-0"
                     >
                       <RotateCw className={`w-3.5 h-3.5 ${ollamaTestState === "testing" ? "animate-spin" : ""}`} />
                       <span>{ollamaTestState === "testing" ? "Probing..." : "Test Connection"}</span>
@@ -504,8 +504,8 @@ export default function EnterpriseSettingsView() {
                   </div>
 
                   {ollamaTestState === "ok" && (
-                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/50 text-emerald-300 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                       <span>Daemon Connected at http://127.0.0.1:11434 &bull; Version 0.4.1 (PCIe NVLink Active)</span>
                     </div>
                   )}
@@ -519,10 +519,10 @@ export default function EnterpriseSettingsView() {
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Capability 1: Reasoning & Code */}
-                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                    <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900">Reasoning &amp; Code</span>
-                        <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                        <span className="text-xs font-bold text-white">Reasoning &amp; Code</span>
+                        <span className="text-[10px] font-bold text-red-300 bg-red-950/60 px-2 py-0.5 rounded border border-red-800/60 font-mono">
                           Primary
                         </span>
                       </div>
@@ -532,21 +532,21 @@ export default function EnterpriseSettingsView() {
                           setReasoningModel(e.target.value);
                           triggerChange();
                         }}
-                        className="w-full text-xs font-semibold p-2 rounded-lg border border-slate-200 bg-white focus:outline-none"
+                        className="w-full text-xs font-semibold p-2 rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-200 focus:outline-none focus:border-red-600"
                       >
                         <option value="qwen2.5-coder:14b">qwen2.5-coder:14b (Recommended)</option>
                         <option value="qwen2.5-coder:3b">qwen2.5-coder:3b (Fast)</option>
                         <option value="deepseek-r1:14b">deepseek-r1:14b (Deep Reasoning)</option>
                         <option value="llama3.3:70b">llama3.3:70b (Multi-GPU NVLink)</option>
                       </select>
-                      <p className="text-[10.5px] text-slate-500">Autonomous tool dispatch, Python execution, refactors</p>
+                      <p className="text-[10.5px] text-zinc-400">Autonomous tool dispatch, Python execution, refactors</p>
                     </div>
 
                     {/* Capability 2: Document Intelligence & OCR */}
-                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                    <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900">Document OCR &amp; Tables</span>
-                        <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                        <span className="text-xs font-bold text-white">Document OCR &amp; Tables</span>
+                        <span className="text-[10px] font-bold text-rose-300 bg-red-950/50 px-2 py-0.5 rounded border border-red-800/50 font-mono">
                           Vision
                         </span>
                       </div>
@@ -556,20 +556,20 @@ export default function EnterpriseSettingsView() {
                           setOcrModel(e.target.value);
                           triggerChange();
                         }}
-                        className="w-full text-xs font-semibold p-2 rounded-lg border border-slate-200 bg-white focus:outline-none"
+                        className="w-full text-xs font-semibold p-2 rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-200 focus:outline-none focus:border-red-600"
                       >
                         <option value="rapidocr">rapidocr (Local C++ Engine)</option>
                         <option value="surya-ocr">surya-ocr (High-Res Ingestion)</option>
                         <option value="tesseract">tesseract-ocr (CPU Fallback)</option>
                       </select>
-                      <p className="text-[10.5px] text-slate-500">Extracts tabular invoices, work orders, scanned PDFs</p>
+                      <p className="text-[10.5px] text-zinc-400">Extracts tabular invoices, work orders, scanned PDFs</p>
                     </div>
 
                     {/* Capability 3: Vision Analysis */}
-                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                    <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900">Vision Analysis</span>
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        <span className="text-xs font-bold text-white">Vision Analysis</span>
+                        <span className="text-[10px] font-bold text-amber-300 bg-amber-950/50 px-2 py-0.5 rounded border border-amber-800/50 font-mono">
                           Multimodal
                         </span>
                       </div>
@@ -579,20 +579,20 @@ export default function EnterpriseSettingsView() {
                           setVisionModel(e.target.value);
                           triggerChange();
                         }}
-                        className="w-full text-xs font-semibold p-2 rounded-lg border border-slate-200 bg-white focus:outline-none"
+                        className="w-full text-xs font-semibold p-2 rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-200 focus:outline-none focus:border-red-600"
                       >
                         <option value="llava:7b">llava:7b (Local Vision)</option>
                         <option value="llama3.2-vision:11b">llama3.2-vision:11b</option>
                         <option value="qwen-vl:7b">qwen-vl:7b</option>
                       </select>
-                      <p className="text-[10.5px] text-slate-500">Diagram analysis, schematic visual inspection</p>
+                      <p className="text-[10.5px] text-zinc-400">Diagram analysis, schematic visual inspection</p>
                     </div>
 
                     {/* Capability 4: Embeddings */}
-                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+                    <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900">Embeddings (RAG Vault)</span>
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        <span className="text-xs font-bold text-white">Embeddings (RAG Vault)</span>
+                        <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-800/50 font-mono">
                           ChromaDB
                         </span>
                       </div>
@@ -602,17 +602,17 @@ export default function EnterpriseSettingsView() {
                           setEmbeddingsModel(e.target.value);
                           triggerChange();
                         }}
-                        className="w-full text-xs font-semibold p-2 rounded-lg border border-slate-200 bg-white focus:outline-none"
+                        className="w-full text-xs font-semibold p-2 rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-200 focus:outline-none focus:border-red-600"
                       >
                         <option value="nomic-embed-text">nomic-embed-text (8192 dim)</option>
                         <option value="bge-m3">bge-m3 (Dense + Sparse)</option>
                         <option value="all-minilm-l6-v2">all-minilm-l6-v2</option>
                       </select>
-                      <p className="text-[10.5px] text-slate-500">Vector search across air-gapped compliance documents</p>
+                      <p className="text-[10.5px] text-zinc-400">Vector search across air-gapped compliance documents</p>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="pt-4 border-t border-zinc-800 grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <SliderWithLabel
                       label="Context Window Limit"
                       value={contextWindow}
@@ -670,22 +670,22 @@ export default function EnterpriseSettingsView() {
                     />
 
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-800">Model VRAM Grant Policy</label>
+                      <label className="text-xs font-bold text-zinc-200">Model VRAM Grant Policy</label>
                       <select
                         value={vramGrantPolicy}
                         onChange={(e) => {
                           setVramGrantPolicy(e.target.value as "reject" | "queue");
                           triggerChange();
                         }}
-                        className="w-full text-xs font-semibold p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none"
+                        className="w-full text-xs font-semibold p-2.5 rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-200 focus:outline-none focus:border-red-600"
                       >
                         <option value="queue">Queue until VRAM freed (FIFO task prioritization)</option>
                         <option value="reject">Strict Reject when full (Prevents any out-of-memory crashes)</option>
                       </select>
-                      <p className="text-[11px] text-slate-500">Defines behavior when incoming task exceeds available VRAM</p>
+                      <p className="text-[11px] text-zinc-400">Defines behavior when incoming task exceeds available VRAM</p>
                     </div>
 
-                    <div className="pt-3 border-t border-slate-100">
+                    <div className="pt-3 border-t border-zinc-800">
                       <SliderWithLabel
                         label="Docker Sandbox RAM Quota"
                         value={sandboxMemoryCap}
@@ -701,10 +701,10 @@ export default function EnterpriseSettingsView() {
                       />
                     </div>
 
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <div className="pt-3 border-t border-zinc-800 flex items-center justify-between">
                       <div>
-                        <span className="text-xs font-bold text-slate-900 block">Max Concurrent Worker Tasks</span>
-                        <p className="text-xs text-slate-500">Parallel pipelines executing on on-premise hardware</p>
+                        <span className="text-xs font-bold text-white block">Max Concurrent Worker Tasks</span>
+                        <p className="text-xs text-zinc-400">Parallel pipelines executing on on-premise hardware</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -714,11 +714,11 @@ export default function EnterpriseSettingsView() {
                             setMaxWorkers((w) => Math.max(1, w - 1));
                             triggerChange();
                           }}
-                          className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 font-bold text-sm disabled:opacity-40 cursor-pointer"
+                          className="w-8 h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 font-bold text-sm disabled:opacity-40 cursor-pointer"
                         >
                           -
                         </button>
-                        <span className="font-bold font-mono text-sm px-2">{maxWorkers} Workers</span>
+                        <span className="font-bold font-mono text-sm px-2 text-white">{maxWorkers} Workers</span>
                         <button
                           type="button"
                           disabled={maxWorkers >= 4}
@@ -726,7 +726,7 @@ export default function EnterpriseSettingsView() {
                             setMaxWorkers((w) => Math.min(4, w + 1));
                             triggerChange();
                           }}
-                          className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 font-bold text-sm disabled:opacity-40 cursor-pointer"
+                          className="w-8 h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 font-bold text-sm disabled:opacity-40 cursor-pointer"
                         >
                           +
                         </button>
@@ -747,7 +747,7 @@ export default function EnterpriseSettingsView() {
                   badge={<BadgePill variant="emerald">Zero Egress Enforced</BadgePill>}
                 >
                   <div className="space-y-4">
-                    <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200">
+                    <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-800/40">
                       <ToggleSwitch
                         checked={strictEgress}
                         onChange={(v) => {
@@ -760,13 +760,13 @@ export default function EnterpriseSettingsView() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <span className="text-slate-400 block font-bold text-[11px]">Outbound Packets Allowed</span>
-                        <span className="font-mono font-bold text-emerald-700 text-sm">0 Packets (Drop All)</span>
+                      <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                        <span className="text-zinc-400 block font-bold text-[11px] font-mono">Outbound Packets Allowed</span>
+                        <span className="font-mono font-bold text-emerald-400 text-sm">0 Packets (Drop All)</span>
                       </div>
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <span className="text-slate-400 block font-bold text-[11px]">Permitted Interface</span>
-                        <span className="font-mono font-bold text-slate-800 text-sm">lo (127.0.0.1 only)</span>
+                      <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                        <span className="text-zinc-400 block font-bold text-[11px] font-mono">Permitted Interface</span>
+                        <span className="font-mono font-bold text-zinc-200 text-sm">lo (127.0.0.1 only)</span>
                       </div>
                     </div>
                   </div>
@@ -780,8 +780,8 @@ export default function EnterpriseSettingsView() {
                 >
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <span className="text-xs font-bold text-slate-800 block">Audit Log Path</span>
-                      <div className="font-mono text-xs p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700">
+                      <span className="text-xs font-bold text-zinc-300 block">Audit Log Path</span>
+                      <div className="font-mono text-xs p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300">
                         /data/audit/audit_trail.jsonl
                       </div>
                     </div>
@@ -790,7 +790,7 @@ export default function EnterpriseSettingsView() {
                       <button
                         type="button"
                         onClick={verifyLedger}
-                        className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-2xs"
+                        className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-2xs"
                       >
                         <CheckCircle2 className="w-4 h-4" />
                         <span>Verify Ledger Integrity</span>
@@ -807,16 +807,16 @@ export default function EnterpriseSettingsView() {
                           a.download = "audit_trail.jsonl";
                           a.click();
                         }}
-                        className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-2xs"
+                        className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-zinc-800 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-2xs"
                       >
-                        <Download className="w-4 h-4 text-slate-500" />
+                        <Download className="w-4 h-4 text-zinc-400" />
                         <span>Export Audit Log (.jsonl)</span>
                       </button>
                     </div>
 
                     {ledgerVerificationStatus && (
-                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold animate-in fade-in flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/50 text-emerald-300 text-xs font-bold animate-in fade-in flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                         <span>{ledgerVerificationStatus}</span>
                       </div>
                     )}
@@ -836,7 +836,7 @@ export default function EnterpriseSettingsView() {
                 >
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-800">Sandbox Docker Image Tag</label>
+                      <label className="text-xs font-bold text-zinc-200">Sandbox Docker Image Tag</label>
                       <input
                         type="text"
                         value={sandboxImage}
@@ -844,31 +844,31 @@ export default function EnterpriseSettingsView() {
                           setSandboxImage(e.target.value);
                           triggerChange();
                         }}
-                        className="w-full text-xs font-mono p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:border-purple-500"
+                        className="w-full text-xs font-mono p-2.5 rounded-xl border border-zinc-800 bg-zinc-900 text-white focus:outline-none focus:border-red-600"
                       />
                     </div>
 
                     <div className="space-y-2 pt-1">
-                      <span className="text-xs font-bold text-slate-700 block">Active Security Flags (Read-Only)</span>
+                      <span className="text-xs font-bold text-zinc-300 block">Active Security Flags (Read-Only)</span>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2 font-mono text-[11px] text-slate-700">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center gap-2 font-mono text-[11px] text-zinc-300">
+                          <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           <span>--network none</span>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2 font-mono text-[11px] text-slate-700">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center gap-2 font-mono text-[11px] text-zinc-300">
+                          <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           <span>--read-only rootfs</span>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2 font-mono text-[11px] text-slate-700">
-                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center gap-2 font-mono text-[11px] text-zinc-300">
+                          <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           <span>Non-root execution</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-slate-100 space-y-3">
+                    <div className="pt-3 border-t border-zinc-800 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900">One-Click Sandbox Health Check</span>
+                        <span className="text-xs font-bold text-white">One-Click Sandbox Health Check</span>
                         <button
                           type="button"
                           onClick={testSandbox}
@@ -881,7 +881,7 @@ export default function EnterpriseSettingsView() {
                       </div>
 
                       {sandboxCheckOutput && (
-                        <div className="p-3 rounded-xl bg-[#0a0d14] border border-slate-800 text-emerald-400 font-mono text-xs whitespace-pre-wrap animate-in fade-in">
+                        <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-emerald-400 font-mono text-xs whitespace-pre-wrap animate-in fade-in">
                           {sandboxCheckOutput}
                         </div>
                       )}
@@ -902,14 +902,14 @@ export default function EnterpriseSettingsView() {
                 >
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-800">Default Presentation Theme</label>
+                      <label className="text-xs font-bold text-zinc-200">Default Presentation Theme</label>
                       <select
                         value={pptxTheme}
                         onChange={(e) => {
                           setPptxTheme(e.target.value);
                           triggerChange();
                         }}
-                        className="w-full text-xs font-semibold p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none"
+                        className="w-full text-xs font-semibold p-2.5 rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-200 focus:outline-none focus:border-red-600"
                       >
                         <option value="Defense Briefing (Navy/Slate)">Defense Briefing (Navy/Slate)</option>
                         <option value="Executive Minimalist">Executive Minimalist (Light)</option>
@@ -918,8 +918,8 @@ export default function EnterpriseSettingsView() {
                     </div>
 
                     <div className="space-y-1 pt-1">
-                      <label className="text-xs font-bold text-slate-800 block mb-2">Slide Aspect Ratio</label>
-                      <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200 gap-1">
+                      <label className="text-xs font-bold text-zinc-200 block mb-2">Slide Aspect Ratio</label>
+                      <div className="inline-flex p-1 rounded-xl bg-zinc-900 border border-zinc-800 gap-1">
                         {(["16:9", "4:3"] as const).map((ratio) => (
                           <button
                             key={ratio}
@@ -930,8 +930,8 @@ export default function EnterpriseSettingsView() {
                             }}
                             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                               pptxAspectRatio === ratio
-                                ? "bg-white text-purple-700 shadow-xs border border-slate-200"
-                                : "text-slate-600 hover:text-slate-900"
+                                ? "bg-red-950/60 text-red-300 shadow-xs border border-red-800/60"
+                                : "text-zinc-400 hover:text-white"
                             }`}
                           >
                             {ratio === "16:9" ? "16:9 Widescreen (Default)" : "4:3 Standard"}
@@ -948,7 +948,7 @@ export default function EnterpriseSettingsView() {
                   icon={FileText}
                 >
                   <div className="space-y-4">
-                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+                    <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800">
                       <ToggleSwitch
                         checked={includeHashInDocxFooter}
                         onChange={(v) => {
@@ -968,10 +968,10 @@ export default function EnterpriseSettingsView() {
 
         {/* Sticky Bottom Save Bar */}
         {hasChanges && (
-          <div className="sticky bottom-4 z-40 bg-slate-900/95 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl border border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in slide-in-from-bottom-3 duration-200">
+          <div className="sticky bottom-4 z-40 bg-[#111115]/95 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl border border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in slide-in-from-bottom-3 duration-200">
             <div className="flex items-center gap-2.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
-              <span className="text-xs sm:text-sm font-bold">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-xs sm:text-sm font-bold text-zinc-200">
                 You have unsaved changes to on-premise governance configuration.
               </span>
             </div>
@@ -979,7 +979,7 @@ export default function EnterpriseSettingsView() {
               <button
                 type="button"
                 onClick={handleReset}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Undo2 className="w-3.5 h-3.5" />
                 <span>Reset</span>
@@ -995,6 +995,7 @@ export default function EnterpriseSettingsView() {
             </div>
           </div>
         )}
+
 
         {/* Toast Notification */}
         {toastMessage && (
