@@ -36,6 +36,16 @@ class Settings(BaseSettings):
     # mid-run, so the default is generous enough to survive a slow node.
     ollama_timeout_seconds: float = 300.0
 
+    # Ollama residency hint sent on every request ("5m" reproduces Ollama's own
+    # default idle-unload). On a genuine capability switch between pipeline
+    # nodes, the node sequence additionally force-unloads the outgoing model
+    # (see OllamaService.unload_and_wait) rather than waiting out this timer.
+    ollama_keep_alive: str = "5m"
+    # Bounded wait for a forced unload to actually clear VRAM before the next
+    # model's reservation is requested (best-effort; never blocks a job past
+    # this deadline even if the unload doesn't complete in time).
+    ollama_unload_wait_seconds: float = 2.0
+
     # Path to the models configuration file (task type -> model mapping).
     models_config: str = str(REPO_ROOT / "config" / "models.yaml")
 

@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import inspect
 import json
 import math
 import re
@@ -445,6 +446,42 @@ def make_scripted_handler(responses, delay_seconds: float = 0.0):
     return handler
 
 
+def _wrap_lifecycle_calls(handler):
+    """Intercept OllamaService.unload_and_wait's own HTTP traffic (a
+    ``/api/generate`` call with no ``prompt`` and ``keep_alive: 0``, plus its
+    ``/api/ps`` polling) before it ever reaches a test-authored handler.
+
+    These are model-lifecycle calls, not model turns: a scripted handler's
+    response list is a script of *model turns*, and none of the make_*
+    handler factories above know about this traffic, so without this they'd
+    either consume a scripted response meant for a real turn or raise on an
+    unhandled path. Applied once, at the single point (client_factory) where
+    every test's handler meets OllamaService's transport.
+    """
+
+    async def wrapped(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/generate":
+            try:
+                payload = json.loads(request.content)
+            except ValueError:
+                payload = {}
+            # Unambiguously an unload call, never a legitimate scripted model
+            # turn (which always carries a prompt) — always short-circuited.
+            if payload.get("keep_alive") == 0 and "prompt" not in payload:
+                return httpx.Response(200, json={})
+        result = handler(request)
+        if inspect.isawaitable(result):
+            result = await result
+        # A test that defines its own /api/ps response (e.g. to assert on
+        # residency) takes priority; only default to "nothing resident" when
+        # the handler doesn't know about the path at all (its 404 fallback).
+        if request.url.path == "/api/ps" and result.status_code == 404:
+            return httpx.Response(200, json={"models": []})
+        return result
+
+    return wrapped
+
+
 def make_mutable_scripted_handler(script, delay_seconds: float = 0.0):
     """Mock Ollama that reads a caller-mutated list of model outputs live.
 
@@ -657,7 +694,7 @@ def client_factory(app_settings, test_models):
         settings = app_settings.model_copy(update=updates) if updates else app_settings
         app = create_app(
             settings=settings,
-            ollama_transport=httpx.MockTransport(handler),
+            ollama_transport=httpx.MockTransport(_wrap_lifecycle_calls(handler)),
             model_registry=registry,
             sandbox_runner=sandbox_runner,
             resource_capacity=resource_capacity,

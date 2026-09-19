@@ -114,6 +114,8 @@ class NodeAgent:
         fallback_enabled: bool = True,
         is_cancelled=None,
         tools=None,
+        ollama_service=None,
+        unload_wait_seconds: float = 2.0,
     ) -> None:
         self._agent = agent
         self._router = capability_router
@@ -125,6 +127,10 @@ class NodeAgent:
         self._available_models_provider = available_models_provider
         self._fallback_enabled = fallback_enabled
         self._is_cancelled = is_cancelled
+        # Used to force-unload a model at a genuine capability switch (see
+        # _ensure_reservation) instead of waiting out Ollama's idle timer.
+        self._ollama = ollama_service
+        self._unload_wait_seconds = unload_wait_seconds
         # Model currently reserved with the scheduler. Held across consecutive
         # nodes that resolve to the same model (never reserve/release per node),
         # released on change or at the end of the sequence.
@@ -289,7 +295,7 @@ class NodeAgent:
         if attachment_block:
             parts.append(attachment_block)
         parts.append(f"REQUEST:\n{task}")
-        await self._ensure_reservation(job, model, route.requirements)
+        await self._ensure_reservation(job, model, route.requirements, trace=trace)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
             task_text="\n\n".join(parts),
@@ -376,7 +382,7 @@ class NodeAgent:
         if attachment_block:
             parts.append(attachment_block)
         parts.append(f"REQUEST:\n{task}")
-        await self._ensure_reservation(job, model, route.requirements)
+        await self._ensure_reservation(job, model, route.requirements, trace=trace)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
             task_text="\n\n".join(parts),
@@ -438,7 +444,7 @@ class NodeAgent:
                 "from memory."
             )
         start = len(trace)
-        await self._ensure_reservation(job, model, route.requirements)
+        await self._ensure_reservation(job, model, route.requirements, trace=trace)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
             task_text=f"{instruction}\n\nREQUEST:\n{task}",
@@ -570,7 +576,7 @@ class NodeAgent:
             # Degenerate path: a plain prompt passes through (nearly) unmodified,
             # so chat does not get wordier just because it ran through the engine.
             node_task = task
-        await self._ensure_reservation(job, model, route.requirements)
+        await self._ensure_reservation(job, model, route.requirements, trace=trace)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
             task_text=node_task,
@@ -778,18 +784,48 @@ class NodeAgent:
 
     # -- resource reservation -------------------------------------------------
 
-    async def _ensure_reservation(self, job, model, requirements):
+    async def _ensure_reservation(self, job, model, requirements, trace=None):
         """Reserve ``model`` for this job, holding across same-model nodes.
 
         A single worker runs one job at a time, so the hold is released before
         requesting a different model — never reserved/released per node, which
-        would thrash weights when capabilities map to distinct models.
+        would thrash weights when capabilities map to distinct models. On a
+        genuine switch, the outgoing model is also force-unloaded (bounded,
+        best-effort) rather than left to Ollama's idle timer, so the VRAM it
+        held is actually free before the new reservation is requested.
         """
         if self._scheduler is None or self._held_model == model:
             return
         if self._held_model is not None:
+            old_model = self._held_model
             await self._scheduler.release(job.job_id)
             self._held_model = None
+            if self._ollama is not None:
+                try:
+                    left_vram = await self._ollama.unload_and_wait(
+                        old_model, timeout=self._unload_wait_seconds
+                    )
+                except Exception:
+                    left_vram = False
+                if not left_vram:
+                    logger.warning(
+                        "model_unload_incomplete",
+                        extra={
+                            "event": "model_unloaded",
+                            "job_id": job.job_id,
+                            "model": old_model,
+                            "ok": False,
+                        },
+                    )
+                if trace is not None:
+                    trace.append(
+                        {
+                            "step": len(trace) + 1,
+                            "type": "model_unloaded",
+                            "model": old_model,
+                            "ok": left_vram,
+                        }
+                    )
         while True:
             decision = await self._scheduler.request(
                 job.job_id, job.user_id, model, requirements

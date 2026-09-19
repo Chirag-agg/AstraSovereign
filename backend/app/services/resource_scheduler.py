@@ -136,7 +136,7 @@ class InMemoryResourceScheduler(ResourceScheduler):
             )
             return SchedulerDecision(decision=REJECT, reason=reason)
 
-        allocation = await self._provider.try_allocate(job_id, req)
+        allocation = await self._provider.try_allocate(job_id, req, model=model)
         if allocation is not None:
             self._waiters.pop(job_id, None)
             logger.info(

@@ -215,9 +215,21 @@ async def admin_resources(request: Request, _: str = Depends(require_admin)) -> 
     capacity = provider.capacity()
     allocated = provider.allocated()
     waiters = scheduler.stats().get("queued_jobs", 0)
+    # ``allocated`` is the scheduler's own belief about what's reserved (a
+    # label); ``ollama_resident`` is what Ollama's own /api/ps reports as
+    # actually loaded. The delta between them is the honest signal — shown
+    # side by side rather than trusting either alone.
+    ollama_resident: list[dict] = []
+    ollama_service = getattr(request.app.state, "ollama_service", None)
+    if ollama_service is not None:
+        try:
+            ollama_resident = await ollama_service.list_running_models()
+        except Exception:
+            ollama_resident = []
     return {
         "capacity": capacity.model_dump(),
         "allocated": [a.model_dump(mode="json") for a in allocated],
+        "ollama_resident": ollama_resident,
         "waiting_jobs": waiters,
         "running_jobs": scheduler.stats().get("running_jobs", 0),
         "allocated_gpu": scheduler.stats()["allocated"]["gpu"],

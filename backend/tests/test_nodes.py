@@ -111,12 +111,44 @@ class FakeAgent:
         return None
 
 
-def make_agent(results):
+def make_agent(results, ollama_service=None, scheduler=None):
     return NodeAgent(
         agent=FakeAgent(results),
         capability_router=CapabilityRouter(build_registry(MODELS)),
         registry=build_registry(MODELS),
+        ollama_service=ollama_service,
+        scheduler=scheduler,
     )
+
+
+class SpyOllamaService:
+    """Records unload_and_wait calls without touching a real Ollama."""
+
+    def __init__(self, fail_on=()):
+        self.unload_calls: list[str] = []
+        self._fail_on = set(fail_on)
+
+    async def unload_and_wait(self, model, timeout=2.0):
+        self.unload_calls.append(model)
+        if model in self._fail_on:
+            raise RuntimeError("simulated unload failure")
+        return True
+
+
+class AlwaysGrantScheduler:
+    """Minimal scheduler test double: every request is granted immediately,
+    so _ensure_reservation's model-switch/unload branch actually runs."""
+
+    async def request(self, job_id, user_id, model, requirements):
+        from app.services.resource_scheduler import GRANT, SchedulerDecision
+
+        return SchedulerDecision(decision=GRANT)
+
+    async def release(self, job_id):
+        return None
+
+    async def wait_until_available(self, timeout=1.0):
+        return None
 
 
 def _capture(node_agent):
@@ -177,6 +209,46 @@ def test_sequence_routes_four_models_and_compute_sees_typed_object():
     assert '"readings"' in compute_task  # typed object, not raw transcript
     assert node_agent.last_assessment is not None
     assert node_agent.last_assessment.courses
+
+
+def test_model_switch_unloads_the_outgoing_model():
+    """Every genuine capability switch (doc-model -> coder-model -> general-model)
+    force-unloads the model just released; consecutive same-model nodes
+    (extract -> retrieve, both doc-model) never do."""
+    results = [
+        AgentResult(status=AgentStatus.COMPLETED, response=json.dumps(FINDINGS), iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="SOP-09 Rev 3, p.3", iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="computed", iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="deliverables built", iterations=1),
+    ]
+    ollama = SpyOllamaService()
+    node_agent = make_agent(results, ollama_service=ollama, scheduler=AlwaysGrantScheduler())
+    recorded = _capture(node_agent)
+    asyncio.run(
+        node_agent.run(FakeJob(), "/workspace", task_text=FakeJob.message, attachments=ATTACHMENTS)
+    )
+
+    assert ollama.unload_calls == ["doc-model", "coder-model"]
+    unload_entries = [e for e in recorded["trace"] if e["type"] == "model_unloaded"]
+    assert [e["model"] for e in unload_entries] == ["doc-model", "coder-model"]
+    assert all(e["ok"] for e in unload_entries)
+
+
+def test_model_unload_failure_never_fails_the_job():
+    results = [
+        AgentResult(status=AgentStatus.COMPLETED, response=json.dumps(FINDINGS), iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="SOP-09 Rev 3, p.3", iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="computed", iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="deliverables built", iterations=1),
+    ]
+    ollama = SpyOllamaService(fail_on={"doc-model"})
+    node_agent = make_agent(results, ollama_service=ollama, scheduler=AlwaysGrantScheduler())
+    result = asyncio.run(
+        node_agent.run(FakeJob(), "/workspace", task_text=FakeJob.message, attachments=ATTACHMENTS)
+    )
+
+    assert result.status == AgentStatus.COMPLETED
+    assert ollama.unload_calls == ["doc-model", "coder-model"]
 
 
 def test_draft_renders_deterministically_when_assessment_exists():

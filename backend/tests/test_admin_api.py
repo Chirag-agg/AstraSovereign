@@ -1,8 +1,9 @@
 """Development admin API tests: role gate, real data, privacy boundaries."""
 
+import httpx
 import pytest
 
-from tests.conftest import make_scripted_handler, wait_for_job
+from tests.conftest import make_ollama_handler, make_scripted_handler, wait_for_job
 
 ADMIN = {"X-User-ID": "user-001", "X-Role": "admin"}
 USER = {"X-User-ID": "user-001"}
@@ -58,6 +59,8 @@ def test_admin_users_models_resources_knowledge_system(client):
 
     resources = client.get("/api/admin/resources", headers=ADMIN).json()
     assert "capacity" in resources and "allocated" in resources
+    # No /api/ps mock in this handler: falls back to an empty list, never an error.
+    assert resources["ollama_resident"] == []
 
     kb = client.get("/api/admin/knowledge", headers=ADMIN).json()
     assert "documents" in kb
@@ -90,3 +93,23 @@ def test_regular_user_api_remains_scoped(client_factory):
         audit = c.get("/api/audit", headers={"X-User-ID": "user-002"}).json()
     assert other == []
     assert audit == []
+
+
+def test_admin_resources_shows_real_ollama_residency(client_factory):
+    """/api/admin/resources reports what Ollama's own /api/ps holds resident
+    (the ground truth) alongside the scheduler's "allocated" belief."""
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/ps":
+            return httpx.Response(
+                200,
+                json={"models": [{"name": "qwen2.5-coder:7b", "size": 4_000_000_000}]},
+            )
+        return await make_ollama_handler({"qwen2.5-coder:7b"})(request)
+
+    with client_factory(handler) as c:
+        body = c.get("/api/admin/resources", headers=ADMIN).json()
+
+    assert body["ollama_resident"] == [
+        {"name": "qwen2.5-coder:7b", "size": 4_000_000_000}
+    ]

@@ -33,8 +33,14 @@ class ResourceProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def try_allocate(self, job_id: str, req: ResourceRequirements) -> Optional[ResourceAllocation]:
-        """Atomically grant resources if they fit; otherwise return ``None``."""
+    async def try_allocate(
+        self, job_id: str, req: ResourceRequirements, model: Optional[str] = None
+    ) -> Optional[ResourceAllocation]:
+        """Atomically grant resources if they fit; otherwise return ``None``.
+
+        ``model`` is recorded on the allocation for visibility only (see
+        ``ResourceAllocation.model``) — it plays no role in the fit check.
+        """
 
     @abstractmethod
     async def release(self, job_id: str) -> Optional[ResourceAllocation]:
@@ -61,7 +67,9 @@ class InMemoryResourceProvider(ResourceProvider):
                 return gpu.vram_mb
         return 0
 
-    async def try_allocate(self, job_id: str, req: ResourceRequirements) -> Optional[ResourceAllocation]:
+    async def try_allocate(
+        self, job_id: str, req: ResourceRequirements, model: Optional[str] = None
+    ) -> Optional[ResourceAllocation]:
         async with self._lock:
             # Exclude this job's own existing allocation so re-requests are idempotent.
             others = {k: v for k, v in self._allocations.items() if k != job_id}
@@ -88,6 +96,7 @@ class InMemoryResourceProvider(ResourceProvider):
                 memory_mb=req.memory_mb,
                 gpu_id=req.gpu_id,
                 gpu_vram_mb=req.gpu_vram_mb,
+                model=model,
             )
             self._allocations[job_id] = allocation
             return allocation
@@ -110,7 +119,7 @@ class LocalResourceProvider(ResourceProvider):
     def allocated(self) -> list[ResourceAllocation]:
         return []
 
-    async def try_allocate(self, job_id: str, req: ResourceRequirements):
+    async def try_allocate(self, job_id: str, req: ResourceRequirements, model: Optional[str] = None):
         raise NotImplementedError("LocalResourceProvider is read-only")
 
     async def release(self, job_id: str):

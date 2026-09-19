@@ -314,6 +314,7 @@ def create_app(
         timeout_seconds=settings.ollama_timeout_seconds,
         transport=guarded_transport,
         options=ollama_options,
+        keep_alive=settings.ollama_keep_alive,
     )
 
     if model_registry is None:
@@ -473,6 +474,8 @@ def create_app(
         fallback_enabled=settings.model_fallback_enabled,
         is_cancelled=_job_cancelled,
         tools=tool_registry,
+        ollama_service=ollama_service,
+        unload_wait_seconds=settings.ollama_unload_wait_seconds,
     )
 
     worker = Worker(

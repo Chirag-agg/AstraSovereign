@@ -4,8 +4,10 @@ Sovereignty rule: this service must ONLY ever talk to the locally configured
 Ollama endpoint (``OLLAMA_BASE_URL``). No external AI services are used.
 """
 
+import asyncio
 import base64
 import json
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -70,6 +72,7 @@ class OllamaService:
         timeout_seconds: float = 120.0,
         transport: Optional[httpx.AsyncBaseTransport] = None,
         options: Optional[dict] = None,
+        keep_alive: Optional[str] = "5m",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.default_model = default_model
@@ -77,6 +80,10 @@ class OllamaService:
         # Model options (e.g. {"temperature": 0.0, "seed": 7} in benchmark mode)
         # merged into every generation call, so determinism is set in one place.
         self._options = dict(options) if options else {}
+        # Ollama's own residency hint, sent on every request; "5m" reproduces
+        # Ollama's default idle-unload behavior unchanged. See unload_and_wait()
+        # for the explicit force-unload-now path used on a real model switch.
+        self._keep_alive = keep_alive
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
             timeout=httpx.Timeout(timeout_seconds),
@@ -86,6 +93,11 @@ class OllamaService:
     def _with_options(self, payload: dict) -> dict:
         if self._options:
             payload["options"] = {**self._options, **payload.get("options", {})}
+        return payload
+
+    def _with_keep_alive(self, payload: dict) -> dict:
+        if self._keep_alive is not None:
+            payload["keep_alive"] = self._keep_alive
         return payload
 
     async def generate(
@@ -107,7 +119,7 @@ class OllamaService:
         payload = {"model": model_name, "prompt": prompt, "stream": False}
         if format:
             payload["format"] = format
-        payload = self._with_options(payload)
+        payload = self._with_options(self._with_keep_alive(payload))
 
         try:
             response = await self._client.post("/api/generate", json=payload)
@@ -164,7 +176,7 @@ class OllamaService:
             payload["tools"] = tools
         if format:
             payload["format"] = format
-        payload = self._with_options(payload)
+        payload = self._with_options(self._with_keep_alive(payload))
 
         try:
             response = await self._client.post("/api/chat", json=payload)
@@ -229,7 +241,7 @@ class OllamaService:
             "images": [image_b64],
             "stream": False,
         }
-        payload = self._with_options(payload)
+        payload = self._with_options(self._with_keep_alive(payload))
 
         try:
             response = await self._client.post("/api/generate", json=payload)
@@ -283,6 +295,67 @@ class OllamaService:
             raise OllamaRequestError("Ollama returned an invalid (non-JSON) response.") from exc
 
         return [model.get("name") for model in data.get("models", [])]
+
+    async def list_running_models(self) -> list[dict]:
+        """Ollama's own ``/api/ps``: models currently resident in memory.
+
+        This is the ground truth for VRAM residency — everything else (the
+        resource scheduler's declared budgets, ``unload_and_wait``'s own POST)
+        either causes or observes this state, never asserts it. Each entry
+        carries at least ``name``/``model`` and a ``size`` in bytes, per
+        Ollama's documented ``/api/ps`` response shape.
+        """
+        try:
+            response = await self._client.get("/api/ps")
+        except httpx.TimeoutException as exc:
+            raise OllamaTimeoutError("Timed out listing running Ollama models.") from exc
+        except httpx.TransportError as exc:
+            raise OllamaUnavailableError(
+                f"Ollama is unreachable at {self.base_url}: {exc.__class__.__name__}"
+            ) from exc
+
+        if response.status_code != 200:
+            raise OllamaRequestError(f"Ollama returned HTTP {response.status_code} for /api/ps.")
+
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise OllamaRequestError("Ollama returned an invalid (non-JSON) response.") from exc
+
+        return list(data.get("models", []))
+
+    async def unload_and_wait(self, model: str, timeout: float = 2.0) -> bool:
+        """Force ``model`` out of VRAM now, and wait (bounded) until it's gone.
+
+        Ollama evicts asynchronously, so a 200 from the unload request is not
+        itself proof the memory is free — this polls ``/api/ps`` until the
+        model is actually absent or ``timeout`` elapses. Returns whether it
+        left within the deadline; never raises past a transport/API failure
+        (best-effort — a stuck unload must never fail the job that's waiting
+        on the next model).
+        """
+        model_name = (model or "").strip()
+        if not model_name:
+            return True
+        payload = {"model": model_name, "keep_alive": 0}
+        try:
+            response = await self._client.post("/api/generate", json=payload)
+            if response.status_code not in (200, 404):
+                return False
+        except (httpx.TimeoutException, httpx.TransportError):
+            return False
+
+        deadline = time.monotonic() + max(timeout, 0.0)
+        while time.monotonic() < deadline:
+            try:
+                running = await self.list_running_models()
+            except OllamaServiceError:
+                return False
+            names = {entry.get("name") or entry.get("model") for entry in running}
+            if model_name not in names:
+                return True
+            await asyncio.sleep(0.2)
+        return False
 
     async def aclose(self) -> None:
         await self._client.aclose()

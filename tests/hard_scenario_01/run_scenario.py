@@ -105,17 +105,28 @@ def run(base_url: str, user_id: str, timeout_seconds: float) -> dict:
             return None
 
     def gpu_vram_in_use() -> Optional[int]:
-        """Sum of gpu_vram_mb across the scheduler's current allocations.
+        """VRAM actually in use, sampled repeatedly while the job runs so the
+        run's peak is a real observation, not a hardcoded value.
 
-        Sampled repeatedly while the job runs (below) so the run's peak is a
-        real observation of the resource scheduler, not a hardcoded value.
+        Prefers Ollama's own ``/api/ps`` ("ollama_resident") — real measured
+        memory for whatever is actually loaded — over the scheduler's
+        "allocated" budgets, which are static declared config values (the
+        same number every run regardless of what's actually loaded) and fall
+        back to that only when no live Ollama data is available.
         """
         try:
             response = client.get("/api/admin/resources", headers=admin_headers)
             response.raise_for_status()
         except httpx.HTTPError:
             return None
-        allocated = response.json().get("allocated", [])
+        payload = response.json()
+        resident = payload.get("ollama_resident") or []
+        if resident:
+            return sum(
+                int(entry.get("size_vram") or entry.get("size") or 0) // (1024 * 1024)
+                for entry in resident
+            )
+        allocated = payload.get("allocated", [])
         return sum(a.get("gpu_vram_mb", 0) for a in allocated)
 
     baseline_sovereignty = sovereignty()

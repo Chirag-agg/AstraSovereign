@@ -24,13 +24,20 @@ class ResourceRequirements(BaseModel):
 
 
 class ResourceAllocation(BaseModel):
-    """A granted allocation for one running job."""
+    """A granted allocation for one running job.
+
+    ``model`` is the scheduler's own belief about what this allocation is
+    for — a label, not a residency guarantee. Ollama's own ``/api/ps``
+    (surfaced separately by /api/admin/resources as ``ollama_resident``) is
+    the ground truth for what is actually loaded in VRAM.
+    """
 
     job_id: str
     cpu_cores: float = 0.0
     memory_mb: int = 0
     gpu_id: Optional[str] = None
     gpu_vram_mb: int = 0
+    model: Optional[str] = None
     allocated_at: datetime = Field(default_factory=utcnow)
 
 

@@ -41,6 +41,17 @@ def test_allocation_within_limits():
     assert len(provider.allocated()) == 1
 
 
+def test_allocation_records_the_model_it_was_requested_for():
+    """ResourceAllocation.model is the scheduler's own belief about what an
+    allocation is for (a label, not a residency guarantee) — used by
+    /api/admin/resources to show alongside Ollama's real /api/ps residency."""
+    scheduler, provider = make_scheduler()
+    decision = asyncio.run(request(scheduler, "j1", model="qwen2.5-coder:7b"))
+    assert decision.decision == "grant"
+    assert decision.allocation.model == "qwen2.5-coder:7b"
+    assert provider.allocated()[0].model == "qwen2.5-coder:7b"
+
+
 def test_multiple_jobs_share_gpu_capacity():
     scheduler, provider = make_scheduler()
     a = asyncio.run(request(scheduler, "A"))
