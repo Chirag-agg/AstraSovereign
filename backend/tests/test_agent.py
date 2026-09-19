@@ -378,6 +378,84 @@ def test_require_tool_success_blocks_an_unverified_final_answer(tmp_path):
     assert tool_calls_in(final.execution_trace) == ["code_execution"]
 
 
+class CountingSearchTool(BaseTool):
+    name = "document_search"
+    description = "test double for the knowledge base"
+    input_schema = {
+        "type": "object",
+        "properties": {"query": {"type": "string"}, "top_k": {"type": "integer"}},
+        "required": ["query"],
+        "additionalProperties": False,
+    }
+
+    def __init__(self):
+        self.calls = 0
+
+    async def execute(self, workspace: Path, arguments: dict) -> ToolResult:
+        self.calls += 1
+        return ToolResult(ok=True, summary="found 1 chunk", content="some passage")
+
+
+def test_identical_consecutive_document_search_calls_are_deduped(tmp_path):
+    """A model that repeats the exact same search (observed: top_k=1 called
+    twice, identically) must not burn a second real lookup on it."""
+
+    async def scenario():
+        manager = JobManager(store=InMemoryJobStore(), default_model="test-model")
+        job = await manager.create_job(user_id="user-001", message="find the SOP")
+        tool = CountingSearchTool()
+        script = [
+            json.dumps(
+                {
+                    "type": "tool_call",
+                    "tool": "document_search",
+                    "arguments": {"query": "pressure relief valve", "top_k": 1},
+                    "reasoning": "search",
+                }
+            ),
+            json.dumps(
+                {
+                    "type": "tool_call",
+                    "tool": "document_search",
+                    "arguments": {"query": "pressure relief valve", "top_k": 1},
+                    "reasoning": "search again",
+                }
+            ),
+            json.dumps({"type": "final", "response": "done"}),
+        ]
+        service = OllamaService(
+            base_url="http://ollama.test",
+            default_model="test-model",
+            timeout_seconds=5,
+            transport=httpx.MockTransport(make_scripted_handler(script)),
+        )
+        agent = Agent(
+            manager=manager,
+            tool_registry=ToolRegistry([tool]),
+            model_client=service,
+            max_iterations=5,
+            max_tool_calls=5,
+        )
+        try:
+            result = await agent.run(job, model="test-model", workspace=tmp_path)
+            final = await manager.get_job_for_worker(job.job_id)
+            return result, final, tool
+        finally:
+            await service.aclose()
+
+    result, final, tool = asyncio.run(scenario())
+    assert result.status == AgentStatus.COMPLETED
+    # The second, identical call was never actually executed against the KB.
+    assert tool.calls == 1
+    tool_results = [
+        e for e in final.execution_trace if e["type"] == "tool_result" and e["tool"] == "document_search"
+    ]
+    assert len(tool_results) == 2
+    assert tool_results[0]["ok"] is True
+    assert tool_results[1]["ok"] is False
+    assert "already called" in tool_results[1]["result_summary"]
+
+
 def test_require_tool_success_gives_up_only_on_the_last_budgeted_turn(tmp_path):
     """A model that never calls the tool is re-prompted every turn but the
     budget check still terminates the loop deterministically (the node layer

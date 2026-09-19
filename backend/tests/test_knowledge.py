@@ -135,6 +135,52 @@ def test_cross_user_search_isolation(tmp_path):
     assert "No relevant local documents found" in result.content
 
 
+def test_newer_revision_is_marked_and_outranks_older_at_search(tmp_path):
+    """Uploading SOP-09_Rev3 after SOP-09_Rev2 marks Rev2 superseded at
+    ingestion, and an equally-relevant query must always rank Rev3 first —
+    the Rev2-vs-Rev3 grounding failure this closes."""
+    kb = make_kb(tmp_path)
+    doc_dir = make_doc_dir(tmp_path)
+    body = "The pressure relief valve must be tested annually per this procedure."
+    # Distinct bytes (content-hash dedup would otherwise treat the two
+    # revisions as one reused document) while keeping the query-relevant
+    # tokens identical, so ranking parity comes down to the supersession
+    # penalty, not accidental embedding differences.
+    (doc_dir / "SOP-09_Rev2.txt").write_text(body + " (Revision 2.)", encoding="utf-8")
+    (doc_dir / "SOP-09_Rev3.txt").write_text(body + " (Revision 3.)", encoding="utf-8")
+
+    doc2 = asyncio.run(kb.ingest_document("user-001", doc_dir / "SOP-09_Rev2.txt", "SOP-09_Rev2.txt"))
+    doc3 = asyncio.run(kb.ingest_document("user-001", doc_dir / "SOP-09_Rev3.txt", "SOP-09_Rev3.txt"))
+    # Re-fetch doc2: ingesting doc3 retroactively updates the sibling's stored
+    # record, which the earlier in-hand `doc2` object does not reflect.
+    doc2_after = asyncio.run(kb.get_document("user-001", doc2.document_id))
+    assert doc2_after.metadata.get("superseded") is True
+    assert doc3.metadata.get("superseded") is False
+
+    results = asyncio.run(kb.search("user-001", "pressure relief valve", top_k=5))
+    filenames = [r.filename for r in results]
+    assert "SOP-09_Rev2.txt" in filenames and "SOP-09_Rev3.txt" in filenames
+    assert filenames.index("SOP-09_Rev3.txt") < filenames.index("SOP-09_Rev2.txt")
+
+
+def test_uploading_an_older_revision_after_a_newer_one_is_marked_superseded(tmp_path):
+    """Upload order must not matter: Rev2 arriving after Rev3 is still the
+    older revision and must still be marked superseded, not the reverse."""
+    kb = make_kb(tmp_path)
+    doc_dir = make_doc_dir(tmp_path)
+    body = "The pressure relief valve must be tested annually per this procedure."
+    (doc_dir / "SOP-09_Rev3.txt").write_text(body + " (Revision 3.)", encoding="utf-8")
+    (doc_dir / "SOP-09_Rev2.txt").write_text(body + " (Revision 2.)", encoding="utf-8")
+
+    doc3 = asyncio.run(kb.ingest_document("user-001", doc_dir / "SOP-09_Rev3.txt", "SOP-09_Rev3.txt"))
+    doc2 = asyncio.run(kb.ingest_document("user-001", doc_dir / "SOP-09_Rev2.txt", "SOP-09_Rev2.txt"))
+    # Re-fetch doc3: ingesting doc2 retroactively updates the sibling's stored
+    # record, which the earlier in-hand `doc3` object does not reflect.
+    doc3_after = asyncio.run(kb.get_document("user-001", doc3.document_id))
+    assert doc3_after.metadata.get("superseded") is False
+    assert doc2.metadata.get("superseded") is True
+
+
 def test_document_delete_via_kb(tmp_path):
     kb = make_kb(tmp_path)
     docs = asyncio.run(ingest_fixture(kb, make_doc_dir(tmp_path)))

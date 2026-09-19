@@ -342,6 +342,7 @@ def create_app(
         DocumentSearchTool(
             knowledge_base=knowledge_base,
             default_top_k=settings.document_search_default_top_k,
+            min_top_k=settings.document_search_min_top_k,
             max_top_k=settings.document_search_max_top_k,
             max_chunk_chars=settings.document_search_max_chunk_chars,
         )

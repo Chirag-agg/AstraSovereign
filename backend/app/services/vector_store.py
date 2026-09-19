@@ -180,18 +180,26 @@ class JsonVectorStore(VectorStore):
         top_k: int,
         per_page_cap: int = 2,
         duplicate_threshold: float = 0.95,
+        superseded_penalty: float = 0.25,
     ) -> list[SearchResult]:
         """Dense + BM25 fused with Reciprocal Rank Fusion, then diversified.
 
         - at most ``per_page_cap`` chunks from any one ``(doc_id, page)``
         - drop near-duplicates (cosine to an already-selected chunk > threshold)
         - RRF score = sum over rankings of ``1 / (60 + rank)`` (no tuning needed)
+        - a chunk whose document was marked superseded at ingestion (an older
+          "Rev N" of the same document family; see KnowledgeBase) has its
+          score scaled down so a chunk from the current revision can never
+          lose to it on an equally-relevant match — the older text is still
+          retrievable (e.g. the previous reading a corrosion rate needs), just
+          never ranked above the current one for the same relevance.
         """
         async with self._lock:
             data = await self._load(user_id)
         chunks = data["chunks"]
         if not chunks:
             return []
+        documents = data.get("documents", {})
 
         dense_rank = {
             chunk["chunk_id"]: index + 1
@@ -218,6 +226,9 @@ class JsonVectorStore(VectorStore):
             if chunk_id in bm25_rank:
                 score += 1.0 / (60 + bm25_rank[chunk_id])
             if score > 0:
+                doc_meta = (documents.get(chunk["document_id"]) or {}).get("metadata") or {}
+                if doc_meta.get("superseded"):
+                    score *= superseded_penalty
                 fused.append((score, chunk))
         fused.sort(key=lambda item: item[0], reverse=True)
 

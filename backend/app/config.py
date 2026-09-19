@@ -81,8 +81,12 @@ class Settings(BaseSettings):
     # Local embedding model (served by the local Ollama instance).
     embedding_model: str = "nomic-embed-text"
 
-    # document_search tool limits.
+    # document_search tool limits. A floor above 1 exists because a model
+    # narrowing to a single chunk (observed: top_k=1 called twice, identically)
+    # is the retrieval failure mode most likely to miss the current revision
+    # of a procedure in favor of whatever ranked first by chance.
     document_search_default_top_k: int = 5
+    document_search_min_top_k: int = 3
     document_search_max_top_k: int = 10
     document_search_max_chunk_chars: int = 1000
 

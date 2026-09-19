@@ -39,6 +39,20 @@ def _hash_file(path: Path) -> str:
 _REV_RE = re.compile(r"rev[ _-]?(\d+)", re.IGNORECASE)
 
 
+def _document_revision(filename: str) -> Optional[int]:
+    match = _REV_RE.search(filename or "")
+    return int(match.group(1)) if match else None
+
+
+def _document_family(filename: str) -> str:
+    """Normalized identity for grouping revisions of "the same" document
+    (e.g. ``SOP-09_Rev2.pdf`` and ``SOP-09_Rev3.pdf`` share this key) so a
+    newer upload can mark an older one as superseded."""
+    stem = Path(filename or "").stem
+    stem = _REV_RE.sub("", stem)
+    return re.sub(r"[^a-z0-9]+", " ", stem.lower()).strip()
+
+
 def _chunk_header(filename: str, page: Optional[int]) -> str:
     """Indexed-text prefix carrying source metadata (D3).
 
@@ -249,7 +263,55 @@ class KnowledgeBase:
                 "status": DocumentStatus.READY,
             },
         )
+        await self._apply_supersession(user_id, doc)
         return doc
+
+    async def _apply_supersession(self, user_id: str, doc: DocumentRecord) -> None:
+        """Mark older revisions of the same document family as superseded.
+
+        Triggered at ingestion, not guessed at query time: filenames carrying
+        a "Rev N" token (SOP-09_Rev2.pdf, SOP-09_Rev3.pdf, ...) that otherwise
+        match are "the same document"; retrieval (search_hybrid) deprioritizes
+        a superseded revision's chunks so the current one never loses to it by
+        chance, without discarding the older text (still needed to compute
+        e.g. a corrosion rate between two revisions).
+        """
+        revision = _document_revision(doc.filename)
+        if revision is None:
+            return
+        family = _document_family(doc.filename)
+        if not family:
+            return
+        siblings = [
+            other
+            for other in await self._store.list_documents(user_id)
+            if other.document_id != doc.document_id
+            and other.status == DocumentStatus.READY
+            and _document_family(other.filename) == family
+        ]
+        if not siblings:
+            return
+        current_max = revision
+        for sibling in siblings:
+            sibling_revision = _document_revision(sibling.filename)
+            if sibling_revision is not None:
+                current_max = max(current_max, sibling_revision)
+        for candidate in (doc, *siblings):
+            candidate_revision = _document_revision(candidate.filename)
+            if candidate_revision is None:
+                continue
+            superseded = candidate_revision < current_max
+            if (
+                candidate.metadata.get("superseded") == superseded
+                and candidate.metadata.get("revision") == candidate_revision
+            ):
+                continue
+            candidate.metadata = {
+                **candidate.metadata,
+                "revision": candidate_revision,
+                "superseded": superseded,
+            }
+            await self._store.put_document(user_id, candidate)
 
     async def _fail_document(self, user_id: str, doc: DocumentRecord, error: str) -> DocumentRecord:
         doc.status = DocumentStatus.FAILED

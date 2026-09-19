@@ -390,11 +390,13 @@ class DocumentSearchTool(BaseTool):
         self,
         knowledge_base: KnowledgeBase,
         default_top_k: int = 5,
+        min_top_k: int = 3,
         max_top_k: int = 10,
         max_chunk_chars: int = 1000,
     ) -> None:
         self._kb = knowledge_base
         self._default_top_k = default_top_k
+        self._min_top_k = min_top_k
         self._max_top_k = max_top_k
         self._max_chunk_chars = max_chunk_chars
 
@@ -408,7 +410,13 @@ class DocumentSearchTool(BaseTool):
         if not query:
             raise ToolError("query must not be empty")
         top_k = int(arguments.get("top_k", self._default_top_k))
-        top_k = max(1, min(top_k, self._max_top_k))
+        # Floored above 1: a model that asks for a single chunk is the
+        # retrieval pattern most likely to land on one revision of a
+        # procedure by chance and never see that a newer one exists. The
+        # floor itself is capped at max_top_k so a caller-configured min
+        # above max (e.g. in tests) can never push a result past the max.
+        effective_min = min(self._min_top_k, self._max_top_k)
+        top_k = max(effective_min, min(top_k, self._max_top_k))
 
         results = await self._kb.search(user_id, query, top_k)
 

@@ -31,6 +31,12 @@ TASK_MARKER = "TASK:"
 # Cap on file content passed back into the model prompt (per observation).
 MAX_OBSERVATION_CHARS = 4000
 
+# Tools where an identical repeat (same name, same arguments) back-to-back is
+# a real symptom worth steering away from rather than a legitimate re-check
+# (e.g. re-reading a file after writing to it is fine; searching the exact
+# same query twice in a row just burns budget on results already seen).
+DEDUPE_TOOLS = {"document_search"}
+
 
 class AgentStatus:
     COMPLETED = "completed"
@@ -137,6 +143,11 @@ class Agent:
             {"role": "system", "content": self._system_prompt()},
             {"role": "user", "content": task_text},
         ]
+        # (tool, canonical-arguments) of the last tool call actually attempted,
+        # so an identical repeat (e.g. document_search called twice with the
+        # same query and top_k) is caught instead of burning budget on a
+        # result the model has already seen.
+        last_tool_signature: Optional[tuple[str, str]] = None
 
         while True:
             if await self._is_cancelled(job_id):
@@ -532,7 +543,22 @@ class Agent:
                         "iteration": iterations,
                     },
                 )
-                if allowed_tools is not None and tool_name not in allowed_tools:
+                signature = (
+                    tool_name,
+                    json.dumps(arguments, sort_keys=True, default=str),
+                )
+                if tool_name in DEDUPE_TOOLS and signature == last_tool_signature:
+                    observation = (
+                        f"You already called '{tool_name}' with this exact query; repeating "
+                        "it will return the same results. Use a different query (broader, "
+                        "narrower, or different keywords), or stop searching and answer with "
+                        "what you already have."
+                    )
+                    self._append(
+                        trace, "tool_result", tool=tool_name, ok=False,
+                        result_summary=self._shorten(observation),
+                    )
+                elif allowed_tools is not None and tool_name not in allowed_tools:
                     observation = (
                         f"Tool '{tool_name}' is not available to this step. "
                         f"Available: {', '.join(sorted(allowed_tools))}."
@@ -582,6 +608,7 @@ class Agent:
                                 "iteration": iterations,
                             },
                         )
+                last_tool_signature = signature
                 # Results (and errors) come back on the tool channel, truncated
                 # but never dropped, so recovery works instead of re-calling.
                 messages.append(
