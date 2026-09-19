@@ -122,6 +122,44 @@ def test_validate_wrong_type():
         validate_arguments(ReadFileTool.input_schema, {"path": 123})
 
 
+def test_coerce_arguments_parses_a_json_array_string():
+    """A weak model that stringifies an array argument (e.g. document_generation's
+    ``sections``) gets it parsed back into a real list, not silently dropped."""
+    from app.services.tool_registry import coerce_arguments
+
+    schema = {
+        "type": "object",
+        "properties": {"sections": {"type": "array", "items": {"type": "object"}}},
+    }
+    raw = '[{"heading": "Findings", "content": "text"}]'
+    coerced, fields = coerce_arguments(schema, {"sections": raw})
+    assert fields == ["sections"]
+    assert coerced["sections"] == [{"heading": "Findings", "content": "text"}]
+
+
+def test_validate_arguments_rejects_an_unparseable_array_string():
+    """A ``sections`` value that never became a real array (e.g. malformed
+    JSON coerce_arguments could not parse) is rejected with a clear message,
+    never iterated character-by-character into garbage sections."""
+    schema = {
+        "type": "object",
+        "properties": {"sections": {"type": "array", "items": {"type": "object"}}},
+    }
+    with pytest.raises(ToolError, match="must be an array"):
+        validate_arguments(schema, {"sections": "not json at all"})
+
+
+def test_validate_arguments_rejects_an_array_of_non_objects():
+    """A ``sections`` array whose items are strings (each element still
+    JSON-stringified) is rejected, not passed through as fake sections."""
+    schema = {
+        "type": "object",
+        "properties": {"sections": {"type": "array", "items": {"type": "object"}}},
+    }
+    with pytest.raises(ToolError, match="array of objects"):
+        validate_arguments(schema, {"sections": ['{"heading": "X"}']})
+
+
 def test_write_file_rejects_non_string_content(tmp_path):
     with pytest.raises(ToolError, match="must be a string"):
         run(

@@ -359,7 +359,40 @@ def test_tool_approval_note_renders_fields(tmp_path):
     ]
     assert "MRPL/OPS/2026/014" in table_cells
     assert "Mechanical Maintenance" in table_cells
-    assert "R. Nair" in table_cells
+    # A model-supplied signer name/date is never trustworthy (it cannot know
+    # who will actually sign) and must not appear on the printed document.
+    assert "R. Nair" not in table_cells
+    assert "2026-08-17" not in table_cells
+    assert "Plant Manager" in table_cells
+
+
+def test_tool_never_prints_a_model_supplied_signer_identity(tmp_path):
+    """A model has no way to know who will actually approve a note; a name or
+    signing date it invents (e.g. "John Doe") must never reach the printed
+    document, only the designation/role actually being asked to sign."""
+    tool, _store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-a3")
+    args = {
+        **VALID_ARGS,
+        "filename": "approval_note2.docx",
+        "approval": {
+            **APPROVAL_ARGS["approval"],
+            "signatures": [
+                {"name": "John Doe", "designation": "Plant Manager", "date": "2026-01-01"},
+            ],
+        },
+    }
+    result = run(tool.execute(tmp_path, args))
+    assert result.ok
+
+    from docx import Document
+
+    doc = Document(str(tmp_path / "artifacts" / "approval_note2.docx"))
+    table_cells = [
+        cell.text for table in doc.tables for row in table.rows for cell in row.cells
+    ]
+    assert "John Doe" not in table_cells
+    assert "2026-01-01" not in table_cells
     assert "Plant Manager" in table_cells
 
 

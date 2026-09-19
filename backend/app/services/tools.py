@@ -660,13 +660,17 @@ def _validate_approval(raw: Any) -> ApprovalNote:
             raise ToolError(
                 f"unknown signature field(s): {', '.join(sorted(unknown_entry))}"
             )
-        signature_values = {}
         for field in ("name", "designation", "date"):
             value = entry.get(field, "")
             if not isinstance(value, str):
                 raise ToolError(f"signature '{field}' must be a string")
-            signature_values[field] = value
-        signatures.append(ApprovalSignature(**signature_values))
+        # A model has no way to know who will actually sign this note, so it
+        # must not put a name or a signing date on the printed page — that is
+        # a fabricated identity on a document meant for a real person's
+        # approval. Only the role/designation being asked to sign is real
+        # (it comes from what the request asked for, not an invented person);
+        # name and date stay blank for a human to fill in by hand.
+        signatures.append(ApprovalSignature(designation=entry.get("designation", "")))
     return ApprovalNote(**values, signatures=signatures)
 
 
