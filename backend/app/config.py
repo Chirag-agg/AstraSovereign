@@ -68,6 +68,13 @@ class Settings(BaseSettings):
     sandbox_max_stdout_chars: int = 4096
     sandbox_max_stderr_chars: int = 4096
 
+    # Sandbox auto-repair: on a failed run, ask the coding-capability model
+    # for a fix and re-run internally (transparent to the agent's own
+    # iteration/tool-call budget) before returning a single ToolResult.
+    sandbox_repair_enabled: bool = True
+    sandbox_repair_max_attempts: int = 2
+    sandbox_repair_deadline_seconds: float = 90.0
+
     # Resource scheduler capacity (Phase 6). Mode "configured" uses the values
     # below; mode "auto" discovers local CPU/memory/GPU (informational).
     resource_capacity_mode: str = "configured"

@@ -82,18 +82,19 @@ def test_demo_factorial(client_factory, tmp_path):
 
 
 def test_demo_bug_fix_loop(client_factory, tmp_path):
-    """Agent writes buggy code, observes the error, fixes it, and runs again."""
+    """Agent writes buggy code; the sandbox's own auto-repair loop fixes it
+    and re-runs internally, inside a single code_execution tool call — the
+    agent never has to call it a second time itself."""
     script = [
         tool_call(
             "code_execution",
             {"language": "python", "code": "print(1 / 0)"},
             "Run the initial attempt",
         ),
-        tool_call(
-            "code_execution",
-            {"language": "python", "code": "print(15)"},
-            "Fix the division-by-zero bug",
-        ),
+        # The repair model's own /api/generate call (single-turn, no tools):
+        # the code_execution tool asks it to fix the failed program and gets
+        # this raw text back as the corrected source.
+        "print(15)",
         final("The corrected result is 15.", "The fixed program printed 15."),
         # draft is the only exit now; compute no longer terminates the sequence
         final("The corrected result is 15.", "Report the computation result"),
@@ -122,10 +123,10 @@ def test_demo_bug_fix_loop(client_factory, tmp_path):
 
     trace = job["execution_trace"]
     tool_calls = [t for t in trace if t["type"] == "tool_call"]
-    assert [t["tool"] for t in tool_calls] == ["code_execution", "code_execution"]
+    # One agent-level tool call; the fix-and-retry happened inside it.
+    assert [t["tool"] for t in tool_calls] == ["code_execution"]
     assert len(runner.calls) == 2
     assert runner.calls[0]["code"] != runner.calls[1]["code"]
-    # First run failed (ZeroDivisionError), second succeeded.
-    results = [t for t in trace if t["type"] == "tool_result"]
-    assert results[0]["ok"] is False
-    assert results[1]["ok"] is True
+    results = [t for t in trace if t["type"] == "tool_result" and t["tool"] == "code_execution"]
+    assert results[0]["ok"] is True
+    assert "fixed after 2 attempts" in results[0]["result_summary"]

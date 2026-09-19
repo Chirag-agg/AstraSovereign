@@ -371,11 +371,21 @@ def create_app(
             cpu_limit=settings.sandbox_cpu_limit,
             memory_limit=settings.sandbox_memory_limit,
         )
+        # Repair rides the reservation the compute node already holds for the
+        # "coding" capability (code_execution is only reachable from compute) —
+        # no new scheduler interaction needed inside the tool itself.
+        coding_config = model_registry.get("coding")
+        repair_model = coding_config.model if coding_config is not None else None
+        repair_enabled = settings.sandbox_repair_enabled and repair_model is not None
         tools.append(
             CodeExecutionTool(
                 runner=runner,
                 max_stdout_chars=settings.sandbox_max_stdout_chars,
                 max_stderr_chars=settings.sandbox_max_stderr_chars,
+                repair_model_client=ollama_service if repair_enabled else None,
+                repair_model=repair_model if repair_enabled else None,
+                max_repair_attempts=settings.sandbox_repair_max_attempts,
+                repair_deadline_seconds=settings.sandbox_repair_deadline_seconds,
             )
         )
 

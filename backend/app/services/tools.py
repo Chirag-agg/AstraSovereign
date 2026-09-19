@@ -45,7 +45,8 @@ from app.services.knowledge_base import KnowledgeBase
 from app.services.log_context import get_job_context
 from app.services.multimodal import MultimodalError, MultimodalService
 from app.services.resource_scheduler import ResourceScheduler
-from app.services.sandbox_runner import SandboxRunner, SandboxRunnerError
+from app.services.ollama_service import OllamaService
+from app.services.sandbox_runner import ExecutionResult, SandboxRunner, SandboxRunnerError
 from app.services.workspace import WorkspaceError, resolve_within_workspace
 
 logger = logging.getLogger("app.tools")
@@ -183,10 +184,24 @@ class CodeExecutionTool(BaseTool):
         runner: SandboxRunner,
         max_stdout_chars: int = 4096,
         max_stderr_chars: int = 4096,
+        repair_model_client: Optional["OllamaService"] = None,
+        repair_model: Optional[str] = None,
+        max_repair_attempts: int = 2,
+        repair_deadline_seconds: float = 90.0,
     ) -> None:
         self._runner = runner
         self._max_stdout_chars = max_stdout_chars
         self._max_stderr_chars = max_stderr_chars
+        # Repair only activates when both are supplied; every existing direct
+        # construction and the tool's default behavior stay unchanged.
+        self._repair_client = repair_model_client
+        self._repair_model = repair_model
+        self._max_repair_attempts = max_repair_attempts
+        self._repair_deadline_seconds = repair_deadline_seconds
+
+    @property
+    def _repair_enabled(self) -> bool:
+        return self._repair_client is not None and bool(self._repair_model)
 
     async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
         language = str(arguments["language"]).strip().lower()
@@ -198,8 +213,59 @@ class CodeExecutionTool(BaseTool):
         if not code.strip():
             raise ToolError("code must not be empty")
         stdin = arguments.get("stdin") or ""
-
         ctx = get_job_context()
+
+        started = time.monotonic()
+        current_code = code
+        attempts: list[tuple[str, "ExecutionResult"]] = []
+        result = await self._run_once(current_code, language, stdin, ctx)
+        attempts.append((current_code, result))
+
+        while (
+            self._repair_enabled
+            and not result.success
+            and len(attempts) - 1 < self._max_repair_attempts
+            and (time.monotonic() - started) < self._repair_deadline_seconds
+        ):
+            try:
+                fixed_code = await self._propose_fix(current_code, result)
+            except Exception:
+                logger.warning(
+                    "code_repair_proposal_failed",
+                    extra={
+                        "event": "code_execution_repair",
+                        "job_id": ctx.get("job_id"),
+                        "user_id": ctx.get("user_id"),
+                        "attempt": len(attempts),
+                        "ok": False,
+                    },
+                )
+                break
+            if not fixed_code or fixed_code.strip() == current_code.strip():
+                break
+            current_code = fixed_code
+            try:
+                result = await self._run_once(current_code, language, stdin, ctx)
+            except ToolError:
+                # An infra failure (Docker down) mid-repair falls back to the
+                # last real result rather than losing it; only the first
+                # attempt's infra failure is fatal to the whole tool call.
+                break
+            attempts.append((current_code, result))
+
+        logger.info(
+            "code_execution_repair_summary",
+            extra={
+                "event": "code_execution_repair",
+                "job_id": ctx.get("job_id"),
+                "user_id": ctx.get("user_id"),
+                "attempts": len(attempts),
+                "ok": attempts[-1][1].success,
+            },
+        )
+        return self._build_result(attempts)
+
+    async def _run_once(self, code: str, language: str, stdin: str, ctx: dict) -> "ExecutionResult":
         logger.info(
             "code_execution_started",
             extra={
@@ -209,7 +275,6 @@ class CodeExecutionTool(BaseTool):
                 "language": language,
             },
         )
-
         try:
             result = await self._runner.run(code, language=language, stdin=stdin)
         except SandboxRunnerError as exc:
@@ -224,29 +289,6 @@ class CodeExecutionTool(BaseTool):
                 },
             )
             raise ToolError(f"code_execution failed: {exc}") from exc
-
-        stdout = result.stdout[: self._max_stdout_chars]
-        stderr = result.stderr[: self._max_stderr_chars]
-
-        if result.timed_out:
-            summary = f"Timed out after {result.duration_ms}ms"
-            status = "timeout"
-        else:
-            summary = f"Exit code {result.exit_code} in {result.duration_ms}ms"
-            if not result.success:
-                detail = (result.stderr or "").strip()
-                if not detail:
-                    detail = (result.stdout or "").strip()
-                if detail:
-                    summary = f"{summary}\n{detail[:300]}"
-            status = "completed"
-        content = (
-            f"exit_code={result.exit_code} timed_out={result.timed_out} "
-            f"duration_ms={result.duration_ms}\n"
-            f"STDOUT:\n{stdout}\n"
-            f"STDERR:\n{stderr}"
-        )
-
         if result.timed_out:
             logger.error(
                 "code_execution_timeout",
@@ -269,15 +311,79 @@ class CodeExecutionTool(BaseTool):
                     "language": language,
                     "duration_ms": result.duration_ms,
                     "exit_code": result.exit_code,
-                    "status": status,
+                    "status": "timeout" if result.timed_out else "completed",
                 },
             )
+        return result
 
-        return ToolResult(
-            ok=result.success,
-            summary=summary,
-            content=content,
+    async def _propose_fix(self, code: str, result: "ExecutionResult") -> Optional[str]:
+        """Ask the repair model for a corrected program. Plain single-turn
+        completion (never .chat() with tools) so it cannot invoke tools."""
+        detail = (result.stderr or "").strip() or (result.stdout or "").strip()
+        status = "timed out" if result.timed_out else f"exited with code {result.exit_code}"
+        prompt = (
+            "The following Python program failed: it " + status + ".\n\n"
+            "CODE:\n" + code + "\n\n"
+            "ERROR OUTPUT:\n" + detail[:2000] + "\n\n"
+            "Return ONLY the corrected, complete, self-contained Python program "
+            "that fixes this. No explanation, no markdown code fences — just the "
+            "raw Python source."
         )
+        response_text, _ = await self._repair_client.generate(prompt, model=self._repair_model)
+        return self._strip_code_fences(response_text)
+
+    @staticmethod
+    def _strip_code_fences(text: str) -> str:
+        text = (text or "").strip()
+        if text.startswith("```"):
+            lines = text.splitlines()
+            if lines:
+                lines = lines[1:]
+            if lines and lines[-1].strip().startswith("```"):
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
+        return text
+
+    def _format_attempt(self, result: "ExecutionResult") -> tuple[str, str]:
+        """(summary, content) for a single attempt — today's exact format."""
+        stdout = result.stdout[: self._max_stdout_chars]
+        stderr = result.stderr[: self._max_stderr_chars]
+        if result.timed_out:
+            summary = f"Timed out after {result.duration_ms}ms"
+        else:
+            summary = f"Exit code {result.exit_code} in {result.duration_ms}ms"
+            if not result.success:
+                detail = (result.stderr or "").strip() or (result.stdout or "").strip()
+                if detail:
+                    summary = f"{summary}\n{detail[:300]}"
+        content = (
+            f"exit_code={result.exit_code} timed_out={result.timed_out} "
+            f"duration_ms={result.duration_ms}\n"
+            f"STDOUT:\n{stdout}\n"
+            f"STDERR:\n{stderr}"
+        )
+        return summary, content
+
+    def _build_result(self, attempts: list[tuple[str, "ExecutionResult"]]) -> ToolResult:
+        final_code, final_result = attempts[-1]
+        summary, content = self._format_attempt(final_result)
+        if len(attempts) == 1:
+            # No repair happened (disabled, or the first attempt succeeded):
+            # identical to the tool's behavior before repair existed.
+            return ToolResult(ok=final_result.success, summary=summary, content=content)
+
+        # MAX_OBSERVATION_CHARS truncates the agent's view of `content` from
+        # the front, keeping the start and cutting the end — so the decisive
+        # final attempt goes first, in full; earlier attempts are compressed
+        # to one line each (never a full stdout/stderr dump per attempt).
+        summary = f"{summary} (fixed after {len(attempts)} attempts)" if final_result.success else summary
+        lines = [content, "", f"{len(attempts) - 1} earlier failed attempt(s), most recent first:"]
+        for code, result in reversed(attempts[:-1]):
+            detail = (result.stderr or result.stdout or "").strip().splitlines()
+            first_line = detail[0][:200] if detail else ""
+            status = "timed out" if result.timed_out else f"exit code {result.exit_code}"
+            lines.append(f"- {status}: {first_line}")
+        return ToolResult(ok=final_result.success, summary=summary, content="\n".join(lines))
 
 
 class SubmitFindingsTool(BaseTool):
