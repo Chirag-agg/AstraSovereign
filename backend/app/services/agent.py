@@ -792,6 +792,7 @@ class Agent:
             "- ONLY call document_search when the user references a specific stored document, file, manual, report or the knowledge base (for example \"what is in experiment.pdf\" or \"what do our SOPs say\"). For general-topic questions and writing requests (for example \"write a 500-word report on deforestation\"), do NOT search and do NOT claim you lack documents — answer from your own knowledge.",
             "- When you do retrieve passages, cite which document and page each passage came from.",
             "- If a stored file is referenced and you have not searched yet, search before answering; never claim you cannot access a file you have not tried to read.",
+            "- document_search ranks by similarity and can miss an exact identifier. For a tag number, SOP/revision number, spec or clause code, or any other string that must match verbatim, call document_exact_search instead (or in addition).",
             "",
             "WRITING RULES:",
             "- When the request is to write, create, draft or summarize a report, essay, article or summary about a general topic (with or without a target word count), produce the complete text directly in your final response and respect any requested length. Do not refuse because there are no uploaded documents.",

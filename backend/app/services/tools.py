@@ -39,6 +39,7 @@ from app.services.document_generator import (
     DocumentGenerationError,
     DocumentGenerator,
 )
+from app.schemas.document import DocumentStatus
 from app.services.presentation_renderer import PresentationRenderError
 from app.services.knowledge_base import KnowledgeBase
 from app.services.log_context import get_job_context
@@ -501,6 +502,126 @@ class ReadDocumentTool(BaseTool):
                 f"({len(body)} chars{', truncated' if truncated else ''})"
             ),
             content=body,
+        )
+
+
+class DocumentExactSearchTool(BaseTool):
+    """Literal/regex search across all of the user's ingested documents.
+
+    ``document_search`` ranks by embedding similarity, which is unreliable for
+    the exact identifiers an industrial/legal/financial deliverable actually
+    needs verbatim — a tag number, an SOP revision, a spec or clause code.
+    This tool is a plain literal-substring (default) or regular-expression
+    scan over each document's extracted text, returning the document, page,
+    and surrounding context for every hit — no embedding involved, so a query
+    like "SOP-09 Rev 3" or "PSV-204A" returns byte-exact matches instead of
+    whatever ranked highest by similarity.
+    """
+
+    name = "document_exact_search"
+    description = (
+        "Search the user's ingested documents for an exact literal string (or, "
+        "with regex=true, a regular expression) — not semantic similarity. Use "
+        "for identifiers embeddings tend to miss: tag numbers, SOP/revision "
+        "numbers, spec or clause codes. Returns each match's document, page, "
+        "and surrounding text."
+    )
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "pattern": {"type": "string"},
+            "regex": {"type": "boolean"},
+            "case_sensitive": {"type": "boolean"},
+        },
+        "required": ["pattern"],
+        "additionalProperties": False,
+    }
+
+    _MAX_PATTERN_CHARS = 200
+    _CONTEXT_CHARS = 80
+    _MAX_MATCHES = 20
+    _MAX_DOCS = 200  # per-user corpora are small; this guards a pathological scan
+
+    def __init__(self, knowledge_base: KnowledgeBase, extraction_store) -> None:
+        self._kb = knowledge_base
+        self._extractions = extraction_store
+
+    async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
+        ctx = get_job_context()
+        user_id = ctx.get("user_id")
+        if not user_id:
+            raise ToolError("document_exact_search requires a user context")
+
+        pattern = str(arguments.get("pattern", "")).strip()
+        if not pattern:
+            raise ToolError("pattern must not be empty")
+        if len(pattern) > self._MAX_PATTERN_CHARS:
+            raise ToolError(f"pattern exceeds {self._MAX_PATTERN_CHARS} characters")
+        use_regex = bool(arguments.get("regex", False))
+        case_sensitive = bool(arguments.get("case_sensitive", False))
+        flags = 0 if case_sensitive else re.IGNORECASE
+        if use_regex:
+            try:
+                compiled = re.compile(pattern, flags)
+            except re.error as exc:
+                raise ToolError(f"invalid regular expression: {exc}")
+        else:
+            compiled = re.compile(re.escape(pattern), flags)
+
+        documents = await self._kb.list_documents(user_id)
+        ready = [d for d in documents if d.status == DocumentStatus.READY][: self._MAX_DOCS]
+
+        matches: list[dict] = []
+        for doc in ready:
+            extraction = self._extractions.get(user_id, doc.document_id)
+            if extraction is None:
+                continue
+            superseded = bool((doc.metadata or {}).get("superseded"))
+            done = False
+            for element in extraction.elements:
+                text = element.text or ""
+                for found in compiled.finditer(text):
+                    start = max(0, found.start() - self._CONTEXT_CHARS)
+                    end = min(len(text), found.end() + self._CONTEXT_CHARS)
+                    matches.append(
+                        {
+                            "document_id": doc.document_id,
+                            "filename": doc.filename,
+                            "page": element.page,
+                            "superseded": superseded,
+                            "snippet": text[start:end].strip(),
+                        }
+                    )
+                    if len(matches) >= self._MAX_MATCHES:
+                        done = True
+                        break
+                if done:
+                    break
+            if done:
+                break
+
+        if not matches:
+            return ToolResult(
+                ok=True,
+                summary="No exact matches found",
+                content="No exact matches found",
+            )
+
+        # Current revisions surface before a superseded one made the same match.
+        matches.sort(key=lambda m: m["superseded"])
+        lines = [f"Found {len(matches)} exact match(es) for '{pattern}'."]
+        for index, match in enumerate(matches, start=1):
+            location = f" (page {match['page']})" if match["page"] else ""
+            flag = " [SUPERSEDED REVISION]" if match["superseded"] else ""
+            lines.append(
+                f"\n[{index}] {match['filename']}{location}{flag} | doc={match['document_id']}"
+            )
+            lines.append(match["snippet"])
+        content = "\n".join(lines)
+        return ToolResult(
+            ok=True,
+            summary=f"{len(matches)} exact match(es) for '{pattern}'",
+            content=content,
         )
 
 

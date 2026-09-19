@@ -181,6 +181,131 @@ def test_uploading_an_older_revision_after_a_newer_one_is_marked_superseded(tmp_
     assert doc2.metadata.get("superseded") is True
 
 
+# --------------------------------------------------- document_exact_search
+
+def make_kb_with_extraction_store(tmp_path):
+    """A KnowledgeBase wired to persist extraction artifacts, needed for
+    document_exact_search (which scans each document's extracted elements,
+    not the vector store)."""
+    from app.services.extraction_store import JsonExtractionStore
+
+    return KnowledgeBase(
+        vector_store=JsonVectorStore(str(tmp_path / "kb")),
+        embedding_provider=FakeEmbeddingProvider(),
+        extraction_store=JsonExtractionStore(tmp_path / "extractions"),
+    )
+
+
+def test_document_exact_search_finds_a_verbatim_tag_number(tmp_path):
+    from app.services.tools import DocumentExactSearchTool
+
+    kb = make_kb_with_extraction_store(tmp_path)
+    doc_dir = make_doc_dir(tmp_path)
+    (doc_dir / "tag_register.txt").write_text(
+        "Pump PSV-204A must be inspected annually.\nValve PSV-204B is a spare.",
+        encoding="utf-8",
+    )
+    asyncio.run(kb.ingest_document("user-001", doc_dir / "tag_register.txt", "tag_register.txt"))
+
+    tool = DocumentExactSearchTool(knowledge_base=kb, extraction_store=kb._extraction_store)
+    set_job_context(user_id="user-001", job_id="job-x")
+
+    result = asyncio.run(tool.execute(Path("."), {"pattern": "PSV-204A"}))
+    assert result.ok
+    assert "1 exact match" in result.summary
+    assert "tag_register.txt" in result.content
+    assert "PSV-204A" in result.content
+    # a literal search for "PSV-204A" must not also report the distinct tag
+    # "PSV-204B" as a match.
+    assert "[1] tag_register.txt" in result.content
+    assert result.content.count("PSV-204B") <= 1  # only inside the context snippet, if at all
+
+
+def test_document_exact_search_regex_and_case_insensitivity(tmp_path):
+    from app.services.tools import DocumentExactSearchTool
+
+    kb = make_kb_with_extraction_store(tmp_path)
+    doc_dir = make_doc_dir(tmp_path)
+    (doc_dir / "sop.txt").write_text(
+        "This procedure is SOP-09 rev 3, approved for use.", encoding="utf-8"
+    )
+    asyncio.run(kb.ingest_document("user-001", doc_dir / "sop.txt", "sop.txt"))
+
+    tool = DocumentExactSearchTool(knowledge_base=kb, extraction_store=kb._extraction_store)
+    set_job_context(user_id="user-001", job_id="job-x")
+
+    # case-insensitive literal match by default
+    result = asyncio.run(tool.execute(Path("."), {"pattern": "sop-09 REV 3"}))
+    assert result.ok
+    assert "1 exact match" in result.summary
+
+    # regex mode
+    result = asyncio.run(
+        tool.execute(Path("."), {"pattern": r"SOP-\d+ rev \d+", "regex": True})
+    )
+    assert result.ok
+    assert "1 exact match" in result.summary
+
+
+def test_document_exact_search_no_match(tmp_path):
+    from app.services.tools import DocumentExactSearchTool
+
+    kb = make_kb_with_extraction_store(tmp_path)
+    doc_dir = make_doc_dir(tmp_path)
+    (doc_dir / "sop.txt").write_text("Nothing relevant here.", encoding="utf-8")
+    asyncio.run(kb.ingest_document("user-001", doc_dir / "sop.txt", "sop.txt"))
+
+    tool = DocumentExactSearchTool(knowledge_base=kb, extraction_store=kb._extraction_store)
+    set_job_context(user_id="user-001", job_id="job-x")
+    result = asyncio.run(tool.execute(Path("."), {"pattern": "PSV-204A"}))
+    assert result.ok
+    assert "No exact matches found" in result.content
+
+
+def test_document_exact_search_rejects_invalid_regex(tmp_path):
+    from app.services.tools import DocumentExactSearchTool
+
+    kb = make_kb_with_extraction_store(tmp_path)
+    tool = DocumentExactSearchTool(knowledge_base=kb, extraction_store=kb._extraction_store)
+    set_job_context(user_id="user-001", job_id="job-x")
+    with pytest.raises(ToolError, match="invalid regular expression"):
+        asyncio.run(tool.execute(Path("."), {"pattern": "PSV-204A(", "regex": True}))
+
+
+def test_document_exact_search_requires_user_context(tmp_path):
+    from app.services.tools import DocumentExactSearchTool
+
+    kb = make_kb_with_extraction_store(tmp_path)
+    tool = DocumentExactSearchTool(knowledge_base=kb, extraction_store=kb._extraction_store)
+    set_job_context()
+    with pytest.raises(ToolError, match="user context"):
+        asyncio.run(tool.execute(Path("."), {"pattern": "PSV-204A"}))
+
+
+def test_document_exact_search_flags_superseded_and_ranks_current_first(tmp_path):
+    from app.services.tools import DocumentExactSearchTool
+
+    kb = make_kb_with_extraction_store(tmp_path)
+    doc_dir = make_doc_dir(tmp_path)
+    (doc_dir / "SOP-09_Rev2.txt").write_text(
+        "Reference PSV-204A per this procedure. (Revision 2.)", encoding="utf-8"
+    )
+    (doc_dir / "SOP-09_Rev3.txt").write_text(
+        "Reference PSV-204A per this procedure. (Revision 3.)", encoding="utf-8"
+    )
+    asyncio.run(kb.ingest_document("user-001", doc_dir / "SOP-09_Rev2.txt", "SOP-09_Rev2.txt"))
+    asyncio.run(kb.ingest_document("user-001", doc_dir / "SOP-09_Rev3.txt", "SOP-09_Rev3.txt"))
+
+    tool = DocumentExactSearchTool(knowledge_base=kb, extraction_store=kb._extraction_store)
+    set_job_context(user_id="user-001", job_id="job-x")
+    result = asyncio.run(tool.execute(Path("."), {"pattern": "PSV-204A"}))
+    assert result.ok
+    assert "2 exact match" in result.summary
+    assert "SUPERSEDED REVISION" in result.content
+    # the current revision's match is listed before the superseded one's.
+    assert result.content.index("SOP-09_Rev3.txt") < result.content.index("SOP-09_Rev2.txt")
+
+
 def test_document_delete_via_kb(tmp_path):
     kb = make_kb(tmp_path)
     docs = asyncio.run(ingest_fixture(kb, make_doc_dir(tmp_path)))

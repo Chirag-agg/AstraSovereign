@@ -49,12 +49,13 @@ NODE_CAPABILITY = {
 NODE_TOOLS = {
     "extract": {
         "document_search",
+        "document_exact_search",
         "read_document",
         "document_vision",
         "submit_findings",
         "list_files",
     },
-    "retrieve": {"document_search"},
+    "retrieve": {"document_search", "document_exact_search"},
     "compute": {"code_execution"},
     # draft is the terminal general-purpose worker node: generators plus the
     # workspace file tools, so non-document tasks have somewhere to run.

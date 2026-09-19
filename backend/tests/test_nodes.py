@@ -239,12 +239,13 @@ def test_nodes_scope_tools_per_step():
     calls = node_agent._agent.calls
     assert calls[0]["tool_names"] == {
         "document_search",
+        "document_exact_search",
         "read_document",
         "document_vision",
         "submit_findings",
         "list_files",
-    }  # unchanged: extract keeps its read tools plus the typed exit
-    assert calls[1]["tool_names"] == {"document_search"}
+    }  # extract keeps its read tools plus the typed exit
+    assert calls[1]["tool_names"] == {"document_search", "document_exact_search"}
     assert calls[2]["tool_names"] == {"code_execution"}
     assert calls[3]["tool_names"] == {
         "document_generation",

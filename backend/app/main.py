@@ -64,6 +64,7 @@ from app.services.tool_config import validate_node_tools
 from app.services.tool_registry import ToolRegistry
 from app.services.tools import (
     CodeExecutionTool,
+    DocumentExactSearchTool,
     DocumentGenerationTool,
     DocumentSearchTool,
     DocumentVisionTool,
@@ -351,6 +352,12 @@ def create_app(
         ReadDocumentTool(
             extraction_store=extraction_store,
             max_chars=settings.read_document_max_chars,
+        )
+    )
+    tools.append(
+        DocumentExactSearchTool(
+            knowledge_base=knowledge_base,
+            extraction_store=extraction_store,
         )
     )
     tools.append(SubmitFindingsTool())
