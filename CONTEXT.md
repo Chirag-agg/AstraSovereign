@@ -392,6 +392,66 @@ models, and provides an agentic pipeline that:
   whose schema is `FindingsObject`; the node completes only when it is accepted.
   This is the native-tool-calling replacement for asking a model to emit JSON in
   free text (the pattern removed with the hand-rolled envelope).
+- **`require_tool_success` + compute-node sandbox verification (2026-09-19)**:
+  `Agent.run()` gained a generic `require_tool_success: set[tool_name]`
+  contract — like `terminal_tools`, but it gates *accepting* a final answer
+  on a named tool having a real, successful call in that run's own trace
+  segment, rather than replacing the final answer with the tool's own result.
+  The `compute` node passes `require_tool_success={"code_execution"}` for
+  both its findings-based and generic-coding branches, so a corrosion-rate/
+  remaining-life number (or any coding-task answer) can no longer be accepted
+  on the model's word alone. Because that soft gate still gives up and
+  accepts the model's last answer once the node's own iteration budget is
+  spent (documented, tested behavior — it must never hang), `nodes.py` also
+  re-checks the trace itself as a hard backstop: a compute run that reports
+  `COMPLETED` without an actual successful `code_execution` call is treated
+  as degraded (same as an explicit budget-exhaustion failure) and drafts an
+  explicit "not verified" notice rather than silently falling through to
+  `draft` re-answering from memory (`draft` has no `code_execution` tool in
+  its own set, so it cannot re-verify what `compute` failed to).
+- **Approval-note signatures never carry a model-invented identity
+  (2026-09-19)**: the agent's own `document_generation` instructions used to
+  ask the model for a signature `name` and `date` on a formal approval note —
+  a model has no way to know who will actually sign, so this invited
+  fabricated identities (observed: a rendered "John Doe"). `_validate_approval`
+  in `tools.py` now discards any model-supplied `name`/`date` before
+  constructing `ApprovalSignature`; only the `designation`/role survives, and
+  the Name/Date cells render blank in the printed table for a human to fill
+  in by hand — enforced structurally in the tool, not by prompt wording.
+- **Retrieval supersession + `document_exact_search` (2026-09-19)**:
+  `KnowledgeBase` now detects a document's revision number and "family" from
+  its filename at ingestion (`SOP-09_Rev2.pdf`/`SOP-09_Rev3.pdf` share a
+  family) and marks every older revision in that family
+  `metadata.superseded = True`, upload-order independent.
+  `JsonVectorStore.search_hybrid` scales down a superseded chunk's fused RRF
+  score so a same-relevance chunk from the current revision can never lose to
+  an older one by chance — the older text is not discarded (a corrosion
+  assessment still needs the previous reading), it just never outranks the
+  current revision for equal relevance. `document_search`'s `top_k` is now
+  floored above 1 (`DOCUMENT_SEARCH_MIN_TOP_K`, default 3; a model asking for
+  a single chunk was the retrieval pattern most likely to land on one
+  revision by chance), and the agent loop now catches an identical
+  consecutive `document_search` call (same query, same `top_k`) before
+  re-executing it, nudging the model to vary the query instead of burning a
+  second real lookup and a budget slot on results already seen. A new
+  `document_exact_search` tool (extract + retrieve node sets) does a plain
+  literal/regex scan over each document's extracted elements for identifiers
+  — tag numbers, SOP/revision numbers, spec/clause codes — that embedding
+  similarity handles poorly.
+- **`docs/VULNERABILITY_ANALYSIS.md` (2026-09-19)**: a code-level threat-model
+  review (companion to `docs/SOVEREIGNTY.md`), ranked by severity. Top open
+  finding: user identity is a self-asserted `X-User-ID` header with no real
+  authentication behind it (`backend/app/api/deps.py::get_user_id`) — every
+  per-user isolation boundary in the system is correct code sitting downstream
+  of an identity nobody verifies. Also flags the admin `X-Role: admin` gate
+  (already documented dev-only in its own docstring) and the audit hash
+  chain's lack of an external anchor/signing key (it proves internal
+  self-consistency, not tamper-evidence against someone with direct write
+  access to `data/astra.db`). Credits what already holds up (sandbox hardening,
+  workspace/filename path-traversal protection) and documents the three fixes
+  from this same session (compute verification, signature fabrication,
+  stale-revision retrieval) with before/after and residual risk rather than
+  treating them as closed and forgotten.
 
 ---
 
@@ -403,11 +463,15 @@ Implemented and working locally (backend + frontend + local models + Docker):
 - Config-driven routing and a typed agent node sequence (extract -> retrieve ->
   compute -> draft) spanning the document, coding, and general models.
 - Agent tool runtime: `list_files`/`read_file`/`write_file`, `document_search`
-  (local RAG), `read_document` (whole-document extraction markup), `document_vision`
-  (RapidOCR + Ollama vision), `code_execution`
-  (isolated Docker sandbox), `document_generation` (Word `.docx` + Excel `.xlsx`,
-  formal approval notes with signature blocks, workspace images),
-  `presentation_generation` (PptxGenJS). See `README.md` for the full surface.
+  (local RAG, supersession-aware ranking), `document_exact_search` (literal/
+  regex identifier lookup, added 2026-09-19), `read_document` (whole-document
+  extraction markup), `document_vision` (RapidOCR + Ollama vision),
+  `code_execution` (isolated Docker sandbox; `compute` cannot accept a result
+  without a verified successful run — see Architecture Decisions),
+  `document_generation` (Word `.docx` + Excel `.xlsx`, formal approval notes
+  with signature blocks that never carry a model-invented name, workspace
+  images), `presentation_generation` (PptxGenJS). See `README.md` for the
+  full surface.
 - Resource scheduler, ArtifactStore + secure downloads, NetworkGuard + sovereignty
   reporting, append-only audit, per-user knowledge base, Cowork projects with a
   persistent context manager.
@@ -417,7 +481,9 @@ Implemented and working locally (backend + frontend + local models + Docker):
   closure is vendored under `presentation/node_modules` (pinned `4.0.1`) and the
   real `render.cjs` is covered by a `node`-marked integration test; see
   `docs/OFFLINE_BUNDLE.md`.
-- Tests: backend `pytest` (468 passed) and frontend typecheck + 67 tests + build.
+- Tests: backend `pytest` (467 passed, 17 skipped — docker/node-marked,
+  environment-gated, as of 2026-09-19) and frontend typecheck + 67 tests +
+  build (frontend not re-run this session; not expected to be affected).
 - SQLite job updates are flat: 200 status updates measured at ~0.27 ms/update with
   1 job and ~0.25 ms/update with 200 jobs (0.93x) - the old full-table rewrite is
   gone.
@@ -428,11 +494,14 @@ Phase-by-phase history is in `docs/HISTORY.md`.
 
 ## Known Issues
 
-- **Model mapping (current):** text tasks (`general`, `document`, `coding`) use
-  `qwen2.5-coder:3b`; `vision` uses `llava:7b`; embeddings use
-  `nomic-embed-text`. `qwen3:1.7b` is NOT usable: it returns an empty JSON object
-  for the agent protocol, so jobs hit the iteration limit. `llama3.1:latest` is
-  available as a larger fallback if needed.
+- **Model mapping (updated 2026-09-19):** `general`/`document` use
+  `llama3.1:latest`; `coding` (and the `compute` node, which routes on the
+  `coding` capability) uses `qwen2.5-coder:7b` (previously `llama3.1:latest`
+  with `qwen2.5-coder:7b` only as fallback, which meant `model_auto_selection`
+  never actually reported more than one model across task types); `math`
+  (`qwen2.5-math:1.5b`) is now enabled; `vision` uses `llava:7b`; embeddings
+  use `nomic-embed-text`. `qwen3:1.7b` is NOT usable: it returns an empty JSON
+  object for the agent protocol, so jobs hit the iteration limit.
 - **No availability-aware routing for undeclared entries:** a configured but
   unpulled model without a `fallback_to` chain fails the job at the model call
   (`OllamaModelNotFoundError`); startup preflight and the Models UI warn about it.
@@ -547,10 +616,11 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   iteration budget, so no assessment exists. Fix: a stronger tool-capable extract
   model, or deterministic extraction (build `FindingsObject` from the injected
   extraction / Docling table), which removes the model from that loop.
-- **Ollama call timeout can fail a job (2026-09-14).** A single slow generation
-  on CPU exceeded the default 120 s `OLLAMA_TIMEOUT_SECONDS` and failed the job
-  mid-sequence. Benchmark runs use a larger value; raise it (or cap generation)
-  for the finale, and keep `BENCH_MODE`/pre-ingest in the demo checklist.
+- **Ollama call timeout (fixed 2026-09-19).** A single slow generation on CPU
+  had exceeded the default 120 s `OLLAMA_TIMEOUT_SECONDS` and failed a job
+  mid-sequence. The default is now 300 s (`config.py` + `.env.example`); keep
+  `BENCH_MODE`/pre-ingest in the demo checklist regardless, since the node
+  pipeline can still chain several slow tool-calling turns per node.
 - **Docling chosen for table extraction (2026-09-14).** Spike: `docling==2.127.0`
   (torch 2.14 CPU) runs fully offline (`HF_HUB_OFFLINE=1` + dead proxy) once
   `docling-project/docling-models` (342 MB) and `docling-project/docling-layout-heron`
@@ -592,13 +662,30 @@ Phase-by-phase history is in `docs/HISTORY.md`.
 ## Next Steps
 
 1. Ingestion week, in this order (derived from the Hard Scenario 01 failure list):
-   a. **Extraction/vision first**: route scanned reports and the nameplate to
-      `document_vision` (or a findings extractor) and ground every number in
-      OCR/vision output; define the ingest → findings contract.
-   b. **Retrieval ranking second**: record supersession at ingestion and never
-      surface or cite a superseded revision when the current one exists.
-   c. **Grounded computation and planning third**: one findings object → sandbox
-      calculation → all three deliverables; reject ungrounded numbers.
+   a. **Extraction/vision first (open)**: route scanned reports and the
+      nameplate to `document_vision` (or a findings extractor) and ground
+      every number in OCR/vision output; define the ingest -> findings
+      contract. This is now the sole remaining blocker on Hard Scenario 01:
+      extract's model adherence (see Known Issues) — `compute` cannot ground
+      a number if `extract` never submits findings to ground it in.
+   b. **Retrieval ranking (done 2026-09-19)**: ingestion now records
+      supersession (`KnowledgeBase._apply_supersession`, filename-derived
+      "Rev N" family grouping) and `JsonVectorStore.search_hybrid` scales
+      down a superseded document's fused score so a current revision can
+      never lose to an older one on an equal match. `document_exact_search`
+      was added alongside it for verbatim identifiers (tag numbers, SOP/
+      revision numbers) that embedding similarity handles poorly.
+   c. **Grounded computation (done 2026-09-19)**: `Agent.run()` gained a
+      generic `require_tool_success` contract and the `compute` node now
+      requires a real, successful `code_execution` call before accepting a
+      numeric answer, with a node-level backstop that re-checks the trace so
+      the soft gate's own last-iteration escape hatch can't slip an
+      unverified "completed" result past it (see Architecture Decisions).
+      Deterministic rendering from a single assessment object into all three
+      deliverables was already done (2026-09-15, `draft renders
+      deterministically from an assessment`). What remains for this item is
+      1a: there is still nothing to compute from until extract reliably
+      submits findings.
 2. Policy engine: classification-gated routing that filters the `RoutingDecision`
    candidate set before fallback (fallback must never select around a denial).
 3. Excel: spreadsheet read/compute and `.xlsx` ingestion.
