@@ -12,6 +12,7 @@ to a job are enumerated into the node input as structured data.
 from typing import Callable, Optional
 
 from app.schemas.document import DocumentRecord
+from app.services.untrusted_content import wrap_untrusted
 
 # "Attached documents under a token budget get read whole": the extract node's
 # input carries each attachment's extraction markdown up to these caps, so a
@@ -84,7 +85,18 @@ def build_attachment_manifest(
 
 
 def render_attachment_block(manifest: list[dict]) -> str:
-    """Compact structured block rendered into a node's *user* message."""
+    """Compact structured block rendered into a node's *user* message.
+
+    This is the extract node's initial task message — read before any tool
+    call happens, so it is the highest-value injection surface for a scanned
+    document (a P&ID, an inspection report): an instruction hidden in scanned
+    content arrives here first, not via a document_search/read_document tool
+    result. Each item's ``content`` (the actual extracted document text) is
+    wrapped in the same nonce-keyed untrusted-content boundary
+    ``Agent._observation`` uses for tool results; the surrounding metadata
+    (doc_id/filename/media_type/kind/pages) is system-generated, not
+    document-derived, and is left unwrapped.
+    """
     if not manifest:
         return ""
     lines = ["attachments:"]
@@ -98,6 +110,6 @@ def render_attachment_block(manifest: list[dict]) -> str:
         content = item.get("content")
         if content:
             lines.append("    content:")
-            for line in content.splitlines():
+            for line in wrap_untrusted(content).splitlines():
                 lines.append(f"      {line}")
     return "\n".join(lines)
