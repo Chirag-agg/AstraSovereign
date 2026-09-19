@@ -436,12 +436,19 @@ class NodeAgent:
                 "self-contained program, run it, and report the real output. Do not answer "
                 "from memory."
             )
+        start = len(trace)
         await self._ensure_reservation(job, model, route.requirements)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
             task_text=f"{instruction}\n\nREQUEST:\n{task}",
             max_iterations=self._budgets["compute"], max_tool_calls=6,
             append_start=False, enforce_contracts=False, tool_names=NODE_TOOLS["compute"],
+            # No corrosion-rate or remaining-life number reaches a deliverable
+            # unless it actually came out of a sandbox run: a model that
+            # answers from memory without calling code_execution is steered
+            # back (bounded by the node's own iteration budget), never
+            # accepted silently.
+            require_tool_success={"code_execution"},
         )
         if _is_infrastructure_failure(result):
             raise NodeInfrastructureError(result.error or "infrastructure failure")
@@ -449,7 +456,41 @@ class NodeAgent:
         if result.status == AgentStatus.CANCELLED:
             raise NodeCancelledError()
         cursor += result.iterations
+        # Node-level backstop: require_tool_success re-prompts the model but,
+        # like the terminal_tools contract it mirrors, gives up and accepts
+        # the model's last answer once the iteration budget is spent. Re-check
+        # here so a stubborn model that never actually ran the sandbox cannot
+        # slip an unverified "completed" result past the gate.
+        sandbox_verified = any(
+            entry.get("type") == "tool_result"
+            and entry.get("tool") == "code_execution"
+            and entry.get("ok") is True
+            for entry in trace[start:]
+        )
+        if result.status == AgentStatus.COMPLETED and not sandbox_verified:
+            result = AgentResult(
+                status=AgentStatus.FAILED,
+                error="compute finished without a verified sandbox run",
+                iterations=result.iterations,
+                tool_calls=result.tool_calls,
+            )
         if not has_findings:
+            if result.status != AgentStatus.COMPLETED:
+                self._node_degraded(
+                    trace, "compute", result.error or "iteration budget exhausted",
+                    iterations=result.iterations, tool_calls=result.tool_calls,
+                )
+                # draft has no code_execution tool and must not quietly redo the
+                # computation from memory to fill the gap: hand it an explicit
+                # unverified notice instead of leaving node_outputs empty (which
+                # would send draft the bare task and invite exactly that).
+                self._node_outputs.append(
+                    "COMPUTATION NOT VERIFIED: the sandbox did not report a "
+                    "successful result within the allotted attempts "
+                    f"({result.error or 'iteration budget exhausted'}). State plainly that "
+                    "no verified numeric result is available; do not invent one."
+                )
+                return cursor, None, True, None
             self._node_completed(
                 trace, "compute", computational=True,
                 iterations=result.iterations, tool_calls=result.tool_calls,

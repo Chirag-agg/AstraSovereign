@@ -94,6 +94,15 @@ class FakeAgent:
                 trace.append({"step": len(trace) + 1, "type": "tool_call", "tool": "document_vision"})
             elif "document_search" in task:
                 trace.append({"step": len(trace) + 1, "type": "tool_call", "tool": "document_search"})
+            elif "code_execution" in task:
+                # simulate compute's require_tool_success contract: a real,
+                # successful sandbox call backs the node's numeric answer.
+                trace.append(
+                    {"step": len(trace) + 1, "type": "tool_call", "tool": "code_execution"}
+                )
+                trace.append(
+                    {"step": len(trace) + 1, "type": "tool_result", "tool": "code_execution", "ok": True}
+                )
         if not self.results:
             return AgentResult(status=AgentStatus.COMPLETED, response="done", iterations=1)
         return self.results.pop(0)
@@ -262,3 +271,57 @@ def test_course_without_baseline_keeps_no_baseline_reason():
     assert by_course["C5"].reason_code == "REFER_NO_BASELINE"
     assert by_course["C5"].corrosion_rate_mm_per_year is None
     assert by_course["C2"].corrosion_rate_mm_per_year is not None
+
+
+class StubbornAgent:
+    """Simulates a model that reports COMPLETED without ever running the
+    sandbox — the ``require_tool_success`` soft gate inside Agent.run() gives
+    up on its own last budgeted turn (see test_agent.py), so nodes.py must not
+    trust ``result.status == COMPLETED`` alone for compute."""
+
+    def __init__(self, results):
+        self.results = list(results)
+        self.calls = []
+
+    async def run(self, job, **kwargs):
+        self.calls.append(kwargs)
+        task = kwargs.get("task_text", "")
+        trace = kwargs.get("trace")
+        if trace is not None:
+            if "submit_findings" in task:
+                trace.append(
+                    {"step": len(trace) + 1, "type": "tool_call", "tool": "submit_findings", "arguments": FINDINGS}
+                )
+                trace.append(
+                    {"step": len(trace) + 1, "type": "tool_result", "tool": "submit_findings", "ok": True}
+                )
+            elif "document_search" in task:
+                trace.append({"step": len(trace) + 1, "type": "tool_call", "tool": "document_search"})
+            # Deliberately no code_execution simulation here, even though the
+            # compute instruction mentions it: this model never actually calls it.
+        if not self.results:
+            return AgentResult(status=AgentStatus.COMPLETED, response="done", iterations=1)
+        return self.results.pop(0)
+
+    async def record_trace(self, *args, **kwargs):
+        return None
+
+
+def test_compute_completed_without_a_verified_sandbox_call_still_degrades():
+    results = [
+        AgentResult(status=AgentStatus.COMPLETED, response=json.dumps(FINDINGS), iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="sop", iterations=1),
+        # Reports COMPLETED with a confident number, but never ran code_execution.
+        AgentResult(status=AgentStatus.COMPLETED, response="corrosion rate is 0.5 mm/yr", iterations=1),
+        AgentResult(status=AgentStatus.COMPLETED, response="deliverables", iterations=1),
+    ]
+    node_agent = NodeAgent(
+        agent=StubbornAgent(results),
+        capability_router=CapabilityRouter(build_registry(MODELS)),
+        registry=build_registry(MODELS),
+    )
+    asyncio.run(
+        node_agent.run(FakeJob(), "/workspace", task_text=FakeJob.message, attachments=ATTACHMENTS)
+    )
+    by_course = {course.course: course for course in node_agent.last_assessment.courses}
+    assert by_course["C2"].reason_code == "REFER_ASSESSMENT_INCOMPLETE"

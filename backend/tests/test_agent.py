@@ -1,11 +1,12 @@
 """Direct tests of the controlled agent loop (mocked model, real tools)."""
 
 import asyncio
+import json
 from pathlib import Path
 
 import httpx
 
-from app.services.agent import Agent
+from app.services.agent import Agent, AgentStatus
 from app.services.job_manager import JobManager
 from app.services.job_store import InMemoryJobStore
 from app.services.ollama_service import OllamaService
@@ -310,3 +311,111 @@ def test_agent_tolerates_tool_without_type(tmp_path):
     assert result.status == "completed"
     assert result.response == "done"
     assert tool_calls_in(final.execution_trace) == ["list_files"]
+
+
+class FakeCodeExecutionTool(BaseTool):
+    name = "code_execution"
+    description = "test double for the sandbox"
+    input_schema = {
+        "type": "object",
+        "properties": {"language": {"type": "string"}, "code": {"type": "string"}},
+        "required": ["language", "code"],
+        "additionalProperties": False,
+    }
+
+    async def execute(self, workspace: Path, arguments: dict) -> ToolResult:
+        return ToolResult(ok=True, summary="ran ok")
+
+
+def test_require_tool_success_blocks_an_unverified_final_answer(tmp_path):
+    """A number the model asserts without running it is not accepted: the
+    agent is steered back until code_execution actually succeeds."""
+
+    async def scenario():
+        manager = JobManager(store=InMemoryJobStore(), default_model="test-model")
+        job = await manager.create_job(user_id="user-001", message="compute something")
+        script = [
+            json.dumps({"type": "final", "response": "the answer is 42"}),
+            json.dumps(
+                {
+                    "type": "tool_call",
+                    "tool": "code_execution",
+                    "arguments": {"language": "python", "code": "print(42)"},
+                    "reasoning": "verify",
+                }
+            ),
+            json.dumps({"type": "final", "response": "the answer is 42, verified by the sandbox"}),
+        ]
+        service = OllamaService(
+            base_url="http://ollama.test",
+            default_model="test-model",
+            timeout_seconds=5,
+            transport=httpx.MockTransport(make_scripted_handler(script)),
+        )
+        agent = Agent(
+            manager=manager,
+            tool_registry=ToolRegistry([FakeCodeExecutionTool()]),
+            model_client=service,
+        )
+        try:
+            result = await agent.run(
+                job,
+                model="test-model",
+                workspace=tmp_path,
+                require_tool_success={"code_execution"},
+                max_iterations=5,
+                max_tool_calls=5,
+            )
+            final = await manager.get_job_for_worker(job.job_id)
+            return result, final
+        finally:
+            await service.aclose()
+
+    result, final = asyncio.run(scenario())
+    assert result.status == AgentStatus.COMPLETED
+    assert result.response == "the answer is 42, verified by the sandbox"
+    assert result.iterations == 3
+    assert tool_calls_in(final.execution_trace) == ["code_execution"]
+
+
+def test_require_tool_success_gives_up_only_on_the_last_budgeted_turn(tmp_path):
+    """A model that never calls the tool is re-prompted every turn but the
+    budget check still terminates the loop deterministically (the node layer
+    is responsible for not trusting this last-ditch, unverified answer)."""
+
+    async def scenario():
+        manager = JobManager(store=InMemoryJobStore(), default_model="test-model")
+        job = await manager.create_job(user_id="user-001", message="compute something")
+        script = [
+            json.dumps({"type": "final", "response": "the answer is 42"}),
+            json.dumps({"type": "final", "response": "still 42, trust me"}),
+        ]
+        service = OllamaService(
+            base_url="http://ollama.test",
+            default_model="test-model",
+            timeout_seconds=5,
+            transport=httpx.MockTransport(make_scripted_handler(script)),
+        )
+        agent = Agent(
+            manager=manager,
+            tool_registry=ToolRegistry([FakeCodeExecutionTool()]),
+            model_client=service,
+        )
+        try:
+            return await agent.run(
+                job,
+                model="test-model",
+                workspace=tmp_path,
+                require_tool_success={"code_execution"},
+                max_iterations=2,
+                max_tool_calls=5,
+            )
+        finally:
+            await service.aclose()
+
+    result = asyncio.run(scenario())
+    # Exhausted the budget without ever verifying: the loop still terminates
+    # (never hangs), but callers that need a hard guarantee (nodes.py compute)
+    # must re-check the trace themselves rather than trust this status alone.
+    assert result.status == AgentStatus.COMPLETED
+    assert result.iterations == 2

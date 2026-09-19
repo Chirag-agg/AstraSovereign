@@ -16,6 +16,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 import httpx
 
@@ -90,9 +91,34 @@ def run(base_url: str, user_id: str, timeout_seconds: float) -> dict:
 
     headers = {"X-User-ID": user_id}
     client = httpx.Client(base_url=base_url, headers=headers, timeout=180.0)
+    admin_headers = {**headers, "X-Role": "admin"}
 
     health = client.get("/health")
     health.raise_for_status()
+
+    def sovereignty() -> Optional[dict]:
+        try:
+            response = client.get("/api/sovereignty")
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError:
+            return None
+
+    def gpu_vram_in_use() -> Optional[int]:
+        """Sum of gpu_vram_mb across the scheduler's current allocations.
+
+        Sampled repeatedly while the job runs (below) so the run's peak is a
+        real observation of the resource scheduler, not a hardcoded value.
+        """
+        try:
+            response = client.get("/api/admin/resources", headers=admin_headers)
+            response.raise_for_status()
+        except httpx.HTTPError:
+            return None
+        allocated = response.json().get("allocated", [])
+        return sum(a.get("gpu_vram_mb", 0) for a in allocated)
+
+    baseline_sovereignty = sovereignty()
 
     # Start from a clean user library so the run matches the direct harness.
     existing = client.get("/api/documents")
@@ -126,12 +152,23 @@ def run(base_url: str, user_id: str, timeout_seconds: float) -> dict:
 
     generation_start = time.monotonic()
     job = {}
+    peak_vram_mb: Optional[int] = None
     while time.monotonic() - generation_start < timeout_seconds:
         job = client.get(f"/api/jobs/{job_id}").json()
+        sample = gpu_vram_in_use()
+        if sample is not None:
+            peak_vram_mb = sample if peak_vram_mb is None else max(peak_vram_mb, sample)
         if job.get("status") in TERMINAL:
             break
         time.sleep(2)
     generation_seconds = time.monotonic() - generation_start
+
+    final_sovereignty = sovereignty()
+    external_connection_attempts = None
+    if baseline_sovereignty is not None and final_sovereignty is not None:
+        before = baseline_sovereignty["external_connections"]["blocked_attempts"]
+        after = final_sovereignty["external_connections"]["blocked_attempts"]
+        external_connection_attempts = after - before
 
     for artifact in job.get("artifacts", []):
         if artifact.get("status") != "completed":
@@ -184,8 +221,8 @@ def run(base_url: str, user_id: str, timeout_seconds: float) -> dict:
             "upload": round(upload_seconds, 2),
             "generation": round(generation_seconds, 2),
         },
-        "peak_vram_mb": None,
-        "external_connection_attempts": None,
+        "peak_vram_mb": peak_vram_mb,
+        "external_connection_attempts": external_connection_attempts,
         "artifacts_dir": str(artifacts_dir),
     }
     (results_dir / f"{stamp}_hard_scenario_01.json").write_text(

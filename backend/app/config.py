@@ -30,8 +30,11 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
 
-    # Per-request timeout for calls to Ollama (seconds).
-    ollama_timeout_seconds: float = 120.0
+    # Per-request timeout for calls to Ollama (seconds). The typed node
+    # pipeline chains several tool-calling turns per node on CPU-bound local
+    # models (qwen2.5-coder:7b, llava:7b); 120s was measured losing a job
+    # mid-run, so the default is generous enough to survive a slow node.
+    ollama_timeout_seconds: float = 300.0
 
     # Path to the models configuration file (task type -> model mapping).
     models_config: str = str(REPO_ROOT / "config" / "models.yaml")

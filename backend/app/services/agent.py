@@ -90,10 +90,15 @@ class Agent:
         enforce_contracts: bool = True,
         tool_names: Optional[set[str]] = None,
         terminal_tools: Optional[set[str]] = None,
+        require_tool_success: Optional[set[str]] = None,
     ) -> AgentResult:
         job_id = job.job_id
         user_id = job.user_id
         trace = trace if trace is not None else []
+        # Entries appended by earlier calls sharing this trace (other nodes in
+        # the pipeline) must not satisfy this call's own verification
+        # requirement — only what THIS run actually did counts.
+        entry_floor = len(trace)
         history = history if history is not None else []
         task_text = job.message if task_text is None else task_text
         iterations = 0
@@ -314,6 +319,35 @@ class Agent:
                                 "content": (
                                     f"You must finish by calling {names} with the structured "
                                     f"object; a prose answer is not accepted. Call {names} now."
+                                ),
+                            }
+                        )
+                        await self._sync(job_id, trace, stage, iterations, tool_calls)
+                        continue
+                # A caller-declared verification contract: no number in the
+                # final answer unless a named tool (e.g. code_execution) has a
+                # real, successful call in THIS run's own trace segment. Unlike
+                # ``terminal_tools`` this does not replace the final answer —
+                # it just gates accepting one that was never actually checked.
+                if require_tool_success and iterations < max_iter:
+                    verified = any(
+                        entry.get("type") == "tool_result"
+                        and entry.get("tool") in require_tool_success
+                        and entry.get("ok") is True
+                        for entry in trace[entry_floor:]
+                    )
+                    if not verified:
+                        names = ", ".join(sorted(require_tool_success))
+                        messages.append({"role": "assistant", "content": response})
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": (
+                                    f"You have not verified this with a successful call to "
+                                    f"{names}. No number may appear in your answer unless it "
+                                    f"came from a real, successful {names} result. Call {names} "
+                                    "now with the actual calculation, read its output, and only "
+                                    "then give your final answer using that output."
                                 ),
                             }
                         )

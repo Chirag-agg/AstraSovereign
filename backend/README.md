@@ -111,7 +111,7 @@ Key variables (all optional; defaults shown):
 | `VISION_RESOURCE_WAIT_ROUNDS` | `5`                | Max wait rounds for vision-model resources   |
 | `MULTIMODAL_TMP_ROOT`      | `../data/tmp`         | Per-job temp dir for rendered pages (cleaned)|
 | `HOST` / `PORT`          | `127.0.0.1` / `8000`  | FastAPI bind address (localhost only)         |
-| `OLLAMA_TIMEOUT_SECONDS` | `120`                 | Per-request timeout for Ollama calls          |
+| `OLLAMA_TIMEOUT_SECONDS` | `300`                 | Per-request timeout for Ollama calls          |
 | `LOG_LEVEL` / `LOG_FILE` | `INFO` / `../logs/backend.log` | Structured JSON logging            |
 
 ## 3b. Model routing (`config/models.yaml`)
