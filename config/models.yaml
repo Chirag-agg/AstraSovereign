@@ -30,25 +30,23 @@ models:
 
   coding:
     provider: ollama
-    model: llama3.1:latest
+    model: qwen2.5-coder:7b
     enabled: true
     capabilities:
       - coding
       - debugging
       - code_review
-    fallback_to:
-      - qwen2.5-coder:7b
+    fallback_to: []
     resources:
       gpu_vram_mb: 4096
       cpu_cores: 2
       memory_mb: 4096
 
-  # Optional math specialist. Disabled by default; while disabled, pipeline math
-  # stages fall back to the `general` model instead of failing.
+  # Math specialist.
   math:
     provider: ollama
     model: qwen2.5-math:1.5b
-    enabled: false
+    enabled: true
     capabilities:
       - math
       - reasoning
