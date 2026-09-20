@@ -73,6 +73,23 @@ NODE_TOOLS = {
 # the static reachability check as a producer of e.g. ``document_id``.
 NODE_INPUT_NODES = {"extract", "retrieve"}
 
+# _run_compute's "is this a computational task" precondition (no attachments,
+# so no findings to compute from) reads job.task_type == "coding" from the
+# SemanticCapabilityClassifier alone. That classifier is a small hand-curated
+# nearest-exemplar match (measured ~88% held-out accuracy) sitting entirely
+# outside this node's own control — a misclassified plain-text coding request
+# ("reverse this string in python and test it") skips compute silently and
+# falls through to draft's general model with no code_execution tool at all,
+# a much larger quality gap than a wrong label. This backstop is deliberately
+# a cheap, deterministic, second opinion the classifier's own accuracy cannot
+# regress: it only ever WIDENS compute's activation (never narrows it), so a
+# classifier fix later is additive, not a replacement for this.
+CODING_INTENT_RE = re.compile(
+    r"\b(python|javascript|typescript|function|def\b|code|program|script|"
+    r"algorithm|compile|debug)\b",
+    re.IGNORECASE,
+)
+
 # draft's generic (no-assessment) path has both generator tools in scope with
 # no structural gate on which one gets called, so a weak model that is more
 # "used to" producing a Word document can default to document_generation even
@@ -429,7 +446,9 @@ class NodeAgent:
         self, job, workspace, task, trace, cursor, findings, retrieval, planned
     ):
         has_findings = findings is not None and bool(findings.readings)
-        computational = getattr(job, "task_type", "") == "coding"
+        computational = getattr(job, "task_type", "") == "coding" or bool(
+            CODING_INTENT_RE.search(task or "")
+        )
         if not has_findings and not computational:
             self._skip(trace, "compute", "no findings and the task is not computational")
             return cursor, None, False, None

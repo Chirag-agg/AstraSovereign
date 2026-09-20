@@ -278,6 +278,43 @@ def test_draft_does_not_require_presentation_generation_for_plain_requests():
     assert draft_call["require_tool_success"] is None
 
 
+def test_compute_runs_on_coding_intent_even_when_the_classifier_says_general():
+    """Reported bug: a plain coding request sometimes gets 'the wrong model'.
+    Root cause: compute's only signal for 'this is a computational task' was
+    job.task_type == 'coding' from the semantic classifier (measured ~88%
+    held-out accuracy) - a misclassification silently skips compute and the
+    coding-capability model + code_execution tool entirely, falling through
+    to draft's general model with no way to actually run code. A cheap
+    keyword backstop must widen activation even when task_type says
+    'document' (FakeJob's default), never narrow it."""
+    node_agent = make_agent([])  # FakeAgent's default "done"/COMPLETED for every call
+    recorded = _capture(node_agent)
+    result = asyncio.run(
+        node_agent.run(
+            FakeJob(),
+            "/workspace",
+            task_text="Write a python function that reverses a string and test it.",
+        )
+    )
+
+    assert result.status == AgentStatus.COMPLETED
+    trace = recorded["trace"]
+    started = {entry["node"]: entry["model"] for entry in trace if entry["type"] == "node_started"}
+    assert started["compute"] == "coder-model"
+    completed = [e["node"] for e in trace if e["type"] == "node_completed"]
+    assert "compute" in completed
+
+
+def test_compute_still_skips_plain_non_coding_requests():
+    node_agent = make_agent([])
+    recorded = _capture(node_agent)
+    asyncio.run(node_agent.run(FakeJob(), "/workspace", task_text="What's the capital of France?"))
+
+    trace = recorded["trace"]
+    skipped = {entry["node"]: entry["reason"] for entry in trace if entry["type"] == "node_skipped"}
+    assert "compute" in skipped
+
+
 def test_draft_renders_deterministically_when_assessment_exists():
     results = [
         AgentResult(status=AgentStatus.COMPLETED, response="extract", iterations=1),
