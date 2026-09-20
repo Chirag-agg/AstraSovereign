@@ -13,7 +13,7 @@ failing or leaving a blank field.
 
 import logging
 import re
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from app.schemas.findings import AssessmentResult, FindingsObject
 from app.services.agent import AgentResult, AgentStatus
@@ -99,6 +99,78 @@ CODING_INTENT_RE = re.compile(
 PRESENTATION_INTENT_RE = re.compile(
     r"\b(ppt|pptx|powerpoint|presentation|slide\w*|deck)\b", re.IGNORECASE
 )
+
+# "Write 500 words" / "a 500-word report" was pure prompt wording (WRITING
+# RULES / DOCUMENT GENERATION RULES in agent.py's system prompt) with no
+# structural check behind it (observed: a "500 words" request answered with
+# ~50) — the same shape of gap as PRESENTATION_INTENT_RE and
+# CODING_INTENT_RE above: a weak model's compliance was the only thing
+# enforcing it. Matches "500 words"/"500-word" but not a bare number, so it
+# only fires when a length was actually requested.
+WORD_COUNT_RE = re.compile(r"\b(\d{2,5})[\s-]*words?\b", re.IGNORECASE)
+
+
+def _collect_text(value: Any) -> list[str]:
+    """Every string found anywhere in a (possibly nested) tool-call
+    arguments structure — deliberately schema-agnostic (sections/paragraphs/
+    bullets/slides/etc. all get walked the same way) so this doesn't need
+    updating every time document_generation's or presentation_generation's
+    argument shape changes."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        texts: list[str] = []
+        for v in value.values():
+            texts.extend(_collect_text(v))
+        return texts
+    if isinstance(value, list):
+        texts = []
+        for item in value:
+            texts.extend(_collect_text(item))
+        return texts
+    return []
+
+
+_CONTENT_GENERATOR_TOOLS = {"document_generation", "presentation_generation"}
+
+
+def _submitted_content_word_count(trace_segment: list[dict]) -> int:
+    """Words across every document_generation/presentation_generation call
+    in this trace segment — the deliverable's actual content, not the
+    chat response (which may just be a short "here's your file" note)."""
+    total = 0
+    for entry in trace_segment:
+        if entry.get("type") == "tool_call" and entry.get("tool") in _CONTENT_GENERATOR_TOOLS:
+            for text in _collect_text(entry.get("arguments")):
+                total += len(text.split())
+    return total
+
+
+def make_word_count_validator(min_words: int) -> Callable[[str, list[dict]], Optional[str]]:
+    """A content_validator (see Agent.run) requiring at least min_words,
+    counted from whichever channel actually carries the content: the plain
+    chat response, or a generator tool's submitted content — whichever is
+    longer, so "write 500 words and save it as a docx" isn't penalized for
+    a short chat confirmation when the real 500 words are in the file, and
+    a pure chat request with no deliverable is still checked on its own.
+    """
+
+    def validator(response: str, trace_segment: list[dict]) -> Optional[str]:
+        response_words = len((response or "").split())
+        content_words = _submitted_content_word_count(trace_segment)
+        actual = max(response_words, content_words)
+        if actual >= min_words:
+            return None
+        return (
+            f"This falls well short of the requested length: about {actual} words "
+            f"so far against a minimum of {min_words}. A short answer is not "
+            "acceptable here. Substantially expand it with real detail across "
+            "multiple paragraphs or sections until the length is met — do not "
+            "pad with filler or repetition."
+        )
+
+    return validator
+
 
 # Infrastructure failures mean the work could not be attempted; they must fail
 # the job, not degrade the node. Budget exhausted / precondition unmet / a tool
@@ -614,8 +686,17 @@ class NodeAgent:
         # deck, so a model that defaults to Word anyway cannot finish without
         # actually producing the requested pptx.
         require_success = None
-        if assessment is None and PRESENTATION_INTENT_RE.search(task or ""):
-            require_success = {"presentation_generation"}
+        content_validator = None
+        if assessment is None:
+            if PRESENTATION_INTENT_RE.search(task or ""):
+                require_success = {"presentation_generation"}
+            # Same reasoning as the deck gate above: only the no-assessment
+            # paths lack a structural length check (the assessment path
+            # renders deterministically or already writes full content from
+            # typed data, not free-text word count).
+            word_count_match = WORD_COUNT_RE.search(task or "")
+            if word_count_match:
+                content_validator = make_word_count_validator(int(word_count_match.group(1)))
         await self._ensure_reservation(job, model, route.requirements, trace=trace)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
@@ -623,6 +704,7 @@ class NodeAgent:
             max_iterations=self._budgets["draft"], max_tool_calls=10,
             append_start=False, enforce_contracts=False, tool_names=NODE_TOOLS["draft"],
             require_tool_success=require_success,
+            content_validator=content_validator,
         )
         if _is_infrastructure_failure(result):
             raise NodeInfrastructureError(result.error or "infrastructure failure")

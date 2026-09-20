@@ -651,3 +651,87 @@ def test_terminal_tool_narrowing_does_not_fire_before_the_last_turn(tmp_path):
     result = asyncio.run(scenario())
     assert result.status == AgentStatus.COMPLETED
     assert captured == [["document_search", "submit_findings"]]
+
+
+def test_content_validator_steers_the_model_back_until_satisfied(tmp_path):
+    """Generic content_validator hook: the caller decides what "enough"
+    means (e.g. a word count) and gets a chance to nudge before a thin final
+    answer is accepted, mirroring how require_tool_success works for tool
+    calls rather than content."""
+
+    async def scenario():
+        manager = JobManager(store=InMemoryJobStore(), default_model="test-model")
+        job = await manager.create_job(user_id="user-001", message="write 500 words")
+        script = [
+            json.dumps({"type": "final", "response": "Too short."}),
+            json.dumps({"type": "final", "response": "word " * 500}),
+        ]
+        service = OllamaService(
+            base_url="http://ollama.test",
+            default_model="test-model",
+            timeout_seconds=5,
+            transport=httpx.MockTransport(make_scripted_handler(script)),
+        )
+        agent = Agent(manager=manager, tool_registry=DEFAULT_TOOLS, model_client=service)
+
+        def validator(response: str, trace_segment: list[dict]):
+            if len(response.split()) < 500:
+                return "Too short, expand it."
+            return None
+
+        try:
+            return await agent.run(
+                job,
+                model="test-model",
+                workspace=tmp_path,
+                content_validator=validator,
+                max_iterations=5,
+                max_tool_calls=5,
+            )
+        finally:
+            await service.aclose()
+
+    result = asyncio.run(scenario())
+    assert result.status == AgentStatus.COMPLETED
+    assert len(result.response.split()) >= 500
+    assert result.iterations == 2
+
+
+def test_content_validator_gives_up_only_on_the_last_budgeted_turn(tmp_path):
+    async def scenario():
+        manager = JobManager(store=InMemoryJobStore(), default_model="test-model")
+        job = await manager.create_job(user_id="user-001", message="write 500 words")
+        script = [
+            json.dumps({"type": "final", "response": "still too short"}),
+            json.dumps({"type": "final", "response": "still too short again"}),
+        ]
+        service = OllamaService(
+            base_url="http://ollama.test",
+            default_model="test-model",
+            timeout_seconds=5,
+            transport=httpx.MockTransport(make_scripted_handler(script)),
+        )
+        agent = Agent(manager=manager, tool_registry=DEFAULT_TOOLS, model_client=service)
+
+        def validator(response: str, trace_segment: list[dict]):
+            return None if len(response.split()) >= 500 else "too short"
+
+        try:
+            return await agent.run(
+                job,
+                model="test-model",
+                workspace=tmp_path,
+                content_validator=validator,
+                max_iterations=2,
+                max_tool_calls=5,
+            )
+        finally:
+            await service.aclose()
+
+    result = asyncio.run(scenario())
+    # Exhausted the budget without ever satisfying the validator: the loop
+    # still terminates (never hangs) and returns the model's last answer,
+    # same soft-gate shape as require_tool_success.
+    assert result.status == AgentStatus.COMPLETED
+    assert result.iterations == 2
+    assert result.response == "still too short again"

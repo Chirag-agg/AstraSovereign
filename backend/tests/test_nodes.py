@@ -5,7 +5,7 @@ import json
 
 from app.services.agent import AgentResult, AgentStatus
 from app.services.capability_router import CapabilityRouter
-from app.services.nodes import NodeAgent
+from app.services.nodes import NodeAgent, make_word_count_validator
 from app.services.tools import ToolResult
 from tests.conftest import build_registry
 
@@ -276,6 +276,74 @@ def test_draft_does_not_require_presentation_generation_for_plain_requests():
 
     draft_call = node_agent._agent.calls[0]
     assert draft_call["require_tool_success"] is None
+
+
+def test_draft_requires_the_requested_word_count():
+    """Reported bug: asked for 500 words in the prompt and in a 500-word
+    docx, got ~50 either way. draft's no-assessment path had no structural
+    check on content length at all - purely prompt wording
+    ("write at least that many words") with nothing behind it."""
+    node_agent = make_agent(
+        [AgentResult(status=AgentStatus.COMPLETED, response="done", iterations=1)]
+    )
+    asyncio.run(
+        node_agent.run(
+            FakeJob(), "/workspace", task_text="Write a 500 word essay on corrosion monitoring"
+        )
+    )
+
+    draft_call = node_agent._agent.calls[0]
+    validator = draft_call["content_validator"]
+    assert validator is not None
+    assert validator("way too short", []) is not None  # nudges back
+    assert validator("word " * 500, []) is None  # satisfied
+
+
+def test_draft_word_count_validator_also_counts_submitted_document_content():
+    """"Write 500 words and save it as a docx" shouldn't be penalized for a
+    short chat confirmation ("here's your file") when the real content is
+    inside the document_generation call - whichever channel actually has
+    the words should satisfy it."""
+    node_agent = make_agent([])
+    asyncio.run(
+        node_agent.run(FakeJob(), "/workspace", task_text="Write 500 words about Tank 204")
+    )
+    validator = node_agent._agent.calls[0]["content_validator"]
+
+    short_chat_response = "Here is your document."
+    trace_with_thin_doc = [
+        {
+            "type": "tool_call",
+            "tool": "document_generation",
+            "arguments": {"sections": [{"content": "too short"}]},
+        }
+    ]
+    trace_with_full_doc = [
+        {
+            "type": "tool_call",
+            "tool": "document_generation",
+            "arguments": {"sections": [{"content": "word " * 500}]},
+        }
+    ]
+    assert validator(short_chat_response, trace_with_thin_doc) is not None
+    assert validator(short_chat_response, trace_with_full_doc) is None
+
+
+def test_draft_does_not_require_a_word_count_when_none_was_requested():
+    node_agent = make_agent(
+        [AgentResult(status=AgentStatus.COMPLETED, response="hello", iterations=1)]
+    )
+    asyncio.run(node_agent.run(FakeJob(), "/workspace", task_text="What's the capital of France?"))
+
+    draft_call = node_agent._agent.calls[0]
+    assert draft_call["content_validator"] is None
+
+
+def test_make_word_count_validator_reports_remaining_gap_in_the_nudge():
+    validator = make_word_count_validator(500)
+    nudge = validator("only a few words here", [])
+    assert "500" in nudge
+    assert "short" in nudge.lower()
 
 
 def test_compute_runs_on_coding_intent_even_when_the_classifier_says_general():

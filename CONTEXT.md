@@ -622,6 +622,35 @@ models, and provides an agentic pipeline that:
   `::test_vision_skips_pure_text_pages_entirely`,
   `::test_scanned_document_still_gets_whole_page_vision` (the last one a
   direct regression guard for the ocr-metadata carve-out).
+- **Generic `content_validator` gate + word-count enforcement (2026-09-20)**:
+  reported bug — a "write 500 words" request, in a chat prompt and in a
+  500-word docx request, both returned about 50. Root cause: identical shape
+  to the PPT/coding-model bugs above — `agent.py`'s "write at least that
+  many words" instruction was pure prompt wording with no structural check
+  behind it at all in the live node pipeline (`enforce_contracts=False`
+  everywhere in `nodes.py`). `Agent.run()` gained a generic
+  `content_validator: Callable[[response, trace_segment], Optional[str]]`
+  hook — a caller-declared check on the CONTENT actually produced, as
+  opposed to `terminal_tools`/`require_tool_success` which only check
+  whether the right tool was *called*. Returns `None` when satisfied, or a
+  nudge string to steer the model back with (same soft-gate shape: bounded
+  by the iteration budget, never hangs). `nodes.py::make_word_count_validator`
+  is the first user: `WORD_COUNT_RE` detects an explicit "N words"/"N-word"
+  request in the original task text (never invents a minimum when none was
+  asked for), and the validator counts `max(words in the chat response,
+  words submitted to a document_generation/presentation_generation call in
+  this trace segment)` — schema-agnostic (`_collect_text` walks any nested
+  tool-call-arguments structure, so it doesn't need updating when
+  `sections`/`slides` shapes change) and channel-agnostic (a short "here's
+  your file" chat confirmation isn't penalized when the real content is in
+  the docx, and vice versa). Scoped to `_run_draft`'s no-assessment paths,
+  same as the presentation-intent gate — the assessment path's content is
+  either deterministic or already fully instructed. See
+  `test_agent.py::test_content_validator_steers_the_model_back_until_satisfied`,
+  `::test_content_validator_gives_up_only_on_the_last_budgeted_turn`, and
+  `test_nodes.py`'s `test_draft_requires_the_requested_word_count`,
+  `::test_draft_word_count_validator_also_counts_submitted_document_content`,
+  `::test_draft_does_not_require_a_word_count_when_none_was_requested`.
 
 ---
 

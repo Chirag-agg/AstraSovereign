@@ -12,7 +12,7 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from pydantic import BaseModel
 
@@ -109,6 +109,7 @@ class Agent:
         tool_names: Optional[set[str]] = None,
         terminal_tools: Optional[set[str]] = None,
         require_tool_success: Optional[set[str]] = None,
+        content_validator: Optional[Callable[[str, list[dict]], Optional[str]]] = None,
     ) -> AgentResult:
         job_id = job.job_id
         user_id = job.user_id
@@ -396,6 +397,21 @@ class Agent:
                                 ),
                             }
                         )
+                        await self._sync(job_id, trace, stage, iterations, tool_calls)
+                        continue
+                # A caller-declared structural check on the actual CONTENT
+                # produced (e.g. a requested word count), as opposed to
+                # terminal_tools/require_tool_success which only check
+                # whether the right tool was called at all. Generic on
+                # purpose: the caller decides what "enough" means and how to
+                # measure it (response text, a generator tool's submitted
+                # content, or both) without agent.py knowing about document
+                # schemas.
+                if content_validator is not None and iterations < max_iter:
+                    nudge = content_validator(response, trace[entry_floor:])
+                    if nudge:
+                        messages.append({"role": "assistant", "content": response})
+                        messages.append({"role": "user", "content": nudge})
                         await self._sync(job_id, trace, stage, iterations, tool_calls)
                         continue
                 if (
