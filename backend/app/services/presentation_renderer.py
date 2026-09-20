@@ -72,7 +72,16 @@ def validate_pptx(path: Path, expected_slides: int) -> int:
                 raise PresentationRenderError("presentation has no ppt/presentation.xml")
             slides = _slide_part_count(package)
     except (OSError, zipfile.BadZipFile) as exc:
-        raise PresentationRenderError(f"presentation is not a valid zip/OpenXML package: {exc}") from exc
+        # str(exc) can embed the absolute workspace path (e.g. a PermissionError
+        # or FileNotFoundError message); log the real detail server-side only
+        # and never forward it into the tool-visible error the model sees.
+        logger.error(
+            "presentation_validation_failed",
+            extra={"event": "presentation_validation_failed", "error": str(exc)},
+        )
+        raise PresentationRenderError(
+            f"presentation is not a valid zip/OpenXML package: {exc.__class__.__name__}"
+        ) from exc
     if slides < expected_slides:
         raise PresentationRenderError(
             f"expected at least {expected_slides} slides but found {slides} slide parts"
@@ -128,9 +137,17 @@ class NodePresentationRenderer:
                     timeout=self._timeout,
                 )
             if proc.returncode != 0:
+                # The Node process's stderr often echoes the absolute output
+                # path it failed to write to (a raw fs error), or other
+                # internal detail — log it server-side only, never forward it
+                # into the tool-visible error the model sees.
                 detail = (proc.stderr or "").strip()[-1500:]
+                logger.error(
+                    "presentation_renderer_failed",
+                    extra={"event": "presentation_renderer_failed", "detail": detail},
+                )
                 raise PresentationRenderError(
-                    f"local renderer failed: {detail or 'unknown error'}"
+                    "local renderer failed; see server logs for detail"
                 )
             slides = validate_pptx(target, len(content.slides))
             normalize_ooxml(target)

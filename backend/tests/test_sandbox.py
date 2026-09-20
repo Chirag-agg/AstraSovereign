@@ -157,3 +157,42 @@ def test_runner_has_no_host_execution_fallback():
     assert not hasattr(runner, "_local_fallback")
     assert not hasattr(runner, "_run_subprocess")
     assert not hasattr(runner, "_run_subprocess_sync")
+
+
+def test_container_start_failure_does_not_leak_the_host_mount_path(monkeypatch, tmp_path):
+    """A Docker mount/permission failure (exit 125) commonly echoes the
+    host's absolute temp-dir mount path (tempfile.mkdtemp() output passed as
+    -v ...) in its own stderr — that must never reach the model, only the
+    server log."""
+
+    sensitive_path = tmp_path / "sovereign-sandbox-abc123"
+    sensitive_stderr = (
+        f"docker: Error response from daemon: error mounting "
+        f'"{sensitive_path}": no such file or directory.\n'
+    ).encode("utf-8")
+
+    class FakeProc:
+        returncode = 125
+
+        async def communicate(self, stdin_bytes):
+            return b"", sensitive_stderr
+
+        async def wait(self):
+            return self.returncode
+
+    async def fake_create_subprocess_exec(*args, **kwargs):
+        return FakeProc()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+    runner = DockerSandboxRunner()
+
+    async def scenario():
+        with pytest.raises(SandboxRunnerError) as excinfo:
+            await runner.run("print(1)", language="python")
+        return excinfo.value
+
+    error = asyncio.run(scenario())
+    message = str(error)
+    assert str(sensitive_path) not in message
+    assert "sovereign-sandbox" not in message
+    assert "mounting" not in message

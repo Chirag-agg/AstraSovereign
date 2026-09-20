@@ -534,6 +534,32 @@ models, and provides an agentic pipeline that:
   invoke, and CI (mocked models, scripted to comply once narrowed) cannot
   measure whether it moves the real Hard Scenario 01 score. That requires an
   actual re-run against `llama3.1:latest` and is still the open item.
+- **Information-minimization audit of tool-error messages (2026-09-20)**:
+  prompted by comparing this codebase's tool outputs against a competitor's
+  explicit socket→plug denylist (paths, embeddings, container IDs, cache
+  paths a model must never see), audited every `ToolError`/tool-result
+  construction reachable from `tools.py`. Found and fixed three real
+  call sites that forwarded a raw exception's `str(exc)` straight into
+  agent-visible output instead of a sanitized message —
+  `presentation_renderer.py` (a crashing Node subprocess's stderr, or an
+  `OSError` validating the generated `.pptx`, can echo the absolute
+  artifacts-directory path), `sandbox_runner.py` (a Docker mount/permission
+  failure's stderr can echo the host's `tempfile.mkdtemp()` path passed as
+  a `-v` mount argument), and `ollama_service.py::generate_with_image` (a
+  missing/unreadable vision image's `OSError` embeds the absolute path in
+  its own message, propagating unchanged through
+  `VisionProviderError`/`MultimodalError`/`ToolError`). All three now log
+  the real detail server-side only and raise a sanitized, stable message —
+  the same pattern `document_generator.py` already used for its own Word/
+  Excel failures (`exc.__class__.__name__`, never `str(exc)`), which is why
+  `DocumentGenerationTool`'s equivalent path was already safe and needed no
+  change. See `docs/VULNERABILITY_ANALYSIS.md` finding 11 and
+  `test_presentation_renderer_safety.py`,
+  `test_sandbox.py::test_container_start_failure_does_not_leak_the_host_mount_path`,
+  `test_ollama_service.py::test_generate_with_image_missing_file_does_not_leak_the_path`.
+  Not a standing lint rule — a new tool adding the same raw-`str(exc)`
+  pattern later would not be caught by CI; noted as a residual risk rather
+  than solved for good.
 
 ---
 

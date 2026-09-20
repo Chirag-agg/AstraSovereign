@@ -252,6 +252,29 @@ def test_generate_with_image_sends_keep_alive(tmp_path):
     asyncio.run(scenario())
 
 
+def test_generate_with_image_missing_file_does_not_leak_the_path(tmp_path):
+    """A missing/unreadable image raises an OSError whose own message embeds
+    the absolute host path — that must never reach the model (it propagates
+    through VisionProviderError/MultimodalError/ToolError to the agent)."""
+
+    async def scenario():
+        def handler(request):
+            raise AssertionError("must not reach Ollama: the read fails first")
+
+        missing = tmp_path / "workspaces" / "user-001" / "job-abc" / "page_1.png"
+        service = make_service(handler)
+        try:
+            with pytest.raises(OllamaRequestError) as excinfo:
+                await service.generate_with_image("describe", "vision-model", missing)
+        finally:
+            await service.aclose()
+        message = str(excinfo.value)
+        assert str(missing) not in message
+        assert "user-001" not in message
+
+    asyncio.run(scenario())
+
+
 def test_keep_alive_omitted_when_none():
     async def scenario():
         def handler(request):

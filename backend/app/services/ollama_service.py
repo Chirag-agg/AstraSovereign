@@ -7,11 +7,14 @@ Ollama endpoint (``OLLAMA_BASE_URL``). No external AI services are used.
 import asyncio
 import base64
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Optional
 
 import httpx
+
+logger = logging.getLogger("app.ollama_service")
 
 
 class OllamaServiceError(Exception):
@@ -233,7 +236,15 @@ class OllamaService:
         try:
             image_b64 = base64.b64encode(Path(image_path).read_bytes()).decode("utf-8")
         except OSError as exc:
-            raise OllamaRequestError(f"Cannot read image for vision: {exc}") from exc
+            # str(exc) embeds the absolute host path (an OSError's own
+            # message format) — log it server-side only; this propagates
+            # through VisionProviderError/MultimodalError/ToolError to the
+            # model, which must never see internal filesystem layout.
+            logger.error(
+                "vision_image_read_failed",
+                extra={"event": "vision_image_read_failed", "error": str(exc)},
+            )
+            raise OllamaRequestError("Cannot read image for vision") from exc
 
         payload = {
             "model": model_name,

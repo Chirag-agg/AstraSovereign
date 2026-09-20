@@ -143,9 +143,18 @@ class DockerSandboxRunner(SandboxRunner):
                 raise SandboxRunnerError(
                     f"Docker sandbox image '{self._image}' is not available locally"
                 )
-            raise SandboxRunnerError(
-                f"Sandbox container failed to start: {self._shorten(stderr_text)}"
+            # The daemon's own stderr can echo the host's absolute temp-dir
+            # mount path (tempfile.mkdtemp() output passed as -v ...) on a
+            # mount/permission failure — log the real detail server-side only,
+            # never forward it into the tool-visible error the model sees.
+            logger.error(
+                "sandbox_container_start_failed",
+                extra={
+                    "event": "code_execution_failed",
+                    "error": self._shorten(stderr_text),
+                },
             )
+            raise SandboxRunnerError("Sandbox container failed to start")
 
         if not timed_out and returncode == 137:
             limit_message = "Execution exceeded the memory limit"
