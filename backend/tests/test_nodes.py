@@ -251,6 +251,33 @@ def test_model_unload_failure_never_fails_the_job():
     assert ollama.unload_calls == ["doc-model", "coder-model"]
 
 
+def test_draft_requires_presentation_generation_when_a_deck_is_requested():
+    """Reported bug: 'make me a PPT' still produced a .docx. draft's
+    no-assessment path has both generator tools in scope with no gate on
+    which one gets called, so a model that defaults to Word must now be
+    forced back until it actually calls presentation_generation."""
+    node_agent = make_agent(
+        [AgentResult(status=AgentStatus.COMPLETED, response="deck made", iterations=1)]
+    )
+    result = asyncio.run(
+        node_agent.run(FakeJob(), "/workspace", task_text="Make me a PPT summarizing our Q3 sales")
+    )
+
+    assert result.status == AgentStatus.COMPLETED
+    draft_call = node_agent._agent.calls[0]
+    assert draft_call["require_tool_success"] == {"presentation_generation"}
+
+
+def test_draft_does_not_require_presentation_generation_for_plain_requests():
+    node_agent = make_agent(
+        [AgentResult(status=AgentStatus.COMPLETED, response="hello", iterations=1)]
+    )
+    asyncio.run(node_agent.run(FakeJob(), "/workspace", task_text="say hi"))
+
+    draft_call = node_agent._agent.calls[0]
+    assert draft_call["require_tool_success"] is None
+
+
 def test_draft_renders_deterministically_when_assessment_exists():
     results = [
         AgentResult(status=AgentStatus.COMPLETED, response="extract", iterations=1),

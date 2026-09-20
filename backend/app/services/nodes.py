@@ -12,6 +12,7 @@ failing or leaving a blank field.
 """
 
 import logging
+import re
 from typing import Any, Optional
 
 from app.schemas.findings import AssessmentResult, FindingsObject
@@ -71,6 +72,16 @@ NODE_TOOLS = {
 # Nodes that receive the structured attachment manifest (node input). Used by
 # the static reachability check as a producer of e.g. ``document_id``.
 NODE_INPUT_NODES = {"extract", "retrieve"}
+
+# draft's generic (no-assessment) path has both generator tools in scope with
+# no structural gate on which one gets called, so a weak model that is more
+# "used to" producing a Word document can default to document_generation even
+# when the request explicitly asked for a deck (observed). This is checked
+# against the ORIGINAL request text, before draft wraps it with retrieved
+# context, so "make a PPT" is detected regardless of what else is in scope.
+PRESENTATION_INTENT_RE = re.compile(
+    r"\b(ppt|pptx|powerpoint|presentation|slide\w*|deck)\b", re.IGNORECASE
+)
 
 # Infrastructure failures mean the work could not be attempted; they must fail
 # the job, not degrade the node. Budget exhausted / precondition unmet / a tool
@@ -576,12 +587,23 @@ class NodeAgent:
             # Degenerate path: a plain prompt passes through (nearly) unmodified,
             # so chat does not get wordier just because it ran through the engine.
             node_task = task
+        # Only the no-assessment paths reach the model with both generator
+        # tools in scope and no gate on which one gets called (the assessment
+        # path above is either fully deterministic via _render_assessment, or
+        # its own instruction text already names presentation_generation
+        # explicitly). Require it when the ORIGINAL request text asked for a
+        # deck, so a model that defaults to Word anyway cannot finish without
+        # actually producing the requested pptx.
+        require_success = None
+        if assessment is None and PRESENTATION_INTENT_RE.search(task or ""):
+            require_success = {"presentation_generation"}
         await self._ensure_reservation(job, model, route.requirements, trace=trace)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
             task_text=node_task,
             max_iterations=self._budgets["draft"], max_tool_calls=10,
             append_start=False, enforce_contracts=False, tool_names=NODE_TOOLS["draft"],
+            require_tool_success=require_success,
         )
         if _is_infrastructure_failure(result):
             raise NodeInfrastructureError(result.error or "infrastructure failure")
