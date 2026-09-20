@@ -91,3 +91,36 @@ def test_build_chunks_carries_page_metadata():
     pages_seen = {c["page"] for c in chunks}
     assert pages_seen == {1, 2}
     assert all("text" in c for c in chunks)
+
+
+def test_chunking_never_splits_a_word():
+    """Too-basic RAG complaint: the old blind character slice could cut a
+    chunk boundary mid-word (e.g. 'inspect' | 'ion'), which both reads wrong
+    in a citation and embeds worse at the truncated boundary token. Each
+    chunk must start and end on a real word boundary."""
+    words = [
+        "corrosion", "rate", "thickness", "reading", "inspection", "report",
+        "shell", "course", "nameplate", "geometry", "revision", "procedure",
+        "survey", "allowable", "stress", "efficiency", "diameter", "height",
+    ]
+    text = " ".join(words * 6)  # long enough to force multiple chunks
+    chunks = chunk_text(text, chunk_size=80, chunk_overlap=20)
+    assert len(chunks) > 1
+    for chunk in chunks:
+        assert chunk == chunk.strip()
+        first_char, last_char = chunk[0], chunk[-1]
+        assert not first_char.isspace() and not last_char.isspace()
+        # Every chunk boundary must land on a real word from the source list,
+        # never a fragment of one.
+        assert chunk.split()[0] in words
+        assert chunk.split()[-1] in words
+
+
+def test_chunking_falls_back_to_character_window_for_one_giant_token():
+    """A single token with no whitespace at all (pathological OCR noise, a
+    URL, a hash) cannot be split on a word boundary — the chunk_size
+    guarantee must still hold via a character-window fallback."""
+    token = "x" * 1000
+    chunks = chunk_text(token, chunk_size=300, chunk_overlap=100)
+    assert all(len(c) <= 300 for c in chunks)
+    assert chunks[0][-100:] == chunks[1][:100]

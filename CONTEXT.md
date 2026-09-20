@@ -560,6 +560,43 @@ models, and provides an agentic pipeline that:
   Not a standing lint rule — a new tool adding the same raw-`str(exc)`
   pattern later would not be caught by CI; noted as a residual risk rather
   than solved for good.
+- **Draft's deliverable-type gate + compute's coding-intent backstop
+  (2026-09-20)**: two reported bugs traced to the same root shape — a node
+  relying on a single signal (model judgment, or the classifier's label)
+  with nothing structural backing it up. (1) "Asked for a PPT, got a .docx":
+  `draft`'s no-assessment path hands the model both generator tools with no
+  gate on which one gets called; `nodes.py` now detects deck-intent in the
+  original request text and passes `require_tool_success={"presentation_generation"}`
+  into that `agent.run()` call, reusing the same contract mechanism added
+  for compute's sandbox verification. (2) "Can't decide which model": for an
+  attachment-less request, `_run_compute`'s only "is this computational"
+  signal was `job.task_type == "coding"` from the `SemanticCapabilityClassifier`
+  (~88% held-out accuracy) — a misclassification skipped compute entirely,
+  falling through to draft's general model with no `code_execution` tool at
+  all. `CODING_INTENT_RE` (mirroring `agent.py`'s existing `looks_like_coding`
+  heuristic) now backstops the classifier: it only ever widens compute's
+  activation, never narrows it, so improving the classifier itself later is
+  additive, not a replacement. See `test_nodes.py`'s
+  `test_draft_requires_presentation_generation_when_a_deck_is_requested` and
+  `test_compute_runs_on_coding_intent_even_when_the_classifier_says_general`.
+- **Word-boundary-aware chunking (2026-09-20)**: `chunk_text`
+  (`document_ingestion.py`) used to be a blind character-window slice — a
+  chunk could start or end mid-word (`"inspect"` / `"ion"`), which both
+  reads wrong in a citation and produces a measurably worse embedding for
+  the truncated boundary token, a real instance of "RAG is too basic."
+  Rewritten to choose chunk boundaries at word edges: each chunk is still a
+  verbatim substring of the source (original whitespace/newlines inside it
+  untouched, so no behavior change beyond boundary choice), packing whole
+  words up to `chunk_size` and stepping the overlap back by whole words too.
+  A single token longer than `chunk_size` itself (no whitespace to break on
+  — OCR noise, a URL, a hash) falls back to the old character-window
+  behavior for just that token, so the size guarantee never breaks. See
+  `test_ingestion.py::test_chunking_never_splits_a_word` and
+  `::test_chunking_falls_back_to_character_window_for_one_giant_token`.
+  The retrieval *fusion* logic (BM25+dense RRF, near-duplicate suppression,
+  supersession-aware ranking, `document_exact_search`) was already solid
+  going into this fix — chunking was the genuinely weak link; a reranker
+  pass and query rewriting remain open, larger asks.
 
 ---
 
