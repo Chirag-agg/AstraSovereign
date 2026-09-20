@@ -597,6 +597,31 @@ models, and provides an agentic pipeline that:
   supersession-aware ranking, `document_exact_search`) was already solid
   going into this fix — chunking was the genuinely weak link; a reranker
   pass and query rewriting remain open, larger asks.
+- **Vision targets embedded figures, not the whole PDF page (2026-09-20)**:
+  `document_vision` used to always analyze a whole rendered page — for a
+  text-based report page, that means feeding the vision model a busy render
+  that OCR already covered, and paying for a vision call even on pages with
+  no visual content at all. `DocumentPreparer.extract_embedded_images`
+  (new, `pypdf`'s `page.images` — no bounding-box math needed, since pypdf
+  already gives back each embedded raster image fully decoded and cropped
+  exactly as embedded) locates the actual photo/diagram/figure on a page,
+  saved as its own file (tiny images below `MIN_EMBEDDED_IMAGE_DIMENSION`,
+  64px — icons, bullet glyphs, decorative rules — are filtered out, not
+  worth a vision call). `MultimodalService._run_vision_for_page` now: a
+  text-based PDF page with embedded image(s) gets vision on *those*
+  specifically (each one, up to `MAX_EMBEDDED_IMAGES_PER_PAGE`=3, merged
+  into one `VisionPageResult` prefixed `[figure]`/`[figure N]`); a page with
+  none skips the vision call entirely (OCR alone already covers it). This
+  does NOT apply to a genuinely scanned document (`doc.metadata["ocr"]`,
+  ingested via `ingest_scanned` because it had no extractable text layer at
+  all) or a standalone image upload — both keep the original whole-page
+  vision unchanged, since there's no separate typed-text portion to split
+  the image from; the whole thing IS the image. See
+  `test_document_preparer.py`'s `test_extract_embedded_images_*` and
+  `test_multimodal.py`'s `test_vision_targets_the_embedded_figure_not_the_whole_page`,
+  `::test_vision_skips_pure_text_pages_entirely`,
+  `::test_scanned_document_still_gets_whole_page_vision` (the last one a
+  direct regression guard for the ocr-metadata carve-out).
 
 ---
 

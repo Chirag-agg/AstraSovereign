@@ -35,6 +35,9 @@ from app.services.workspace import WorkspaceManager
 logger = logging.getLogger("app.multimodal")
 
 MAX_OCR_TEXT_CHARS_PER_PAGE = 3000
+# A page with more embedded images than this (rare - most report pages have
+# 0 or 1 figures) is capped rather than making one vision call per image.
+MAX_EMBEDDED_IMAGES_PER_PAGE = 3
 
 
 def _remove_empty_ancestors(path: Path, root: Path) -> None:
@@ -131,7 +134,9 @@ class MultimodalService:
             page_evidence: list[PageEvidence] = []
             for rp in rendered:
                 ocr_page = await self._run_ocr(rp, doc)
-                vision = await self._run_vision(rp, doc, question, ocr_page.text)
+                vision = await self._run_vision_for_page(
+                    rp, doc, path, question, ocr_page.text, tmp_dir
+                )
                 page_evidence.append(
                     PageEvidence(
                         page=rp.page,
@@ -270,6 +275,68 @@ class MultimodalService:
             },
         )
         return OCRPageResult(page=rp.page, text=text, regions=regions)
+
+    async def _run_vision_for_page(
+        self,
+        rp: RenderedPage,
+        doc: DocumentRecord,
+        path: Path,
+        question: str,
+        ocr_text: str,
+        tmp_dir: Path,
+    ) -> VisionPageResult:
+        """Route a page to the vision model that actually needs it.
+
+        A text-based PDF page is mostly typed text that OCR already covers,
+        plus (sometimes) an embedded photo/diagram that OCR cannot read.
+        Rather than always vision-analyzing the whole busy page render,
+        extract any embedded images and analyze those specifically; a page
+        with none is a pure text/vector-graphics page and skips the vision
+        call entirely.
+
+        This does NOT apply to a scanned document (``doc.metadata["ocr"]``
+        — ingested via ``ingest_scanned`` because it had no extractable text
+        layer at all): there, the whole page genuinely IS the image, there
+        is no separate typed-text portion to split it from, and skipping
+        vision would just lose the analysis entirely. A standalone image
+        upload has the same reasoning — the whole file IS the thing to
+        analyze. Both keep the original whole-page behavior unchanged.
+        """
+        if doc.document_type != "pdf" or doc.metadata.get("ocr"):
+            return await self._run_vision(rp, doc, question, ocr_text)
+        embedded = await self._preparer.extract_embedded_images(
+            path, rp.page, tmp_dir / "embedded"
+        )
+        if not embedded:
+            return VisionPageResult(page=rp.page, text="", observations=[], model="")
+        return await self._run_vision_on_images(
+            embedded[:MAX_EMBEDDED_IMAGES_PER_PAGE], rp.page, doc, question, ocr_text
+        )
+
+    async def _run_vision_on_images(
+        self,
+        images: list[RenderedPage],
+        page: int,
+        doc: DocumentRecord,
+        question: str,
+        ocr_text: str,
+    ) -> VisionPageResult:
+        """Vision-analyze each embedded image individually and merge the
+        results into one VisionPageResult for the page."""
+        texts: list[str] = []
+        observations: list[str] = []
+        model_used = ""
+        multiple = len(images) > 1
+        for index, image_rp in enumerate(images, start=1):
+            result = await self._run_vision(image_rp, doc, question, ocr_text)
+            model_used = result.model or model_used
+            prefix = f"[figure {index}]" if multiple else "[figure]"
+            if result.text:
+                texts.append(f"{prefix} {result.text}")
+            observations.extend(f"{prefix} {obs}" for obs in result.observations)
+        return VisionPageResult(
+            page=page, text="\n".join(texts), observations=observations, model=model_used
+        )
 
     async def _run_vision(
         self, rp: RenderedPage, doc: DocumentRecord, question: str, ocr_text: str

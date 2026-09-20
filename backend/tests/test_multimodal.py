@@ -130,6 +130,87 @@ def test_document_vision_pages_filter(tmp_path):
     assert "PAGE TWO CONTENT" not in result.content
 
 
+# ------------------------------------------- embedded-image-only vision
+
+def make_mixed_content_pdf(path):
+    """Page 1: real typed text plus one embedded figure. Page 2: pure text,
+    no figures at all — the realistic case (a report with one diagram, not
+    a full scan) this feature targets."""
+    from PIL import Image
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas
+
+    image = Image.new("RGB", (200, 200), color=(200, 40, 40))
+    c = canvas.Canvas(str(path))
+    c.drawString(72, 760, "Inspection findings for Course 2, see figure below")
+    c.drawImage(ImageReader(image), 72, 400, width=200, height=200)
+    c.showPage()
+    c.drawString(72, 760, "A pure-text page with no figures at all")
+    c.showPage()
+    c.save()
+
+
+def test_vision_targets_the_embedded_figure_not_the_whole_page(tmp_path):
+    """A text-based PDF page with one embedded figure should send vision
+    just that figure, not the whole busy page render."""
+    ocr = FakeOCRProvider(page_text={1: "Inspection findings for Course 2", 2: "A pure-text page"})
+    vision = FakeVisionProvider(observations_by_page={1: ["Corrosion visible in the figure"]})
+    service, _scheduler, uploads, _tmp = make_multimodal_stack(tmp_path, ocr=ocr, vision=vision)
+    pdf_path = uploads / "user-001" / "mixed.pdf"
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    make_mixed_content_pdf(pdf_path)
+    doc = run(service.knowledge_base.ingest_document("user-001", pdf_path, "mixed.pdf"))
+    assert not doc.metadata.get("ocr")  # sanity: the text path, not ingest_scanned
+    set_job_context(user_id="user-001", job_id="job-figure")
+
+    result = run(service.analyze("user-001", doc.document_id, [1, 2], "What does the figure show?"))
+
+    page_one, page_two = result.pages
+    assert page_one.observations == ["[figure] Corrosion visible in the figure"]
+    assert page_one.vision_model == "vision-model"
+    # Vision only ran once, targeting page 1's embedded image — never page 2
+    # (no figures) and never the whole-page render.
+    assert len(vision.calls) == 1
+    assert vision.calls[0]["page"] == 1
+
+    assert page_two.observations == []
+    assert page_two.vision_text == ""
+
+
+def test_vision_skips_pure_text_pages_entirely(tmp_path):
+    ocr = FakeOCRProvider(page_text={1: "Inspection findings for Course 2", 2: "A pure-text page"})
+    vision = FakeVisionProvider(observations_by_page={1: ["should never be seen"]})
+    service, _scheduler, uploads, _tmp = make_multimodal_stack(tmp_path, ocr=ocr, vision=vision)
+    pdf_path = uploads / "user-001" / "mixed.pdf"
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    make_mixed_content_pdf(pdf_path)
+    doc = run(service.knowledge_base.ingest_document("user-001", pdf_path, "mixed.pdf"))
+    set_job_context(user_id="user-001", job_id="job-textonly")
+
+    result = run(service.analyze("user-001", doc.document_id, [2], "Anything visual here?"))
+
+    assert result.pages[0].observations == []
+    assert result.pages[0].ocr_text == "A pure-text page"
+    assert vision.calls == []
+
+
+def test_scanned_document_still_gets_whole_page_vision(tmp_path):
+    """A genuinely scanned document (ingest_scanned, no extractable text
+    layer) keeps the original whole-page-vision behavior unchanged — there
+    is no separate typed-text portion to split the image from."""
+    ocr = FakeOCRProvider(page_text={1: "scanned text"})
+    vision = FakeVisionProvider(observations_by_page={1: ["whole page observation"]})
+    service, _scheduler, uploads, _tmp = make_multimodal_stack(tmp_path, ocr=ocr, vision=vision)
+    doc = run(ingest_scan(service, uploads, "user-001", page_count=1))
+    assert doc.metadata.get("ocr") is True
+    set_job_context(user_id="user-001", job_id="job-scanned")
+
+    result = run(service.analyze("user-001", doc.document_id, [1], "q"))
+
+    assert "whole page observation" in result.pages[0].observations
+    assert len(vision.calls) == 1
+
+
 # ----------------------------------------------------- isolation & cleanup
 
 def test_document_vision_ownership_isolation(tmp_path):

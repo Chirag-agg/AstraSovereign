@@ -100,3 +100,61 @@ def test_too_many_pages_fails_cleanly(tmp_path):
     make_multipage_pdf(pdf, page_count=6)
     with pytest.raises(DocumentPreparationError, match="exceeding the maximum"):
         run(DocumentPreparer(max_pages=3).prepare(pdf, "pdf", tmp_path / "out"))
+
+
+def make_mixed_content_pdf(path, image_size=(200, 200)):
+    """One page with real text plus a small embedded photo/diagram, and one
+    pure-text page with no embedded image at all — the realistic case this
+    feature targets (a report page with one figure, not a full scan)."""
+    from PIL import Image
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas
+
+    image = Image.new("RGB", image_size, color=(200, 40, 40))
+    c = canvas.Canvas(str(path))
+    c.drawString(72, 760, "Inspection findings for Course 2")
+    c.drawImage(ImageReader(image), 72, 400, width=image_size[0], height=image_size[1])
+    c.showPage()
+    c.drawString(72, 760, "A pure-text page with no figures at all")
+    c.showPage()
+    c.save()
+
+
+def test_extract_embedded_images_finds_the_figure_not_the_whole_page(tmp_path):
+    pdf = tmp_path / "mixed.pdf"
+    make_mixed_content_pdf(pdf)
+    preparer = DocumentPreparer()
+
+    page_one = run(preparer.extract_embedded_images(pdf, 1, tmp_path / "out"))
+    assert len(page_one) == 1
+    assert page_one[0].page == 1
+    assert page_one[0].image_path.exists()
+    assert page_one[0].width > 0 and page_one[0].height > 0
+    assert page_number_from_path(page_one[0].image_path) == 1
+
+    page_two = run(preparer.extract_embedded_images(pdf, 2, tmp_path / "out"))
+    assert page_two == []
+
+
+def test_extract_embedded_images_skips_tiny_decorative_images(tmp_path):
+    from PIL import Image
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas
+
+    pdf = tmp_path / "icon.pdf"
+    tiny = Image.new("RGB", (16, 16), color=(0, 0, 0))
+    c = canvas.Canvas(str(pdf))
+    c.drawString(72, 760, "A page with only a tiny decorative bullet icon")
+    c.drawImage(ImageReader(tiny), 72, 700, width=16, height=16)
+    c.showPage()
+    c.save()
+
+    result = run(DocumentPreparer().extract_embedded_images(pdf, 1, tmp_path / "out"))
+    assert result == []
+
+
+def test_extract_embedded_images_on_a_malformed_pdf_returns_empty_not_raises(tmp_path):
+    bad = tmp_path / "bad.pdf"
+    bad.write_bytes(b"not a real pdf")
+    result = run(DocumentPreparer().extract_embedded_images(bad, 1, tmp_path / "out"))
+    assert result == []

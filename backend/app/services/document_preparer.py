@@ -6,6 +6,11 @@ services, or remote APIs. Rendered pages are written to a caller-provided temp
 directory; callers are responsible for cleanup. Failures (malformed PDF,
 unreadable page, unsupported image, oversized image, rendering failure) raise
 ``DocumentPreparationError`` so the ingestion/job layer can fail cleanly.
+
+Also extracts embedded raster images from within a PDF page (``pypdf``) —
+distinct from rendering the whole page: a page that is mostly typed text
+with one photo/diagram embedded in it should hand vision just the photo,
+not a busy full-page render that OCR already covers.
 """
 
 import asyncio
@@ -16,12 +21,17 @@ from pathlib import Path
 from typing import Optional
 
 from PIL import Image, UnidentifiedImageError
+from pypdf import PdfReader
 
 logger = logging.getLogger("app.document_preparer")
 
 SUPPORTED_IMAGE_TYPES = ("png", "jpg", "jpeg")
 _PAGE_FILE_TEMPLATE = "page_{page:04d}.png"
+_EMBEDDED_IMAGE_FILE_TEMPLATE = "page_{page:04d}_img{index:02d}.png"
 _PAGE_RE = re.compile(r"page_(\d+)")
+# Below this, an "embedded image" is more likely a decorative rule, bullet
+# glyph, or icon than an actual photo/diagram worth a vision call.
+MIN_EMBEDDED_IMAGE_DIMENSION = 64
 
 
 class DocumentPreparationError(Exception):
@@ -71,6 +81,67 @@ class DocumentPreparer:
         raise DocumentPreparationError(
             f"Unsupported document type for rendering: '{document_type}'"
         )
+
+    async def extract_embedded_images(
+        self, path: Path, page: int, output_dir: Path
+    ) -> list["RenderedPage"]:
+        """Extract embedded raster images from one PDF page as individual
+        files (never the whole-page render).
+
+        Best-effort enrichment, not a hard requirement of the pipeline: a
+        page with no embedded images (pure text/vector graphics) or one that
+        cannot be read this way returns an empty list rather than raising —
+        the caller always has the whole-page render and OCR as a fallback.
+        """
+        return await asyncio.to_thread(self._extract_embedded_images, path, page, output_dir)
+
+    def _extract_embedded_images(
+        self, path: Path, page: int, output_dir: Path
+    ) -> list["RenderedPage"]:
+        try:
+            reader = PdfReader(str(path))
+            pdf_page = reader.pages[page - 1]
+            images = list(pdf_page.images)
+        except Exception as exc:
+            logger.warning(
+                "embedded_image_extraction_failed",
+                extra={"event": "embedded_image_extraction_failed", "page": page, "error": str(exc)},
+            )
+            return []
+        output_dir.mkdir(parents=True, exist_ok=True)
+        extracted: list[RenderedPage] = []
+        for index, image_file in enumerate(images, start=1):
+            try:
+                pil_image = image_file.image
+                if pil_image is None:
+                    continue
+                if min(pil_image.width, pil_image.height) < MIN_EMBEDDED_IMAGE_DIMENSION:
+                    continue
+                normalized = self._normalize_image(pil_image)
+                out = output_dir / _EMBEDDED_IMAGE_FILE_TEMPLATE.format(page=page, index=index)
+                normalized.save(out, format="PNG")
+                extracted.append(
+                    RenderedPage(
+                        page=page,
+                        image_path=out,
+                        width=normalized.width,
+                        height=normalized.height,
+                    )
+                )
+            except Exception as exc:
+                # One bad embedded image (unsupported filter, corrupt
+                # stream) must not lose the others on the same page.
+                logger.warning(
+                    "embedded_image_extraction_failed",
+                    extra={
+                        "event": "embedded_image_extraction_failed",
+                        "page": page,
+                        "index": index,
+                        "error": str(exc),
+                    },
+                )
+                continue
+        return extracted
 
     # -------------------------------------------------------------- PDF
 
