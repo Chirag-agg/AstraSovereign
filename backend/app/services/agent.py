@@ -192,6 +192,28 @@ class Agent:
 
             iterations += 1
 
+            # Last-chance narrowing: on the single final allowed call, a model
+            # that has been re-prompted every prior turn and still hasn't
+            # called its terminal tool gets that tool as its ONLY option,
+            # instead of a wide-open menu it can keep ignoring. This cannot
+            # make fabrication more likely (the model could already call the
+            # terminal tool with invented data whenever it liked); it only
+            # removes "answer in prose again" and "search once more" as ways
+            # to spend the last turn without producing the typed output.
+            call_tools = allowed_tools
+            if terminal and iterations == max_iter:
+                terminal_satisfied = any(
+                    entry.get("type") == "tool_result"
+                    and entry.get("tool") in terminal
+                    and entry.get("ok") is True
+                    for entry in trace[entry_floor:]
+                )
+                if not terminal_satisfied:
+                    narrowed = terminal if allowed_tools is None else (allowed_tools & terminal)
+                    if narrowed:
+                        call_tools = narrowed
+                        self._append(trace, "tool_choice_narrowed", tools=sorted(call_tools))
+
             model_call_start = time.monotonic()
             logger.info(
                 "model_call_started",
@@ -206,7 +228,7 @@ class Agent:
                 raw, native_calls, _model_used = await self._model.chat(
                     messages,
                     model=model,
-                    tools=self._schemas_for(allowed_tools),
+                    tools=self._schemas_for(call_tools),
                 )
             except OllamaServiceError as exc:
                 logger.error(

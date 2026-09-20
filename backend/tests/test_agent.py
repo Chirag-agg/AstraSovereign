@@ -497,3 +497,157 @@ def test_require_tool_success_gives_up_only_on_the_last_budgeted_turn(tmp_path):
     # must re-check the trace themselves rather than trust this status alone.
     assert result.status == AgentStatus.COMPLETED
     assert result.iterations == 2
+
+
+class FakeSubmitFindingsTool(BaseTool):
+    name = "submit_findings"
+    description = "test double for a terminal typed-output tool"
+    input_schema = {
+        "type": "object",
+        "properties": {"readings": {"type": "array"}},
+        "required": [],
+        "additionalProperties": True,
+    }
+
+    async def execute(self, workspace: Path, arguments: dict) -> ToolResult:
+        return ToolResult(ok=True, summary="findings accepted")
+
+
+class FakeSearchTool(BaseTool):
+    name = "document_search"
+    description = "test double for the knowledge base"
+    input_schema = {
+        "type": "object",
+        "properties": {"query": {"type": "string"}},
+        "required": ["query"],
+        "additionalProperties": False,
+    }
+
+    async def execute(self, workspace: Path, arguments: dict) -> ToolResult:
+        return ToolResult(ok=True, summary="found nothing useful", content="")
+
+
+def _capture_requested_tools(handler, sink: list):
+    """Wrap a scripted handler to record each call's ``tools`` names, so a
+    test can assert on what the model was actually allowed to call."""
+
+    async def wrapped(request: httpx.Request) -> httpx.Response:
+        if request.url.path in ("/api/chat", "/api/generate"):
+            try:
+                payload = json.loads(request.content.decode())
+            except ValueError:
+                payload = {}
+            tools = payload.get("tools") or []
+            sink.append(sorted(t["function"]["name"] for t in tools))
+        return await handler(request)
+
+    return wrapped
+
+
+def test_terminal_tool_is_the_only_option_on_the_last_budgeted_turn(tmp_path):
+    """A model that keeps answering in prose instead of calling the terminal
+    tool gets that tool as its ONLY choice on the final allowed call, instead
+    of a wide-open menu it can keep ignoring (the extract-node scenario:
+    submit_findings never called across the whole iteration budget)."""
+
+    captured: list[list[str]] = []
+
+    async def scenario():
+        manager = JobManager(store=InMemoryJobStore(), default_model="test-model")
+        job = await manager.create_job(user_id="user-001", message="extract readings")
+        script = [
+            json.dumps({"type": "final", "response": "I see some numbers"}),
+            json.dumps({"type": "final", "response": "still no structured call"}),
+            json.dumps(
+                {
+                    "type": "tool_call",
+                    "tool": "submit_findings",
+                    "arguments": {"readings": []},
+                    "reasoning": "last chance",
+                }
+            ),
+        ]
+        service = OllamaService(
+            base_url="http://ollama.test",
+            default_model="test-model",
+            timeout_seconds=5,
+            transport=httpx.MockTransport(
+                _capture_requested_tools(make_scripted_handler(script), captured)
+            ),
+        )
+        agent = Agent(
+            manager=manager,
+            tool_registry=ToolRegistry([FakeSubmitFindingsTool(), FakeSearchTool()]),
+            model_client=service,
+        )
+        try:
+            return await agent.run(
+                job,
+                model="test-model",
+                workspace=tmp_path,
+                terminal_tools={"submit_findings"},
+                max_iterations=3,
+                max_tool_calls=5,
+            )
+        finally:
+            await service.aclose()
+
+    result = asyncio.run(scenario())
+    assert result.status == AgentStatus.COMPLETED
+    assert "findings accepted" in result.response
+    # The first two calls saw the full menu; only the narrowed, final call
+    # saw submit_findings alone.
+    assert captured == [
+        ["document_search", "submit_findings"],
+        ["document_search", "submit_findings"],
+        ["submit_findings"],
+    ]
+
+
+def test_terminal_tool_narrowing_does_not_fire_before_the_last_turn(tmp_path):
+    """Narrowing is specific to the single final allowed call; a model still
+    has iterations left sees the ordinary full tool menu throughout."""
+
+    captured: list[list[str]] = []
+
+    async def scenario():
+        manager = JobManager(store=InMemoryJobStore(), default_model="test-model")
+        job = await manager.create_job(user_id="user-001", message="extract readings")
+        script = [
+            json.dumps(
+                {
+                    "type": "tool_call",
+                    "tool": "submit_findings",
+                    "arguments": {"readings": []},
+                    "reasoning": "first turn",
+                }
+            ),
+        ]
+        service = OllamaService(
+            base_url="http://ollama.test",
+            default_model="test-model",
+            timeout_seconds=5,
+            transport=httpx.MockTransport(
+                _capture_requested_tools(make_scripted_handler(script), captured)
+            ),
+        )
+        agent = Agent(
+            manager=manager,
+            tool_registry=ToolRegistry([FakeSubmitFindingsTool(), FakeSearchTool()]),
+            model_client=service,
+        )
+        try:
+            return await agent.run(
+                job,
+                model="test-model",
+                workspace=tmp_path,
+                terminal_tools={"submit_findings"},
+                max_iterations=5,
+                max_tool_calls=5,
+            )
+        finally:
+            await service.aclose()
+
+    result = asyncio.run(scenario())
+    assert result.status == AgentStatus.COMPLETED
+    assert captured == [["document_search", "submit_findings"]]

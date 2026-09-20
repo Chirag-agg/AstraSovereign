@@ -514,6 +514,26 @@ models, and provides an agentic pipeline that:
   way production actually is and confirms a header-only request gets 401.
   Frontend login UI is an explicit follow-up — the backend is fully
   self-contained without it via the `dev_header_auth` seam.
+- **Terminal-tool narrowing on the last budgeted turn (2026-09-20)**: targets
+  the documented Hard Scenario 01 blocker — a `terminal_tools` model (extract's
+  `submit_findings`) that gets re-prompted every turn and still answers in
+  prose instead of calling it, exhausting the iteration budget without ever
+  producing typed output. `Agent.run()` now detects the single final allowed
+  model call and, if the terminal tool still hasn't succeeded, sends it as the
+  model's ONLY available tool for that one call — removing "answer in prose
+  again" and "search once more" as ways to spend the last turn without
+  producing the required call. This cannot increase fabrication risk: the
+  model could already call the terminal tool with invented data at any prior
+  turn it liked, unnarrowed; narrowing only removes options, it grants none.
+  A `tool_choice_narrowed` trace entry records when it fires. See
+  `tests/test_agent.py::test_terminal_tool_is_the_only_option_on_the_last_budgeted_turn`
+  and `::test_terminal_tool_narrowing_does_not_fire_before_the_last_turn`.
+  **What this does and does not prove**: it is a structural nudge that can
+  only help a model that is willing to call a tool when it is its one option —
+  it cannot make a model attempt to call a tool it is fundamentally unable to
+  invoke, and CI (mocked models, scripted to comply once narrowed) cannot
+  measure whether it moves the real Hard Scenario 01 score. That requires an
+  actual re-run against `llama3.1:latest` and is still the open item.
 
 ---
 
@@ -684,7 +704,11 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   sandbox output rides along as a calculation appendix. But it is unexerciseable
   until extract produces findings: **extract's model adherence is the remaining
   scenario blocker** - llama3.1 intermittently calls no tool at all across the
-  iteration budget, so no assessment exists. Fix: a stronger tool-capable extract
+  iteration budget, so no assessment exists. Terminal-tool narrowing
+  (2026-09-20, Architecture Decisions) forces `submit_findings` as the only
+  option on the single last allowed call rather than fixing the underlying
+  adherence gap, so it is a mitigation, not the fix, until measured against a
+  real model. The two real fixes remain: a stronger tool-capable extract
   model, or deterministic extraction (build `FindingsObject` from the injected
   extraction / Docling table), which removes the model from that loop.
 - **Ollama call timeout (fixed 2026-09-19).** A single slow generation on CPU
@@ -733,12 +757,20 @@ Phase-by-phase history is in `docs/HISTORY.md`.
 ## Next Steps
 
 1. Ingestion week, in this order (derived from the Hard Scenario 01 failure list):
-   a. **Extraction/vision first (open)**: route scanned reports and the
-      nameplate to `document_vision` (or a findings extractor) and ground
-      every number in OCR/vision output; define the ingest -> findings
-      contract. This is now the sole remaining blocker on Hard Scenario 01:
-      extract's model adherence (see Known Issues) — `compute` cannot ground
-      a number if `extract` never submits findings to ground it in.
+   a. **Extraction/vision first (open, mitigated 2026-09-20)**: route scanned
+      reports and the nameplate to `document_vision` (or a findings
+      extractor) and ground every number in OCR/vision output; define the
+      ingest -> findings contract. This is still the sole remaining blocker
+      on Hard Scenario 01: extract's model adherence (see Known Issues) —
+      `compute` cannot ground a number if `extract` never submits findings to
+      ground it in. Terminal-tool narrowing (Architecture Decisions) gives a
+      stalling model exactly one forced last chance to call `submit_findings`
+      instead of a fourth chance to ignore it in prose, but a model that
+      won't call tools at all is not fixed by this — a live re-run against
+      the real model is still needed to know how much it actually moves the
+      score, and a stronger tool-capable extract model or deterministic
+      extraction (building `FindingsObject` from the Docling table directly)
+      remain the two real fixes if narrowing isn't enough on its own.
    b. **Retrieval ranking (done 2026-09-19)**: ingestion now records
       supersession (`KnowledgeBase._apply_supersession`, filename-derived
       "Rev N" family grouping) and `JsonVectorStore.search_hybrid` scales
