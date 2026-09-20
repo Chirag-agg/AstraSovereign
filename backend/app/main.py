@@ -9,6 +9,7 @@ Model Registry -> OllamaService -> local model.
 
 import json
 import logging
+import secrets
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -21,6 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.admin import router as admin_router
 from app.api.artifacts import router as artifacts_router
 from app.api.audit import router as audit_router
+from app.api.auth import router as auth_router
 from app.api.workspace import router as workspace_router
 from app.api.chat import router as chat_router
 from app.api.documents import router as documents_router
@@ -33,6 +35,8 @@ from app.schemas.resources import GpuInfo, ResourceCapacity, ResourceRequirement
 from app.services.agent import Agent
 from app.services.artifact_store import ArtifactStore, SqliteArtifactStore
 from app.services.audit_store import SqliteAuditStore, ensure_audit_handler, set_audit_store
+from app.services.auth_store import SqliteUserStore, UserStore
+from app.services.session import load_or_create_session_secret
 from app.services.document_generator import (
     DocumentGenerator,
     WordDocumentGenerator,
@@ -164,6 +168,27 @@ async def lifespan(app: FastAPI):
     worker = app.state.worker
     registry = app.state.model_registry
     embedding_provider = app.state.embedding_provider
+    user_store = app.state.user_store
+
+    if await user_store.count() == 0:
+        bootstrap_password = secrets.token_urlsafe(12)
+        await user_store.create("admin", bootstrap_password, role="admin")
+        password_file = Path(settings.database_path).parent / "bootstrap_admin_password.txt"
+        try:
+            password_file.parent.mkdir(parents=True, exist_ok=True)
+            password_file.write_text(bootstrap_password, encoding="utf-8")
+            password_file.chmod(0o600)
+            password_note = str(password_file)
+        except OSError:
+            password_note = "could not be written to disk; see logs (not repeated)"
+        logger.warning(
+            "bootstrap_admin_created",
+            extra={
+                "event": "bootstrap_admin_created",
+                "username": "admin",
+                "password_file": password_note,
+            },
+        )
 
     worker.start()
     try:
@@ -281,18 +306,33 @@ def create_app(
     cowork_projects: Optional[CoworkProjects] = None,
     cowork_locks: Optional[ProjectLocks] = None,
     presentation_renderer=None,
+    user_store: Optional[UserStore] = None,
+    dev_header_auth: bool = False,
 ) -> FastAPI:
     """Build the FastAPI application.
 
     ``ollama_transport`` / ``model_registry`` / ``sandbox_runner`` /
     ``resource_capacity`` / ``embedding_provider`` / ``ocr_provider`` /
-    ``vision_provider`` are test seams.
+    ``vision_provider`` / ``user_store`` are test seams.
+
+    ``dev_header_auth``: when True, ``deps.get_session`` falls back to
+    trusting a raw ``X-User-ID``/``X-Role`` header when no valid session
+    cookie is present. This can ONLY be set here, by a call site in source
+    (see ``tests/conftest.py``) — never from configuration or environment —
+    so the production app (the bare ``create_app()`` below) can never fall
+    back to trusting a client-supplied header. Defaults to False.
     """
     settings = settings or get_settings()
     setup_logging(settings)
     audit_store = SqliteAuditStore(settings.database_path)
     set_audit_store(audit_store)
     ensure_audit_handler()
+
+    if user_store is None:
+        user_store = SqliteUserStore(settings.database_path)
+    session_secret = load_or_create_session_secret(
+        settings.session_secret, settings.session_secret_file
+    )
 
     if not settings.default_model:
         logger.warning(
@@ -541,6 +581,9 @@ def create_app(
     app.state.audit_store = audit_store
     app.state.network_guard = network_guard
     app.state.sandbox_runner = runner
+    app.state.user_store = user_store
+    app.state.session_secret = session_secret
+    app.state.dev_header_auth = dev_header_auth
 
     cors_origins = [
         origin.strip()
@@ -551,11 +594,15 @@ def create_app(
         app.add_middleware(
             CORSMiddleware,
             allow_origins=cors_origins,
-            allow_credentials=False,
+            # Required for the session cookie to cross the frontend/backend
+            # origin pair; allow_origins above is an explicit list (never
+            # "*"), which is what credentialed CORS requires.
+            allow_credentials=True,
             allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
             allow_headers=["Content-Type", "X-User-ID", "X-Role"],
         )
 
+    app.include_router(auth_router)
     app.include_router(chat_router)
     app.include_router(jobs_router)
     app.include_router(documents_router)

@@ -1,9 +1,10 @@
-"""Development admin/operations API (Phase 11 organizational UX).
+"""Admin/operations API (Phase 11 organizational UX).
 
-Authorization note: this router is gated by a development ``X-Role: admin``
-header. This is a DEVELOPMENT-ONLY role switch for the demo — it is NOT real
-authentication/RBAC. A production system must replace this gate with verified
-identity + authorization and must NOT trust a browser-supplied role.
+Authorization: gated by ``deps.get_session`` — a verified session cookie's
+``role`` must be ``admin``. Outside ``dev_header_auth`` test mode (see
+``deps.py``), this is real: a client cannot grant itself the admin role by
+sending a header, only by authenticating as an account whose stored role is
+``admin``.
 
 Admin boundaries stay separate from ordinary user APIs: admin endpoints expose
 aggregate operational metadata (jobs/models/resources/audit) and deliberately do
@@ -14,9 +15,11 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+from app.api.deps import get_session
 from app.schemas.artifact import ArtifactSummary
+from app.services.session import SessionPayload
 from app.services.sovereignty import build_sovereignty_status
 
 logger = logging.getLogger("app.api.admin")
@@ -26,14 +29,14 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 DEV_USERS = ("user-001", "user-002", "user-003", "user-004", "user-005")
 
 
-async def require_admin(x_role: Optional[str] = Header(default=None, alias="X-Role")) -> str:
-    """Development-only admin gate. NOT production authorization."""
-    if x_role != "admin":
+async def require_admin(session: SessionPayload = Depends(get_session)) -> str:
+    """The caller's role must be ``admin``, per their verified session."""
+    if session.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"error": "admin_role_required", "message": "Development admin role required."},
+            detail={"error": "admin_role_required", "message": "Admin role required."},
         )
-    return x_role
+    return session.role
 
 
 def _job_meta(job) -> dict:

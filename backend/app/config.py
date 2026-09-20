@@ -150,8 +150,18 @@ class Settings(BaseSettings):
     presentation_node_command: str = "node"
     presentation_timeout_seconds: float = 90.0
 
-    # Durable SQLite store (jobs, artifact metadata, hash-chained audit).
+    # Durable SQLite store (jobs, artifact metadata, hash-chained audit, users).
     database_path: str = str(REPO_ROOT / "data" / "astra.db")
+
+    # Real local authentication. session_secret overrides the auto-generated
+    # data/session_secret.key (created on first boot if unset, so restarts
+    # don't invalidate every session). session_cookie_secure should be true
+    # once TLS is terminated in front of the app; false is correct for a
+    # plain-HTTP local/air-gapped deployment.
+    session_secret: str = ""
+    session_secret_file: str = str(REPO_ROOT / "data" / "session_secret.key")
+    session_ttl_seconds: int = 43200
+    session_cookie_secure: bool = False
 
     # Model fallback: follow each entry's declared `fallback_to` chain when the
     # configured model is unavailable. Disable for benchmarks (bench/ forces it

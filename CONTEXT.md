@@ -452,6 +452,68 @@ models, and provides an agentic pipeline that:
   from this same session (compute verification, signature fabrication,
   stale-revision retrieval) with before/after and residual risk rather than
   treating them as closed and forgotten.
+- **VRAM-aware model lifecycle signaling (2026-09-20)**: `OllamaService` gained
+  a `keep_alive` default (5m) on every generate/chat call, `list_running_models()`
+  (`GET /api/ps` — Ollama's own ground truth for residency), and
+  `unload_and_wait(model, timeout=2.0)` (forces `keep_alive: 0`, then polls
+  `/api/ps` until the model actually leaves VRAM or the deadline elapses — a
+  200 from the unload call alone doesn't mean VRAM is free, since eviction is
+  async). `NodeAgent._ensure_reservation` calls it on every model switch
+  (document → coding, etc.), logging a warning and continuing (never failing
+  the job) if the model doesn't leave VRAM in time. `/api/admin/resources` now
+  reports both the scheduler's believed `allocated` state and the live
+  `ollama_resident` list side by side — the delta between them is the honest
+  signal. `tests/hard_scenario_01/run_scenario.py` prefers real `ollama_resident`
+  sizes for `peak_vram_mb` over the old static declared-capacity sum.
+- **Internal auto-repair loop for `code_execution` (2026-09-20)**: on a failed
+  sandbox run, `CodeExecutionTool` (when wired with a repair model — the same
+  "coding" capability model `compute` already reserves) makes a single-turn
+  `generate()` call with the failing code + real stdout/stderr/exit code,
+  strips markdown fences from the response, and re-runs the result in the real
+  sandbox — up to `max_repair_attempts` (default 2) or `repair_deadline_seconds`
+  (default 90s) of wall-clock time, whichever comes first. The repair model
+  never sees tool-calling (`generate()`, not `.chat()`), so it cannot
+  recursively invoke tools. `ToolResult.ok` is always the last *real* sandbox
+  attempt's success — nothing here can fabricate a passing result. Content
+  ordering matters: since `_observation()` truncates from the end, the
+  final/decisive attempt is placed first in full, with earlier attempts
+  reduced to one-line summaries, so a long successful final attempt is never
+  truncated away in favor of an earlier failure. Disabled by default unless a
+  coding model is configured; identical byte-for-byte to the pre-repair
+  behavior when disabled or when the first attempt succeeds.
+- **Nonce-keyed untrusted-content framing (2026-09-20)**: `untrusted_content.py::wrap_untrusted`
+  wraps document-derived content in `BEGIN/END UNTRUSTED DOCUMENT CONTENT
+  <nonce>` markers (`secrets.token_hex(8)` per call), stripping any bare
+  occurrence of the literal marker text from the content first — this closes
+  the forgery gap a fixed marker would leave open (a scanned document
+  containing the marker string as text could otherwise forge its own boundary).
+  Applied at both injection surfaces: `agent.py::_observation()` for the four
+  document-content tools (after truncation, so markers survive intact) and
+  `attachments.py::render_attachment_block` for the initial task message —
+  the higher-value surface, read before any tool call. The deeper guarantee
+  is unchanged and structural: `assess()` (`findings.py`) computes course
+  status purely from typed numeric fields, never from prose, so injected text
+  cannot flip a real assessment even if a model echoed it. See "Demo
+  checklist" below for what this cannot prove in CI.
+- **Real local authentication (2026-09-20)**: replaces the self-asserted
+  `X-User-ID`/`X-Role` header trust (Vulnerability Analysis findings #1/#2)
+  with an actual session system — `auth_store.py` (PBKDF2-SHA256 password
+  hashing, 200k iterations, stdlib only — `hashlib`/`hmac`/`secrets`, no new
+  dependency), a `users` table, `session.py` (signed
+  `user_id|role|expires_at|hmac` cookie tokens), and `POST /api/auth/login`
+  /`logout`/`GET /api/auth/me` (`api/auth.py`). `deps.py::get_session` derives
+  identity from the verified cookie; the old header-trust logic survives only
+  as a fallback gated on `app.state.dev_header_auth`, which only the test
+  `client_factory` sets — production's bare `create_app()` cannot fall back to
+  it structurally, not just by convention. `admin.py::require_admin` now
+  checks `session.role == "admin"` from a real account. A single admin account
+  is bootstrapped on first startup (random password written once to
+  `data/bootstrap_admin_password.txt`, `0o600`); further accounts are created
+  via `python -m app.services.create_user`. Regression-tested directly:
+  `test_production_shaped_app_rejects_header_only_requests` builds the app the
+  way production actually is and confirms a header-only request gets 401.
+  Frontend login UI is an explicit follow-up — the backend is fully
+  self-contained without it via the `dev_header_auth` seam.
 
 ---
 

@@ -101,6 +101,10 @@ data/astra.db
 data/astra.db-wal
 data/astra.db-shm
 
+# ── Local auth secrets (generated on first boot) ──
+data/session_secret.key
+data/bootstrap_admin_password.txt
+
 # ── Cowork persistent user projects ──
 data/projects/
 

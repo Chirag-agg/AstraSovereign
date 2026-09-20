@@ -18,6 +18,7 @@ from app.config import Settings
 from app.main import create_app
 from app.schemas.resources import GpuInfo, ResourceCapacity, ResourceRequirements
 from app.services.agent import TASK_MARKER
+from app.services.auth_store import InMemoryUserStore
 from app.services.document_preparer import DocumentPreparer
 from app.services.embedding import EmbeddingProvider
 from app.services.knowledge_base import KnowledgeBase
@@ -683,6 +684,7 @@ def client_factory(app_settings, test_models):
         project_root=None,
         file_max_bytes=1_000_000,
         presentation_renderer=None,
+        seed_users=None,
     ):
         registry = build_registry(models if models is not None else test_models)
         updates = {}
@@ -692,6 +694,23 @@ def client_factory(app_settings, test_models):
             updates["cowork_projects_root"] = str(project_root)
         updates["cowork_file_max_bytes"] = file_max_bytes
         settings = app_settings.model_copy(update=updates) if updates else app_settings
+
+        # seed_users: [{"username": ..., "password": ..., "role": "user"}, ...].
+        # When given, a fresh InMemoryUserStore is seeded with exactly these
+        # accounts (skipping the real SqliteUserStore + its unknown-password
+        # bootstrap admin), so a test can log in as a known account. Seeding
+        # happens now, before the lifespan's own bootstrap-if-empty check
+        # runs, so that check correctly finds the store non-empty and skips.
+        user_store = None
+        if seed_users:
+            user_store = InMemoryUserStore()
+            for entry in seed_users:
+                asyncio.run(
+                    user_store.create(
+                        entry["username"], entry["password"], role=entry.get("role", "user")
+                    )
+                )
+
         app = create_app(
             settings=settings,
             ollama_transport=httpx.MockTransport(_wrap_lifecycle_calls(handler)),
@@ -703,10 +722,25 @@ def client_factory(app_settings, test_models):
             vision_provider=vision_provider,
             classifier=classifier or StubClassifier(),
             presentation_renderer=presentation_renderer,
+            user_store=user_store,
+            # Every existing test authenticates via X-User-ID/X-Role headers;
+            # only this fixture may enable the fallback (see deps.py) —
+            # production's bare create_app() never does.
+            dev_header_auth=True,
         )
         return TestClient(app)
 
     return _make
+
+
+def login(client: TestClient, username: str, password: str) -> dict:
+    """Log in via the real auth API; TestClient's cookie jar then carries the
+    session automatically on subsequent requests in the same `with` block."""
+    response = client.post(
+        "/api/auth/login", json={"username": username, "password": password}
+    )
+    response.raise_for_status()
+    return response.json()
 
 
 @pytest.fixture
