@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { RefreshCw, ServerCog } from "lucide-react";
+import { FigurePanel, StatSlab, NumberedList } from "@/components/ui/instrument";
 import { getAdminModels, getHealth } from "@/lib/api";
 import type { AdminModelRow, Health } from "@/lib/types";
 
@@ -35,119 +36,171 @@ export default function ModelsView() {
   const missing = rows.filter((r) => r.enabled && !r.available);
   const activeFallbacks = Object.entries(resolved).filter(([, v]) => v.fallback_active);
 
+  const ready = rows.filter((r) => r.enabled && r.available).length;
+
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-4 border-b border-[var(--carbon)]">
           <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Model routing & registry</h1>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 leading-relaxed">
-              Real task-type → local model mapping from <code className="text-slate-700">config/models.yaml</code>
+            <span className="mono-label" style={{ letterSpacing: "0.12em" }}>Registry</span>
+            <h1 className="tracking-tight" style={{ margin: "10px 0 0" }}>Model routing &amp; registry</h1>
+            <p style={{ margin: "8px 0 0" }}>
+              Task type → local model, read from <code className="font-mono" style={{ color: "var(--bone)" }}>config/models.yaml</code>.
+              Each type resolves to exactly one enabled local model; the backend never auto-pulls.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${ollama === "reachable" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+          <div className="flex items-center gap-2 shrink-0">
+            <span
+              className="inline-flex items-center gap-2 font-mono uppercase"
+              style={{
+                fontSize: 10.5,
+                letterSpacing: "0.1em",
+                padding: "6px 10px",
+                borderRadius: 2,
+                border: `1px solid ${ollama === "reachable" ? "var(--metric)" : "var(--ochre)"}`,
+                color: ollama === "reachable" ? "var(--metric)" : "var(--ochre)",
+              }}
+            >
+              <span className="astra-pulse" style={{ width: 5, height: 5, background: "currentColor" }} />
               Ollama {ollama}
             </span>
-            <button onClick={() => void load()} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-white">
-              <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Refresh
+            <button
+              onClick={() => void load()}
+              className="inline-flex items-center gap-1.5 font-mono uppercase"
+              style={{ fontSize: 10.5, letterSpacing: "0.08em", padding: "7px 11px", borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
+            >
+              <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
             </button>
           </div>
         </div>
 
-        {defaultModel ? (
-          <p className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-            Fallback default model: <span className="font-mono font-semibold text-slate-900">{defaultModel}</span>
-          </p>
-        ) : null}
-
         {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600" role="alert">
+          <div role="alert" style={{ borderLeft: "2px solid var(--alert)", padding: "10px 14px", background: "#1a0c0d", borderRadius: 2, fontSize: 13, color: "var(--rose-200, #f28185)" }}>
             {error}
           </div>
         ) : null}
 
-        {activeFallbacks.length > 0 ? (
-          <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800" role="status">
-            <p className="font-semibold">Preflight: {activeFallbacks.length} active model fallback(s)</p>
-            <ul className="mt-1 list-disc pl-5">
-              {activeFallbacks.map(([task, v]) => (
-                <li key={task}>
-                  <span className="font-medium">{task}</span>: {v.configured} MISSING -&gt; will use{" "}
-                  <code className="font-mono">{v.effective}</code>
-                </li>
-              ))}
-            </ul>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,240px)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-4">
+            <StatSlab value={String(ready)} label="Models ready" tone={ready > 0 ? "signal" : "neutral"} />
+            <FigurePanel figure="1" title="Resolution order" caption="how a node gets a model">
+              <NumberedList
+                index={1}
+                items={[
+                  { title: "Node asks for a capability", detail: "extract and retrieve ask for document, compute for coding, draft for general." },
+                  { title: "Router reads the registry", detail: "the configured model for that capability, if it is enabled." },
+                  { title: "Declared fallback, or the floor", detail: "a bounded chain of at most two hops, else general. Every substitution is recorded." },
+                ]}
+              />
+            </FigurePanel>
           </div>
-        ) : null}
 
-        {missing.length > 0 ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
-            <p className="font-semibold">Preflight: {missing.length} enabled model(s) are not pulled locally</p>
-            <ul className="mt-1 list-disc pl-5">
-              {missing.map((m) => (
-                <li key={m.task_type}>
-                  <span className="font-medium">{m.task_type}</span> needs{" "}
-                  <code className="font-mono">{m.model}</code> - run{" "}
-                  <code className="font-mono">ollama pull {m.model}</code> or edit{" "}
-                  <code className="font-mono">config/models.yaml</code>. The backend never auto-pulls.
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+          <div className="flex flex-col gap-4">
+            {(activeFallbacks.length > 0 || missing.length > 0) && (
+              <FigurePanel figure="2" title="Preflight" caption="run this before a demo">
+                {activeFallbacks.length > 0 && (
+                  <div style={{ marginBottom: missing.length > 0 ? 14 : 0 }}>
+                    <span className="mono-label" style={{ color: "var(--ochre)" }}>
+                      {activeFallbacks.length} active fallback(s)
+                    </span>
+                    <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0 }}>
+                      {activeFallbacks.map(([task, v]) => (
+                        <li key={task} className="font-mono" style={{ fontSize: 12, padding: "5px 0", color: "var(--granite)" }}>
+                          <span style={{ color: "var(--bone)" }}>{task}</span> · {v.configured} missing → {v.effective}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {missing.length > 0 && (
+                  <div>
+                    <span className="mono-label" style={{ color: "var(--ochre)" }}>
+                      {missing.length} enabled model(s) not pulled
+                    </span>
+                    <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0 }}>
+                      {missing.map((m) => (
+                        <li key={m.task_type} className="font-mono" style={{ fontSize: 12, padding: "5px 0", color: "var(--granite)" }}>
+                          <span style={{ color: "var(--bone)" }}>{m.task_type}</span> needs {m.model} —{" "}
+                          <span style={{ color: "var(--signal)" }}>ollama pull {m.model}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </FigurePanel>
+            )}
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
-              <tr>
-                <th className="px-4 py-3 font-semibold">Task type</th>
-                <th className="px-4 py-3 font-semibold">Model</th>
-                <th className="px-4 py-3 font-semibold">Provider</th>
-                <th className="px-4 py-3 font-semibold">Capabilities</th>
-                <th className="px-4 py-3 font-semibold">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading && rows.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-6 text-slate-400" colSpan={5}>Loading registry…</td>
-                </tr>
-              ) : (
-                rows.map((r) => (
-                  <tr key={r.task_type} className="hover:bg-slate-50/70">
-                    <td className="px-4 py-3 font-medium text-slate-800">{r.task_type}</td>
-                    <td className="px-4 py-3 font-mono text-slate-700">
-                      {r.model}
-                      {resolved[r.task_type]?.fallback_active ? (
-                        <span className="ml-1 text-[11px] text-sky-700">
-                          -&gt; {resolved[r.task_type]?.effective}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 text-slate-500">{r.provider}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {(r.capabilities ?? []).map((c) => (
-                          <span key={c} className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">{c}</span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${r.enabled && r.available ? "text-emerald-600" : r.enabled ? "text-amber-600" : "text-red-500"}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${r.enabled && r.available ? "bg-emerald-500" : r.enabled ? "bg-amber-400" : "bg-red-400"}`} />
-                        {r.enabled ? (r.available ? "ready" : "not pulled") : "disabled"}
-                      </span>
-                    </td>
+            <FigurePanel
+              figure="3"
+              title="Capability map"
+              caption={defaultModel ? `fallback default · ${defaultModel}` : undefined}
+              flush
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th>Task type</th>
+                    <th>Model</th>
+                    <th>Provider</th>
+                    <th>Capabilities</th>
+                    <th>Status</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {loading && rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="font-mono" style={{ color: "var(--graphite)" }}>Loading registry…</td>
+                    </tr>
+                  ) : rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="font-mono" style={{ color: "var(--graphite)" }}>No models configured.</td>
+                    </tr>
+                  ) : (
+                    rows.map((r) => {
+                      const state = r.enabled ? (r.available ? "ready" : "not pulled") : "disabled";
+                      const tone = state === "ready" ? "var(--metric)" : state === "not pulled" ? "var(--ochre)" : "var(--alert)";
+                      return (
+                        <tr key={r.task_type}>
+                          <td>{r.task_type}</td>
+                          <td className="font-mono" style={{ color: "var(--signal)" }}>
+                            {r.model}
+                            {resolved[r.task_type]?.fallback_active ? (
+                              <span style={{ color: "var(--ochre)" }}> → {resolved[r.task_type]?.effective}</span>
+                            ) : null}
+                          </td>
+                          <td className="font-mono">{r.provider}</td>
+                          <td>
+                            <span className="flex flex-wrap gap-1">
+                              {(r.capabilities ?? []).map((c) => (
+                                <span
+                                  key={c}
+                                  className="font-mono"
+                                  style={{ fontSize: 10.5, padding: "2px 6px", borderRadius: 2, border: "1px solid var(--carbon)", color: "var(--granite)" }}
+                                >
+                                  {c}
+                                </span>
+                              ))}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="inline-flex items-center gap-2 font-mono uppercase" style={{ fontSize: 10.5, letterSpacing: "0.08em", color: tone }}>
+                              <span style={{ width: 5, height: 5, borderRadius: 99, background: tone }} />
+                              {state}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </FigurePanel>
+          </div>
         </div>
 
-        <p className="flex items-center gap-1.5 text-xs text-slate-400">
-          <ServerCog size={13} /> Routing is config-driven; each task type resolves to exactly one enabled local model.
+        <p className="flex items-center gap-1.5 font-mono" style={{ fontSize: 11, color: "var(--graphite)" }}>
+          <ServerCog size={12} /> Adding a model is a config change, not a redesign.
         </p>
       </div>
     </div>

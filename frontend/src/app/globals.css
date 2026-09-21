@@ -3379,3 +3379,113 @@ main :focus-visible {
   .app .group::after { transition: none; }
   .app .group:hover svg { transform: none; }
 }
+
+/* ==========================================================================
+   WORKBENCH — content layout pass, every section
+   All fifteen operational views share one container and one header shape.
+   Styling those shared shapes reaches every section at once, which beats
+   hand-editing fifteen files into fifteen slightly different opinions.
+   ========================================================================== */
+
+/* Page header: a rule under it and room above the content, so a view reads
+   as a document with a masthead rather than as a pile of cards. */
+.app h1.tracking-tight {
+  font-size: 26px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+.app h1.tracking-tight + p,
+.app h1.tracking-tight ~ p:first-of-type {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--granite);
+  max-width: 68ch;
+}
+
+/* The container every view opens with. */
+.app [class*="max-w-[1500px]"] { max-width: 1440px; }
+
+/* Tables become instruments: mono uppercase headers, hairline rules,
+   tabular figures so columns of numbers line up. */
+.app table { border-collapse: collapse; width: 100%; }
+.app thead th {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 400;
+  color: var(--graphite);
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--carbon);
+  white-space: nowrap;
+}
+.app tbody td {
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--carbon);
+  font-size: 13.5px;
+  color: var(--stone);
+  vertical-align: middle;
+}
+.app tbody td:first-child { color: var(--bone); }
+.app tbody tr:last-child td { border-bottom: 0; }
+.app td [class*="font-mono"],
+.app td.tnum { font-variant-numeric: tabular-nums; }
+
+/* Empty states stop being a sentence in the void: a dashed well with a mono
+   line, so "nothing here yet" looks deliberate instead of broken. */
+.app [class*="text-center"] > p:only-child,
+.app [class*="py-1"][class*="text-center"],
+.app [class*="py-2"][class*="text-center"] {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--graphite);
+}
+
+/* Metric blocks: the label is small and quiet, the number is the object. */
+.app [class*="uppercase"][class*="text-[10"],
+.app [class*="uppercase"][class*="text-[11"] {
+  font-family: var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--graphite);
+}
+
+/* Section sub-headings inside a view. */
+.app h2 { font-size: 16px; letter-spacing: -0.02em; }
+.app h3 { font-size: 14.5px; letter-spacing: -0.015em; }
+
+/* Inputs and selects across the app share one resting state. */
+.app input[type="text"],
+.app input[type="search"],
+.app input:not([type]),
+.app select,
+.app textarea {
+  background: #0c0b0a;
+  border: 1px solid var(--ash);
+  border-radius: 3px;
+  color: var(--bone);
+  font-family: var(--sans);
+  transition: border-color 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.app input:focus,
+.app select:focus,
+.app textarea:focus { border-color: var(--signal); outline: none; }
+.app input::placeholder,
+.app textarea::placeholder { color: var(--graphite); }
+
+/* Primary and secondary buttons in the views. */
+.app button[class*="bg-[var(--accent)]"] {
+  background: var(--chalk) !important;
+  color: #101010 !important;
+  border-radius: 3px;
+}
+.app button[class*="border-zinc-200"],
+.app button[class*="border-slate-200"] { border-radius: 3px; }
+
+/* Banners: one quiet line with a rule, not two shouting blocks. */
+.app [class*="banner"],
+.app [class*="bg-amber-50"],
+.app [class*="bg-yellow-50"] {
+  border-radius: 3px;
+  font-size: 13px;
+}

@@ -350,7 +350,8 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
 
   return (
     <div
-      className="flex h-screen w-screen overflow-hidden bg-[var(--canvas)] text-[var(--bone)]"
+      // `app` is the scope every workbench stylesheet rule hangs off.
+      className="app flex h-screen w-screen overflow-hidden bg-[var(--canvas)] text-[var(--bone)]"
     >
       {/* 1. Left Navigation Sidebar */}
       <Sidebar
