@@ -316,59 +316,19 @@ export default function TopBar({
         </div>
       </div>
 
-      {/* Sub-row: Navigation Tabs & Worker Custom Tabs */}
-      <div className="flex items-center gap-1 px-4 sm:px-6 overflow-x-auto border-t border-zinc-100 py-1.5 scrollbar-none">
+      {/* Sub-row: pinned tabs only. */}
+      <div
+        className="flex items-center gap-1 px-4 sm:px-6 overflow-x-auto border-t border-zinc-100 py-1.5 scrollbar-none"
+        style={{ display: customTabs.length > 0 ? undefined : "none" }}
+      >
         <div className="flex items-center gap-1 text-xs font-medium text-zinc-600 shrink-0">
-          <span className="flex items-center gap-1 font-bold text-zinc-800 pr-2 border-r border-zinc-200">
-            AstraSovereign <ChevronDown className="w-3 h-3 text-zinc-400" />
+          <span className="mono-label pr-2" style={{ fontSize: 10, letterSpacing: "0.12em" }}>
+            Pinned
           </span>
 
-          {/* Standard Navigation Tabs */}
-          {TABS.map((tab) => {
-            const isActive = currentSection === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => onSelectSection(tab.id)}
-                className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs transition-all cursor-pointer ${
-                  isActive
-                    ? "bg-[var(--accent-light)] text-[var(--accent-strong)] font-bold"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-
-          {/* Worker Custom Tabs */}
-          {customTabs.map((ct) => {
-            const isActive = currentSection === ct.targetSection;
-            return (
-              <div
-                key={ct.id}
-                onClick={() => onSelectSection(ct.targetSection)}
-                className={`group flex items-center gap-1.5 pl-3 pr-2 py-1 rounded-full text-xs transition-all cursor-pointer border ${
-                  isActive
-                    ? "bg-purple-100 text-[var(--accent-strong)] font-bold border-purple-300"
-                    : "bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200"
-                }`}
-              >
-                <Sparkles className="w-3 h-3 text-[var(--accent)] shrink-0" />
-                <span>{ct.label}</span>
-                <button
-                  type="button"
-                  onClick={(e) => handleRemoveCustomTab(ct.id, e)}
-                  className="w-3.5 h-3.5 rounded-full hover:bg-slate-300/60 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors ml-0.5"
-                  title="Remove custom tab"
-                >
-                  <X className="w-2.5 h-2.5" />
-                </button>
-              </div>
-            );
-          })}
-
+          {/* The standard tab strip used to repeat the sidebar item for item —
+              two navigations competing for the same click. It is gone; the
+              row now exists only for tabs a user has pinned themselves. */}
           {/* + Button: Allows workers to add custom tabs customized to their needs */}
           <button
             type="button"

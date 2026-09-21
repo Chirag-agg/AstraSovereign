@@ -6,6 +6,7 @@ import { AstraMark, AstraWordmark } from "@/components/brand/AstraMark";
 import { LiquidCarveButton } from "@/components/ui/liquid-carve-button";
 import { ResponsiveThresholdChart } from "@/components/ui/threshold-chart";
 import { CrowdCanvas } from "@/components/ui/crowd-canvas";
+import { DitherTree } from "@/components/ui/dither-tree";
 import { InputBar, ComposerPill } from "@/components/ui/input-bar";
 import {
   MagneticDock,
@@ -100,14 +101,35 @@ function Hero({ onEnter }: { onEnter: () => void }) {
   }, []);
 
   return (
-    <header ref={ref} style={{ position: "relative", paddingTop: 80, overflow: "hidden" }}>
+    <header ref={ref} style={{ position: "relative", paddingTop: 80, minHeight: "92vh", overflow: "hidden" }}>
       <Parallax speed={0.3} style={{ position: "absolute", inset: 0, zIndex: 0 }}>
         <div className="astra-grid" />
       </Parallax>
 
-      <div className={PAGE} style={{ position: "relative", zIndex: 1 }}>
-        <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1.04fr)_minmax(0,0.96fr)]">
-          <div>
+      {/* The growth field. Full-bleed and anchored to the floor, masked back
+          on the left so the headline keeps its contrast. Click it to regrow. */}
+      <div
+        style={{
+          position: "absolute",
+          left: "37%",
+          right: "2%",
+          bottom: 96,
+          height: "68%",
+          zIndex: 0,
+          maskImage:
+            "linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.35) 14%, #000 32%), linear-gradient(to top, #000 78%, transparent 100%)",
+          WebkitMaskImage:
+            "linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.35) 14%, #000 32%), linear-gradient(to top, #000 78%, transparent 100%)",
+          maskComposite: "intersect",
+          WebkitMaskComposite: "source-in",
+        }}
+      >
+        <DitherTree grid={7} duration={3.6} />
+      </div>
+
+      <div className={PAGE} style={{ position: "relative", zIndex: 1, pointerEvents: "none" }}>
+        <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
+          <div style={{ pointerEvents: "auto" }}>
             <div data-hero-step>
               <Eyebrow>SIH 26117 / MRPL</Eyebrow>
             </div>
@@ -139,8 +161,22 @@ function Hero({ onEnter }: { onEnter: () => void }) {
             </div>
           </div>
 
-          <Parallax speed={-0.16} className="flex items-center justify-center lg:justify-end">
-            <AstraMark size={420} interactive className="max-w-full" />
+          <Parallax speed={-0.1} className="hidden lg:flex justify-end" style={{ pointerEvents: "auto" }}>
+            <div style={{ width: 268, border: "1px solid var(--carbon)", borderRadius: 10, background: "color-mix(in srgb, var(--canvas) 92%, transparent)", backdropFilter: "blur(10px)", padding: 18 }}>
+              <div className="flex items-center gap-2.5" style={{ paddingBottom: 14, borderBottom: "1px solid var(--carbon)" }}>
+                <AstraMark size={26} handles={false} />
+                <span className="font-mono uppercase" style={{ fontSize: 10.5, letterSpacing: "0.12em", color: "var(--stone)" }}>
+                  Knowledge base
+                </span>
+              </div>
+              <p style={{ margin: "14px 0 0", fontSize: 13.5, lineHeight: 1.5, color: "var(--granite)" }}>
+                Every document you ingest branches from one local root. It grows on your
+                hardware, it is searched on your hardware, and it has nowhere else to go.
+              </p>
+              <div className="font-mono" style={{ marginTop: 14, fontSize: 10.5, letterSpacing: "0.08em", color: "var(--graphite)" }}>
+                CLICK THE GROWTH TO RESEED
+              </div>
+            </div>
           </Parallax>
         </div>
       </div>

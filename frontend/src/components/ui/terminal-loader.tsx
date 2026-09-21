@@ -39,6 +39,24 @@ export function TerminalLoader({
   );
 }
 
+/**
+ * The scanning eye (Uiverse.io by Shoh2008, recoloured). Used on the boot
+ * curtain in place of the terminal: it reads as something looking rather
+ * than something typing, which is closer to what start-up actually does.
+ */
+export function EyeLoader({ label = "Starting the workbench" }: { label?: string }) {
+  return (
+    <div className="flex flex-col items-center gap-5" role="status" aria-live="polite">
+      <span className="loader-shell">
+        <span className="loader" />
+      </span>
+      <span className="mono-label" style={{ letterSpacing: "0.12em" }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
 const BOOT_STEPS: { label: string; note: string }[] = [
   { label: "model registry", note: "config/models.yaml — 5 capabilities" },
   { label: "network guard", note: "external hosts → blocked" },
@@ -88,7 +106,7 @@ export function BootCurtain({
         transition: "opacity 240ms cubic-bezier(0.4, 0, 0.2, 1)",
       }}
     >
-      <TerminalLoader />
+      <EyeLoader />
       <ol className="flex flex-col gap-1.5" style={{ minWidth: 320 }}>
         {BOOT_STEPS.map((entry, index) => {
           const state = done || index < step ? "ok" : index === step ? "run" : "wait";

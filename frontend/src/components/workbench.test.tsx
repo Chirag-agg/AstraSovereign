@@ -418,7 +418,7 @@ describe("Workbench gate (login)", () => {
     // assert on the nav one, which is present at every breakpoint.
     fireEvent.click(screen.getAllByRole("button", { name: /^Log in$/i })[0]);
     await flush();
-    expect(screen.getByText("Sign in to the on-premise AI workbench")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Sign in to the workbench/i })).toBeInTheDocument();
     expect(screen.queryByLabelText("Task description")).not.toBeInTheDocument();
   });
 
