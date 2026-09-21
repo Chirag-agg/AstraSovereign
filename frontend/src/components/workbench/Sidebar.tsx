@@ -133,7 +133,7 @@ export default function Sidebar({
         {/* Brand & Collapse Header (AstraSovereign) */}
         <div className="flex h-14 items-center justify-between px-3.5 border-b border-zinc-100 bg-white">
           <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white shadow-xs font-bold text-sm shrink-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-[var(--accent)] to-[var(--brand-300)] text-white shadow-xs font-bold text-sm shrink-0">
               <span className="tracking-tighter">AS</span>
             </div>
             {!collapsed && (
@@ -191,13 +191,13 @@ export default function Sidebar({
                       collapsed ? "justify-center p-2.5" : "gap-2.5 px-3 py-2 text-left"
                     } ${
                       active
-                        ? "bg-[#ede9fe] text-[#6d28d9] font-bold shadow-xs"
+                        ? "bg-[var(--accent-light)] text-[var(--accent-strong)] font-bold shadow-xs"
                         : "text-slate-600 hover:bg-slate-100"
                     }`}
                   >
                     <Icon
                       className={`w-4 h-4 shrink-0 transition-colors ${
-                        active ? "text-[#7047eb]" : "text-zinc-400 group-hover:text-zinc-700"
+                        active ? "text-[var(--accent)]" : "text-zinc-400 group-hover:text-zinc-700"
                       }`}
                     />
                     {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
@@ -206,7 +206,7 @@ export default function Sidebar({
                         className={`text-[10.5px] font-bold px-1.5 py-0.2 rounded-full ${
                           item.badgeColor === "rose"
                             ? "bg-rose-500 text-white"
-                            : "bg-[#7047eb] text-white"
+                            : "bg-[var(--accent)] text-white"
                         }`}
                       >
                         {item.badge}
@@ -228,7 +228,7 @@ export default function Sidebar({
                   collapsed ? "justify-center p-2.5" : "gap-2.5 px-3 py-2 text-left"
                 }`}
               >
-                <ShieldCheck className="w-4 h-4 text-[#7047eb] shrink-0" />
+                <ShieldCheck className="w-4 h-4 text-[var(--accent)] shrink-0" />
                 {!collapsed && <span className="flex-1 truncate">ADMIN CONSOLE</span>}
               </Link>
             </div>
@@ -288,7 +288,7 @@ export default function Sidebar({
               collapsed ? "justify-center p-1.5" : "gap-2.5 p-2"
             }`}
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#7047eb] to-[#a78bfa] text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[var(--accent)] to-[var(--brand-300)] text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0">
               {user.startsWith("admin") ? "AD" : "OP"}
             </div>
             {!collapsed && (

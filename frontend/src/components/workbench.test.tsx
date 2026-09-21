@@ -413,8 +413,10 @@ describe("Workbench gate (login)", () => {
     installFetch(() => jsonResponse({ detail: { message: "not found" } }, 404));
     render(<WorkbenchPage />);
     await flush();
-    // The new landing page is shown first; enter the sign-in portal from it.
-    fireEvent.click(screen.getByRole("button", { name: /Sign In to Portal/i }));
+    // The landing page is shown first; the nav's log-in control opens the
+    // sign-in portal. There are several routes in (hero CTA, closing card) —
+    // assert on the nav one, which is present at every breakpoint.
+    fireEvent.click(screen.getAllByRole("button", { name: /^Log in$/i })[0]);
     await flush();
     expect(screen.getByText("Sign in to the on-premise AI workbench")).toBeInTheDocument();
     expect(screen.queryByLabelText("Task description")).not.toBeInTheDocument();

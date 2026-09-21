@@ -35,7 +35,7 @@ export default function CommandCenter({
   const failedJobs = jobList.filter(j => j.status === "failed").length;
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
@@ -50,7 +50,7 @@ export default function CommandCenter({
           <button
             type="button"
             onClick={onNewJob}
-            className="flex items-center gap-1.5 bg-[#7047eb] hover:bg-[#5a35d4] text-white rounded-xl px-4 py-2 font-semibold shadow-xs transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white rounded-xl px-4 py-2 font-semibold shadow-xs transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>New Task</span>
@@ -100,7 +100,7 @@ export default function CommandCenter({
               <h2 className="text-base font-bold text-slate-800">Recent Tasks</h2>
               <button 
                 onClick={() => onNavigate("jobs")}
-                className="text-sm text-slate-600 hover:text-[#7047eb] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                className="text-sm text-slate-600 hover:text-[var(--accent)] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
               >
                 View All <ArrowRight className="w-4 h-4" />
               </button>
@@ -108,7 +108,7 @@ export default function CommandCenter({
             <div className="overflow-x-auto p-0">
               {jobList.length === 0 ? (
                 <div className="p-10 flex flex-col items-center justify-center text-center">
-                  <Activity className="w-10 h-10 text-slate-300 mb-3" />
+                  <Activity className="w-10 h-10 text-slate-500 mb-3" />
                   <p className="text-base font-bold text-slate-800">No recent tasks</p>
                   <p className="text-sm text-slate-500 mt-1">Start a new task to see it here.</p>
                 </div>
@@ -164,10 +164,10 @@ export default function CommandCenter({
             <div className="space-y-2">
               <button
                 onClick={() => onNavigate("tools")}
-                className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-[#7047eb]/30 hover:bg-purple-50/50 transition-colors group cursor-pointer text-left"
+                className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-[var(--accent)]/30 hover:bg-purple-50/50 transition-colors group cursor-pointer text-left"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-slate-50 text-slate-600 rounded-lg group-hover:bg-[#7047eb]/10 group-hover:text-[#7047eb] transition-colors">
+                  <div className="p-2 bg-slate-50 text-slate-600 rounded-lg group-hover:bg-[var(--accent)]/10 group-hover:text-[var(--accent)] transition-colors">
                     <Wrench className="w-4 h-4" />
                   </div>
                   <div>
@@ -175,15 +175,15 @@ export default function CommandCenter({
                     <p className="text-xs text-slate-500">View local capabilities</p>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#7047eb] transition-colors" />
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[var(--accent)] transition-colors" />
               </button>
 
               <button
                 onClick={() => onNavigate("workflows")}
-                className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-[#7047eb]/30 hover:bg-purple-50/50 transition-colors group cursor-pointer text-left"
+                className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-[var(--accent)]/30 hover:bg-purple-50/50 transition-colors group cursor-pointer text-left"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-slate-50 text-slate-600 rounded-lg group-hover:bg-[#7047eb]/10 group-hover:text-[#7047eb] transition-colors">
+                  <div className="p-2 bg-slate-50 text-slate-600 rounded-lg group-hover:bg-[var(--accent)]/10 group-hover:text-[var(--accent)] transition-colors">
                     <GitBranch className="w-4 h-4" />
                   </div>
                   <div>
@@ -191,15 +191,15 @@ export default function CommandCenter({
                     <p className="text-xs text-slate-500">Automated pipelines</p>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#7047eb] transition-colors" />
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[var(--accent)] transition-colors" />
               </button>
 
               <button
                 onClick={() => onNavigate("team")}
-                className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-[#7047eb]/30 hover:bg-purple-50/50 transition-colors group cursor-pointer text-left"
+                className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-[var(--accent)]/30 hover:bg-purple-50/50 transition-colors group cursor-pointer text-left"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-slate-50 text-slate-600 rounded-lg group-hover:bg-[#7047eb]/10 group-hover:text-[#7047eb] transition-colors">
+                  <div className="p-2 bg-slate-50 text-slate-600 rounded-lg group-hover:bg-[var(--accent)]/10 group-hover:text-[var(--accent)] transition-colors">
                     <Users className="w-4 h-4" />
                   </div>
                   <div>
@@ -207,7 +207,7 @@ export default function CommandCenter({
                     <p className="text-xs text-slate-500">User access control</p>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#7047eb] transition-colors" />
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[var(--accent)] transition-colors" />
               </button>
             </div>
           </div>

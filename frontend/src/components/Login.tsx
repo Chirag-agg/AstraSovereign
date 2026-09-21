@@ -41,7 +41,7 @@ export default function Login({
   };
 
   return (
-    <div className="min-h-screen w-screen flex items-center justify-center bg-[#eef1f6] p-4 relative overflow-hidden select-none">
+    <div className="min-h-screen w-screen flex items-center justify-center bg-[var(--canvas)] p-4 relative overflow-hidden select-none">
       {/* Background Soft Studio Glows */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-purple-200/40 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-200/30 rounded-full blur-3xl pointer-events-none" />
@@ -59,7 +59,7 @@ export default function Login({
         {/* Brand Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white shadow-md font-bold text-base">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-[var(--accent)] to-[var(--brand-300)] text-white shadow-md font-bold text-base">
               <span>IS</span>
             </div>
             <div>
@@ -110,7 +110,7 @@ export default function Login({
 
           {/* Active Profile Summary Card */}
           <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-100/80 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#7047eb] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+            <div className="w-10 h-10 rounded-full bg-[var(--accent)] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
               {selectedAccount.name
                 .split(" ")
                 .map((n) => n[0])
@@ -157,7 +157,7 @@ export default function Login({
           type="button"
           onClick={signIn}
           disabled={signingIn}
-          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full bg-[#7047eb] hover:bg-[#5e37d8] active:bg-[#522ec4] text-white text-xs font-bold shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full bg-[var(--accent)] hover:bg-[var(--accent-strong)] active:bg-[var(--accent-strong)] text-white text-xs font-bold shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-50"
         >
           {signingIn ? (
             <span>Signing in to Sovereign Workspace…</span>

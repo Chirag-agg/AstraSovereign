@@ -184,7 +184,7 @@ export default function KnowledgeBaseView({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
@@ -207,7 +207,7 @@ export default function KnowledgeBaseView({
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-2 bg-[#7047eb] hover:bg-[#5a35d4] text-white rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-2 bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-xs disabled:opacity-50 cursor-pointer"
             >
               <Upload className="w-4 h-4" />
               <span>{uploading ? "Uploading..." : "+ Upload Document"}</span>
@@ -218,7 +218,7 @@ export default function KnowledgeBaseView({
         {/* Status Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
           <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb] shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)] shrink-0">
               <Layers className="w-5 h-5" />
             </div>
             <div>
@@ -232,7 +232,7 @@ export default function KnowledgeBaseView({
           </div>
 
           <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb] shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)] shrink-0">
               <Database className="w-5 h-5" />
             </div>
             <div>
@@ -246,7 +246,7 @@ export default function KnowledgeBaseView({
           </div>
 
           <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb] shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)] shrink-0">
               <FileText className="w-5 h-5" />
             </div>
             <div>
@@ -264,7 +264,7 @@ export default function KnowledgeBaseView({
         <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl flex flex-col overflow-hidden">
           {!documents || documents.length === 0 ? (
             <div className="p-16 flex flex-col items-center justify-center text-center space-y-2">
-              <FileText className="w-12 h-12 text-slate-300 mb-2" />
+              <FileText className="w-12 h-12 text-slate-500 mb-2" />
               <h3 className="text-base font-bold text-slate-800">No documents in index</h3>
               <p className="text-xs text-slate-500 max-w-sm">
                 Upload business documents (PDF, Word, TXT, or markdown) to empower your Sovereign AI assistant.
@@ -286,7 +286,7 @@ export default function KnowledgeBaseView({
                     <tr key={doc.document_id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-3 px-5">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb] shrink-0">
+                          <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)] shrink-0">
                             <FileText className="w-4 h-4" />
                           </div>
                           <div>
@@ -300,7 +300,7 @@ export default function KnowledgeBaseView({
                         </div>
                       </td>
                       <td className="py-3 px-5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-[#7047eb] border border-purple-200/60 uppercase">
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-[var(--accent)] border border-purple-200/60 uppercase">
                           {doc.document_type || "txt"}
                         </span>
                       </td>
@@ -360,7 +360,7 @@ export default function KnowledgeBaseView({
             {/* Header / Toolbar */}
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200/80 bg-slate-50/80 shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-2xl bg-purple-100 flex items-center justify-center text-[#7047eb] shrink-0 shadow-2xs">
+                <div className="w-9 h-9 rounded-2xl bg-purple-100 flex items-center justify-center text-[var(--accent)] shrink-0 shadow-2xs">
                   <BookOpen className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
@@ -368,7 +368,7 @@ export default function KnowledgeBaseView({
                     <h3 className="text-sm font-bold text-slate-900 truncate max-w-sm sm:max-w-md md:max-w-lg" title={previewDoc.filename}>
                       {previewDoc.filename}
                     </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-[#7047eb] border border-purple-200 uppercase tracking-wide shrink-0">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-[var(--accent)] border border-purple-200 uppercase tracking-wide shrink-0">
                       {previewType}
                     </span>
                   </div>
@@ -409,7 +409,7 @@ export default function KnowledgeBaseView({
                       onClick={() => setWordWrap(!wordWrap)}
                       className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
                         wordWrap
-                          ? "bg-purple-50 border-purple-200 text-[#7047eb]"
+                          ? "bg-purple-50 border-purple-200 text-[var(--accent)]"
                           : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                       title="Toggle Word Wrap"
@@ -451,7 +451,7 @@ export default function KnowledgeBaseView({
                 <button
                   type="button"
                   onClick={handleDownload}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-bold shadow-xs cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white text-xs font-bold shadow-xs cursor-pointer"
                   title="Download raw document"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -473,7 +473,7 @@ export default function KnowledgeBaseView({
             <div className="flex-1 min-h-0 overflow-hidden relative bg-slate-50 flex flex-col">
               {loadingPreview ? (
                 <div className="flex flex-col items-center justify-center h-full text-xs text-slate-500 space-y-2">
-                  <div className="w-6 h-6 border-2 border-[#7047eb] border-t-transparent rounded-full animate-spin" />
+                  <div className="w-6 h-6 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
                   <span>Loading full document file...</span>
                 </div>
               ) : activeTab === "metadata" ? (
@@ -524,7 +524,7 @@ export default function KnowledgeBaseView({
                   />
                 </div>
               ) : previewType === "image" && previewUrl ? (
-                <div className="w-full h-full flex items-center justify-center p-4 overflow-auto bg-slate-900/5">
+                <div className="w-full h-full flex items-center justify-center p-4 overflow-auto bg-slate-100/5">
                   <img
                     src={previewUrl}
                     alt={previewDoc.filename}
@@ -540,9 +540,9 @@ export default function KnowledgeBaseView({
                     <span className="text-slate-400">Complete File Preview</span>
                   </div>
 
-                  <div className="flex-1 overflow-auto flex min-h-0 p-4 font-mono text-xs bg-slate-950 text-slate-100">
+                  <div className="flex-1 overflow-auto flex min-h-0 p-4 font-mono text-xs bg-slate-100 text-slate-700">
                     {/* Line numbers */}
-                    <div className="select-none pr-4 text-right text-slate-600 font-mono text-xs border-r border-slate-800 shrink-0 leading-relaxed">
+                    <div className="select-none pr-4 text-right text-slate-600 font-mono text-xs border-r border-slate-200 shrink-0 leading-relaxed">
                       {previewText.split("\n").map((_, i) => (
                         <div key={i}>{i + 1}</div>
                       ))}
@@ -550,7 +550,7 @@ export default function KnowledgeBaseView({
 
                     {/* Content */}
                     <pre
-                      className={`pl-4 font-mono text-xs text-slate-200 leading-relaxed select-text flex-1 overflow-x-auto ${
+                      className={`pl-4 font-mono text-xs text-slate-600 leading-relaxed select-text flex-1 overflow-x-auto ${
                         wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"
                       }`}
                     >
@@ -560,7 +560,7 @@ export default function KnowledgeBaseView({
                 </div>
               ) : (
                 <div className="py-20 px-6 text-center space-y-3 m-auto">
-                  <FileCode className="w-12 h-12 text-[#7047eb] mx-auto opacity-70" />
+                  <FileCode className="w-12 h-12 text-[var(--accent)] mx-auto opacity-70" />
                   <h4 className="text-sm font-bold text-slate-800">
                     Document Content Available
                   </h4>
@@ -570,7 +570,7 @@ export default function KnowledgeBaseView({
                   <button
                     type="button"
                     onClick={handleDownload}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-bold shadow-xs cursor-pointer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white text-xs font-bold shadow-xs cursor-pointer"
                   >
                     <Download className="w-4 h-4" />
                     <span>Download Original Document</span>

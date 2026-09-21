@@ -462,7 +462,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
 
             <div className="flex items-center flex-wrap gap-3">
               <div className="flex items-center gap-2 text-xs font-medium text-zinc-700 bg-purple-50/80 px-3 py-1.5 rounded-full border border-purple-100">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#7047eb]" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent)]" />
                 <span>Completed tasks (74%)</span>
               </div>
 
@@ -490,7 +490,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                 <div key={item.month} className="flex flex-col items-center gap-2 h-full justify-end group">
                   <div className="w-full flex gap-1 items-end justify-center h-36">
                     <div
-                      className="w-2.5 sm:w-3.5 rounded-t-lg bg-[#7047eb] group-hover:bg-[#5f36dd] transition-all duration-300"
+                      className="w-2.5 sm:w-3.5 rounded-t-lg bg-[var(--accent)] group-hover:bg-[var(--accent-strong)] transition-all duration-300"
                       style={{ height: `${item.completed}%` }}
                       title={`${item.month}: ${item.completed}% completed`}
                     />
@@ -515,7 +515,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                 <TrendingUp className="w-4 h-4 text-emerald-600" />
                 <span className="font-semibold text-zinc-800">+18.4%</span> productivity vs last quarter
               </span>
-              <span className="text-zinc-300">|</span>
+              <span className="text-zinc-500">|</span>
               <span className="flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-purple-600" />
                 Zero unverified deliverable releases
@@ -606,7 +606,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                 <button
                   type="button"
                   onClick={() => setIsAssignModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Assign Task</span>
@@ -782,7 +782,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
             <div className="flex items-center justify-between pb-4 border-b border-zinc-100">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-zinc-900">Department Streams</h3>
-                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[#7047eb] text-white">
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[var(--accent)] text-white">
                   34
                 </span>
               </div>
@@ -797,7 +797,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                   className="py-3 flex items-start gap-3 hover:bg-zinc-50/80 rounded-xl px-2 transition-colors cursor-pointer group"
                 >
                   <div className="relative shrink-0 mt-0.5">
-                    <div className="w-9 h-9 rounded-full bg-purple-100 text-[#7047eb] font-bold flex items-center justify-center text-xs border border-purple-200 shadow-xs">
+                    <div className="w-9 h-9 rounded-full bg-purple-100 text-[var(--accent)] font-bold flex items-center justify-center text-xs border border-purple-200 shadow-xs">
                       {cw.avatar}
                     </div>
                     <span
@@ -876,7 +876,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-zinc-100 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb]">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)]">
                   <Plus className="w-5 h-5" />
                 </div>
                 <div>
@@ -898,7 +898,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
             {/* Role Hierarchy Scope Indicator */}
             {currentUser.role === "admin" ? (
               <div className="p-3 bg-purple-50 border border-purple-200 rounded-2xl flex items-start gap-2 text-xs text-purple-900">
-                <ShieldCheck className="w-4 h-4 text-[#7047eb] shrink-0 mt-0.5" />
+                <ShieldCheck className="w-4 h-4 text-[var(--accent)] shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold">ADMIN PRIVILEGE (Cross-Department)</span>
                   <p className="text-[11px] text-purple-700 mt-0.5 leading-relaxed">
@@ -1036,7 +1036,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#7047eb] hover:bg-[#5f36dd] text-white font-semibold shadow-sm"
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white font-semibold shadow-sm"
                 >
                   Confirm Assignment
                 </button>
@@ -1052,7 +1052,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-zinc-100 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb]">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)]">
                   <Send className="w-4 h-4" />
                 </div>
                 <div>
@@ -1157,7 +1157,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#7047eb] hover:bg-[#5f36dd] text-white font-semibold shadow-sm"
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white font-semibold shadow-sm"
                 >
                   Submit for Authorization
                 </button>

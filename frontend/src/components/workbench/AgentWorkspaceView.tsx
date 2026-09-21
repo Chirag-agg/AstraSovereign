@@ -134,7 +134,7 @@ export default function AgentWorkspaceView({
 
   return (
     <div
-      className="flex flex-1 overflow-hidden h-full p-3 sm:p-4 gap-3 bg-[#eef1f6] min-w-0 min-h-0"
+      className="flex flex-1 overflow-hidden h-full p-3 sm:p-4 gap-3 bg-[var(--canvas)] min-w-0 min-h-0"
     >
       {/* 1. LEFT PANEL: FILES & RESOURCES (IDE File Explorer) */}
       <div
@@ -165,7 +165,7 @@ export default function AgentWorkspaceView({
                         onClick={() => setSelectedFile(file.path)}
                         className={`flex w-full items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-left transition-colors cursor-pointer truncate font-medium text-xs ${
                           isSelected
-                            ? "bg-[#ede9fe] text-[#6d28d9] font-bold"
+                            ? "bg-[var(--accent-light)] text-[var(--accent-strong)] font-bold"
                             : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100/70"
                         }`}
                       >
@@ -193,7 +193,7 @@ export default function AgentWorkspaceView({
                   onClick={() => setSelectedFile(file.path)}
                   className={`flex w-full items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-left transition-colors cursor-pointer truncate font-medium text-xs ${
                     isSelected
-                      ? "bg-[#ede9fe] text-[#6d28d9] font-bold"
+                      ? "bg-[var(--accent-light)] text-[var(--accent-strong)] font-bold"
                       : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100/70"
                   }`}
                 >
@@ -218,7 +218,7 @@ export default function AgentWorkspaceView({
             <span className="font-bold text-slate-900">AI Assistant</span>
             {activeJobId && (
               <>
-                <span className="text-slate-300">·</span>
+                <span className="text-slate-500">·</span>
                 <span className="truncate max-w-[240px] font-mono text-slate-500 font-medium">
                   {activeJob?.job_id || activeJobId}
                 </span>
@@ -240,8 +240,8 @@ export default function AgentWorkspaceView({
             )}
 
             {running ? (
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-[#7047eb] border border-purple-200">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#7047eb] animate-pulse" />
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-[var(--accent)] border border-purple-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)] animate-pulse" />
                 Processing
               </span>
             ) : activeJob?.status === "completed" ? (
@@ -291,7 +291,7 @@ export default function AgentWorkspaceView({
             <button
               type="button"
               onClick={() => onSubmitTask(DEMO_TASK)}
-              className="text-[#7047eb] hover:text-[#5e38d6] font-semibold cursor-pointer"
+              className="text-[var(--accent)] hover:text-[var(--accent-strong)] font-semibold cursor-pointer"
             >
               Try Demo
             </button>
@@ -376,7 +376,7 @@ export default function AgentWorkspaceView({
           <div className="space-y-1.5">
             <div className="flex justify-between text-[11px] font-semibold text-zinc-600 uppercase tracking-wider">
               <span>Temperature</span>
-              <span className="text-[#7047eb] font-mono font-bold">{temperature}</span>
+              <span className="text-[var(--accent)] font-mono font-bold">{temperature}</span>
             </div>
             <input
               type="range"
@@ -385,7 +385,7 @@ export default function AgentWorkspaceView({
               step="0.05"
               value={temperature}
               onChange={(e) => setTemperature(parseFloat(e.target.value))}
-              className="w-full cursor-pointer accent-[#7047eb]"
+              className="w-full cursor-pointer accent-[var(--accent)]"
             />
           </div>
 
@@ -396,7 +396,7 @@ export default function AgentWorkspaceView({
               <span className="text-zinc-800 font-mono font-bold">{contextWindow}</span>
             </div>
             <div className="h-1.5 w-full rounded-full bg-zinc-100 overflow-hidden">
-              <div className="h-full bg-[#7047eb] rounded-full" style={{ width: "24%" }} />
+              <div className="h-full bg-[var(--accent)] rounded-full" style={{ width: "24%" }} />
             </div>
             <span className="text-[10px] text-zinc-400">4,120 / 32,768 tokens allocated</span>
           </div>
@@ -418,7 +418,7 @@ export default function AgentWorkspaceView({
                     onChange={(e) =>
                       setSelectedTools((prev) => ({ ...prev, [tool]: e.target.checked }))
                     }
-                    className="rounded border-zinc-300 accent-[#7047eb] cursor-pointer"
+                    className="rounded border-zinc-300 accent-[var(--accent)] cursor-pointer"
                   />
                   <span className="text-xs font-medium text-zinc-700">
                     {tool}

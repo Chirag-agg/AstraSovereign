@@ -269,7 +269,7 @@ export default function HomeSearchView({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
         {/* ROW 1: Full-Width Intelligent Chatbot Hero (Enlarged to fill full row) */}
         <div className="w-full bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-[0_4px_25px_-2px_rgba(15,23,42,0.04)] flex flex-col space-y-6">
@@ -302,7 +302,7 @@ export default function HomeSearchView({
               className="rounded-2xl p-4 sm:p-6 bg-slate-50/90 border border-slate-200 focus-within:border-purple-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-purple-500/15 transition-all space-y-4 shadow-2xs"
             >
               <div className="flex items-start gap-3.5">
-                <Search className="w-6 h-6 text-[#7047eb] shrink-0 mt-1" />
+                <Search className="w-6 h-6 text-[var(--accent)] shrink-0 mt-1" />
                 <textarea
                   rows={3}
                   value={searchQuery}
@@ -328,9 +328,9 @@ export default function HomeSearchView({
                   <button
                     type="submit"
                     disabled={!searchQuery.trim() || Boolean(activeJobId)}
-                    className="flex items-center justify-center gap-2 px-7 py-3 rounded-full bg-[#7047eb] hover:bg-[#5e38d6] active:bg-[#522ec4] text-white text-sm font-bold shadow-xs hover:shadow-md transition-all cursor-pointer disabled:opacity-40 shrink-0"
+                    className="flex items-center justify-center gap-2 px-7 py-3 rounded-full bg-[var(--accent)] hover:bg-[var(--accent-strong)] active:bg-[var(--accent-strong)] text-white text-sm font-bold shadow-xs hover:shadow-md transition-all cursor-pointer disabled:opacity-40 shrink-0"
                   >
-                    <Sparkles className="w-4 h-4 text-purple-200" />
+                    <Sparkles className="w-4 h-4 text-purple-700" />
                     <span>{activeJobId ? "Assistant Thinking…" : "Ask Assistant"}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
@@ -363,7 +363,7 @@ export default function HomeSearchView({
           {messages.length > 0 && (
             <div className="pt-5 border-t border-slate-200/80 space-y-5 max-h-[600px] overflow-y-auto pr-1">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider pb-1">
-                <MessageSquare className="w-4 h-4 text-[#7047eb]" />
+                <MessageSquare className="w-4 h-4 text-[var(--accent)]" />
                 <span>Assistant Dialogue</span>
               </div>
 
@@ -373,8 +373,8 @@ export default function HomeSearchView({
                   className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}
                 >
                   {msg.sender === "user" ? (
-                    <div className="max-w-[85%] rounded-2xl px-5 py-3.5 bg-[#7047eb] text-white text-sm sm:text-base shadow-xs font-medium leading-relaxed">
-                      <div className="font-semibold text-xs text-purple-200 mb-1.5 flex items-center justify-between gap-6">
+                    <div className="max-w-[85%] rounded-2xl px-5 py-3.5 bg-[var(--accent)] text-white text-sm sm:text-base shadow-xs font-medium leading-relaxed">
+                      <div className="font-semibold text-xs text-purple-700 mb-1.5 flex items-center justify-between gap-6">
                         <span>You</span>
                         <span>{msg.time}</span>
                       </div>
@@ -385,7 +385,7 @@ export default function HomeSearchView({
                       {/* Assistant Header */}
                       <div className="flex items-center justify-between border-b border-slate-200/60 pb-2.5">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white flex items-center justify-center text-xs font-bold shadow-2xs">
+                          <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-[var(--accent)] to-[var(--brand-300)] text-white flex items-center justify-center text-xs font-bold shadow-2xs">
                             <Bot className="w-4 h-4" />
                           </div>
                           <span className="text-sm font-bold text-slate-900">AstraSovereign Assistant</span>
@@ -424,12 +424,12 @@ export default function HomeSearchView({
                       {/* Assistant Body */}
                       {msg.status === "running" ? (
                         <div className="py-5 px-2 space-y-3">
-                          <div className="flex items-center gap-3 text-sm text-[#7047eb] font-semibold">
-                            <Radio className="w-4 h-4 animate-pulse text-[#7047eb]" />
+                          <div className="flex items-center gap-3 text-sm text-[var(--accent)] font-semibold">
+                            <Radio className="w-4 h-4 animate-pulse text-[var(--accent)]" />
                             <span>{msg.step || "Analyzing request and compiling response..."}</span>
                           </div>
                           <div className="h-2 w-56 rounded-full bg-purple-100 overflow-hidden">
-                            <div className="h-full bg-[#7047eb] rounded-full animate-pulse" style={{ width: "65%" }} />
+                            <div className="h-full bg-[var(--accent)] rounded-full animate-pulse" style={{ width: "65%" }} />
                           </div>
                         </div>
                       ) : msg.status === "failed" ? (
@@ -477,7 +477,7 @@ export default function HomeSearchView({
                           <button
                             type="button"
                             onClick={() => onSearchSubmit(msg.text)}
-                            className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#7047eb] hover:text-[#5e38d6] hover:underline cursor-pointer"
+                            className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline cursor-pointer"
                           >
                             <span>Open in Technical AI Assistant</span>
                             <ExternalLink className="w-3.5 h-3.5" />
@@ -513,18 +513,18 @@ export default function HomeSearchView({
                 onClick={() => onNavigate("agent")}
                 className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] hover:shadow-md hover:border-purple-300 transition-all cursor-pointer group space-y-2.5"
               >
-                <div className="w-10 h-10 rounded-2xl bg-purple-50 flex items-center justify-center text-[#7047eb] group-hover:scale-105 transition-transform">
+                <div className="w-10 h-10 rounded-2xl bg-purple-50 flex items-center justify-center text-[var(--accent)] group-hover:scale-105 transition-transform">
                   <Terminal className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#7047eb] transition-colors">
+                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-[var(--accent)] transition-colors">
                     AI Assistant Studio
                   </h3>
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                     Technical workspace with model configuration and live execution traces.
                   </p>
                 </div>
-                <div className="flex items-center gap-1 text-xs font-bold text-[#7047eb] pt-1">
+                <div className="flex items-center gap-1 text-xs font-bold text-[var(--accent)] pt-1">
                   <span>Open Studio</span>
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -538,14 +538,14 @@ export default function HomeSearchView({
                   <Users2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#7047eb] transition-colors">
+                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-[var(--accent)] transition-colors">
                     Coworking Space
                   </h3>
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                     Department workflows, authorization levels L1–L4, and deliverable sign-offs.
                   </p>
                 </div>
-                <div className="flex items-center gap-1 text-xs font-bold text-[#7047eb] pt-1">
+                <div className="flex items-center gap-1 text-xs font-bold text-[var(--accent)] pt-1">
                   <span>Enter Coworking</span>
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -559,14 +559,14 @@ export default function HomeSearchView({
                   <Terminal className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#7047eb] transition-colors">
+                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-[var(--accent)] transition-colors">
                     Code Sandbox (Docker)
                   </h3>
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                     Air-gapped code runner with read-only root and disabled network.
                   </p>
                 </div>
-                <div className="flex items-center gap-1 text-xs font-bold text-[#7047eb] pt-1">
+                <div className="flex items-center gap-1 text-xs font-bold text-[var(--accent)] pt-1">
                   <span>Open Sandbox</span>
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -580,14 +580,14 @@ export default function HomeSearchView({
                   <Download className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#7047eb] transition-colors">
+                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-[var(--accent)] transition-colors">
                     Deliverables &amp; Reports
                   </h3>
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                     View generated Word (.docx), Excel (.xlsx), and PowerPoint (.pptx) files.
                   </p>
                 </div>
-                <div className="flex items-center gap-1 text-xs font-bold text-[#7047eb] pt-1">
+                <div className="flex items-center gap-1 text-xs font-bold text-[var(--accent)] pt-1">
                   <span>View Deliverables</span>
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -607,7 +607,7 @@ export default function HomeSearchView({
               <button
                 type="button"
                 onClick={() => onNavigate("jobs")}
-                className="text-[11px] font-bold text-[#7047eb] hover:underline cursor-pointer"
+                className="text-[11px] font-bold text-[var(--accent)] hover:underline cursor-pointer"
               >
                 View all
               </button>

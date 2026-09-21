@@ -1,24 +1,23 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
+import ClickEffects from "@/components/ui/click-effects";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
+// No next/font: Switzer and IBM Plex Mono are vendored under /public/fonts and
+// declared in globals.css. next/font would pull from Google's CDN at build
+// time, which is a dependency an air-gapped build cannot satisfy.
 
 export const metadata: Metadata = {
-  title: "AI Workbench",
+  title: "AstraSovereign — On-premise agentic AI workbench",
   description:
-    "Local, air-gapped on-premise agentic AI workbench. Jobs, agent traces, resources, and generated deliverables — all local.",
+    "A self-hosted, air-gapped agentic AI workbench for confidential industrial work. Multi-model routing, local OCR and vision, a sealed code sandbox, and real Word, Excel and PowerPoint deliverables — with zero cloud egress.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="light" className={inter.variable}>
-      <body className="antialiased bg-[#eef1f6] text-[#181b24] min-h-screen">
+    <html lang="en" data-theme="dark">
+      <body className="antialiased min-h-screen" style={{ background: "var(--canvas)", color: "var(--bone)" }}>
         {children}
+        <ClickEffects />
       </body>
     </html>
   );

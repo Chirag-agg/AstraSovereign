@@ -117,7 +117,7 @@ export default function OutputsView({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
@@ -135,7 +135,7 @@ export default function OutputsView({
         <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl flex flex-col overflow-hidden">
           {!artifacts || artifacts.length === 0 ? (
             <div className="p-16 flex flex-col items-center justify-center text-center space-y-2">
-              <Archive className="w-12 h-12 text-slate-300 mb-2" />
+              <Archive className="w-12 h-12 text-slate-500 mb-2" />
               <h3 className="text-base font-bold text-slate-800">No deliverables yet</h3>
               <p className="text-xs text-slate-500 max-w-sm">
                 Generated documents, reports, and code artifacts will appear here as AI tasks are completed.
@@ -157,7 +157,7 @@ export default function OutputsView({
                     <tr key={artifact.artifact_id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-3 px-5">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb] shrink-0">
+                          <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)] shrink-0">
                             <FileText className="w-4 h-4" />
                           </div>
                           <div>
@@ -171,7 +171,7 @@ export default function OutputsView({
                         </div>
                       </td>
                       <td className="py-3 px-5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-[#7047eb] border border-purple-200/60 uppercase">
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-[var(--accent)] border border-purple-200/60 uppercase">
                           {artifact.type || "Document"}
                         </span>
                       </td>
@@ -194,7 +194,7 @@ export default function OutputsView({
                           <button
                             type="button"
                             onClick={() => onDownloadArtifact(artifact)}
-                            className="border border-purple-200 bg-purple-50 hover:bg-purple-100 text-[#7047eb] rounded-xl px-3 py-1.5 text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            className="border border-purple-200 bg-purple-50 hover:bg-purple-100 text-[var(--accent)] rounded-xl px-3 py-1.5 text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
                           >
                             <Download className="w-3.5 h-3.5" />
                             <span>Download</span>
@@ -223,7 +223,7 @@ export default function OutputsView({
             {/* Header / Toolbar */}
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200/80 bg-slate-50/80 shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-2xl bg-purple-100 flex items-center justify-center text-[#7047eb] shrink-0 shadow-2xs">
+                <div className="w-9 h-9 rounded-2xl bg-purple-100 flex items-center justify-center text-[var(--accent)] shrink-0 shadow-2xs">
                   <FileText className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
@@ -231,7 +231,7 @@ export default function OutputsView({
                     <h3 className="text-sm font-bold text-slate-900 truncate max-w-sm sm:max-w-md md:max-w-lg" title={previewArtifact.filename}>
                       {previewArtifact.filename}
                     </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-[#7047eb] border border-purple-200 uppercase tracking-wide shrink-0">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-[var(--accent)] border border-purple-200 uppercase tracking-wide shrink-0">
                       {previewType}
                     </span>
                   </div>
@@ -250,7 +250,7 @@ export default function OutputsView({
                       onClick={() => setWordWrap(!wordWrap)}
                       className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
                         wordWrap
-                          ? "bg-purple-50 border-purple-200 text-[#7047eb]"
+                          ? "bg-purple-50 border-purple-200 text-[var(--accent)]"
                           : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                       title="Toggle Word Wrap"
@@ -292,7 +292,7 @@ export default function OutputsView({
                 <button
                   type="button"
                   onClick={() => onDownloadArtifact(previewArtifact)}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-bold shadow-xs cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white text-xs font-bold shadow-xs cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Download</span>
@@ -313,7 +313,7 @@ export default function OutputsView({
             <div className="flex-1 min-h-0 overflow-hidden relative bg-slate-50 flex flex-col">
               {loadingPreview ? (
                 <div className="flex flex-col items-center justify-center h-full text-xs text-slate-500 space-y-2">
-                  <div className="w-6 h-6 border-2 border-[#7047eb] border-t-transparent rounded-full animate-spin" />
+                  <div className="w-6 h-6 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
                   <span>Loading full file content...</span>
                 </div>
               ) : previewType === "pdf" && previewUrl ? (
@@ -325,7 +325,7 @@ export default function OutputsView({
                   />
                 </div>
               ) : previewType === "image" && previewUrl ? (
-                <div className="w-full h-full flex items-center justify-center p-4 overflow-auto bg-slate-900/5">
+                <div className="w-full h-full flex items-center justify-center p-4 overflow-auto bg-slate-100/5">
                   <img
                     src={previewUrl}
                     alt={previewArtifact.filename}
@@ -343,9 +343,9 @@ export default function OutputsView({
                   </div>
 
                   {/* Complete Text with Line Numbers */}
-                  <div className="flex-1 overflow-auto flex min-h-0 p-4 font-mono text-xs bg-slate-950 text-slate-100">
+                  <div className="flex-1 overflow-auto flex min-h-0 p-4 font-mono text-xs bg-slate-100 text-slate-700">
                     {/* Line numbers */}
-                    <div className="select-none pr-4 text-right text-slate-600 font-mono text-xs border-r border-slate-800 shrink-0 leading-relaxed">
+                    <div className="select-none pr-4 text-right text-slate-600 font-mono text-xs border-r border-slate-200 shrink-0 leading-relaxed">
                       {previewText.split("\n").map((_, i) => (
                         <div key={i}>{i + 1}</div>
                       ))}
@@ -353,7 +353,7 @@ export default function OutputsView({
 
                     {/* Source content */}
                     <pre
-                      className={`pl-4 font-mono text-xs text-slate-200 leading-relaxed select-text flex-1 overflow-x-auto ${
+                      className={`pl-4 font-mono text-xs text-slate-600 leading-relaxed select-text flex-1 overflow-x-auto ${
                         wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"
                       }`}
                     >
@@ -363,7 +363,7 @@ export default function OutputsView({
                 </div>
               ) : (
                 <div className="py-20 px-6 text-center space-y-3 m-auto">
-                  <FileCode className="w-12 h-12 text-[#7047eb] mx-auto opacity-70" />
+                  <FileCode className="w-12 h-12 text-[var(--accent)] mx-auto opacity-70" />
                   <h4 className="text-sm font-bold text-slate-800">
                     Air-Gapped Binary Deliverable ({previewArtifact.type || "Document"})
                   </h4>
@@ -373,7 +373,7 @@ export default function OutputsView({
                   <button
                     type="button"
                     onClick={() => onDownloadArtifact(previewArtifact)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#7047eb] hover:bg-[#5e38d6] text-white text-xs font-bold shadow-xs cursor-pointer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white text-xs font-bold shadow-xs cursor-pointer"
                   >
                     <Download className="w-4 h-4" />
                     <span>Download File</span>
