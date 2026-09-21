@@ -1,20 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Group } from "@visx/group";
-import { curveMonotoneX } from "@visx/curve";
-import { LinePath, Line, Circle } from "@visx/shape";
-import { Threshold } from "@visx/threshold";
-import { scaleLinear } from "@visx/scale";
-import { AxisLeft, AxisBottom } from "@visx/axis";
-import { GridRows } from "@visx/grid";
 import { TANK_204_COURSES, T_MIN_MM, T_ALERT_MM, type CourseReading } from "@/lib/metrics";
 
 /**
  * Shell-thickness profile, Tank 204.
  *
- * The visx Threshold chart on the project's own benchmark fixture rather than
- * the sample city-temperature set. Every point comes from
+ * Threshold chart on the project's own benchmark fixture. Every point comes from
  * tests/hard_scenario_01/constants.py, which is the scoring script's source of
  * truth — so the chart and the test suite can never disagree.
  *
@@ -27,120 +19,207 @@ import { TANK_204_COURSES, T_MIN_MM, T_ALERT_MM, type CourseReading } from "@/li
 const MARGIN = { top: 26, right: 20, bottom: 40, left: 46 };
 const FALLBACK_WIDTH = 720;
 
-const course = (d: CourseReading) => d.course;
-const reading = (d: CourseReading) => d.current_mm;
-const limit = () => T_MIN_MM;
-
 export interface ThresholdChartProps {
   width: number;
   height: number;
+}
+
+function getSplinePath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return "";
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  if (points.length === 2) return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+
+  let d = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(points.length - 1, i + 2)];
+
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+    d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
+  }
+  return d;
 }
 
 export function ThresholdChart({ width, height }: ThresholdChartProps) {
   const uid = React.useId().replace(/:/g, "");
   if (width < 60 || height < 60) return null;
 
-  const xMax = width - MARGIN.left - MARGIN.right;
-  const yMax = height - MARGIN.top - MARGIN.bottom;
+  const xMax = Math.max(0, width - MARGIN.left - MARGIN.right);
+  const yMax = Math.max(0, height - MARGIN.top - MARGIN.bottom);
 
-  const xScale = scaleLinear<number>({ domain: [1, 6], range: [0, xMax] });
-  const yScale = scaleLinear<number>({ domain: [10.2, 14.4], nice: false, range: [yMax, 0] });
+  // Scales
+  const xScale = (c: number) => ((c - 1) / (6 - 1)) * xMax;
+  const yScale = (v: number) => yMax - ((v - 10.2) / (14.4 - 10.2)) * yMax;
+
+  const yLimit = yScale(T_MIN_MM);
+  const yAlert = yScale(T_ALERT_MM);
+
+  const points = TANK_204_COURSES.map((d) => ({
+    x: xScale(d.course),
+    y: yScale(d.current_mm),
+    data: d,
+  }));
+
+  const curvePath = getSplinePath(points);
+  const firstPt = points[0] || { x: 0, y: 0 };
+  const lastPt = points[points.length - 1] || { x: xMax, y: 0 };
+  const areaPath = `${curvePath} L ${lastPt.x.toFixed(2)} ${yLimit.toFixed(2)} L ${firstPt.x.toFixed(2)} ${yLimit.toFixed(2)} Z`;
+
+  const yTicks = [11, 12, 13, 14];
 
   return (
-    <svg width={width} height={height} role="img" aria-label="Tank 204 shell thickness against the minimum permissible limit">
-      <Group left={MARGIN.left} top={MARGIN.top}>
-        <GridRows scale={yScale} width={xMax} height={yMax} stroke="#221f1d" strokeWidth={1} numTicks={5} />
+    <svg
+      width={width}
+      height={height}
+      role="img"
+      aria-label="Tank 204 shell thickness against the minimum permissible limit"
+      style={{ overflow: "visible" }}
+    >
+      <defs>
+        <clipPath id={`clip-above-${uid}`}>
+          <rect x={0} y={0} width={xMax} height={Math.max(0, yLimit)} />
+        </clipPath>
+        <clipPath id={`clip-below-${uid}`}>
+          <rect x={0} y={Math.max(0, yLimit)} width={xMax} height={Math.max(0, yMax - yLimit)} />
+        </clipPath>
+      </defs>
 
-        <AxisBottom
-          top={yMax}
-          scale={xScale}
-          numTicks={6}
-          tickFormat={(v) => `C${v}`}
-          stroke="#302c29"
-          tickStroke="#302c29"
-          tickLabelProps={() => ({
-            fill: "#8a8380",
-            fontSize: 11,
-            fontFamily: "var(--mono)",
-            textAnchor: "middle",
-            dy: "0.4em",
-          })}
+      <g transform={`translate(${MARGIN.left}, ${MARGIN.top})`}>
+        {/* Grid rows */}
+        {yTicks.map((tick) => (
+          <line
+            key={`grid-${tick}`}
+            x1={0}
+            x2={xMax}
+            y1={yScale(tick)}
+            y2={yScale(tick)}
+            stroke="#221f1d"
+            strokeWidth={1}
+          />
+        ))}
+
+        {/* X Axis (Bottom) */}
+        <line x1={0} x2={xMax} y1={yMax} y2={yMax} stroke="#302c29" strokeWidth={1} />
+        {TANK_204_COURSES.map((d) => {
+          const x = xScale(d.course);
+          return (
+            <g key={`x-tick-${d.course}`} transform={`translate(${x}, ${yMax})`}>
+              <line x1={0} x2={0} y1={0} y2={4} stroke="#302c29" strokeWidth={1} />
+              <text
+                x={0}
+                y={16}
+                textAnchor="middle"
+                fill="#8a8380"
+                fontSize={11}
+                fontFamily="var(--mono)"
+              >
+                C{d.course}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Y Axis (Left) */}
+        <line x1={0} x2={0} y1={0} y2={yMax} stroke="#302c29" strokeWidth={1} />
+        {yTicks.map((tick) => {
+          const y = yScale(tick);
+          return (
+            <g key={`y-tick-${tick}`} transform={`translate(0, ${y})`}>
+              <line x1={-4} x2={0} y1={0} y2={0} stroke="#302c29" strokeWidth={1} />
+              <text
+                x={-8}
+                y={4}
+                textAnchor="end"
+                fill="#8a8380"
+                fontSize={11}
+                fontFamily="var(--mono)"
+              >
+                {tick.toFixed(0)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Threshold area bands */}
+        {/* Green Margin (above t_min) */}
+        <path
+          d={areaPath}
+          fill="#a0ca92"
+          fillOpacity={0.16}
+          clipPath={`url(#clip-above-${uid})`}
         />
-        <AxisLeft
-          scale={yScale}
-          numTicks={5}
-          stroke="#302c29"
-          tickStroke="#302c29"
-          tickFormat={(v) => `${Number(v).toFixed(0)}`}
-          tickLabelProps={() => ({
-            fill: "#8a8380",
-            fontSize: 11,
-            fontFamily: "var(--mono)",
-            textAnchor: "end",
-            dx: "-0.3em",
-            dy: "0.32em",
-          })}
+        {/* Red Breach (below t_min) */}
+        <path
+          d={areaPath}
+          fill="#e5484d"
+          fillOpacity={0.26}
+          clipPath={`url(#clip-below-${uid})`}
         />
 
-        <Threshold<CourseReading>
-          id={`tank204-${uid}`}
-          data={TANK_204_COURSES}
-          x={(d) => xScale(course(d)) ?? 0}
-          y0={() => yScale(limit()) ?? 0}
-          y1={(d) => yScale(reading(d)) ?? 0}
-          clipAboveTo={0}
-          clipBelowTo={yMax}
-          curve={curveMonotoneX}
-          // visx names these by clip region, not by value: with y0 = the limit
-          // and y1 = the reading, the "below" band is the one where the
-          // reading sits above the limit. That band is the margin, so it is
-          // green; the "above" band is the breach, so it is red. Verified
-          // against Courses 2 and 3, which are the two below t_min.
-          aboveAreaProps={{ fill: "#e5484d", fillOpacity: 0.26 }}
-          belowAreaProps={{ fill: "#a0ca92", fillOpacity: 0.16 }}
-        />
-
-        {/* Alert band from SOP-09 Rev 3 — t_min + 1.0 mm. Rev 2 said 2.0 mm,
-            and citing the superseded revision is one of the scored failures. */}
-        <Line
-          from={{ x: 0, y: yScale(T_ALERT_MM) }}
-          to={{ x: xMax, y: yScale(T_ALERT_MM) }}
+        {/* Alert band line */}
+        <line
+          x1={0}
+          x2={xMax}
+          y1={yAlert}
+          y2={yAlert}
           stroke="#d9a441"
           strokeWidth={1}
           strokeDasharray="2,4"
         />
-        <text x={xMax} y={yScale(T_ALERT_MM) - 6} textAnchor="end" fill="#d9a441" fontSize={10} fontFamily="var(--mono)">
+        <text
+          x={xMax}
+          y={yAlert - 6}
+          textAnchor="end"
+          fill="#d9a441"
+          fontSize={10}
+          fontFamily="var(--mono)"
+        >
           ALERT {T_ALERT_MM.toFixed(2)}
         </text>
 
-        {/* The limit itself. */}
-        <Line
-          from={{ x: 0, y: yScale(T_MIN_MM) }}
-          to={{ x: xMax, y: yScale(T_MIN_MM) }}
+        {/* Limit line */}
+        <line
+          x1={0}
+          x2={xMax}
+          y1={yLimit}
+          y2={yLimit}
           stroke="#e5484d"
           strokeWidth={1.2}
         />
-        <text x={xMax} y={yScale(T_MIN_MM) + 13} textAnchor="end" fill="#e5484d" fontSize={10} fontFamily="var(--mono)">
+        <text
+          x={xMax}
+          y={yLimit + 13}
+          textAnchor="end"
+          fill="#e5484d"
+          fontSize={10}
+          fontFamily="var(--mono)"
+        >
           t_min {T_MIN_MM.toFixed(2)} mm
         </text>
 
-        <LinePath
-          data={TANK_204_COURSES}
-          curve={curveMonotoneX}
-          x={(d) => xScale(course(d)) ?? 0}
-          y={(d) => yScale(reading(d)) ?? 0}
+        {/* Reading curve line */}
+        <path
+          d={curvePath}
+          fill="none"
           stroke="#eeeeee"
           strokeWidth={1.6}
         />
 
-        {TANK_204_COURSES.map((d) => {
+        {/* Data points */}
+        {points.map(({ x, y, data: d }) => {
           const failing = d.status === "REPAIR_REQUIRED";
           const refer = d.status === "REFER_TO_ENGINEERING";
           return (
-            <Circle
+            <circle
               key={d.course}
-              cx={xScale(course(d))}
-              cy={yScale(reading(d))}
+              cx={x}
+              cy={y}
               r={3.4}
               fill={failing ? "#e5484d" : refer ? "#d9a441" : "#101010"}
               stroke={failing ? "#e5484d" : refer ? "#d9a441" : "#eeeeee"}
@@ -148,7 +227,7 @@ export function ThresholdChart({ width, height }: ThresholdChartProps) {
             />
           );
         })}
-      </Group>
+      </g>
     </svg>
   );
 }
@@ -161,9 +240,6 @@ export function ResponsiveThresholdChart({ height = 300 }: { height?: number }) 
   React.useEffect(() => {
     const node = ref.current;
     if (!node) return;
-    // ResizeObserver is an optional capability — a server render, a very old
-    // browser or a test environment may not have it. Fall back to the element's
-    // measured width once rather than refusing to draw.
     if (typeof ResizeObserver === "undefined") {
       setWidth(Math.round(node.getBoundingClientRect().width) || FALLBACK_WIDTH);
       return;
