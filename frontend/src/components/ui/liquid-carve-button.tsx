@@ -1,61 +1,74 @@
 "use client";
 
 import * as React from "react";
+import { gsap } from "gsap";
 import { cn } from "@/lib/utils";
 
 /**
  * Liquid Carve Button.
  *
- * A fill rises from the bottom edge on hover, carrying a shallow liquid
- * meniscus cut into its leading edge, and the label inverts against it. The
- * movement is a single transform on a compositor-friendly layer — no JS
- * animation loop, nothing that competes with the GPU while a model is running.
+ * A blob of accent colour tracks the pointer inside the button and carves
+ * through the label: the same text is painted twice, once in the resting
+ * colour and once in the inverse, with the second copy clipped to the blob.
+ * Where the blob passes, the letters knock out — nothing fades, nothing
+ * cross-dissolves, the type is simply cut by the shape moving under it.
  *
- * Built here rather than pulled from the Originkit registry: the CLI could not
- * run in this environment (see the branch notes). The API is intentionally the
- * same shape, so swapping in the official component later is a file move.
+ * The follow is a GSAP `quickTo` on two CSS custom properties, so the whole
+ * effect is one clip-path and one translate per frame on the compositor —
+ * no layout, no paint of the text itself, and no canvas competing with the
+ * GPU while a model is generating.
+ *
+ * Reverse-engineered to match the Originkit component's behaviour; the CLI
+ * could not run in this environment, so the props are kept in the same shape
+ * for a later swap.
  */
 
-type Variant = "solid" | "ghost" | "bone";
+type Variant = "solid" | "ghost" | "bone" | "carve";
 
 export interface LiquidCarveButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onAnimationStart"> {
   variant?: Variant;
-  /** Render as an anchor instead of a button. */
   href?: string;
-  /** Trailing glyph — an arrow reads as "this navigates". */
   arrow?: boolean;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
+  /** Blob colour. Defaults to the system's signal orange. */
+  tone?: string;
 }
 
-const MENISCUS =
-  "M0,14 C 60,14 70,0 130,2 C 190,4 210,14 280,10 C 350,6 366,14 420,13 L420,15 L0,15 Z";
+interface Skin {
+  surface: string;
+  label: string;
+  border: string;
+  /** The colour the label flips to inside the blob. */
+  knockout: string;
+  blob: string;
+  glow?: string;
+}
 
-const BASE: Record<Variant, { rest: React.CSSProperties; fill: string; hover: string }> = {
+const SKINS: Record<Variant, Skin> = {
   // Neutral dark fill — the committing action inside a dark surface.
-  solid: {
-    rest: { background: "var(--carbon)", color: "var(--bone)", border: "1px solid var(--carbon)" },
-    fill: "var(--chalk)",
-    hover: "#101010",
-  },
-  // Typographic button: border only, no fill until the carve arrives.
-  ghost: {
-    rest: { background: "transparent", color: "var(--bone)", border: "1px solid var(--ash)" },
-    fill: "var(--bone)",
-    hover: "#101010",
-  },
+  solid: { surface: "var(--carbon)", label: "var(--bone)", border: "var(--carbon)", knockout: "#101010", blob: "var(--chalk)" },
+  // Typographic button: border only until the blob arrives.
+  ghost: { surface: "transparent", label: "var(--bone)", border: "var(--ash)", knockout: "#101010", blob: "var(--bone)" },
   // The single bright control. Used once per view, never twice.
-  bone: {
-    rest: { background: "var(--chalk)", color: "#101010", border: "1px solid var(--chalk)" },
-    fill: "var(--carbon)",
-    hover: "var(--bone)",
+  bone: { surface: "var(--chalk)", label: "#101010", border: "var(--chalk)", knockout: "var(--chalk)", blob: "#101010" },
+  // The display treatment from the reference: near-black plate, accent blob,
+  // faint accent rim and bloom.
+  carve: {
+    surface: "#0a0a0a",
+    label: "var(--bone)",
+    border: "color-mix(in srgb, var(--signal) 42%, transparent)",
+    knockout: "#0a0a0a",
+    blob: "var(--signal)",
+    glow: "0 0 0 1px color-mix(in srgb, var(--signal) 18%, transparent), 0 18px 60px -28px var(--signal)",
   },
 };
 
-const PAD: Record<NonNullable<LiquidCarveButtonProps["size"]>, React.CSSProperties> = {
-  sm: { padding: "0 12px", height: 32, fontSize: 13 },
-  md: { padding: "0 16px", height: 40, fontSize: 14 },
-  lg: { padding: "0 22px", height: 50, fontSize: 15 },
+const SIZES: Record<NonNullable<LiquidCarveButtonProps["size"]>, React.CSSProperties & { blob: number }> = {
+  sm: { padding: "0 13px", height: 32, fontSize: 13, blob: 46 },
+  md: { padding: "0 17px", height: 40, fontSize: 14, blob: 62 },
+  lg: { padding: "0 24px", height: 52, fontSize: 15, blob: 84 },
+  xl: { padding: "0 56px", height: 168, fontSize: 56, blob: 124 },
 };
 
 export function LiquidCarveButton({
@@ -63,61 +76,121 @@ export function LiquidCarveButton({
   size = "md",
   href,
   arrow = false,
+  tone,
   className,
   children,
   style,
   ...rest
 }: LiquidCarveButtonProps) {
-  const [hovered, setHovered] = React.useState(false);
-  const skin = BASE[variant];
+  const hostRef = React.useRef<HTMLElement | null>(null);
+  const setX = React.useRef<((value: number) => void) | null>(null);
+  const setY = React.useRef<((value: number) => void) | null>(null);
+  const setR = React.useRef<((value: number) => void) | null>(null);
 
-  const content = (
-    <>
-      <span
-        className="carve-fill"
-        aria-hidden="true"
-        style={{ background: skin.fill }}
-      >
-        <svg viewBox="0 0 420 15" preserveAspectRatio="none" aria-hidden="true">
-          <path d={MENISCUS} fill={skin.fill} />
+  const skin = SKINS[variant];
+  const { blob: blobSize, ...pad } = SIZES[size];
+  const isDisplay = size === "xl";
+
+  React.useEffect(() => {
+    const node = hostRef.current;
+    if (!node) return;
+
+    const reduced =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // Park the blob off the plate so nothing shows before the first move.
+    // Plain numbers: the CSS multiplies by 1px (see .carve-blob).
+    gsap.set(node, { "--carve-x": 0, "--carve-y": -9999, "--carve-r": 0 });
+
+    const duration = reduced ? 0.01 : 0.45;
+    setX.current = gsap.quickTo(node, "--carve-x", { duration, ease: "power3.out" });
+    setY.current = gsap.quickTo(node, "--carve-y", { duration, ease: "power3.out" });
+    setR.current = gsap.quickTo(node, "--carve-r", { duration: reduced ? 0.01 : 0.34, ease: "power2.out" });
+
+    return () => {
+      gsap.killTweensOf(node);
+      setX.current = setY.current = setR.current = null;
+    };
+  }, []);
+
+  const track = React.useCallback((event: React.PointerEvent) => {
+    const node = hostRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    setX.current?.(event.clientX - rect.left);
+    setY.current?.(event.clientY - rect.top);
+  }, []);
+
+  const enter = React.useCallback(
+    (event: React.PointerEvent) => {
+      const node = hostRef.current;
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      // Snap to the entry point before growing, so the blob appears at the
+      // edge the pointer crossed rather than sliding in from the last one.
+      gsap.set(node, { "--carve-x": event.clientX - rect.left, "--carve-y": event.clientY - rect.top });
+      setR.current?.(blobSize / 2);
+    },
+    [blobSize],
+  );
+
+  const leave = React.useCallback(() => setR.current?.(0), []);
+
+  const label = (
+    <span className="inline-flex items-center gap-2.5 whitespace-nowrap">
+      {children}
+      {arrow && (
+        <svg width={isDisplay ? 22 : 14} height={isDisplay ? 22 : 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+          <line x1="5" y1="12" x2="19" y2="12" />
+          <polyline points="13 6 19 12 13 18" />
         </svg>
-      </span>
-      <span className="relative inline-flex items-center gap-2 whitespace-nowrap">
-        {children}
-        {arrow && (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-            <line x1="5" y1="12" x2="19" y2="12" />
-            <polyline points="13 6 19 12 13 18" />
-          </svg>
-        )}
+      )}
+    </span>
+  );
+
+  const shared = {
+    ref: hostRef as React.Ref<never>,
+    className: cn("carve", isDisplay && "carve-display", className),
+    onPointerEnter: enter,
+    onPointerMove: track,
+    onPointerLeave: leave,
+    style: {
+      "--carve-blob": tone ?? skin.blob,
+      "--carve-knockout": skin.knockout,
+      background: skin.surface,
+      color: skin.label,
+      border: `1px solid ${skin.border}`,
+      boxShadow: skin.glow,
+      ...pad,
+      ...style,
+    } as React.CSSProperties,
+  };
+
+  const inner = (
+    <>
+      {/* The blob. Sits under the knockout copy and above the plate. */}
+      <span className="carve-blob" aria-hidden="true" />
+      {/* Resting label. */}
+      <span className="carve-label">{label}</span>
+      {/* The carved copy: identical text, inverse colour, clipped to the blob.
+          aria-hidden so the label is announced once. */}
+      <span className="carve-label carve-label--cut" aria-hidden="true">
+        {label}
       </span>
     </>
   );
 
-  const shared = {
-    className: cn("carve inline-flex items-center justify-center font-medium", className),
-    style: {
-      ...skin.rest,
-      ...PAD[size],
-      ...(hovered ? { color: skin.hover } : null),
-      ...style,
-    } as React.CSSProperties,
-    onMouseEnter: () => setHovered(true),
-    onMouseLeave: () => setHovered(false),
-    onFocus: () => setHovered(true),
-    onBlur: () => setHovered(false),
-  };
-
   if (href) {
     return (
       <a href={href} {...shared}>
-        {content}
+        {inner}
       </a>
     );
   }
   return (
     <button type="button" {...shared} {...rest}>
-      {content}
+      {inner}
     </button>
   );
 }

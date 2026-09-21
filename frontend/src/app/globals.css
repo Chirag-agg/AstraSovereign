@@ -20,6 +20,19 @@
 @font-face { font-family: 'Plex Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/plex-mono-500.woff2') format('woff2'); }
 @font-face { font-family: 'Plex Mono'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/plex-mono-600.woff2') format('woff2'); }
 
+/* Bricolage Grotesque — the display voice. A variable face with a real width
+   axis (75–100%), so headlines can be set condensed and tight without a
+   second font file. It has character where Switzer is deliberately neutral:
+   Switzer runs the interface, Bricolage does the talking. */
+@font-face {
+  font-family: 'Bricolage';
+  font-style: normal;
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url('/fonts/bricolage-wdth.woff2') format('woff2-variations');
+}
+
 /* ------------------------------------------------------------------ theme
    The whole product is dark. The Tailwind colour ramps below are INVERTED on
    purpose: the workbench was authored light (bg-slate-50 surfaces, text-slate-
@@ -33,6 +46,7 @@
 @theme {
   --font-sans: 'Switzer', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: 'Bricolage', 'Switzer', ui-sans-serif, system-ui, sans-serif;
 
   /* neutrals — 50..300 are surfaces and hairlines, 400..950 are type */
   --color-slate-50:  #0f0f0f;
@@ -293,6 +307,7 @@
   /* --- type ------------------------------------------------------------- */
   --mono: 'Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --sans: 'Switzer', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display: 'Bricolage', 'Switzer', ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--sans);
   --font-mono: var(--mono);
 
@@ -2628,9 +2643,16 @@ html, body {
   color: var(--stone);
 }
 
-.display-xl { font-size: clamp(40px, 5.2vw, 78px); line-height: 0.98; letter-spacing: -0.038em; font-weight: 400; text-wrap: balance; }
-.display-l  { font-size: clamp(32px, 4.4vw, 64px);  line-height: 1.0;  letter-spacing: -0.035em; font-weight: 400; }
-.display-m  { font-size: clamp(24px, 2.8vw, 40px);  line-height: 1.08; letter-spacing: -0.028em; font-weight: 400; }
+.display-xl,
+.display-l,
+.display-m {
+  font-family: var(--display);
+  font-variation-settings: 'wdth' 82;
+  font-weight: 500;
+}
+.display-xl { font-size: clamp(42px, 5.6vw, 88px); line-height: 0.92; letter-spacing: -0.035em; text-wrap: balance; }
+.display-l  { font-size: clamp(34px, 4.6vw, 68px); line-height: 0.96; letter-spacing: -0.032em; text-wrap: balance; }
+.display-m  { font-size: clamp(26px, 3.0vw, 46px); line-height: 1.02; letter-spacing: -0.028em; text-wrap: balance; }
 .tnum { font-variant-numeric: tabular-nums; }
 
 /* --------------------------------------------------------- grain overlay */
@@ -2793,38 +2815,85 @@ html, body {
   .terminal-loader .text { animation: none; width: 12.6em; border-right-color: transparent; }
 }
 
-/* ------------------------------------------------------- liquid carve */
+/* ------------------------------------------------------- liquid carve
+   The blob is a plain radial-gradient circle positioned by two custom
+   properties; the carved label is the same text clipped to the same circle.
+   Both read --carve-x/--carve-y/--carve-r, so one GSAP tween drives the
+   shape and the knockout together and they can never desync. */
+
+/* Unitless on purpose. GSAP carries the unit of whatever value a property
+   starts at, and a percentage means different things to the blob (its own
+   box) and to clip-path (the button's box) — which is exactly how the
+   knockout and the shape drifted apart the first time. Numbers go in, CSS
+   multiplies by 1px, and both consumers resolve against the same basis. */
+@property --carve-x { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --carve-y { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --carve-r { syntax: "<number>"; inherits: true; initial-value: 0; }
 
 .carve {
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--sans);
+  font-weight: 500;
   letter-spacing: -0.012em;
   border-radius: 3px;
-  transition: color 160ms cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
-              background-color 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color 180ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.carve > .carve-fill {
+
+.carve-blob {
   position: absolute;
   left: 0;
-  right: 0;
-  bottom: 0;
-  /* 14px taller than the button so the meniscus rides above the fill's own
-     top edge and stays clipped until the fill is on its way up. */
-  height: calc(100% + 14px);
-  z-index: -1;
-  transform: translate3d(0, 100%, 0);
-  transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: transform;
+  top: 0;
+  width: calc(var(--carve-r) * 2px);
+  height: calc(var(--carve-r) * 2px);
+  border-radius: 50%;
+  background: var(--carve-blob);
+  transform: translate3d(
+    calc((var(--carve-x) - var(--carve-r)) * 1px),
+    calc((var(--carve-y) - var(--carve-r)) * 1px),
+    0
+  );
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform, width, height;
 }
-.carve:hover > .carve-fill,
-.carve:focus-visible > .carve-fill { transform: translate3d(0, 0, 0); }
-.carve > .carve-fill > svg { position: absolute; top: 0; left: 0; width: 100%; height: 14px; display: block; }
+
+.carve-label {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+.carve-label--cut {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  justify-content: center;
+  color: var(--carve-knockout);
+  clip-path: circle(calc(var(--carve-r) * 1px) at calc(var(--carve-x) * 1px) calc(var(--carve-y) * 1px));
+}
+
+/* Display plate — the hero treatment. */
+.carve-display {
+  border-radius: 20px;
+  font-family: var(--display);
+  font-variation-settings: 'wdth' 86;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  text-transform: uppercase;
+}
+.carve-display .carve-blob { filter: blur(0.4px); }
 
 @media (prefers-reduced-motion: reduce) {
-  .carve > .carve-fill { transition-duration: 1ms; }
+  .carve-blob { transition: none; }
 }
 
 /* ==========================================================================
@@ -2990,3 +3059,153 @@ input[type="range"],
 input[type="checkbox"],
 input[type="radio"],
 progress { accent-color: var(--signal); }
+
+/* ------------------------------------------------------- landing motion */
+
+@keyframes astraPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.82); }
+}
+.astra-pulse {
+  display: inline-block;
+  border-radius: 99px;
+  animation: astraPulse 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Cards answer the pointer with a border, not a lift. Depth in this system
+   is contrast, so a hover that fakes elevation would be the wrong language. */
+.astra-card {
+  transition: border-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.astra-card:hover {
+  border-color: var(--ash) !important;
+  background-color: #141210;
+}
+
+.astra-tile { position: relative; }
+.astra-tile::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 1px;
+  width: 0;
+  background: var(--signal);
+  transition: width 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.astra-tile:hover::after { width: 100%; }
+
+/* The drafting grid behind the hero. Two hairline gradients, one element,
+   parallaxed as a single layer — cheaper than any image and it reads as
+   engineering paper rather than decoration. */
+.astra-grid {
+  position: absolute;
+  inset: -20% 0 -20% 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--ash) 44%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--ash) 34%, transparent) 1px, transparent 1px);
+  background-size: 96px 96px;
+  mask-image: radial-gradient(120% 70% at 50% 28%, #000 0%, transparent 72%);
+  opacity: 0.55;
+}
+
+/* Nav links: the underline is drawn, not faded. */
+.astra-navlink {
+  position: relative;
+  font-size: 14px;
+  color: var(--stone);
+  text-decoration: none;
+  transition: color 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.astra-navlink::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -5px;
+  height: 1px;
+  width: 0;
+  background: var(--signal);
+  transition: width 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.astra-navlink:hover { color: var(--bone); }
+.astra-navlink:hover::after { width: 100%; }
+
+/* Tool chips: the fill wipes in from the left edge. */
+.astra-chip {
+  position: relative;
+  overflow: hidden;
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1), border-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.astra-chip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--carbon);
+  transform: translateX(-101%);
+  transition: transform 340ms cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: -1;
+}
+.astra-chip:hover { color: var(--signal); border-color: var(--signal) !important; }
+.astra-chip:hover::before { transform: translateX(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .astra-pulse { animation: none; }
+  .astra-tile::after,
+  .astra-navlink::after,
+  .astra-chip::before { transition: none; }
+}
+
+/* ==========================================================================
+   WORKBENCH — typographic and interaction pass
+   The app was authored with Tailwind weight utilities (font-bold /
+   font-extrabold) on a neutral face. Bricolage carries the voice at 500 with
+   a condensed width instead; overriding at the element level here beats
+   editing the same three classes across twenty view files.
+   ========================================================================== */
+
+h1, h2, h3 {
+  font-family: var(--display);
+  font-variation-settings: 'wdth' 86;
+  letter-spacing: -0.028em;
+}
+
+/* Bricolage at 500 reads heavier than Switzer at 700, so the bold utilities
+   are pulled back rather than stacked on top of it. */
+h1.font-bold, h1.font-extrabold, h1.font-semibold,
+h2.font-bold, h2.font-extrabold, h2.font-semibold,
+h3.font-bold, h3.font-extrabold, h3.font-semibold { font-weight: 500; }
+
+/* Sidebar: the active row is marked by a rule, not a filled pill. */
+.app nav a,
+.app nav button {
+  transition: color 160ms cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Section eyebrows across the app share the landing page's instrument voice. */
+.app .uppercase.tracking-wider,
+.app .uppercase.tracking-wide {
+  font-family: var(--mono);
+  letter-spacing: 0.06em;
+}
+
+/* Panels: hairline, square-ish, no faked elevation. */
+.app .rounded-xl,
+.app .rounded-2xl { border-radius: 6px; }
+.app .shadow-sm,
+.app .shadow,
+.app .shadow-md,
+.app .shadow-lg { box-shadow: none; }
+
+/* Tables and lists get a readable row rhythm on dark. */
+.app tbody tr { transition: background-color 140ms cubic-bezier(0.4, 0, 0.2, 1); }
+.app tbody tr:hover { background-color: #141210; }
+
+/* Focus is always visible and always the signal colour. */
+.app :focus-visible,
+main :focus-visible {
+  outline: 1px solid var(--signal);
+  outline-offset: 2px;
+}
