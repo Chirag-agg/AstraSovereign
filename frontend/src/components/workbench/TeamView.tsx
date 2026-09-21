@@ -299,7 +299,7 @@ export default function TeamView({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
@@ -309,8 +309,8 @@ export default function TeamView({
                 Team &amp; Access Control
               </h1>
               {isAdmin ? (
-                <span className="flex items-center gap-1 text-[11px] font-bold text-[#7047eb] bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#7047eb]" />
+                <span className="flex items-center gap-1 text-[11px] font-bold text-[var(--accent)] bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[var(--accent)]" />
                   Admin Authorized
                 </span>
               ) : (
@@ -351,7 +351,7 @@ export default function TeamView({
                     setNewDept("Security & Directorate");
                     setIsAddModalOpen(true);
                   }}
-                  className="flex items-center gap-1.5 rounded-xl bg-[#7047eb] hover:bg-[#5f36dd] text-white px-4 py-2 text-sm font-semibold shadow-xs transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white px-4 py-2 text-sm font-semibold shadow-xs transition-colors cursor-pointer"
                   title="Add a new System Administrator"
                 >
                   <ShieldCheck className="w-4 h-4" />
@@ -392,7 +392,7 @@ export default function TeamView({
         {isAdmin && (
           <div className="p-4 rounded-2xl bg-white border border-purple-100 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-purple-100 text-[#7047eb] flex items-center justify-center font-bold text-xs shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-purple-100 text-[var(--accent)] flex items-center justify-center font-bold text-xs shrink-0">
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
@@ -412,7 +412,7 @@ export default function TeamView({
                   setNewDept("Security & Directorate");
                   setIsAddModalOpen(true);
                 }}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7047eb] text-xs font-bold border border-purple-200 transition-colors cursor-pointer shrink-0"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[var(--accent)] text-xs font-bold border border-purple-200 transition-colors cursor-pointer shrink-0"
               >
                 <UserCheck className="w-3.5 h-3.5" />
                 <span>+ Add User as Admin</span>
@@ -471,7 +471,7 @@ export default function TeamView({
                               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold uppercase shrink-0 ${
                                 isEmpAdmin
                                   ? "bg-purple-600 text-white shadow-xs"
-                                  : "bg-[#7047eb]/10 text-[#7047eb]"
+                                  : "bg-[var(--accent)]/10 text-[var(--accent)]"
                               }`}>
                                 {isCurrent ? "You" : details.name.slice(0, 2).toUpperCase()}
                               </div>
@@ -535,8 +535,8 @@ export default function TeamView({
                           <td className="py-3 px-5 text-center">
                             {isEmpAdmin ? (
                               <div className="inline-flex items-center gap-1.5">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-[#7047eb] border border-purple-200">
-                                  <ShieldCheck className="w-3.5 h-3.5 text-[#7047eb]" />
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-[var(--accent)] border border-purple-200">
+                                  <ShieldCheck className="w-3.5 h-3.5 text-[var(--accent)]" />
                                   Admin
                                 </span>
                                 {isAdmin && uid !== "admin-001" && (
@@ -554,7 +554,7 @@ export default function TeamView({
                               <button
                                 type="button"
                                 onClick={() => handleMakeAdmin(uid)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-50 hover:bg-purple-50 text-slate-600 hover:text-[#7047eb] border border-slate-200 hover:border-purple-200 text-xs font-semibold transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-50 hover:bg-purple-50 text-slate-600 hover:text-[var(--accent)] border border-slate-200 hover:border-purple-200 text-xs font-semibold transition-colors cursor-pointer"
                                 title="Promote this employee to System Administrator"
                               >
                                 <Shield className="w-3.5 h-3.5 text-slate-400" />
@@ -584,7 +584,7 @@ export default function TeamView({
                                   setTaskDept(details.department);
                                   setIsAssignTaskModalOpen(true);
                                 }}
-                                className="px-3 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7047eb] text-xs font-semibold border border-purple-200 transition-colors cursor-pointer"
+                                className="px-3 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-[var(--accent)] text-xs font-semibold border border-purple-200 transition-colors cursor-pointer"
                               >
                                 Assign Task
                               </button>
@@ -607,7 +607,7 @@ export default function TeamView({
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-zinc-100 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb]">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)]">
                   {grantAdminAccess ? <ShieldCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
                 </div>
                 <div>
@@ -642,11 +642,11 @@ export default function TeamView({
                     }}
                     className={`flex items-center gap-2.5 p-2.5 rounded-2xl border text-left cursor-pointer transition-all ${
                       grantAdminAccess
-                        ? "border-[#7047eb] bg-purple-50/80 text-purple-950 font-bold ring-2 ring-[#7047eb]/20 shadow-xs"
+                        ? "border-[var(--accent)] bg-purple-50/80 text-purple-950 font-bold ring-2 ring-[var(--accent)]/20 shadow-xs"
                         : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 font-medium"
                     }`}
                   >
-                    <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${grantAdminAccess ? "bg-[#7047eb] text-white" : "bg-slate-100 text-slate-500"}`}>
+                    <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${grantAdminAccess ? "bg-[var(--accent)] text-white" : "bg-slate-100 text-slate-500"}`}>
                       <ShieldCheck className="w-3.5 h-3.5" />
                     </div>
                     <div>
@@ -664,11 +664,11 @@ export default function TeamView({
                     }}
                     className={`flex items-center gap-2.5 p-2.5 rounded-2xl border text-left cursor-pointer transition-all ${
                       !grantAdminAccess
-                        ? "border-[#7047eb] bg-purple-50/80 text-purple-950 font-bold ring-2 ring-[#7047eb]/20 shadow-xs"
+                        ? "border-[var(--accent)] bg-purple-50/80 text-purple-950 font-bold ring-2 ring-[var(--accent)]/20 shadow-xs"
                         : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 font-medium"
                     }`}
                   >
-                    <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${!grantAdminAccess ? "bg-[#7047eb] text-white" : "bg-slate-100 text-slate-500"}`}>
+                    <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${!grantAdminAccess ? "bg-[var(--accent)] text-white" : "bg-slate-100 text-slate-500"}`}>
                       <Users className="w-3.5 h-3.5" />
                     </div>
                     <div>
@@ -751,7 +751,7 @@ export default function TeamView({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#7047eb] hover:bg-[#5f36dd] text-white font-semibold shadow-xs cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white font-semibold shadow-xs cursor-pointer"
                 >
                   {grantAdminAccess ? "Save Administrator" : "Save Employee"}
                 </button>
@@ -767,7 +767,7 @@ export default function TeamView({
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-zinc-100 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[#7047eb]">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)]">
                   <Send className="w-4 h-4" />
                 </div>
                 <div>
@@ -839,7 +839,7 @@ export default function TeamView({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#7047eb] hover:bg-[#5f36dd] text-white font-semibold shadow-xs cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white font-semibold shadow-xs cursor-pointer"
                 >
                   Dispatch Task Order
                 </button>

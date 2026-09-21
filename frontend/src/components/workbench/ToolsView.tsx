@@ -208,7 +208,7 @@ export default function ToolsView() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
           <div>
@@ -251,13 +251,13 @@ export default function ToolsView() {
                 return (
                   <div
                     key={tool.id}
-                    className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-5 flex flex-col gap-3 hover:border-[#7047eb]/30 transition-colors"
+                    className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-5 flex flex-col gap-3 hover:border-[var(--accent)]/30 transition-colors"
                   >
                     <div className="flex items-start gap-4">
                       <div
                         className={`p-3 rounded-xl shrink-0 ${
                           available
-                            ? "bg-[#7047eb]/10 text-[#7047eb]"
+                            ? "bg-[var(--accent)]/10 text-[var(--accent)]"
                             : "bg-slate-100 text-slate-400"
                         }`}
                       >
@@ -305,7 +305,7 @@ export default function ToolsView() {
                   onChange={(e) => setCode(e.target.value)}
                   rows={4}
                   placeholder={"e.g. write and run a python script that prints the first 10 Fibonacci numbers and saves the result to fibonacci.py"}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 font-mono outline-none focus:border-[#7047eb]/40 resize-y"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 font-mono outline-none focus:border-[var(--accent)]/40 resize-y"
                 />
                 <div className="flex items-center justify-end gap-3">
                   {runError && (
@@ -317,7 +317,7 @@ export default function ToolsView() {
                   <button
                     type="submit"
                     disabled={submitting || !code.trim()}
-                    className="inline-flex items-center gap-2 bg-[#7047eb] hover:bg-[#5a35d4] text-white rounded-xl px-4 py-2 font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                    className="inline-flex items-center gap-2 bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white rounded-xl px-4 py-2 font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     <Play className="w-4 h-4" />
                     <span>{submitting ? "Running..." : "Run in sandbox"}</span>
@@ -345,7 +345,7 @@ export default function ToolsView() {
                           key={`${job.job_id}-${t.step ?? i}`}
                           className="flex items-start gap-2 px-2 py-1 rounded-lg hover:bg-slate-50"
                         >
-                          <span className="text-slate-300 shrink-0 w-6 text-right">
+                          <span className="text-slate-500 shrink-0 w-6 text-right">
                             {(t.step ?? i + 1)}.
                           </span>
                           <span
@@ -353,7 +353,7 @@ export default function ToolsView() {
                               t.type === "error" || t.error
                                 ? "bg-rose-50 text-rose-600"
                                 : t.type === "tool"
-                                ? "bg-[#7047eb]/10 text-[#7047eb]"
+                                ? "bg-[var(--accent)]/10 text-[var(--accent)]"
                                 : t.type === "agent"
                                 ? "bg-amber-50 text-amber-700"
                                 : "bg-slate-100 text-slate-500"

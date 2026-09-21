@@ -26,6 +26,7 @@ import HomeSearchView from "@/components/workbench/HomeSearchView";
 import SystemDrawer from "@/components/SystemDrawer";
 import Login from "@/components/Login";
 import LandingPage from "@/components/LandingPage";
+import { BootCurtain } from "@/components/ui/terminal-loader";
 
 import {
   ApiError,
@@ -193,34 +194,22 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const { documents, error: docsError } = useDocuments(user);
   const { artifacts, error: artifactsError } = useArtifacts(user);
 
-  // Sync theme
+  // The workbench is dark, full stop. A light variant would need its own pass
+  // over the document surfaces and the console, and half a theme is worse than
+  // one. Any stale "light" left in localStorage by an older build is cleared.
   useEffect(() => {
+    setTheme("dark");
+    document.documentElement.dataset.theme = "dark";
     try {
-      const stored = window.localStorage.getItem("sovereign.theme") as "dark" | "light";
-      if (stored === "light" || stored === "dark") {
-        setTheme(stored);
-        document.documentElement.dataset.theme = stored;
-      } else {
-        setTheme("light");
-        document.documentElement.dataset.theme = "light";
-      }
+      window.localStorage.removeItem("sovereign.theme");
     } catch {
-      setTheme("light");
-      document.documentElement.dataset.theme = "light";
+      // ignore
     }
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setTheme((prev) => {
-      const next = prev === "dark" ? "light" : "dark";
-      try {
-        window.localStorage.setItem("sovereign.theme", next);
-        document.documentElement.dataset.theme = next;
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+    // Intentionally inert: kept so the existing call sites and the toggle's
+    // props stay valid while there is only one theme.
   }, []);
 
   const startNew = useCallback(() => {
@@ -363,7 +352,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
 
   return (
     <div
-      className="flex h-screen w-screen overflow-hidden bg-[#eef1f6] text-[#181b24]"
+      className="flex h-screen w-screen overflow-hidden bg-[var(--canvas)] text-[var(--bone)]"
     >
       {/* 1. Left Navigation Sidebar */}
       <Sidebar
@@ -783,14 +772,24 @@ export default function WorkbenchPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  // The boot curtain lifts when the client has actually hydrated and read the
+  // session — not on a timer. A loader that outlives the work it describes is
+  // theatre, and this product does not get to do theatre.
+  const [booted, setBooted] = useState(false);
 
   useEffect(() => {
     try {
       setAuthed(window.sessionStorage.getItem("sovereign.session") === "1");
     } catch {
       setAuthed(false);
+    } finally {
+      setBooted(true);
     }
   }, []);
+
+  if (!booted) {
+    return <BootCurtain done={false} />;
+  }
 
   if (!authed) {
     if (showLogin) {

@@ -8,15 +8,31 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify:metrics": "node scripts/verify-metrics.mjs"
   },
   "dependencies": {
+    "@carrot-kpi/switzer-font": "^0.1.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@visx/axis": "^4.0.0",
+    "@visx/curve": "^4.0.0",
+    "@visx/event": "^4.0.0",
+    "@visx/grid": "^4.0.0",
+    "@visx/group": "^4.0.0",
+    "@visx/scale": "^4.0.0",
+    "@visx/shape": "^4.0.0",
+    "@visx/threshold": "^4.0.0",
+    "@visx/tooltip": "^4.0.0",
+    "clsx": "^2.1.1",
     "docx": "^9.7.1",
+    "framer-motion": "^13.4.0",
+    "gsap": "^3.15.0",
     "jszip": "^3.10.1",
     "lucide-react": "^1.41.0",
     "next": "^16.3.4",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

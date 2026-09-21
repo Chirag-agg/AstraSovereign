@@ -127,7 +127,7 @@ export default function Conversation({
 
   if (!job) {
     return (
-      <div className="welcome font-mono text-left p-6 rounded border border-zinc-800 bg-zinc-900/30">
+      <div className="welcome font-mono text-left p-6 rounded border border-zinc-200 bg-zinc-100/30">
         <div className="flex items-center gap-2 mb-2 text-xs text-sky-400 font-semibold uppercase tracking-wider">
           <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
           <span>ON-PREMISE AI ENGINEERING WORKBENCH</span>
@@ -142,7 +142,7 @@ export default function Conversation({
           type="button"
           aria-label={`Try the demo: ${DEMO_TASK}`}
           onClick={() => onSubmit(DEMO_TASK)}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-zinc-700 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 text-xs font-mono transition-colors cursor-pointer"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-zinc-200 bg-zinc-100/80 hover:bg-zinc-100 text-zinc-600 text-xs font-mono transition-colors cursor-pointer"
         >
           <span>Try the demo — “{DEMO_TASK}”</span>
         </button>
@@ -165,14 +165,14 @@ export default function Conversation({
   return (
     <div className="conversation font-mono">
       {/* user message */}
-      <div className="msg-user rounded border border-zinc-800/80 bg-zinc-900/40 p-3 mb-3">
+      <div className="msg-user rounded border border-zinc-200/80 bg-zinc-100/40 p-3 mb-3">
         <div className="flex items-center gap-2 mb-1.5 text-xs text-zinc-400">
-          <span className="px-1.5 py-0.2 rounded border border-zinc-700 bg-zinc-800 text-[10px] font-bold text-zinc-300">
+          <span className="px-1.5 py-0.2 rounded border border-zinc-200 bg-zinc-100 text-[10px] font-bold text-zinc-500">
             {userId.toUpperCase()}
           </span>
-          <span className="text-[11px] font-medium text-zinc-300">User Prompt</span>
+          <span className="text-[11px] font-medium text-zinc-500">User Prompt</span>
         </div>
-        <div className="text-xs text-zinc-200 leading-relaxed">{job.message}</div>
+        <div className="text-xs text-zinc-600 leading-relaxed">{job.message}</div>
         {attachedDocuments.length > 0 ? (
           <div
             className="mt-2 flex flex-wrap gap-1.5"
@@ -181,7 +181,7 @@ export default function Conversation({
             {attachedDocuments.map((document) => (
               <span
                 key={document.document_id}
-                className="inline-flex items-center rounded border border-zinc-700 bg-zinc-800/70 px-1.5 py-0.5 text-[10px] text-zinc-300"
+                className="inline-flex items-center rounded border border-zinc-200 bg-zinc-100/70 px-1.5 py-0.5 text-[10px] text-zinc-500"
               >
                 {document.filename}
               </span>
@@ -191,8 +191,8 @@ export default function Conversation({
       </div>
 
       {/* assistant */}
-      <div className="msg-assistant rounded border border-zinc-800 bg-zinc-900/20 p-3.5">
-        <div className="flex items-center justify-between border-b border-zinc-800 pb-2 mb-3 text-xs">
+      <div className="msg-assistant rounded border border-zinc-200 bg-zinc-100/20 p-3.5">
+        <div className="flex items-center justify-between border-b border-zinc-200 pb-2 mb-3 text-xs">
           <div className="flex items-center gap-2">
             <span className="px-1.5 py-0.2 rounded border border-sky-900 bg-sky-950/60 text-[10px] font-bold text-sky-400">
               AGENT
@@ -212,7 +212,7 @@ export default function Conversation({
 
         {job.status === "running" ? (
           onCancel ? (
-            <div className="my-2 p-2.5 rounded border border-zinc-800 bg-zinc-900/60 flex items-center justify-between text-xs">
+            <div className="my-2 p-2.5 rounded border border-zinc-200 bg-zinc-100/60 flex items-center justify-between text-xs">
               <div className="flex items-center gap-2 text-emerald-400">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                 <span>Working on it — the agent is executing locally</span>
@@ -220,7 +220,7 @@ export default function Conversation({
               <button
                 type="button"
                 onClick={onCancel}
-                className="px-2 py-1 rounded border border-red-800 text-red-400 hover:bg-red-950/40 text-[11px] cursor-pointer"
+                className="px-2 py-1 rounded border border-red-200 text-red-400 hover:bg-red-100/40 text-[11px] cursor-pointer"
               >
                 Stop
               </button>

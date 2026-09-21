@@ -80,7 +80,7 @@ export default function MonitoringView() {
   }, [load]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
           <div>
@@ -119,7 +119,7 @@ export default function MonitoringView() {
           <>
             {system?.sandbox_network && (
               <div className="flex items-center gap-3 bg-white border border-slate-200/80 rounded-2xl px-4 py-3">
-                <Wifi className="w-4 h-4 text-[#7047eb]" />
+                <Wifi className="w-4 h-4 text-[var(--accent)]" />
                 <p className="text-sm text-slate-700">
                   <span className="font-semibold text-slate-800">Sandbox network:</span>{" "}
                   {system.sandbox_network}

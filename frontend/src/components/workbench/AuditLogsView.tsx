@@ -117,7 +117,7 @@ export default function AuditLogsView() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
           <div>
@@ -137,7 +137,7 @@ export default function AuditLogsView() {
               className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 transition-all cursor-pointer shadow-xs disabled:opacity-50"
               title="Download Audit Report as CSV spreadsheet"
             >
-              <Download className="w-3.5 h-3.5 text-[#7047eb]" />
+              <Download className="w-3.5 h-3.5 text-[var(--accent)]" />
               <span>Export CSV</span>
             </button>
 
@@ -145,10 +145,10 @@ export default function AuditLogsView() {
               type="button"
               onClick={handleDownloadJSON}
               disabled={filtered.length === 0}
-              className="flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 px-3.5 py-2 text-xs font-semibold text-[#7047eb] transition-all cursor-pointer shadow-xs disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 px-3.5 py-2 text-xs font-semibold text-[var(--accent)] transition-all cursor-pointer shadow-xs disabled:opacity-50"
               title="Download Audit Report as JSON file"
             >
-              <FileText className="w-3.5 h-3.5 text-[#7047eb]" />
+              <FileText className="w-3.5 h-3.5 text-[var(--accent)]" />
               <span>Export JSON</span>
             </button>
 

@@ -36,7 +36,7 @@ export default function ModelsView() {
   const activeFallbacks = Object.entries(resolved).filter(([, v]) => v.fallback_active);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
           <div>
@@ -49,7 +49,7 @@ export default function ModelsView() {
             <span className={`rounded-full px-3 py-1 text-xs font-semibold ${ollama === "reachable" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
               Ollama {ollama}
             </span>
-            <button onClick={() => void load()} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white">
+            <button onClick={() => void load()} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-white">
               <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Refresh
             </button>
           </div>

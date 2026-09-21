@@ -226,7 +226,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
   const activeRun = runs.find((r) => r.id === selectedRunId) || runs[0] || null;
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
@@ -281,7 +281,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
                       void handleExecute();
                     }}
                     disabled={isRunning || !promptText.trim()}
-                    className="px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7047eb] text-xs font-bold border border-purple-200 transition-colors disabled:opacity-50 cursor-pointer shrink-0"
+                    className="px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-[var(--accent)] text-xs font-bold border border-purple-200 transition-colors disabled:opacity-50 cursor-pointer shrink-0"
                   >
                     Run Prompt
                   </button>
@@ -317,7 +317,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="# Enter Python code to execute in isolated sandbox..."
-                  className="w-full p-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono text-emerald-300 focus:outline-none focus:border-purple-500 transition-all resize-y leading-relaxed shadow-inner"
+                  className="w-full p-3.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono text-emerald-600 focus:outline-none focus:border-purple-500 transition-all resize-y leading-relaxed shadow-inner"
                   spellCheck={false}
                 />
               </div>
@@ -332,7 +332,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
                   type="button"
                   onClick={() => void handleExecute()}
                   disabled={isRunning || !code.trim()}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#7047eb] hover:bg-[#5e38d6] active:bg-[#522ec4] text-white text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-40"
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-[var(--accent)] hover:bg-[var(--accent-strong)] active:bg-[var(--accent-strong)] text-white text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-40"
                 >
                   {isRunning ? (
                     <>
@@ -382,7 +382,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
                     <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                       Standard Output (stdout):
                     </span>
-                    <pre className="p-3.5 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto whitespace-pre-wrap leading-relaxed border border-slate-800">
+                    <pre className="p-3.5 rounded-xl bg-slate-100 text-slate-700 font-mono text-xs overflow-x-auto whitespace-pre-wrap leading-relaxed border border-slate-200">
                       {activeRun.stdout}
                     </pre>
                   </div>
@@ -396,7 +396,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
                       <AlertTriangle className="w-3 h-3 text-rose-500" />
                       Standard Error / Traceback (stderr):
                     </span>
-                    <pre className="p-3.5 rounded-xl bg-rose-950/20 text-rose-300 font-mono text-xs overflow-x-auto whitespace-pre-wrap leading-relaxed border border-rose-800/40">
+                    <pre className="p-3.5 rounded-xl bg-rose-100/20 text-rose-600 font-mono text-xs overflow-x-auto whitespace-pre-wrap leading-relaxed border border-rose-200/40">
                       {activeRun.stderr}
                     </pre>
                   </div>
@@ -474,21 +474,21 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
 
           {/* Right Column: Live Terminal Stream (5 cols) */}
           <div className="lg:col-span-5">
-            <div className="bg-[#0b0e14] border border-slate-800 rounded-2xl overflow-hidden shadow-lg flex flex-col h-full min-h-[500px]">
+            <div className="bg-[#0b0e14] border border-slate-200 rounded-2xl overflow-hidden shadow-lg flex flex-col h-full min-h-[500px]">
               {/* Terminal Title Bar */}
-              <div className="flex items-center justify-between px-4 py-3 bg-[#0f141f] border-b border-slate-800/80">
+              <div className="flex items-center justify-between px-4 py-3 bg-[#0f141f] border-b border-slate-200/80">
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1.5" aria-hidden="true">
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block" />
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80 inline-block" />
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80 inline-block" />
                   </div>
-                  <span className="text-xs font-mono font-bold text-slate-200 ml-1">
+                  <span className="text-xs font-mono font-bold text-slate-600 ml-1">
                     sovereign sandbox stream
                   </span>
                 </div>
 
-                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded">
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-100/60 border border-emerald-200/60 px-2 py-0.5 rounded">
                   --network none
                 </span>
               </div>
@@ -496,7 +496,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
               {/* Terminal Logs Body */}
               <div
                 ref={termRef}
-                className="flex-1 p-4 font-mono text-xs text-slate-300 space-y-1.5 overflow-y-auto leading-relaxed bg-[#080b11]"
+                className="flex-1 p-4 font-mono text-xs text-slate-500 space-y-1.5 overflow-y-auto leading-relaxed bg-[#080b11]"
               >
                 {!activeRun || activeRun.lines.length === 0 ? (
                   <div className="text-slate-500 text-xs py-16 text-center space-y-2">
@@ -514,10 +514,10 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
                           : line.startsWith("[stderr]")
                           ? "text-rose-400 font-medium"
                           : line.includes("===")
-                          ? "text-purple-300 font-bold"
+                          ? "text-purple-600 font-bold"
                           : line.includes("Status:") || line.includes("VERIFIED")
                           ? "text-emerald-400 font-semibold"
-                          : "text-slate-300"
+                          : "text-slate-500"
                       }`}
                     >
                       {line}
@@ -526,7 +526,7 @@ export default function SandboxView({ user = "user-001" }: { user?: string }) {
                 )}
 
                 {isRunning && (
-                  <div className="flex items-center gap-2 text-emerald-400 text-xs pt-2 border-t border-slate-900">
+                  <div className="flex items-center gap-2 text-emerald-400 text-xs pt-2 border-t border-slate-200">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                     <span>Executing in isolated sandbox runtime...</span>
                   </div>

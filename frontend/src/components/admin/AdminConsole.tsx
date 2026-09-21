@@ -663,10 +663,10 @@ export default function AdminConsole() {
 
   if (role !== "admin") {
     return (
-      <div className="admin bg-[#eef1f6] min-h-screen">
+      <div className="admin bg-[var(--canvas)] min-h-screen">
         <div className="admin-top bg-white border-b border-slate-200/80 px-6 h-16 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white shadow-xs font-bold text-xs">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-[var(--accent)] to-[var(--brand-300)] text-white shadow-xs font-bold text-xs">
               <span>AS</span>
             </div>
             <div className="brand">
@@ -703,10 +703,10 @@ export default function AdminConsole() {
   const title = SECTION_TITLES[section] ?? SECTION_TITLES.overview;
 
   return (
-    <div className="admin bg-[#eef1f6] min-h-screen flex flex-col">
+    <div className="admin bg-[var(--canvas)] min-h-screen flex flex-col">
       <div className="admin-top bg-white border-b border-slate-200/80 px-6 h-16 flex items-center justify-between shadow-xs shrink-0">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-[#7047eb] to-[#9d7cfc] text-white shadow-xs font-bold text-xs">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-[var(--accent)] to-[var(--brand-300)] text-white shadow-xs font-bold text-xs">
             <span>AS</span>
           </div>
           <div className="brand">
@@ -742,7 +742,7 @@ export default function AdminConsole() {
               href={`/admin/${s}`}
               className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                 section === s
-                  ? "bg-[#7047eb] text-white shadow-sm font-bold"
+                  ? "bg-[var(--accent)] text-white shadow-sm font-bold"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
               }`}
             >
@@ -751,7 +751,7 @@ export default function AdminConsole() {
           ))}
         </nav>
         <main
-          className="admin-content flex-1 overflow-y-auto p-6 lg:p-8 bg-[#eef1f6] min-w-0 min-h-0"
+          className="admin-content flex-1 overflow-y-auto p-6 lg:p-8 bg-[var(--canvas)] min-w-0 min-h-0"
           aria-label="Admin content"
         >
           <div className="max-w-[1500px] mx-auto space-y-6">

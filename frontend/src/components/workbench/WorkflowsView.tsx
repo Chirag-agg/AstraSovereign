@@ -83,7 +83,7 @@ export default function WorkflowsView() {
     return Array.from(caps).slice(0, 4);
   };
 
-  return (    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[#eef1f6]">
+  return (    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
           <div>
@@ -120,8 +120,8 @@ export default function WorkflowsView() {
           </div>
         ) : (
           <>
-            <div className="bg-[#7047eb]/5 border border-[#7047eb]/15 rounded-2xl px-5 py-4 flex items-start gap-3">
-              <GitBranch className="w-5 h-5 text-[#7047eb] shrink-0 mt-0.5" />
+            <div className="bg-[var(--accent)]/5 border border-[var(--accent)]/15 rounded-2xl px-5 py-4 flex items-start gap-3">
+              <GitBranch className="w-5 h-5 text-[var(--accent)] shrink-0 mt-0.5" />
               <p className="text-sm text-slate-700 leading-relaxed">
                 Complex multi-capability requests are automatically decomposed into
                 stage pipelines. The engine routes each stage through the configured
@@ -140,8 +140,8 @@ export default function WorkflowsView() {
                     key={stage.id}
                     className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex flex-col gap-2"
                   >
-                    <div className="flex items-center gap-2 text-[#7047eb]">
-                      <span className="p-1.5 bg-[#7047eb]/10 rounded-lg">{stage.icon}</span>
+                    <div className="flex items-center gap-2 text-[var(--accent)]">
+                      <span className="p-1.5 bg-[var(--accent)]/10 rounded-lg">{stage.icon}</span>
                       <span className="text-sm font-bold text-slate-800 capitalize">{stage.label}</span>
                     </div>
                     {primary ? (

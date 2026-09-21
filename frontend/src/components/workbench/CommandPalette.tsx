@@ -211,7 +211,7 @@ export default function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-slate-900/30 backdrop-blur-xs p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-slate-100/30 backdrop-blur-xs p-4"
       onClick={onClose}
     >
       <div
@@ -250,7 +250,7 @@ export default function CommandPalette({
                   onClick={cmd.action}
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-purple-50 transition-colors text-slate-700 hover:text-purple-900 cursor-pointer group"
                 >
-                  <Icon className="w-4 h-4 text-slate-400 group-hover:text-[#7047eb] transition-colors" />
+                  <Icon className="w-4 h-4 text-slate-400 group-hover:text-[var(--accent)] transition-colors" />
                   <span className="flex-1 font-medium">{cmd.label}</span>
                   <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-purple-600">
                     {cmd.category}
