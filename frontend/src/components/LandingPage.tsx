@@ -9,6 +9,7 @@ import { ResponsiveThresholdChart } from "@/components/ui/threshold-chart";
 import { CrowdCanvas } from "@/components/ui/crowd-canvas";
 import { DitherTree } from "@/components/ui/dither-tree";
 import LandingNav from "@/components/landing/LandingNav";
+import { MarkSection } from "@/components/landing/MarkSection";
 import LandingFooter from "@/components/landing/LandingFooter";
 import {
   PAGE,
@@ -344,6 +345,8 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
           ))}
         </Reveal>
       </Section>
+
+      <MarkSection />
 
       {/* Explore Dedicated Sections Hub */}
       <Section

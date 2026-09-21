@@ -212,7 +212,9 @@ describe("Conversation", () => {
         setConsoleOpen={() => undefined}
       />,
     );
-    expect(screen.getByRole("button", { name: /Try the demo/i })).toBeInTheDocument();
+    // The idle surface offers the same sample task; the control is now named
+    // for what it does rather than for the demo.
+    expect(screen.getByRole("button", { name: /Run the sample task/i })).toBeInTheDocument();
   });
 });
 

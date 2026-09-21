@@ -1,5 +1,7 @@
 "use client";
 
+import AssistantIdle from "@/components/workbench/AssistantIdle";
+
 import { useEffect, useState } from "react";
 
 import { elapsedSeconds } from "@/lib/console";
@@ -126,28 +128,7 @@ export default function Conversation({
   }, [job?.status, setConsoleOpen]);
 
   if (!job) {
-    return (
-      <div className="welcome font-mono text-left p-6 rounded border border-zinc-200 bg-zinc-100/30">
-        <div className="flex items-center gap-2 mb-2 text-xs text-sky-400 font-semibold uppercase tracking-wider">
-          <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
-          <span>ON-PREMISE AI ENGINEERING WORKBENCH</span>
-        </div>
-        <h2 className="text-lg font-semibold text-white tracking-tight mb-1">
-          Agent Execution & Inference Workspace
-        </h2>
-        <p className="text-zinc-400 text-xs leading-relaxed max-w-xl mb-3">
-          Submit tasks, review documents, or verify code in a fully air-gapped environment. Models, OCR pipelines, vector stores, and execution sandboxes execute strictly on this machine.
-        </p>
-        <button
-          type="button"
-          aria-label={`Try the demo: ${DEMO_TASK}`}
-          onClick={() => onSubmit(DEMO_TASK)}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-zinc-200 bg-zinc-100/80 hover:bg-zinc-100 text-zinc-600 text-xs font-mono transition-colors cursor-pointer"
-        >
-          <span>Try the demo — “{DEMO_TASK}”</span>
-        </button>
-      </div>
-    );
+    return <AssistantIdle onSubmit={onSubmit} demoTask={DEMO_TASK} />;
   }
 
   // The documents this job actually read (job-scoped manifest), shown on the
