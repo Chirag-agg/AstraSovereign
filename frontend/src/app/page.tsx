@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
 import Sidebar from "@/components/workbench/Sidebar";
@@ -140,7 +139,6 @@ function ActiveAgentWorkspace({
 }
 
 function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
-  const router = useRouter();
   const [user, setUser] = useActiveUser();
   const [devRole, setDevRole] = useDevRole();
 
@@ -388,7 +386,9 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
           devRole={devRole}
           onDevRoleChange={(next) => {
             setDevRole(next);
-            router.replace(next === "admin" ? "/admin" : "/");
+            if (typeof window !== "undefined") {
+              window.location.href = next === "admin" ? "/admin" : "/";
+            }
           }}
           onSignOut={onSignOut}
           theme={theme}
@@ -769,7 +769,6 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
 }
 
 export default function WorkbenchPage() {
-  const router = useRouter();
   const [authed, setAuthed] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   // The boot curtain lifts when the client has actually hydrated and read the
@@ -779,7 +778,11 @@ export default function WorkbenchPage() {
 
   useEffect(() => {
     try {
-      setAuthed(window.sessionStorage.getItem("sovereign.session") === "1");
+      const isAuthed = window.sessionStorage.getItem("sovereign.session") === "1";
+      setAuthed(isAuthed);
+      if (!isAuthed && typeof window !== "undefined" && window.location.search.includes("login=1")) {
+        setShowLogin(true);
+      }
     } catch {
       setAuthed(false);
     } finally {

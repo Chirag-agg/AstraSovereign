@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-150 -150 300 300" width="32" height="32">
+  <rect x="-150" y="-150" width="300" height="300" rx="54" fill="#101010" />
+  <path d="M 1.87,-33.95 L 7.04,-127.81 L 107.17,-70.00 L 28.47,-18.59 Z" fill="#b5b3a7" stroke="#e8e6df" stroke-width="2" />
+  <path d="M 30.33,-15.36 L 114.20,-57.81 L 114.20,57.81 L 30.33,15.36 Z" fill="#7d7b74" stroke="#e8e6df" stroke-width="2" />
+  <path d="M 28.47,18.59 L 107.17,70.00 L 7.04,127.81 L 1.87,33.95 Z" fill="#b5b3a7" stroke="#e8e6df" stroke-width="2" />
+  <path d="M -1.87,33.95 L -7.04,127.81 L -107.17,70.00 L -28.47,18.59 Z" fill="#7d7b74" stroke="#e8e6df" stroke-width="2" />
+  <path d="M -30.33,15.36 L -114.20,57.81 L -114.20,-57.81 L -30.33,-15.36 Z" fill="#b5b3a7" stroke="#e8e6df" stroke-width="2" />
+  <path d="M -28.47,-18.59 L -107.17,-70.00 L -7.04,-127.81 L -1.87,-33.95 Z" fill="#7d7b74" stroke="#e8e6df" stroke-width="2" />
+  <!-- Sealed core -->
+  <circle r="30" fill="#1a1a1a" stroke="#404040" stroke-width="3" />
+  <circle r="19" fill="#ee6018" />
+  <circle r="6" fill="#ffffff" />
+</svg>
