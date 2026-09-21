@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import { FigurePanel, StatSlab } from "@/components/ui/instrument";
 import { Activity, RefreshCw, AlertCircle, Wifi } from "lucide-react";
 import { getAdminSystem, getHealth } from "@/lib/api";
 import type { AdminSystemHealth, ComponentState, Health } from "@/lib/types";
@@ -79,127 +80,103 @@ export default function MonitoringView() {
     void load();
   }, [load]);
 
+  const states = LABELS.map(({ key, label }) => ({
+    label,
+    state: ((system?.[key] as ComponentState) ?? "UNKNOWN") as ComponentState,
+  }));
+  const okCount = states.filter((s) => s.state === "HEALTHY").length;
+  const degraded = states.filter((s) => s.state !== "HEALTHY" && s.state !== "UNKNOWN");
+
+  const TONE: Record<ComponentState, string> = {
+    HEALTHY: "var(--metric)",
+    DEGRADED: "var(--ochre)",
+    UNAVAILABLE: "var(--alert)",
+    UNKNOWN: "var(--graphite)",
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-4 border-b border-[var(--carbon)]">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
-              Monitoring
-            </h1>
-            <p className="text-sm text-slate-600 font-medium mt-1 leading-relaxed">
-              System health and performance tracking
+            <span className="mono-label" style={{ letterSpacing: "0.12em" }}>Subsystems</span>
+            <h1 className="tracking-tight" style={{ margin: "10px 0 0" }}>System health</h1>
+            <p style={{ margin: "8px 0 0" }}>
+              Ten subsystems, each reporting its own state. UNKNOWN means not yet observed —
+              it is not the same as healthy, and this page will not round it up to one.
             </p>
           </div>
-
           <button
             type="button"
             onClick={() => void load()}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors cursor-pointer disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 font-mono uppercase shrink-0"
+            style={{ fontSize: 10.5, letterSpacing: "0.08em", padding: "7px 11px", borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            <span>Refresh</span>
+            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+            Refresh
           </button>
         </div>
 
         {error && (
-          <div className="flex items-center gap-2 bg-rose-50 border border-rose-200/80 text-rose-700 rounded-xl px-4 py-3 text-sm font-medium">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+          <div role="alert" style={{ borderLeft: "2px solid var(--alert)", padding: "10px 14px", background: "var(--alert-surface)", borderRadius: 2, fontSize: 13, color: "var(--alert-ink)" }}>
+            {error}
           </div>
         )}
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 text-slate-500 text-sm py-16 bg-white border border-slate-200/80 rounded-2xl">
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            Loading system health...
-          </div>
-        ) : (
-          <>
-            {system?.sandbox_network && (
-              <div className="flex items-center gap-3 bg-white border border-slate-200/80 rounded-2xl px-4 py-3">
-                <Wifi className="w-4 h-4 text-[var(--accent)]" />
-                <p className="text-sm text-slate-700">
-                  <span className="font-semibold text-slate-800">Sandbox network:</span>{" "}
-                  {system.sandbox_network}
-                </p>
-              </div>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,230px)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-4">
+            <StatSlab
+              value={`${okCount}/${states.length}`}
+              label="Reporting OK"
+              tone={okCount === states.length ? "metric" : okCount === 0 ? "neutral" : "signal"}
+            />
+            {degraded.length > 0 && (
+              <FigurePanel figure="2" title="Needs attention">
+                <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  {degraded.map((s) => (
+                    <li key={s.label} className="flex items-center justify-between gap-2" style={{ padding: "8px 0", borderBottom: "1px solid var(--carbon)" }}>
+                      <span style={{ fontSize: 13.5, color: "var(--bone)" }}>{s.label}</span>
+                      <span className="font-mono uppercase" style={{ fontSize: 10.5, letterSpacing: "0.08em", color: TONE[s.state] }}>
+                        {s.state}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </FigurePanel>
             )}
+          </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {LABELS.map(({ key, label }) => {
-                const state: ComponentState = (system?.[key] as ComponentState) ?? "UNKNOWN";
-                const s = stateStyles(state);
-                return (
-                  <div
-                    key={key}
-                    className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-5 flex items-center gap-3"
-                  >
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${s.pill}`}>
-                      {s.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-700 truncate">{label}</p>
-                      <p className="text-xs text-slate-400 capitalize">{key.replace("_", " ")}</p>
-                    </div>
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${s.pill}`}>
-                      {state}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-5">
-              <h2 className="text-base font-bold text-slate-800 pb-3 border-b border-slate-100 mb-4">
-                Runtime checks
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="flex items-center justify-between rounded-xl border border-slate-100 p-3">
-                  <div className="flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-slate-400" />
-                    <span className="text-sm font-medium text-slate-700">Ollama</span>
-                  </div>
-                  <span className="text-xs text-slate-500 font-mono truncate ml-3">
-                    {health?.ollama.url}
-                  </span>
-                  <span
-                    className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                      health?.ollama.reachable
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
-                        : "bg-rose-50 text-rose-700 border-rose-200/60"
-                    }`}
-                  >
-                    {health?.ollama.reachable ? "reachable" : "unreachable"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-xl border border-slate-100 p-3">
-                  <div className="flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-slate-400" />
-                    <span className="text-sm font-medium text-slate-700">Worker</span>
-                  </div>
-                  <span
-                    className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${
-                      health?.worker.state === "running" || health?.worker.state === "active"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
-                        : health?.worker.state === "idle"
-                        ? "bg-amber-50 text-amber-700 border-amber-200/60"
-                        : "bg-slate-100 text-slate-600 border-slate-200/60"
-                    }`}
-                  >
-                    {health?.worker.state ?? "unknown"}
-                  </span>
-                  {health?.worker.active_job_id && (
-                    <span className="text-xs font-mono text-slate-500 ml-2 truncate">
-                      {health.worker.active_job_id}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </>
-        )}
+          <FigurePanel figure="1" title="Subsystem states" caption="polled from /health" flush>
+            <table>
+              <thead>
+                <tr><th>Subsystem</th><th>State</th><th>Meaning</th></tr>
+              </thead>
+              <tbody>
+                {states.map((s) => (
+                  <tr key={s.label}>
+                    <td>{s.label}</td>
+                    <td>
+                      <span className="inline-flex items-center gap-2 font-mono uppercase" style={{ fontSize: 10.5, letterSpacing: "0.08em", color: TONE[s.state] }}>
+                        <span style={{ width: 5, height: 5, borderRadius: 99, background: TONE[s.state] }} />
+                        {s.state}
+                      </span>
+                    </td>
+                    <td style={{ color: "var(--granite)" }}>
+                      {s.state === "HEALTHY"
+                        ? "responding"
+                        : s.state === "UNKNOWN"
+                          ? "not observed yet"
+                          : s.state === "DEGRADED"
+                            ? "responding, but not fully"
+                            : "not responding"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </FigurePanel>
+        </div>
       </div>
     </div>
   );

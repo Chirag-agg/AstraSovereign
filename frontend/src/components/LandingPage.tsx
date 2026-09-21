@@ -45,7 +45,7 @@ function SovereigntyStrip() {
   return (
     <div
       className="grid grid-cols-2"
-      style={{ border: "1px solid var(--carbon)", borderRadius: 4, marginTop: 36, maxWidth: 520, background: "#0d0d0d" }}
+      style={{ border: "1px solid var(--carbon)", borderRadius: 4, marginTop: 36, maxWidth: 520, background: "var(--surface-sunken)" }}
     >
       {facts.map((fact, i) => (
         <span
@@ -182,7 +182,7 @@ function DashboardFrame() {
   return (
     <div className={PAGE} style={{ marginTop: 96 }}>
       <Reveal y={34}>
-        <div style={{ background: "#0d0d0d", border: "1px solid var(--carbon)", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ background: "var(--surface-sunken)", border: "1px solid var(--carbon)", borderRadius: 10, overflow: "hidden" }}>
           <div
             className="flex items-center gap-3 px-4"
             style={{ height: 42, background: "#141210", borderBottom: "1px solid var(--carbon)" }}

@@ -95,7 +95,7 @@ export default function SecurityConsoleView() {
     cards.push({
       icon: <Globe className="w-5 h-5" />,
       title: "External connections",
-      value: s.external_connections.status.replace("_", " "),
+      value: (s.external_connections?.status ?? "UNKNOWN").replace("_", " "),
       detail: `${s.external_connections.count} tracked · ${s.external_connections.blocked_attempts} blocked · ${s.external_connections.local_connections} local`,
       pill: (
         <Pill tone={externalTone(s.external_connections.status)}>
@@ -136,7 +136,8 @@ export default function SecurityConsoleView() {
 
   if (health) {
     const ollamaReachable = health.ollama.reachable;
-    const workerRunning = health.worker.state === "running" || health.worker.state === "active";
+    const workerState = health.worker?.state ?? "unknown";
+    const workerRunning = workerState === "running" || workerState === "active";
     cards.push({
       icon: <ScanEye className="w-5 h-5" />,
       title: "Ollama endpoint",
@@ -155,7 +156,7 @@ export default function SecurityConsoleView() {
     cards.push({
       icon: <ShieldCheck className="w-5 h-5" />,
       title: "Worker",
-      value: health.worker.state,
+      value: workerState,
       detail: `Active job: ${health.worker.active_job_id || "none"}`,
       pill: workerRunning ? (
         <Pill tone="ok">
@@ -163,7 +164,7 @@ export default function SecurityConsoleView() {
         </Pill>
       ) : (
         <Pill tone="warn">
-          <HelpCircle className="w-3 h-3" /> {health.worker.state}
+          <HelpCircle className="w-3 h-3" /> {health.worker?.state ?? "unknown"}
         </Pill>
       ),
     });

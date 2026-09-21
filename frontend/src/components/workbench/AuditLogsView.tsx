@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import { FigurePanel, StatSlab, Gantt, type GanttRow } from "@/components/ui/instrument";
 import { ScrollText, RefreshCw, AlertCircle, Download, FileText, CheckCircle2 } from "lucide-react";
 import { getAudit } from "@/lib/api";
 import type { AuditEvent } from "@/lib/types";
@@ -66,6 +67,43 @@ export default function AuditLogsView() {
 
   const statuses = Array.from(new Set(events.map((e) => e.status)));
 
+  // Component activity across the window the log covers. Each bar spans from
+  // that component's first event to its last, so the shape of a run — what
+  // overlapped, what ran alone — is readable without opening a single row.
+  const timeline: GanttRow[] = (() => {
+    const stamps = events
+      .map((e) => Date.parse(e.timestamp))
+      .filter((n) => Number.isFinite(n));
+    if (stamps.length < 2) return [];
+    const first = Math.min(...stamps);
+    const span = Math.max(1, Math.max(...stamps) - first);
+
+    const byComponent = new Map<string, { min: number; max: number; count: number; failed: boolean }>();
+    for (const event of events) {
+      const at = Date.parse(event.timestamp);
+      if (!Number.isFinite(at)) continue;
+      const key = event.component || "unknown";
+      const entry = byComponent.get(key) ?? { min: at, max: at, count: 0, failed: false };
+      entry.min = Math.min(entry.min, at);
+      entry.max = Math.max(entry.max, at);
+      entry.count += 1;
+      if (event.status?.toLowerCase().includes("fail")) entry.failed = true;
+      byComponent.set(key, entry);
+    }
+
+    return [...byComponent.entries()]
+      .sort((a, b) => a[1].min - b[1].min)
+      .slice(0, 9)
+      .map(([name, entry]) => ({
+        label: name,
+        start: (entry.min - first) / span,
+        width: Math.max(0.012, (entry.max - entry.min) / span),
+        tone: entry.failed ? ("ochre" as const) : ("signal" as const),
+        value: String(entry.count),
+      }));
+  })();
+
+
   const filtered = statusFilter === "all"
     ? events
     : events.filter((e) => e.status === statusFilter);
@@ -119,13 +157,14 @@ export default function AuditLogsView() {
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-4 border-b border-[var(--carbon)]">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
-              Audit Trail
-            </h1>
-            <p className="text-sm text-slate-600 font-medium mt-1 leading-relaxed">
-              Tamper-evident verification, immutable execution trail, and downloadable regulatory audit logs
+            <span className="mono-label" style={{ letterSpacing: "0.12em" }}>Append-only</span>
+            <h1 className="tracking-tight" style={{ margin: "10px 0 0" }}>Audit trail</h1>
+            <p style={{ margin: "8px 0 0" }}>
+              Every model call, tool call and file written, hash-chained in order. It records
+              that something happened and what kind of thing it was — never the prompt, the
+              response, or the contents of a document.
             </p>
           </div>
 
@@ -162,6 +201,29 @@ export default function AuditLogsView() {
               <span>Refresh</span>
             </button>
           </div>
+        </div>
+
+        {/*
+          This row is a sibling of the masthead, not a child of it. Nested
+          inside the masthead's flex row it became a third flex item squeezed
+          against the right edge, which left the Gantt about 40px of track to
+          draw in — the bars were there, they just had nowhere to go.
+        */}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,210px)_minmax(0,1fr)]">
+          <StatSlab
+            value={String(events.length)}
+            label="Events in window"
+            tone={events.length > 0 ? "signal" : "neutral"}
+          />
+          <FigurePanel figure="1" title="Component activity" caption="first to last event, per component">
+            {timeline.length > 0 ? (
+              <Gantt rows={timeline} />
+            ) : (
+              <p className="font-mono" style={{ margin: 0, fontSize: 12, color: "var(--graphite)" }}>
+                Not enough events yet to draw a timeline. Run a task and it fills in.
+              </p>
+            )}
+          </FigurePanel>
         </div>
 
         {downloadSuccess && (

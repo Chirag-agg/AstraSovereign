@@ -285,7 +285,7 @@ export default function PipelinePage() {
               border: "1px solid var(--carbon)",
               borderRadius: 12,
               padding: "40px 32px",
-              background: "#0d0d0d",
+              background: "var(--surface-sunken)",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",

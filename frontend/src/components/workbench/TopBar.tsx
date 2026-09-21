@@ -1,5 +1,7 @@
 "use client";
 
+import { ThemeSwitch } from "@/components/ui/theme-switch";
+
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -47,8 +49,6 @@ interface TopBarProps {
   devRole: "user" | "admin";
   onDevRoleChange: (role: "user" | "admin") => void;
   onSignOut: () => void;
-  theme?: "dark" | "light";
-  onToggleTheme?: () => void;
   currentSection?: WorkbenchSection;
 }
 
@@ -77,8 +77,6 @@ export default function TopBar({
   devRole,
   onDevRoleChange,
   onSignOut,
-  theme,
-  onToggleTheme,
   currentSection = "coworking",
 }: TopBarProps) {
   const [timeString, setTimeString] = useState<string>("");
@@ -302,6 +300,8 @@ export default function TopBar({
               </option>
             ))}
           </select>
+
+          <ThemeSwitch />
 
           {/* Sign Out Button */}
           <button

@@ -81,7 +81,7 @@ export default function SystemDrawer({
                 <Row k="Models" v={health.ollama.reachable ? <Dot ok text="available" /> : <Dot ok={false} text="offline" />} />
                 <Row
                   k="Your knowledge base"
-                  v={`${health.knowledge_base.documents} document(s) indexed`}
+                  v={`${health.knowledge_base?.documents ?? 0} document(s) indexed`}
                 />
                 <Row
                   k="OCR & vision"

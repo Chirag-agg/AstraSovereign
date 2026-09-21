@@ -51,7 +51,14 @@ function makeRandom(seed: number) {
   };
 }
 
-const HEAT: [number, number, number][] = [
+type Ramp = [number, number, number][];
+
+/**
+ * Heat is contrast against the paper, not brightness in the abstract. On the
+ * dark canvas the tips run up to bone; on light paper the same tips run down
+ * to ink, because a near-white tip on cream is not a shimmer, it is a gap.
+ */
+const HEAT_DARK: Ramp = [
   [64, 14, 2],
   [112, 28, 4],
   [168, 52, 8],
@@ -62,7 +69,19 @@ const HEAT: [number, number, number][] = [
   [238, 238, 238],
 ];
 
-function heatColor(heat: number, alpha: number): string {
+const HEAT_LIGHT: Ramp = [
+  [226, 196, 164],
+  [222, 160, 104],
+  [220, 128, 56],
+  [212, 100, 28],
+  [196, 83, 15],
+  [158, 64, 14],
+  [104, 48, 18],
+  [40, 34, 28],
+];
+
+function heatColor(heat: number, alpha: number, ramp: Ramp = HEAT_DARK): string {
+  const HEAT = ramp;
   const scaled = Math.max(0, Math.min(0.999, heat)) * (HEAT.length - 1);
   const index = Math.floor(scaled);
   const mix = scaled - index;
@@ -206,6 +225,17 @@ export interface DitherTreeProps {
 export function DitherTree({ className, style, grid = 7, duration = 3.4 }: DitherTreeProps) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const [seed, setSeed] = React.useState(20260921);
+  const [theme, setTheme] = React.useState<string>("dark");
+
+  // The field is painted once into a bitmap, so a token swap cannot reach it
+  // the way it reaches the DOM. Watch the attribute and regrow.
+  React.useEffect(() => {
+    const read = () => setTheme(document.documentElement.getAttribute("data-theme") || "dark");
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => mo.disconnect();
+  }, []);
 
   React.useEffect(() => {
     const canvas = canvasRef.current;
@@ -225,16 +255,30 @@ export function DitherTree({ className, style, grid = 7, duration = 3.4 }: Dithe
     let running = false;
     let dpr = 1;
 
+    const ramp = (): Ramp =>
+      document.documentElement.getAttribute("data-theme") === "light" ? HEAT_LIGHT : HEAT_DARK;
+
     const paintCell = (cell: Cell) => {
       // Tip cells carry the brightest heat and the lowest alpha spread, so the
       // canopy shimmers while the trunk stays solid.
-      ctx.fillStyle = heatColor(cell.heat, 0.55 + cell.heat * 0.45);
+      ctx.fillStyle = heatColor(cell.heat, 0.55 + cell.heat * 0.45, ramp());
       ctx.fillRect(cell.x, cell.y, cell.size, cell.size);
     };
 
+    // The node markers are registration marks, not decoration: a small open
+    // square with a crosshair running *through* it, which is how a survey or
+    // print reticle is drawn. The earlier version filled the square and put
+    // the strokes on the diagonals, which is the exact glyph a browser uses
+    // for an image it could not load — on a page whose whole claim is that
+    // nothing is fetched from anywhere, five of those read as five failures.
     const paintNodes = () => {
+      const css = getComputedStyle(document.documentElement);
+      const canvasColor = css.getPropertyValue("--canvas").trim() || "#101010";
+      const ink = css.getPropertyValue("--bone").trim() || "#eeeeee";
+
       ctx.save();
-      ctx.strokeStyle = "rgba(238,238,238,0.28)";
+      ctx.strokeStyle = ink;
+      ctx.globalAlpha = 0.22;
       ctx.lineWidth = 1;
       ctx.setLineDash([2, 4]);
       for (let i = 0; i < nodes.length; i++) {
@@ -246,17 +290,28 @@ export function DitherTree({ className, style, grid = 7, duration = 3.4 }: Dithe
         }
       }
       ctx.setLineDash([]);
+
       for (const node of nodes) {
-        const s = 14;
-        ctx.fillStyle = "#0f0f0f";
-        ctx.fillRect(node.x - s / 2, node.y - s / 2, s, s);
-        ctx.strokeStyle = "rgba(238,238,238,0.75)";
-        ctx.strokeRect(node.x - s / 2 + 0.5, node.y - s / 2 + 0.5, s - 1, s - 1);
+        const s = 11;
+        const arm = 8;
+        // Punch a hole in the dither so the mark sits on the canvas, not in it.
+        ctx.globalAlpha = 0.82;
+        ctx.fillStyle = canvasColor;
         ctx.beginPath();
-        ctx.moveTo(node.x - s / 2, node.y - s / 2);
-        ctx.lineTo(node.x + s / 2, node.y + s / 2);
-        ctx.moveTo(node.x + s / 2, node.y - s / 2);
-        ctx.lineTo(node.x - s / 2, node.y + s / 2);
+        ctx.arc(node.x, node.y, arm + 1.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.globalAlpha = 0.66;
+        ctx.strokeStyle = ink;
+        ctx.strokeRect(node.x - s / 2 + 0.5, node.y - s / 2 + 0.5, s - 1, s - 1);
+
+        // Crosshair on the axes, extending past the square on all four sides.
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(node.x - arm, node.y + 0.5);
+        ctx.lineTo(node.x + arm, node.y + 0.5);
+        ctx.moveTo(node.x + 0.5, node.y - arm);
+        ctx.lineTo(node.x + 0.5, node.y + arm);
         ctx.stroke();
       }
       ctx.restore();
@@ -328,7 +383,7 @@ export function DitherTree({ className, style, grid = 7, duration = 3.4 }: Dithe
       window.clearTimeout(resizeTimer);
       window.removeEventListener("resize", onResize);
     };
-  }, [seed, grid, duration]);
+  }, [seed, grid, duration, theme]);
 
   return (
     <canvas

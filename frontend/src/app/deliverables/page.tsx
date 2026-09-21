@@ -117,7 +117,7 @@ export default function DeliverablesPage() {
           </div>
 
           <Reveal y={22}>
-            <div style={{ border: "1px solid var(--carbon)", borderRadius: 12, padding: "32px 24px", background: "#0d0d0d" }}>
+            <div style={{ border: "1px solid var(--carbon)", borderRadius: 12, padding: "32px 24px", background: "var(--surface-sunken)" }}>
               <InputBar
                 status="ready"
                 placeholder="Review the inspection report against SOP-09 and draft an approval note…"
@@ -155,7 +155,7 @@ export default function DeliverablesPage() {
               border: "1px solid var(--carbon)",
               borderRadius: 12,
               padding: "40px 32px",
-              background: "#0d0d0d",
+              background: "var(--surface-sunken)",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",

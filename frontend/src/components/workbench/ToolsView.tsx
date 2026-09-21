@@ -145,8 +145,8 @@ export default function ToolsView() {
   const tools: ToolCard[] = [];
   if (health) {
     const docSearchAvailable =
-      (health.knowledge_base.documents ?? 0) > 0 ||
-      (health.knowledge_base.embedding && Object.keys(health.knowledge_base.embedding).length > 0);
+      (health.knowledge_base?.documents ?? 0) > 0 ||
+      (health.knowledge_base?.embedding && Object.keys(health.knowledge_base.embedding).length > 0);
     const visionOk =
       health.multimodal?.ocr?.enabled && health.multimodal?.vision?.available;
 
@@ -168,7 +168,7 @@ export default function ToolsView() {
       icon: <Search className="w-6 h-6" />,
       state: docSearchAvailable ? "available" : "unavailable",
       meta: docSearchAvailable
-        ? `${health.knowledge_base.documents} documents · ${health.knowledge_base.chunks} chunks`
+        ? `${health.knowledge_base?.documents ?? 0} documents · ${health.knowledge_base?.chunks ?? 0} chunks`
         : "Needs documents + embedding configured",
     });
 
@@ -184,14 +184,18 @@ export default function ToolsView() {
         : "Requires OCR enabled + vision available",
     });
 
+    // Every read below is optional-chained on purpose: this view renders
+    // straight off the /health payload, and a field the backend has not
+    // sent yet should degrade one tile, not throw the workbench into its
+    // error boundary.
     tools.push({
       id: "doc-gen",
       name: "document_generation",
       description:
         "Generates formatted deliverables (Word documents) from agent output.",
       icon: <FileText className="w-6 h-6" />,
-      state: health.document_generation.available ? "available" : "unavailable",
-      meta: health.document_generation.available
+      state: health.document_generation?.available ? "available" : "unavailable",
+      meta: health.document_generation?.available
         ? `Word renderer: ${health.document_generation.word}`
         : "Not available",
     });
@@ -203,7 +207,7 @@ export default function ToolsView() {
         "Runs generated code in an isolated Docker sandbox. Egress follows the sovereignty sandbox network policy.",
       icon: <Code className="w-6 h-6" />,
       state: "available",
-      meta: `Sandbox network: ${health.sovereignty.sandbox_network}`,
+      meta: `Sandbox network: ${health.sovereignty?.sandbox_network ?? "unknown"}`,
     });
   }
 

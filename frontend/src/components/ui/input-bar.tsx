@@ -146,7 +146,7 @@ function FileChip({ filename, size, onRemove }: { filename: string; size?: numbe
   return (
     <span
       className="group inline-flex items-center gap-2 px-2 py-1.5"
-      style={{ background: "#141210", border: "1px solid var(--ash)", borderRadius: 2 }}
+      style={{ background: "var(--surface-raised)", border: "1px solid var(--ash)", borderRadius: 2 }}
     >
       <span style={{ color: "var(--signal)" }}>
         <DocGlyph />

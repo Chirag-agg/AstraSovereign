@@ -47,11 +47,11 @@ interface Skin {
 
 const SKINS: Record<Variant, Skin> = {
   // Neutral dark fill — the committing action inside a dark surface.
-  solid: { surface: "var(--carbon)", label: "var(--bone)", border: "var(--carbon)", knockout: "#101010", blob: "var(--chalk)" },
+  solid: { surface: "var(--carbon)", label: "var(--bone)", border: "var(--carbon)", knockout: "var(--chalk-ink)", blob: "var(--chalk)" },
   // Typographic button: border only until the blob arrives.
-  ghost: { surface: "transparent", label: "var(--bone)", border: "var(--ash)", knockout: "#101010", blob: "var(--bone)" },
+  ghost: { surface: "transparent", label: "var(--bone)", border: "var(--ash)", knockout: "var(--canvas)", blob: "var(--bone)" },
   // The single bright control. Used once per view, never twice.
-  bone: { surface: "var(--chalk)", label: "#101010", border: "var(--chalk)", knockout: "var(--chalk)", blob: "#101010" },
+  bone: { surface: "var(--chalk)", label: "var(--chalk-ink)", border: "var(--chalk)", knockout: "var(--chalk)", blob: "var(--chalk-ink)" },
   // The display treatment from the reference: near-black plate, accent blob,
   // faint accent rim and bloom.
   carve: {

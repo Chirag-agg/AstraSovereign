@@ -1,5 +1,7 @@
 "use client";
 
+import { ThemeSwitch } from "@/components/ui/theme-switch";
+
 import React from "react";
 import Link from "next/link";
 import { AstraWordmark } from "@/components/brand/AstraMark";
@@ -78,6 +80,8 @@ export function LandingNav({ currentPath = "/", onEnter }: LandingNavProps) {
               );
             })}
           </div>
+
+          <ThemeSwitch />
 
           <LiquidCarveButton
             variant="bone"

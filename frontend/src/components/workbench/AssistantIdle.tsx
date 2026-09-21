@@ -60,7 +60,7 @@ export function AssistantIdle({ onSubmit, demoTask }: { onSubmit: (task: string)
     <div
       ref={ref}
       className="relative overflow-hidden"
-      style={{ border: "1px solid var(--carbon)", borderRadius: 8, background: "#0c0b0a" }}
+      style={{ border: "1px solid var(--carbon)", borderRadius: 8, background: "var(--surface-panel)" }}
     >
       <div
         aria-hidden="true"
@@ -128,7 +128,7 @@ export function AssistantIdle({ onSubmit, demoTask }: { onSubmit: (task: string)
                 <span
                   aria-hidden="true"
                   className="block"
-                  style={{ width: 9, height: 9, borderRadius: 99, border: "1px solid var(--ash)", background: "#0c0b0a", marginBottom: 14 }}
+                  style={{ width: 9, height: 9, borderRadius: 99, border: "1px solid var(--ash)", background: "var(--surface-panel)", marginBottom: 14 }}
                 />
                 <span className="flex items-baseline gap-2">
                   <span className="font-mono tnum" style={{ fontSize: 10.5, color: "var(--graphite)" }}>

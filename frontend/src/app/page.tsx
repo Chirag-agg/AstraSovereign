@@ -165,7 +165,6 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [chips, setChips] = useState<AttachmentChip[]>([]);
   const [useAllDocuments, setUseAllDocuments] = useState(false);
-  const [theme, setTheme] = useState<"dark" | "light">("light");
 
   // Switching users must reset any in-flight/selected job (no cross-user leakage).
   useEffect(() => {
@@ -191,24 +190,6 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const { jobs, error: jobsError } = useJobs(user);
   const { documents, error: docsError } = useDocuments(user);
   const { artifacts, error: artifactsError } = useArtifacts(user);
-
-  // The workbench is dark, full stop. A light variant would need its own pass
-  // over the document surfaces and the console, and half a theme is worse than
-  // one. Any stale "light" left in localStorage by an older build is cleared.
-  useEffect(() => {
-    setTheme("dark");
-    document.documentElement.dataset.theme = "dark";
-    try {
-      window.localStorage.removeItem("sovereign.theme");
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const toggleTheme = useCallback(() => {
-    // Intentionally inert: kept so the existing call sites and the toggle's
-    // props stay valid while there is only one theme.
-  }, []);
 
   const startNew = useCallback(() => {
     setActiveJobId(null);
@@ -392,8 +373,6 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
             }
           }}
           onSignOut={onSignOut}
-          theme={theme}
-          onToggleTheme={toggleTheme}
           currentSection={currentSection}
         />
 

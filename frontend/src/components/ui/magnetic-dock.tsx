@@ -99,7 +99,7 @@ function DockItem({
         className="relative flex h-full w-full items-center justify-center overflow-hidden"
         style={{
           borderRadius: 3,
-          background: item.isActive ? "var(--carbon)" : "#141210",
+          background: item.isActive ? "var(--carbon)" : "var(--surface-raised)",
           border: `1px solid ${item.isActive ? "var(--signal)" : isHovered ? "var(--ash)" : "#262220"}`,
           transition: "border-color 160ms cubic-bezier(0.4,0,0.2,1), background-color 160ms cubic-bezier(0.4,0,0.2,1)",
         }}

@@ -104,7 +104,7 @@ export default function BenchmarksPage() {
 
           <div
             className="grid md:grid-cols-3"
-            style={{ border: "1px solid var(--carbon)", borderRadius: 10, overflow: "hidden", background: "#0d0d0d" }}
+            style={{ border: "1px solid var(--carbon)", borderRadius: 10, overflow: "hidden", background: "var(--surface-sunken)" }}
           >
             {SYSTEM_METRICS.map((m, i) => (
               <div
@@ -151,7 +151,7 @@ export default function BenchmarksPage() {
               border: "1px solid var(--carbon)",
               borderRadius: 12,
               padding: "40px 32px",
-              background: "#0d0d0d",
+              background: "var(--surface-sunken)",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",

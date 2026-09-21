@@ -20,7 +20,7 @@ function SovereigntyStrip() {
   return (
     <div
       className="grid grid-cols-2 sm:grid-cols-4"
-      style={{ border: "1px solid var(--carbon)", borderRadius: 6, maxWidth: 840, background: "#0d0d0d" }}
+      style={{ border: "1px solid var(--carbon)", borderRadius: 6, maxWidth: 840, background: "var(--surface-sunken)" }}
     >
       {facts.map((fact, i) => (
         <span
@@ -94,12 +94,11 @@ function ProofCards() {
           state the boundary of the claim than have someone find it.
         </p>
         <div
-          className="mt-6 font-mono"
+          className="mt-6 font-mono code-plate"
           style={{
             fontSize: 11,
             lineHeight: 2,
             color: "var(--graphite)",
-            background: "#0a0a0a",
             padding: "16px 20px",
             borderRadius: 6,
             border: "1px solid var(--carbon)",
@@ -119,7 +118,7 @@ function DashboardFrame() {
   return (
     <div style={{ marginTop: 32 }}>
       <Reveal y={34}>
-        <div style={{ background: "#0d0d0d", border: "1px solid var(--carbon)", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ background: "var(--surface-sunken)", border: "1px solid var(--carbon)", borderRadius: 10, overflow: "hidden" }}>
           <div
             className="flex items-center gap-3 px-4"
             style={{ height: 44, background: "#141210", borderBottom: "1px solid var(--carbon)" }}
@@ -260,7 +259,7 @@ export default function ProofPage() {
               border: "1px solid var(--carbon)",
               borderRadius: 12,
               padding: "40px 32px",
-              background: "#0d0d0d",
+              background: "var(--surface-sunken)",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",

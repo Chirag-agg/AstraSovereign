@@ -94,24 +94,25 @@ export default function AgentWorkspaceView({
   // root when no job is selected).
   useEffect(() => {
     let alive = true;
+    // `files` is read straight off the response and then indexed, so a reply
+    // that omits it used to throw out of render and take the whole workbench
+    // down to the error boundary. An empty tree is the honest fallback.
+    const accept = (res: { files?: JobWorkspaceFile[] } | null | undefined) => {
+      if (alive) setWorkspaceFiles(res?.files ?? []);
+    };
+    const reject = () => {
+      if (alive) setWorkspaceFiles([]);
+    };
+
     if (!activeJobId) {
       setSelectedFile(null);
-      listUserWorkspaceFiles(user)
-        .then((res) => {
-          if (alive) setWorkspaceFiles(res.files);
-        })
-        .catch(() => {
-          if (alive) setWorkspaceFiles([]);
-        });
-      return;
+      listUserWorkspaceFiles(user).then(accept).catch(reject);
+    } else {
+      listJobFiles(user, activeJobId).then(accept).catch(reject);
     }
-    listJobFiles(user, activeJobId)
-      .then((res) => {
-        if (alive) setWorkspaceFiles(res.files);
-      })
-      .catch(() => {
-        if (alive) setWorkspaceFiles([]);
-      });
+
+    // This cleanup used to be unreachable on the no-job branch, which left a
+    // late response writing state into an unmounted view.
     return () => {
       alive = false;
     };

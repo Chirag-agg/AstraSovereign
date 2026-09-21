@@ -258,7 +258,11 @@ export default function Sidebar({
                             style={{
                               borderRadius: 4,
                               color: active ? "var(--bone)" : "var(--granite)",
-                              background: active ? "#1a1109" : "transparent",
+                              // A warm tint of the canvas, so the active plate stays a
+                              // tint in either theme instead of a dark block on paper.
+                              background: active
+                                ? "color-mix(in srgb, var(--signal) 9%, var(--canvas))"
+                                : "transparent",
                               fontSize: 14,
                             }}
                           >

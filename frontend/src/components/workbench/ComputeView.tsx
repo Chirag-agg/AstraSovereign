@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import { FigurePanel, TierRow, Gantt, StatSlab, type GanttRow } from "@/components/ui/instrument";
 import {
   Cpu,
   MemoryStick,
@@ -90,153 +91,146 @@ export default function ComputeView() {
     },
   ];
 
+  // Each allocation becomes a bar on a shared VRAM track, so overlap and
+  // headroom are visible at a glance — a stacked total hides both.
+  const ganttRows: GanttRow[] = (resources?.allocated ?? []).map((a, i) => {
+    const share = capVram > 0 ? (a.gpu_vram_mb || 0) / capVram : 0;
+    const offset = (resources?.allocated ?? [])
+      .slice(0, i)
+      .reduce((s, prev) => s + (capVram > 0 ? (prev.gpu_vram_mb || 0) / capVram : 0), 0);
+    return {
+      label: a.job_id.slice(0, 14),
+      start: offset,
+      width: Math.max(0.01, share),
+      tone: "signal" as const,
+      value: formatMb(a.gpu_vram_mb || 0),
+    };
+  });
+
+  const freeVram = Math.max(0, capVram - usedVram);
+  if (capVram > 0) {
+    ganttRows.push({
+      label: "free",
+      start: capVram > 0 ? usedVram / capVram : 0,
+      width: Math.max(0.01, freeVram / Math.max(1, capVram)),
+      tone: "metric",
+      value: formatMb(freeVram),
+    });
+  }
+
+  const pressure = capVram > 0 ? Math.round((usedVram / capVram) * 100) : 0;
+
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-4 border-b border-[var(--carbon)]">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
-              System Resources
-            </h1>
-            <p className="text-sm text-slate-600 font-medium mt-1 leading-relaxed">
-              Local compute infrastructure status
+            <span className="mono-label" style={{ letterSpacing: "0.12em" }}>Scheduler</span>
+            <h1 className="tracking-tight" style={{ margin: "10px 0 0" }}>Compute &amp; VRAM</h1>
+            <p style={{ margin: "8px 0 0" }}>
+              What the scheduler has reserved, against what this machine actually has. A job
+              waits rather than oversubscribing; an impossible request fails cleanly.
             </p>
           </div>
-
           <button
             type="button"
             onClick={() => void load()}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors cursor-pointer disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 font-mono uppercase shrink-0"
+            style={{ fontSize: 10.5, letterSpacing: "0.08em", padding: "7px 11px", borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            <span>Refresh</span>
+            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+            Refresh
           </button>
         </div>
 
         {error && (
-          <div className="flex items-center gap-2 bg-rose-50 border border-rose-200/80 text-rose-700 rounded-xl px-4 py-3 text-sm font-medium">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+          <div role="alert" style={{ borderLeft: "2px solid var(--alert)", padding: "10px 14px", background: "var(--alert-surface)", borderRadius: 2, fontSize: 13, color: "var(--alert-ink)" }}>
+            {error}
           </div>
         )}
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 text-slate-500 text-sm py-16 bg-white border border-slate-200/80 rounded-2xl">
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            Loading compute resources...
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {metricCards.map((m) => {
-                const ratio = m.total > 0 ? m.used / m.total : 0;
-                const text = m.fmt
-                  ? `${m.fmt(m.used)} / ${m.fmt(m.total)}`
-                  : `${m.used} / ${m.total}${m.suffix}`;
-                return (
-                  <div
-                    key={m.title}
-                    className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-5"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-slate-400">{m.icon}</span>
-                      <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
-                        {m.title}
-                      </span>
-                    </div>
-                    <span className="text-2xl font-bold text-slate-800">{text}</span>
-                    <div className="mt-3 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${usageColor(m.used, m.total)} transition-all`}
-                        style={{ width: `${Math.min(100, ratio * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-              <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-slate-400">
-                    <Loader2 className="w-5 h-5" />
-                  </span>
-                  <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
-                    Jobs
-                  </span>
-                </div>
-                <span className="text-2xl font-bold text-slate-800">
-                  {resources?.running_jobs ?? 0} running
-                </span>
-                <p className="text-xs text-slate-500 mt-1">
-                  {resources?.waiting_jobs ?? 0} waiting · {scheduler?.queued_jobs ?? 0} queued
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-5 md:col-span-2 flex flex-col">
-                <h2 className="text-base font-bold text-slate-800 pb-3 border-b border-slate-100 mb-3">
-                  Active allocations
-                </h2>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/30">
-                        <th className="py-2.5 px-3">Job</th>
-                        <th className="py-2.5 px-3 text-right">CPU</th>
-                        <th className="py-2.5 px-3 text-right">Memory</th>
-                        <th className="py-2.5 px-3 text-right">GPU</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {(resources?.allocated.length ?? 0) === 0 ? (
-                        <tr>
-                          <td colSpan={4} className="py-8 text-center text-slate-500 text-sm">
-                            No jobs currently allocated.
-                          </td>
-                        </tr>
-                      ) : (
-                        resources?.allocated.map((a) => (
-                          <tr key={a.job_id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="py-2.5 px-3 font-mono text-xs text-slate-600">
-                              {a.job_id}
-                            </td>
-                            <td className="py-2.5 px-3 text-right text-slate-600">{a.cpu_cores}</td>
-                            <td className="py-2.5 px-3 text-right text-slate-600">
-                              {formatMb(a.memory_mb)}
-                            </td>
-                            <td className="py-2.5 px-3 text-right text-slate-600">
-                              {a.gpu_id || (a.gpu_vram_mb ? `${formatMb(a.gpu_vram_mb)} shared` : "—")}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-5 flex flex-col gap-3">
-                <h2 className="text-base font-bold text-slate-800 pb-3 border-b border-slate-100">
-                  GPU pool
-                </h2>
-                {gpuCount === 0 ? (
-                  <p className="text-sm text-slate-500">No GPUs detected.</p>
-                ) : (
-                  resources?.capacity.gpus.map((g) => (
-                    <div key={g.gpu_id} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Server className="w-4 h-4 text-slate-400" />
-                        <span className="font-mono text-xs text-slate-700">{g.gpu_id}</span>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,230px)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-4">
+            <StatSlab
+              value={`${pressure}%`}
+              label="VRAM reserved"
+              tone={pressure > 85 ? "signal" : pressure > 0 ? "metric" : "neutral"}
+            />
+            <FigurePanel figure="1" title="Capacity" caption="declared, not guessed">
+              <dl style={{ margin: 0 }}>
+                {metricCards.map((card) => {
+                  // The unit rides on the total only. Repeating it on both
+                  // sides pushed "18 cores / 32 cores" past the column and
+                  // wrapped the denominator onto its own line.
+                  const fmtUsed = card.fmt ?? ((n: number) => `${n}`);
+                  const fmtTotal = card.fmt ?? ((n: number) => `${n}${card.suffix}`);
+                  const pct = card.total > 0 ? Math.round((card.used / card.total) * 100) : 0;
+                  return (
+                    <div key={card.title} style={{ padding: "11px 0", borderBottom: "1px solid var(--carbon)" }}>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <dt className="font-mono uppercase" style={{ fontSize: 10.5, letterSpacing: "0.1em", color: "var(--graphite)" }}>
+                          {card.title}
+                        </dt>
+                        <dd className="font-mono tnum" style={{ margin: 0, fontSize: 12, color: "var(--bone)", whiteSpace: "nowrap" }}>
+                          {fmtUsed(card.used)} / {fmtTotal(card.total)}
+                        </dd>
                       </div>
-                      <span className="text-xs text-slate-500">{formatMb(g.vram_mb)}</span>
+                      <div style={{ marginTop: 7, height: 2, background: "var(--carbon)" }}>
+                        <div style={{ width: `${Math.min(100, pct)}%`, height: 2, background: pct > 85 ? "var(--ochre)" : "var(--signal)" }} />
+                      </div>
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </>
-        )}
+                  );
+                })}
+              </dl>
+            </FigurePanel>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <FigurePanel
+              figure="2"
+              title="VRAM allocation"
+              caption={`${gpuCount} GPU(s) · ${(resources?.allocated ?? []).length} active reservation(s)`}
+            >
+              {ganttRows.length > 0 ? (
+                <Gantt rows={ganttRows} />
+              ) : (
+                <p className="font-mono" style={{ margin: 0, fontSize: 12, color: "var(--graphite)" }}>
+                  No reservations held. The scheduler is idle.
+                </p>
+              )}
+            </FigurePanel>
+
+            <FigurePanel figure="3" title="Residency" caption="where a model actually lives while it works">
+              <TierRow
+                tiers={[
+                  { name: "Resident in VRAM", detail: "serving now · keep_alive 5m", heat: 0 },
+                  { name: "Loaded, idle", detail: "evicted when another model needs the card", heat: 1 },
+                  { name: "On disk", detail: "pulled locally, never auto-downloaded", heat: 2 },
+                ]}
+              />
+              <p style={{ margin: "14px 0 0", fontSize: 13, lineHeight: 1.55, color: "var(--granite)" }}>
+                The scheduler&rsquo;s belief and the card&rsquo;s reality are reported separately —
+                eviction is asynchronous, so a successful unload call does not mean the VRAM is
+                free yet. The gap between the two numbers is the honest signal.
+              </p>
+            </FigurePanel>
+
+            {scheduler && (
+              <FigurePanel figure="4" title="Queue" flush>
+                <table>
+                  <thead>
+                    <tr><th>State</th><th>Jobs</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Queued</td><td className="font-mono tnum">{scheduler.queued_jobs}</td></tr>
+                    <tr><td>Running</td><td className="font-mono tnum">{scheduler.running_jobs}</td></tr>
+                  </tbody>
+                </table>
+              </FigurePanel>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

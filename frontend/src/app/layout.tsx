@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ClickEffects from "@/components/ui/click-effects";
+import LogoPreloader from "@/components/ui/logo-preloader";
 import DevHmrBfcacheHandler from "@/components/DevHmrBfcacheHandler";
 
 // No next/font: Switzer and IBM Plex Mono are vendored under /public/fonts and
@@ -21,9 +22,26 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark">
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
+      <head>
+        {/*
+          Theme before first paint. Reading the stored choice in an effect
+          means a light-theme user gets a frame of the dark canvas on every
+          load — with a full-screen preloader in front of it, that frame is a
+          flash of the wrong colour across the whole viewport. This runs
+          synchronously in <head>, before the body is painted, so there is
+          nothing to flash.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('sovereign.theme');if(t==='light')document.documentElement.setAttribute('data-theme','light')}catch(e){}",
+          }}
+        />
+      </head>
       <body className="antialiased min-h-screen" style={{ background: "var(--canvas)", color: "var(--bone)" }}>
         <DevHmrBfcacheHandler />
+        <LogoPreloader />
         {children}
         <ClickEffects />
       </body>

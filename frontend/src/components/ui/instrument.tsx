@@ -45,7 +45,7 @@ export function FigurePanel({
   return (
     <section
       className={cn("relative", className)}
-      style={{ border: "1px solid var(--carbon)", borderRadius: 6, background: "#0c0b0a", ...style }}
+      style={{ border: "1px solid var(--carbon)", borderRadius: 6, background: "var(--surface-panel)", ...style }}
     >
       {figure !== undefined && (
         <span
@@ -151,7 +151,9 @@ export function StatSlab({
       ? "repeating-linear-gradient(90deg, #ee6018 0 26px, #f2712f 26px 52px)"
       : tone === "metric"
         ? "repeating-linear-gradient(90deg, #7fae6f 0 26px, #8fbd7d 26px 52px)"
-        : "repeating-linear-gradient(90deg, #1d1a18 0 26px, #221f1d 26px 52px)";
+        : "repeating-linear-gradient(90deg, var(--stripe-a) 0 26px, var(--stripe-b) 26px 52px)";
+  // A signal/metric slab is always a bright field, in either theme, so its
+  // ink stays dark; only the neutral slab follows the paper.
   const ink = tone === "neutral" ? "var(--bone)" : "#101010";
   return (
     <div className="flex flex-col items-center justify-center" style={{ background, padding: "30px 18px", borderRadius: 3 }}>
@@ -232,7 +234,7 @@ export function TierRow({ tiers }: { tiers: Tier[] }) {
               padding: "12px 14px",
               borderRadius: 3,
               border: `1px solid ${i === 0 ? "var(--signal)" : "var(--carbon)"}`,
-              background: `color-mix(in srgb, var(--signal) ${Math.max(0, 14 - tier.heat * 6)}%, #0c0b0a)`,
+              background: `color-mix(in srgb, var(--signal) ${Math.max(0, 14 - tier.heat * 6)}%, var(--surface-panel))`,
             }}
           >
             <span className="block" style={{ fontSize: 13.5, color: "var(--bone)" }}>

@@ -76,7 +76,7 @@ export default function ModelsView() {
         </div>
 
         {error ? (
-          <div role="alert" style={{ borderLeft: "2px solid var(--alert)", padding: "10px 14px", background: "#1a0c0d", borderRadius: 2, fontSize: 13, color: "var(--rose-200, #f28185)" }}>
+          <div role="alert" style={{ borderLeft: "2px solid var(--alert)", padding: "10px 14px", background: "var(--alert-surface)", borderRadius: 2, fontSize: 13, color: "var(--alert-ink)" }}>
             {error}
           </div>
         ) : null}
