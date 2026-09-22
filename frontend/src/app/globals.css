@@ -2621,6 +2621,14 @@ body {
    ========================================================================== */
 
 .bg-white { background-color: var(--surface); }
+/*
+  The state variants generate their own classes, so overriding .bg-white alone
+  left them painting literal white. A focused search box turning into a white
+  slab on a dark page is what that looked like.
+*/
+.hover\:bg-white:hover,
+.focus\:bg-white:focus,
+.focus-within\:bg-white:focus-within { background-color: var(--surface); }
 .bg-white\/95 { background-color: color-mix(in srgb, var(--surface) 95%, transparent); }
 .bg-white\/90 { background-color: color-mix(in srgb, var(--surface) 90%, transparent); }
 .bg-white\/70 { background-color: color-mix(in srgb, var(--surface) 70%, transparent); }
@@ -3463,12 +3471,17 @@ main :focus-visible {
 .app h3 { font-size: 14.5px; letter-spacing: -0.015em; }
 
 /* Inputs and selects across the app share one resting state. */
-.app input[type="text"],
-.app input[type="search"],
-.app input:not([type]),
-.app select,
-.app textarea {
-  background: #0c0b0a;
+/*
+  A control that has deliberately opted out of a fill keeps its own. Without
+  the :not(), this blanket rule out-specified the bg-transparent utility and
+  painted a black inset inside cards that set their own surface.
+*/
+.app input[type="text"]:not(.bg-transparent),
+.app input[type="search"]:not(.bg-transparent),
+.app input:not([type]):not(.bg-transparent),
+.app select:not(.bg-transparent),
+.app textarea:not(.bg-transparent) {
+  background: var(--surface-panel);
   border: 1px solid var(--ash);
   border-radius: 3px;
   color: var(--bone);
@@ -3624,7 +3637,10 @@ html[data-theme="light"] {
 }
 
 /* Surfaces that were hardcoded near-black in dark need a light counterpart. */
-html[data-theme="light"] .bg-white { background-color: #ffffff; }
+html[data-theme="light"] .bg-white,
+html[data-theme="light"] .hover\:bg-white:hover,
+html[data-theme="light"] .focus\:bg-white:focus,
+html[data-theme="light"] .focus-within\:bg-white:focus-within { background-color: #ffffff; }
 html[data-theme="light"] .astra-card:hover { background-color: #faf8f4; }
 html[data-theme="light"] .app tbody tr:hover { background-color: #faf8f4; }
 html[data-theme="light"] .app input,

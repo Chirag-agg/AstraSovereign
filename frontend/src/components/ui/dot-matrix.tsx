@@ -148,17 +148,30 @@ export function DotMatrix({ className, style, pitch = 22, dot = 6 }: DotMatrixPr
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-    const resize = () => {
+    // Returns false while the canvas has no box to draw into.
+    //
+    // This guard is the whole fix for "the field only appears once I open
+    // DevTools". Every workbench section is mounted at once behind
+    // display:none, and a hidden element reports clientWidth/Height of 0, so
+    // the first run here used to allocate a 0x0 drawing buffer and call
+    // glViewport(0,0,0,0). On a real GPU that leaves the context in a state it
+    // does not recover from on its own — it needs a genuine resize, which is
+    // exactly what opening DevTools provides. Software rendering shrugs it
+    // off, which is why it never showed up in a headless check.
+    //
+    // So: never allocate an empty buffer, and never draw into one.
+    const resize = (): boolean => {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const w = Math.floor(canvas.clientWidth * dpr);
       const h = Math.floor(canvas.clientHeight * dpr);
-      if (canvas.width === w && canvas.height === h) return;
+      if (w === 0 || h === 0) return false;
+      if (canvas.width === w && canvas.height === h) return true;
       canvas.width = w;
       canvas.height = h;
       gl.viewport(0, 0, w, h);
       gl.uniform2f(uRes, w, h);
+      return true;
     };
-    resize();
 
     const reduced =
       typeof window.matchMedia === "function" &&
@@ -169,7 +182,7 @@ export function DotMatrix({ className, style, pitch = 22, dot = 6 }: DotMatrixPr
     let visible = true;
 
     const draw = () => {
-      resize();
+      if (!resize()) return;
       gl.uniform1f(uTime, (performance.now() - start) / 1000);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -177,17 +190,44 @@ export function DotMatrix({ className, style, pitch = 22, dot = 6 }: DotMatrixPr
     };
 
     if (reduced) {
-      // One settled frame, no loop.
-      gl.uniform1f(uTime, 999);
-      draw();
+      // One settled frame, no loop — but only once there is something to draw
+      // into. A hidden section would otherwise get its single frame while it
+      // has no box and then never draw again.
+      const settle = () => {
+        gl.uniform1f(uTime, 999);
+        if (!resize()) {
+          raf = requestAnimationFrame(settle);
+          return;
+        }
+        draw();
+      };
+      raf = requestAnimationFrame(settle);
     } else {
       const loop = () => {
         if (!visible) return;
         draw();
         raf = requestAnimationFrame(loop);
       };
-      loop();
+      // Start on the next frame rather than synchronously inside the effect,
+      // so the first draw lands after the browser has laid the canvas out.
+      raf = requestAnimationFrame(loop);
     }
+
+    // A section that unhides, a sidebar that collapses, a panel that resizes:
+    // none of these fire a window resize, so the canvas would keep its old
+    // buffer. ResizeObserver catches the ones window.onresize misses.
+    const ro =
+      typeof ResizeObserver === "function"
+        ? new ResizeObserver(() => {
+            if (!visible || reduced) {
+              // Reduced motion still wants one correct frame at the new size.
+              if (reduced && resize()) draw();
+              return;
+            }
+            resize();
+          })
+        : null;
+    ro?.observe(canvas);
 
     const onVisibility = () => {
       visible = !document.hidden;
@@ -204,6 +244,7 @@ export function DotMatrix({ className, style, pitch = 22, dot = 6 }: DotMatrixPr
     return () => {
       visible = false;
       cancelAnimationFrame(raf);
+      ro?.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
       gl.deleteProgram(program);
       gl.deleteShader(vs);
