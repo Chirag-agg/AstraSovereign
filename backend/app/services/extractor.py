@@ -81,6 +81,22 @@ def _render_table_markdown(table: TableData) -> str:
     return "\n".join(lines)
 
 
+def unreadable_pages_notice(pages: list) -> str:
+    """The one wording used everywhere a partially-read document is surfaced.
+
+    A page the pipeline could not read is the most dangerous failure mode an
+    assessment has: the reader gets a document that is silent where it should
+    have spoken, and nothing in the text itself says so. Every path that
+    serves such a document's content says this first.
+    """
+    ordered = sorted(page for page in (pages or []) if page is not None)
+    if not ordered:
+        return ""
+    named = ", ".join(str(page) for page in ordered)
+    return f"WARNING: pages {named} of this document could not be read"
+
+
+
 class DocumentExtractor:
     """Elements -> artifact (ordered elements + markdown)."""
 
@@ -97,6 +113,7 @@ class DocumentExtractor:
         backend: Optional[str] = None,
         page_count: Optional[int] = None,
         markdown: Optional[str] = None,
+        unreadable_pages: Optional[list[int]] = None,
     ) -> DocumentExtraction:
         ordered: list[ExtractionElement] = []
         max_page = 0
@@ -116,6 +133,10 @@ class DocumentExtractor:
                 )
             # Never mutate the caller's element.
             ordered.append(element.model_copy(update=updates) if updates else element)
+        body = markdown if markdown is not None else self._markdown_for(ordered)
+        notice = unreadable_pages_notice(unreadable_pages or [])
+        if notice:
+            body = f"{notice}\n\n{body}" if body else notice
         return DocumentExtraction(
             document_id=document_id,
             filename=filename,
@@ -123,7 +144,8 @@ class DocumentExtractor:
             backend=backend or self.backend,
             page_count=page_count if page_count is not None else max_page,
             elements=ordered,
-            markdown=markdown if markdown is not None else self._markdown_for(ordered),
+            markdown=body,
+            unreadable_pages=sorted({p for p in (unreadable_pages or []) if p is not None}),
         )
 
     def from_pages(
@@ -134,6 +156,7 @@ class DocumentExtractor:
         pages: list[tuple[Optional[int], str]],
         *,
         document_sha256: str = "",
+        unreadable_pages: Optional[list[int]] = None,
     ) -> DocumentExtraction:
         """Legacy ``(page, text)`` adapter — unchanged output shape."""
         elements: list[ExtractionElement] = []
@@ -162,6 +185,7 @@ class DocumentExtractor:
             document_sha256=document_sha256,
             page_count=page_count,
             markdown="\n\n".join(sections),
+            unreadable_pages=unreadable_pages,
         )
 
     @staticmethod

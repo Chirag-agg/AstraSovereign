@@ -33,7 +33,8 @@ from app.schemas.resources import ResourceRequirements
 from app.services.document_ingestion import (
     DocumentIngestionError,
     document_type_for,
-    extract_pdf_page_texts,
+    extract_pdf_page_layouts,
+    page_requires_ocr,
 )
 from app.services.document_preparer import DocumentPreparationError, DocumentPreparer, RenderedPage
 from app.services.knowledge_base import KnowledgeBase
@@ -82,7 +83,10 @@ class MultimodalService:
         max_pages: int = 50,
         vision_max_pages: int = 5,
         vision_wait_rounds: int = 5,
-        ocr_page_min_text_chars: int = 1,
+        # Kept in step with Settings.ocr_page_min_text_chars: a caller that
+        # wires settings explicitly (the app) and a caller that does not (a
+        # test harness) must route the same pages to OCR.
+        ocr_page_min_text_chars: int = 64,
     ) -> None:
         self._kb = knowledge_base
         self._preparer = preparer
@@ -127,7 +131,7 @@ class MultimodalService:
             raise MultimodalError(
                 f"document_not_found: document '{document_id}' does not exist for this user"
             )
-        if doc.status != DocumentStatus.READY:
+        if doc.status not in (DocumentStatus.READY, DocumentStatus.PARTIAL):
             raise MultimodalError(
                 f"document '{document_id}' is not ready (status: {doc.status})"
             )
@@ -203,17 +207,26 @@ class MultimodalService:
                 text = "\n".join(region.text for region in regions)
                 pages.append((rp.page, text))
                 elements.extend(self._ocr_elements(rp.page, regions))
+            # Rendered but recognised as nothing: the page's content is absent
+            # from this document, and the reader is told so rather than left to
+            # read a silence as an absence of findings.
+            unreadable_pages = [page for page, text in pages if not text.strip()]
             has_text = any(text.strip() for _, text in pages)
             if not has_text:
                 return await self._kb.ingest_pages(
                     user_id, path, filename, [],
                     metadata={"page_count": len(rendered), "ocr": True},
+                    unreadable_pages=unreadable_pages,
                     empty_text_error="Document requires OCR",
                 )
+            metadata: dict = {"page_count": len(rendered), "ocr": True}
+            if unreadable_pages:
+                metadata["unreadable_pages"] = unreadable_pages
             return await self._kb.ingest_pages(
                 user_id, path, filename, pages,
-                metadata={"page_count": len(rendered), "ocr": True},
+                metadata=metadata,
                 elements=elements,
+                unreadable_pages=unreadable_pages,
             )
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -225,9 +238,16 @@ class MultimodalService:
         A page whose text layer carries usable text is indexed from that text
         layer (``source="text_layer"``, no bbox and no confidence — a PDF text
         layer exposes neither, and inventing them would be a lie the audit trail
-        cannot afford). A page with no usable text layer is rendered and routed
-        to OCR, whose regions each keep their own bbox and confidence
-        (``source="ocr"``). Only the pages needing OCR are rendered.
+        cannot afford). A page that is a page-scale raster carrying no usable
+        text layer is rendered and routed to OCR, whose regions each keep their
+        own bbox and confidence (``source="ocr"``). Only the pages needing OCR
+        are rendered.
+
+        A page routed to OCR that yields no text is *unreadable*, not silently
+        blank: the pages are named in ``metadata["unreadable_pages"]``, the
+        document is given ``status="partial"``, and the ingestion emits an audit
+        event — a page the system could not read must not look like a page that
+        was read and found empty.
 
         This is the mixed-PDF path: a page-perfect text PDF and a fully scanned
         PDF each keep their existing path (``ingest_document`` /
@@ -237,21 +257,24 @@ class MultimodalService:
             raise MultimodalError("OCR is not enabled on this deployment")
         document_type = document_type_for(filename)
         try:
-            page_texts = extract_pdf_page_texts(path)
+            layouts = extract_pdf_page_layouts(path)
         except DocumentIngestionError:
             # Unreadable PDF: let the knowledge base fail it cleanly and
             # consistently with the text path rather than raising here.
             return await self._kb.ingest_document(user_id, path, filename)
 
         ocr_pages = [
-            page for page, text in page_texts if len(text) < self._ocr_min_text_chars
+            layout.page
+            for layout in layouts
+            if page_requires_ocr(
+                layout.text, layout.raster_dominant, self._ocr_min_text_chars
+            )
         ]
         tmp_dir = self._tmp_root / WorkspaceManager.safe_component(user_id) / "ingest"
         tmp_dir.mkdir(parents=True, exist_ok=True)
         try:
             ocr_text: dict[int, str] = {}
             ocr_elements: dict[int, list[ExtractionElement]] = {}
-            skipped_pages: list[int] = []
             if ocr_pages:
                 try:
                     rendered = await self._preparer.prepare(
@@ -271,7 +294,6 @@ class MultimodalService:
                             "error": str(exc),
                         },
                     )
-                    skipped_pages = list(ocr_pages)
                     rendered = []
                 for rp in rendered:
                     regions = await self._recognize(rp, user_id)
@@ -280,37 +302,50 @@ class MultimodalService:
 
             pages: list[tuple[Optional[int], str]] = []
             elements: list[ExtractionElement] = []
-            for page, text in page_texts:
-                if page in ocr_elements:
-                    pages.append((page, ocr_text[page]))
-                    elements.extend(ocr_elements[page])
-                elif text:
-                    pages.append((page, text))
+            for layout in layouts:
+                if layout.page in ocr_elements:
+                    pages.append((layout.page, ocr_text[layout.page]))
+                    elements.extend(ocr_elements[layout.page])
+                elif layout.text:
+                    pages.append((layout.page, layout.text))
                     elements.append(
                         ExtractionElement(
-                            type="text", page=page, text=text, source="text_layer"
+                            type="text",
+                            page=layout.page,
+                            text=layout.text,
+                            source="text_layer",
                         )
                     )
+
+            # A page sent to OCR that came back with nothing was neither
+            # rendered nor recognised: that page's content is absent from this
+            # document, and the reader is told which pages rather than left to
+            # assume the document said nothing there.
+            unreadable_pages = sorted(
+                page for page in ocr_pages if not (ocr_text.get(page) or "").strip()
+            )
             metadata: dict = {
-                "page_count": len(page_texts),
+                "page_count": len(layouts),
                 # ``ocr`` keeps its document-level meaning — "this document had
                 # no text layer at all" — because that is what the vision path
                 # reads to choose whole-page over figure-only analysis. Per-page
                 # OCR provenance lives on the elements' ``source`` instead.
-                "ocr": not any(text for _, text in page_texts),
+                "ocr": not any(layout.text for layout in layouts),
             }
-            if skipped_pages:
-                metadata["ocr_skipped_pages"] = skipped_pages
+            if unreadable_pages:
+                metadata["unreadable_pages"] = unreadable_pages
             if not any(text.strip() for _, text in pages):
                 return await self._kb.ingest_pages(
                     user_id, path, filename, [],
                     metadata=metadata,
+                    unreadable_pages=unreadable_pages,
                     empty_text_error="Document requires OCR",
                 )
             return await self._kb.ingest_pages(
                 user_id, path, filename, pages,
                 metadata=metadata,
                 elements=elements,
+                unreadable_pages=unreadable_pages,
             )
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)

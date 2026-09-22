@@ -7,6 +7,7 @@ No external services or network calls are involved.
 """
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -57,24 +58,31 @@ def extract_pdf_page_texts(path: Path) -> list[tuple[int, str]]:
     route that page — and only that page — to OCR. A mixed PDF (some typed
     pages, some scanned) is the case this exists for.
     """
-    return _read_pdf_pages(path)
+    return [(layout.page, layout.text) for layout in extract_pdf_page_layouts(path)]
 
 
-def _extract_pdf_pages(path: Path) -> list[tuple[int, str]]:
-    pages = _read_pdf_pages(path)
-    if sum(len(text) for _, text in pages) == 0:
-        raise DocumentRequiresOCR("Document requires OCR")
-    return pages
+@dataclass(frozen=True)
+class PdfPageLayout:
+    """One PDF page's text layer, plus whether a page-scale raster covers it."""
+
+    page: int
+    text: str
+    raster_dominant: bool
 
 
-def _read_pdf_pages(path: Path) -> list[tuple[int, str]]:
-    """Per-page text layer; an individual page being empty is not an error."""
+def extract_pdf_page_layouts(path: Path) -> list[PdfPageLayout]:
+    """Per-page text layer and raster guess, in document order.
+
+    The richer form of ``extract_pdf_page_texts``: the raster flag is what lets
+    a caller tell a page whose only text layer is a stamp from a page that was
+    genuinely typed. Reading it costs one ``PdfReader`` pass either way.
+    """
     try:
         reader = PdfReader(str(path))
     except Exception as exc:
         raise DocumentIngestionError(f"Cannot read PDF: {exc}") from exc
 
-    pages: list[tuple[int, str]] = []
+    layouts: list[PdfPageLayout] = []
     for index, page in enumerate(reader.pages, start=1):
         try:
             text = (page.extract_text() or "").strip()
@@ -82,7 +90,64 @@ def _read_pdf_pages(path: Path) -> list[tuple[int, str]]:
             raise DocumentIngestionError(
                 f"Cannot extract PDF text on page {index}: {exc}"
             ) from exc
-        pages.append((index, text))
+        layouts.append(
+            PdfPageLayout(
+                page=index,
+                text=text,
+                raster_dominant=_page_is_raster_dominant(page),
+            )
+        )
+    return layouts
+
+
+def _page_is_raster_dominant(page) -> bool:
+    """Whether an embedded image carries at least as many pixels as the page
+    has square points — i.e. it is a page-scale scan, not a decorative mark.
+
+    Measured on the scenario fixtures: a 150 dpi scan is 1254x1764 px on a
+    602x847 pt page, 4.3 px per point-squared. A rule, bullet, or logo sits
+    orders of magnitude below 1. Image access is best-effort — a page whose
+    images cannot be read is reported as not raster dominant rather than
+    failing the document, because the text layer is still readable.
+    """
+    try:
+        images = list(page.images)
+        box = page.mediabox
+        page_area = float(box.width) * float(box.height)
+    except Exception:
+        return False
+    if page_area <= 0:
+        return False
+
+    pixel_area = 0
+    for image in images:
+        try:
+            width, height = image.image.size
+        except Exception:
+            continue
+        pixel_area += int(width) * int(height)
+    return pixel_area >= page_area
+
+
+def page_requires_ocr(text: str, raster_dominant: bool, min_text_chars: int) -> bool:
+    """Whether one PDF page needs recognising rather than reading.
+
+    Two page shapes need OCR: one with no text layer at all, and one whose
+    visible content is a page-scale raster carrying only a stamp — a scanned
+    page with "Page 3" typed over it would otherwise be indexed as the string
+    "Page 3" and its real content silently lost. A typed page keeps its text
+    layer however short that layer is, because there is no raster to recognise.
+    """
+    text = (text or "").strip()
+    if raster_dominant:
+        return len(text) < max(int(min_text_chars), 1)
+    return not text
+
+
+def _extract_pdf_pages(path: Path) -> list[tuple[Optional[int], str]]:
+    pages = extract_pdf_page_texts(path)
+    if sum(len(text) for _, text in pages) == 0:
+        raise DocumentRequiresOCR("Document requires OCR")
     return pages
 
 

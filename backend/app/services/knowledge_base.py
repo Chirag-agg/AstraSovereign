@@ -28,6 +28,12 @@ from app.services.vector_store import VectorStore
 
 logger = logging.getLogger("app.knowledge_base")
 
+# Statuses whose text is indexed and searchable. PARTIAL belongs here: a
+# document with one unreadable page is still the best evidence available for
+# the pages it does have, and dropping it from search would hide more than the
+# missing page does.
+_INDEXED_STATUSES = (DocumentStatus.READY, DocumentStatus.PARTIAL)
+
 
 def _hash_file(path: Path) -> str:
     """Content hash used to deduplicate identical uploads; '' on read failure."""
@@ -135,6 +141,7 @@ class KnowledgeBase:
         metadata: Optional[dict] = None,
         empty_text_error: str = "No extractable text found",
         elements: Optional[list[ExtractionElement]] = None,
+        unreadable_pages: Optional[list[int]] = None,
     ) -> DocumentRecord:
         """Ingest already-extracted ``(page, text)`` pairs (multimodal path).
 
@@ -144,7 +151,9 @@ class KnowledgeBase:
         ``pages`` still drives chunking; ``elements`` — when a caller has real
         provenance (an OCR region's bbox and confidence, a page that came from a
         text layer) — drives the extraction artifact instead of the lossy
-        ``(page, text)`` shape.
+        ``(page, text)`` shape. ``unreadable_pages`` names pages the caller
+        tried and failed to read, so the document is marked PARTIAL rather than
+        silently looking complete.
         """
         document_type = document_type_for(filename)
         content_hash = _hash_file(path)
@@ -159,7 +168,8 @@ class KnowledgeBase:
         )
         try:
             return await self._ingest_pages(
-                user_id, doc, pages, merged_metadata, empty_text_error, elements=elements
+                user_id, doc, pages, merged_metadata, empty_text_error,
+                elements=elements, unreadable_pages=unreadable_pages,
             )
         except EmbeddingError as exc:
             return await self._fail_document(user_id, doc, str(exc))
@@ -214,7 +224,24 @@ class KnowledgeBase:
         metadata: dict,
         empty_text_error: str,
         elements: Optional[list[ExtractionElement]] = None,
+        unreadable_pages: Optional[list[int]] = None,
     ) -> DocumentRecord:
+        unreadable = sorted({p for p in (unreadable_pages or []) if p is not None})
+        if unreadable:
+            # Audited before ingestion completes: a partially-read document is
+            # a fact about the record, not a detail of the run, and it survives
+            # in the audit chain even if the ingestion then fails outright.
+            logger.warning(
+                "document_pages_unreadable",
+                extra={
+                    "event": "document_pages_unreadable",
+                    "user_id": user_id,
+                    "document_id": doc.document_id,
+                    "file_name": doc.filename,
+                    "pages": ", ".join(str(page) for page in unreadable),
+                    "status": DocumentStatus.PARTIAL,
+                },
+            )
         pieces = build_chunks(pages, self._chunk_size, self._chunk_overlap)
         if not pieces:
             return await self._fail_document(user_id, doc, empty_text_error)
@@ -250,6 +277,7 @@ class KnowledgeBase:
                         doc.document_type,
                         elements,
                         document_sha256=document_sha256,
+                        unreadable_pages=unreadable,
                     )
                 else:
                     extraction = self._extractor.from_pages(
@@ -258,6 +286,7 @@ class KnowledgeBase:
                         doc.document_type,
                         pages,
                         document_sha256=document_sha256,
+                        unreadable_pages=unreadable,
                     )
                 await asyncio.to_thread(self._extraction_store.put, user_id, extraction)
             except Exception:
@@ -270,7 +299,7 @@ class KnowledgeBase:
                     },
                 )
 
-        doc.status = DocumentStatus.READY
+        doc.status = DocumentStatus.PARTIAL if unreadable else DocumentStatus.READY
         doc.chunk_count = len(chunks)
         doc.metadata = metadata
         await self._store.put_document(user_id, doc)
@@ -282,7 +311,7 @@ class KnowledgeBase:
                 "document_id": doc.document_id,
                 "file_name": doc.filename,
                 "chunk_count": len(chunks),
-                "status": DocumentStatus.READY,
+                "status": doc.status,
             },
         )
         await self._apply_supersession(user_id, doc)
@@ -308,7 +337,7 @@ class KnowledgeBase:
             other
             for other in await self._store.list_documents(user_id)
             if other.document_id != doc.document_id
-            and other.status == DocumentStatus.READY
+            and other.status in _INDEXED_STATUSES
             and _document_family(other.filename) == family
         ]
         if not siblings:
@@ -360,7 +389,7 @@ class KnowledgeBase:
             return None
         for document in await self._store.list_documents(user_id):
             if (
-                document.status == DocumentStatus.READY
+                document.status in _INDEXED_STATUSES
                 and (document.metadata or {}).get("content_hash") == content_hash
             ):
                 return document

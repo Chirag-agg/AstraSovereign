@@ -76,5 +76,11 @@ class DocumentExtraction(BaseModel):
     page_count: int = 0
     elements: list[ExtractionElement] = Field(default_factory=list)
     markdown: str = ""
+    # Pages the pipeline tried and failed to read (a scan routed to OCR that
+    # yielded no text). Empty for a document that was read in full; a page in
+    # here is *absent* from ``elements`` and ``markdown``, and every reader of
+    # this artifact must be able to tell that from a page that was read and
+    # found empty.
+    unreadable_pages: list[int] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utcnow)
     schema_version: int = 2

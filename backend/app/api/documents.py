@@ -17,9 +17,9 @@ from app.api.deps import get_user_id
 from app.services.document_ingestion import (
     IMAGE_DOCUMENT_TYPES,
     DocumentIngestionError,
-    DocumentRequiresOCR,
     document_type_for,
-    extract_document_pages,
+    extract_pdf_page_layouts,
+    page_requires_ocr,
 )
 from app.services.multimodal import MultimodalError
 from app.services.workspace import WorkspaceManager
@@ -44,6 +44,10 @@ def _metadata(doc) -> dict:
         "chunk_count": doc.chunk_count,
         "created_at": doc.created_at.isoformat(),
         "error": doc.error,
+        # Pages the pipeline could not read. Surfaced at the API so a caller
+        # sees an incomplete document as incomplete without having to know to
+        # inspect metadata.
+        "unreadable_pages": list((doc.metadata or {}).get("unreadable_pages") or []),
     }
 
 
@@ -84,8 +88,11 @@ async def upload_document(
 
     if document_type == "pdf":
         try:
-            pages = extract_document_pages(destination, "pdf")
-        except DocumentRequiresOCR:
+            layouts = extract_pdf_page_layouts(destination)
+        except DocumentIngestionError:
+            layouts = None  # malformed PDF — let KnowledgeBase fail it cleanly
+        if layouts is not None and not any(layout.text for layout in layouts):
+            # No text layer anywhere: an image-only scan.
             try:
                 doc = await multimodal.ingest_scanned(user_id, destination, filename)
             except MultimodalError as exc:
@@ -94,13 +101,18 @@ async def upload_document(
                     detail={"error": "ocr_unavailable", "message": str(exc)},
                 )
             return _metadata(doc)
-        except DocumentIngestionError:
-            pass  # malformed PDF — let KnowledgeBase fail it cleanly
-        else:
-            # A mixed PDF (some typed pages, some scanned) is the one case the
-            # whole-document paths cannot express: keep the page text layers
-            # that exist and OCR only the pages that have none.
-            if multimodal.ocr_available and any(not text for _, text in pages):
+        if layouts is not None:
+            # A page that needs recognising — a page-scale raster carrying only
+            # a stamp, say — is the case the whole-document paths cannot
+            # express: keep the typed pages' text layers and OCR only the pages
+            # that need it.
+            settings = request.app.state.settings
+            if multimodal.ocr_available and any(
+                page_requires_ocr(
+                    layout.text, layout.raster_dominant, settings.ocr_page_min_text_chars
+                )
+                for layout in layouts
+            ):
                 try:
                     doc = await multimodal.ingest_pdf(user_id, destination, filename)
                 except MultimodalError as exc:

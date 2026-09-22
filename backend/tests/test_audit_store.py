@@ -122,6 +122,7 @@ def test_log_event_mapping_covers_expected_types():
         "model_call_completed",
         "tool_call_started",
         "document_ingestion_completed",
+        "document_pages_unreadable",
         "document_search_completed",
         "ocr_completed",
         "vision_completed",

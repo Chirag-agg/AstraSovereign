@@ -686,6 +686,26 @@ Implemented and working locally (backend + frontend + local models + Docker):
 - SQLite job updates are flat: 200 status updates measured at ~0.27 ms/update with
   1 job and ~0.25 ms/update with 200 jobs (0.93x) - the old full-table rewrite is
   gone.
+- **Structure-aware ingestion (branch `feat/structure-aware-ingestion`, 2026-09-22):**
+  OCR regions stop being flattened into one page string. Each region is its own
+  extraction element carrying its own `bbox` and `confidence` with `source="ocr"`;
+  a PDF text layer keeps `None` for both because it exposes neither. OCR is now
+  decided **per page** (`page_requires_ocr`): a page whose visible content is a
+  page-scale raster (embedded-image pixel area >= page point area) is OCR'd when
+  its text layer is under `ocr_page_min_text_chars` (default 64, derived from a
+  measured 0-char vs 410/1152-char gap), a raster page with no text layer at all
+  is always OCR'd, and a page that is *not* raster-dominant keeps its text layer
+  however short it is. A page routed to OCR that comes back empty is reported
+  three ways — a `DOCUMENT_PAGES_UNREADABLE` audit event naming the document and
+  pages, a `partial` `DocumentStatus` returned by the documents API alongside
+  `unreadable_pages`, and a single shared
+  `"WARNING: pages N, M of this document could not be read"` prefix on
+  `read_document` and on every `document_search` / `document_exact_search`
+  result from that document. A partially-read document stays indexed and
+  searchable (`_INDEXED_STATUSES`) — it is the only evidence for the pages that
+  *were* read. Extraction and retrieval metrics live in
+  `tests/hard_scenario_01/ingestion_eval.md`; that file also carries the 2.1
+  entry-point audit (no remaining path produces OCR regions and drops them).
 
 Phase-by-phase history is in `docs/HISTORY.md`.
 
@@ -861,6 +881,19 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   main workbench composer now sends `document_ids`, but `coworkChat` posts only
   `{project_id, message}` and `CoworkChatRequest` has no `document_ids`, so
   project jobs always run with an empty job-scoped manifest.
+- **Unreadable pages are data, but they are not yet a deliverable line
+  (2026-09-22).** Which pages of a partially-read document were lost is available
+  to any node as `DocumentRecord.metadata["unreadable_pages"]` and
+  `DocumentExtraction.unreadable_pages`, and `read_document` plus both search
+  tools already print the shared WARNING line. The `draft` node does not yet
+  carry that notice into a generated deliverable, so a report produced from a
+  partial document says nothing about the missing pages. Wiring the notice into
+  the deliverable (and into `FindingsObject`) is the follow-up.
+- **`run_scenario.py` authenticates with `X-User-ID` headers only (2026-09-22).**
+  It therefore needs `dev_header_auth=True` and would 401 against the
+  production-shaped app. The bench should create a user through the CLI and log
+  in with a session cookie instead.
+
 - **Run backend tests with the project venv.** The exact invocation, from
   `backend/`, is `.\.venv\Scripts\python.exe -m pytest`; from the repo root,
   `backend\.venv\Scripts\python.exe -m pytest`. A global interpreter lacks

@@ -39,6 +39,7 @@ from app.services.document_generator import (
     DocumentGenerationError,
     DocumentGenerator,
 )
+from app.services.extractor import unreadable_pages_notice
 from app.schemas.document import DocumentStatus
 from app.services.presentation_renderer import PresentationRenderError
 from app.services.knowledge_base import KnowledgeBase
@@ -534,6 +535,7 @@ class DocumentSearchTool(BaseTool):
                 content="No relevant local documents found",
             )
 
+        unreadable_by_document = await self._unreadable_pages(user_id, results)
         filenames = sorted({r.filename for r in results})
         lines = [f"Found {len(results)} relevant chunk(s)."]
         lines.append(f"Sources: {', '.join(filenames)}")
@@ -546,6 +548,11 @@ class DocumentSearchTool(BaseTool):
                 f"\n[{index}] {result.filename}{location} "
                 f"| score={result.score} | doc={result.document_id}"
             )
+            notice = unreadable_pages_notice(
+                unreadable_by_document.get(result.document_id, [])
+            )
+            if notice:
+                lines.append(notice)
             lines.append(text)
 
         return ToolResult(
@@ -553,6 +560,23 @@ class DocumentSearchTool(BaseTool):
             summary=f"{len(results)} relevant chunk(s) from {len(filenames)} document(s)",
             content="\n".join(lines),
         )
+
+    async def _unreadable_pages(
+        self, user_id: str, results: list
+    ) -> dict[str, list[int]]:
+        """Pages that could not be read, for each document in this result set.
+
+        Looked up rather than assumed: a chunk from a document whose OCR pages
+        were dropped must never read as a chunk from a document that was read
+        in full. Only documents that actually have unreadable pages appear.
+        """
+        pages_by_document: dict[str, list[int]] = {}
+        for document_id in sorted({result.document_id for result in results}):
+            doc = await self._kb.get_document(user_id, document_id)
+            pages = list((doc.metadata or {}).get("unreadable_pages") or []) if doc else []
+            if pages:
+                pages_by_document[document_id] = pages
+        return pages_by_document
 
 
 class ReadDocumentTool(BaseTool):
@@ -675,14 +699,19 @@ class DocumentExactSearchTool(BaseTool):
             compiled = re.compile(re.escape(pattern), flags)
 
         documents = await self._kb.list_documents(user_id)
-        ready = [d for d in documents if d.status == DocumentStatus.READY][: self._MAX_DOCS]
+        searchable = [
+            d
+            for d in documents
+            if d.status in (DocumentStatus.READY, DocumentStatus.PARTIAL)
+        ][: self._MAX_DOCS]
 
         matches: list[dict] = []
-        for doc in ready:
+        for doc in searchable:
             extraction = self._extractions.get(user_id, doc.document_id)
             if extraction is None:
                 continue
             superseded = bool((doc.metadata or {}).get("superseded"))
+            unreadable = list((doc.metadata or {}).get("unreadable_pages") or [])
             done = False
             for element in extraction.elements:
                 text = element.text or ""
@@ -695,6 +724,7 @@ class DocumentExactSearchTool(BaseTool):
                             "filename": doc.filename,
                             "page": element.page,
                             "superseded": superseded,
+                            "unreadable_pages": unreadable,
                             "snippet": text[start:end].strip(),
                         }
                     )
@@ -722,6 +752,9 @@ class DocumentExactSearchTool(BaseTool):
             lines.append(
                 f"\n[{index}] {match['filename']}{location}{flag} | doc={match['document_id']}"
             )
+            notice = unreadable_pages_notice(match["unreadable_pages"])
+            if notice:
+                lines.append(notice)
             lines.append(match["snippet"])
         content = "\n".join(lines)
         return ToolResult(

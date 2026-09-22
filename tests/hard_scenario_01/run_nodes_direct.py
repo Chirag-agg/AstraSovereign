@@ -26,9 +26,9 @@ from app.services.capability_router import CapabilityRouter  # noqa: E402
 from app.services.document_ingestion import (  # noqa: E402
     IMAGE_DOCUMENT_TYPES,
     DocumentIngestionError,
-    DocumentRequiresOCR,
     document_type_for,
-    extract_document_pages,
+    extract_pdf_page_layouts,
+    page_requires_ocr,
 )
 from app.services.log_context import set_job_context  # noqa: E402
 from app.services.nodes import NodeAgent  # noqa: E402
@@ -101,6 +101,7 @@ async def ingest(app, user_id: str) -> None:
     await reset_user_kb(app, user_id)
     kb = app.state.knowledge_base
     multimodal = app.state.multimodal_service
+    min_text_chars = get_settings().ocr_page_min_text_chars
     for path in sorted(FIXTURES.glob("*")):
         document_type = document_type_for(path.name)
         if document_type in IMAGE_DOCUMENT_TYPES:
@@ -108,16 +109,23 @@ async def ingest(app, user_id: str) -> None:
             continue
         if document_type == "pdf":
             try:
-                pages = extract_document_pages(path, "pdf")
-            except DocumentRequiresOCR:
-                await multimodal.ingest_scanned(user_id, path, path.name)
-                continue
+                layouts = extract_pdf_page_layouts(path)
             except DocumentIngestionError:
                 pass
             else:
-                # Mirror the upload endpoint: a mixed PDF is routed per page so
-                # the harness indexes what the app indexes, not a parallel path.
-                if multimodal.ocr_available and any(not text for _, text in pages):
+                if not any(layout.text for layout in layouts):
+                    await multimodal.ingest_scanned(user_id, path, path.name)
+                    continue
+                # Mirror the upload endpoint: a PDF with a page that needs
+                # recognising is routed per page so the harness indexes what the
+                # app indexes, not a parallel path.
+                needs_ocr = any(
+                    page_requires_ocr(
+                        layout.text, layout.raster_dominant, min_text_chars
+                    )
+                    for layout in layouts
+                )
+                if multimodal.ocr_available and needs_ocr:
                     await multimodal.ingest_pdf(user_id, path, path.name)
                     continue
         await kb.ingest_document(user_id, path, path.name)

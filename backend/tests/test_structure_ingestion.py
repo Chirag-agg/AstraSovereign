@@ -1,4 +1,4 @@
-"""Structure-aware ingestion, phase 1: provenance through the seam.
+"""Structure-aware ingestion: provenance through the seam, and loud loss.
 
 What this pins down:
 
@@ -8,6 +8,11 @@ What this pins down:
   neither, and inventing them would be a lie the audit trail cannot afford;
 * OCR is decided per page, so a mixed PDF keeps the typed pages it has and
   renders only the pages that need recognising;
+* a page-scale raster carrying only a stamp ("Page 3") is a scan, not a typed
+  page, and is recognised rather than indexed as its stamp;
+* a page that was routed to OCR and yielded nothing is named — in the audit
+  chain, in the document's status, and in the text every reader sees — so it
+  cannot be mistaken for a page that was read and found empty;
 * element ids are content-addressed and stable, and a v1 artifact (written
   before these fields existed) still loads;
 * the whole path runs with the socket layer denied — no egress, proved by
@@ -21,10 +26,13 @@ from pathlib import Path
 
 from app.schemas.extraction import ExtractionElement
 from app.schemas.multimodal import OCRRegion
+from app.services.document_ingestion import page_requires_ocr
 from app.services.document_preparer import page_number_from_path
+from app.services.extractor import DocumentExtractor, make_element_id, unreadable_pages_notice
 from app.services.extraction_store import JsonExtractionStore
-from app.services.extractor import DocumentExtractor, make_element_id
+from app.services.log_context import set_job_context
 from app.services.ocr_provider import OCRProvider
+from app.services.tools import DocumentExactSearchTool, DocumentSearchTool, ReadDocumentTool
 from tests.conftest import make_blank_pdf, make_multimodal_stack
 
 LOOPBACK = {"127.0.0.1", "::1", "localhost"}
@@ -67,6 +75,26 @@ def make_mixed_page_pdf(path: Path) -> None:
     canvas_obj.drawString(72, 760, "Course C1 thickness 13.4 mm, typed page one")
     canvas_obj.showPage()
     canvas_obj.showPage()  # blank page, no text layer
+    canvas_obj.save()
+
+
+def make_raster_page_with_stamp_pdf(path: Path, stamp: str = "Page 3") -> None:
+    """A page-scale raster with a small text layer stamped over it.
+
+    The shape that used to lose its content silently: the raster carries the
+    real report, the text layer carries only a stamp, and the stamp is not
+    what the page says. The raster is A4 at 150 dpi on an A4 page, so it is
+    page-scale by pixel area — the same measurement on a real scan.
+    """
+    from PIL import Image
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas
+
+    image = Image.new("RGB", (1240, 1754), color=(250, 250, 250))
+    canvas_obj = canvas.Canvas(str(path))
+    canvas_obj.drawImage(ImageReader(image), 0, 0, width=595, height=842)
+    canvas_obj.drawString(72, 800, stamp)
+    canvas_obj.showPage()
     canvas_obj.save()
 
 
@@ -185,7 +213,10 @@ def test_page_text_layer_yields_no_bbox_and_no_confidence(tmp_path):
     make_mixed_page_pdf(path)
 
     doc = run(service.ingest_pdf("user-001", path, "mixed.pdf"))
-    assert doc.status == "ready"
+    # Page 2 is routed to OCR and the default fake recognises nothing there, so
+    # the document is partial — that page's content is absent, and saying so is
+    # the point of the status. Page 1's provenance is what this test is about.
+    assert doc.status == "partial"
 
     extraction = service.knowledge_base.get_extraction("user-001", doc.document_id)
     assert extraction is not None
@@ -305,3 +336,205 @@ def test_ingestion_makes_no_external_connection(tmp_path, monkeypatch):
 
     assert doc.status == "ready"
     assert blocked == []
+
+
+# ------------------------------------------------------------- scan detection
+
+def test_page_requires_ocr_rules():
+    """A raster page is judged by its stamp; a typed page by its text."""
+    # No text layer at all: recognised, raster or not.
+    assert page_requires_ocr("", False, 64) is True
+    assert page_requires_ocr("", True, 64) is True
+    # A typed page keeps its text layer however short it is — there is no
+    # raster to recognise, so a one-line page is not a reason to run OCR.
+    assert page_requires_ocr("Page 3", False, 64) is False
+    assert page_requires_ocr("Course 1 thickness 13.4 mm", False, 64) is False
+    # The same stamp over a page-scale raster is the case this rule exists
+    # for: the visible content is the raster, and the stamp is not the page.
+    assert page_requires_ocr("Page 3", True, 64) is True
+    assert page_requires_ocr("x" * 63, True, 64) is True
+    # Enough text to be the page's real content: the text layer wins.
+    assert page_requires_ocr("x" * 64, True, 64) is False
+
+
+def test_raster_page_carrying_only_a_stamp_is_routed_to_ocr(tmp_path):
+    """A scanned page with a stamped header is recognised, not read as the stamp."""
+    ocr = GeometryFakeOCR({1: [("Course C1 13.4 mm", [10, 20, 200, 40], 0.97)]})
+    store = JsonExtractionStore(tmp_path / "extractions")
+    service, _scheduler, uploads, _tmp = make_multimodal_stack(
+        tmp_path, ocr=ocr, extraction_store=store
+    )
+    path = upload_path(uploads, "stamped_scan.pdf")
+    make_raster_page_with_stamp_pdf(path, stamp="Page 3")
+
+    doc = run(service.ingest_pdf("user-001", path, "stamped_scan.pdf"))
+
+    assert doc.status == "ready"
+    assert ocr.calls == [1]
+    extraction = service.knowledge_base.get_extraction("user-001", doc.document_id)
+    assert [element.text for element in extraction.elements] == ["Course C1 13.4 mm"]
+    assert [element.source for element in extraction.elements] == ["ocr"]
+    # The stamp is nowhere in the indexed text or the artifact: it was the
+    # page's furniture, not the page's content.
+    assert "Page 3" not in extraction.markdown
+    indexed = run(service.knowledge_base.search("user-001", "Course C1 13.4 mm", 3))
+    assert indexed
+    assert "Course C1 13.4 mm" in indexed[0].text
+    assert "Page 3" not in indexed[0].text
+
+
+def test_upload_routes_a_raster_stamp_page_through_the_api(
+    tmp_path, client_factory, success_ollama_handler
+):
+    """The upload endpoint routes it too — the fix is on every entry point."""
+    ocr = GeometryFakeOCR({1: [("Course C1 13.4 mm", [10, 20, 200, 40], 0.97)]})
+    path = tmp_path / "stamped_scan.pdf"
+    make_raster_page_with_stamp_pdf(path)
+
+    with client_factory(success_ollama_handler, ocr_provider=ocr) as client:
+        response = client.post(
+            "/api/documents",
+            files={"file": ("stamped_scan.pdf", path.read_bytes(), "application/pdf")},
+            headers={"X-User-ID": "user-001"},
+        )
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "ready"
+    assert ocr.calls == [1]
+
+
+# ------------------------------------------------------------- page loss
+
+def _ingest_with_a_lost_page(tmp_path):
+    """A mixed PDF whose one OCR page (page 2) recognises nothing.
+
+    Returns ``(service, store, doc)`` for the partially-read document.
+    """
+    ocr = GeometryFakeOCR({})  # every page comes back with no regions
+    store = JsonExtractionStore(tmp_path / "extractions")
+    service, _scheduler, uploads, _tmp = make_multimodal_stack(
+        tmp_path, ocr=ocr, extraction_store=store
+    )
+    path = upload_path(uploads, "mixed.pdf")
+    make_mixed_page_pdf(path)
+    doc = run(service.ingest_pdf("user-001", path, "mixed.pdf"))
+    return service, store, doc
+
+
+def test_unreadable_page_marks_the_document_partial_and_names_the_page(tmp_path):
+    service, _store, doc = _ingest_with_a_lost_page(tmp_path)
+
+    # The document is still indexed and searchable — it is the only evidence
+    # there is for the page that *was* read — but it does not read as complete.
+    assert doc.status == "partial"
+    assert doc.metadata["unreadable_pages"] == [2]
+
+    extraction = service.knowledge_base.get_extraction("user-001", doc.document_id)
+    assert extraction.unreadable_pages == [2]
+    assert extraction.markdown.startswith(
+        "WARNING: pages 2 of this document could not be read"
+    )
+    # The readable page is still there, under the warning.
+    assert "typed page one" in extraction.markdown
+    assert run(service.knowledge_base.search("user-001", "typed page one", 3))
+
+
+def test_unreadable_pages_are_audited_against_the_document(tmp_path):
+    from app.services.audit_store import (
+        SqliteAuditStore,
+        ensure_audit_handler,
+        get_audit_store,
+        set_audit_store,
+    )
+
+    ocr = GeometryFakeOCR({})
+    service, _scheduler, uploads, _tmp = make_multimodal_stack(tmp_path, ocr=ocr)
+    path = upload_path(uploads, "mixed.pdf")
+    make_mixed_page_pdf(path)
+
+    ensure_audit_handler()
+    set_audit_store(SqliteAuditStore(str(tmp_path / "audit.db")))
+    try:
+        doc = run(service.ingest_pdf("user-001", path, "mixed.pdf"))
+        events = get_audit_store().list(user_id="user-001")
+    finally:
+        set_audit_store(SqliteAuditStore())
+
+    loss = [event for event in events if event.event_type == "DOCUMENT_PAGES_UNREADABLE"]
+    assert len(loss) == 1
+    assert loss[0].metadata["document_id"] == doc.document_id
+    assert loss[0].metadata["file_name"] == "mixed.pdf"
+    assert loss[0].metadata["pages"] == "2"
+    assert loss[0].status == "partial"
+
+
+def test_read_document_leads_with_the_unreadable_pages_warning(tmp_path):
+    _service, store, doc = _ingest_with_a_lost_page(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-loss")
+
+    result = run(
+        ReadDocumentTool(store).execute(Path("."), {"document_id": doc.document_id})
+    )
+
+    assert result.ok
+    assert result.content.startswith(
+        "WARNING: pages 2 of this document could not be read"
+    )
+
+
+def test_document_search_warns_on_results_from_a_partial_document(tmp_path):
+    service, _store, _doc = _ingest_with_a_lost_page(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-search")
+
+    result = run(
+        DocumentSearchTool(service.knowledge_base).execute(
+            Path("."), {"query": "typed page one"}
+        )
+    )
+
+    assert result.ok
+    assert "typed page one" in result.content
+    assert unreadable_pages_notice([2]) in result.content
+
+
+def test_exact_search_still_finds_a_partial_document_and_flags_it(tmp_path):
+    """A partially-read document must not vanish from the exact-match path."""
+    service, store, _doc = _ingest_with_a_lost_page(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-exact")
+
+    result = run(
+        DocumentExactSearchTool(service.knowledge_base, store).execute(
+            Path("."), {"pattern": "typed page one"}
+        )
+    )
+
+    assert result.ok
+    assert "typed page one" in result.content
+    assert unreadable_pages_notice([2]) in result.content
+
+
+def test_a_document_with_no_lost_pages_carries_no_warning(tmp_path):
+    """The warning is about a fact, not a decoration on every document."""
+    ocr = GeometryFakeOCR({2: [("SCANNED PAGE TWO", [5, 6, 120, 26], 0.88)]})
+    store = JsonExtractionStore(tmp_path / "extractions")
+    service, _scheduler, uploads, _tmp = make_multimodal_stack(
+        tmp_path, ocr=ocr, extraction_store=store
+    )
+    path = upload_path(uploads, "mixed.pdf")
+    make_mixed_page_pdf(path)
+
+    doc = run(service.ingest_pdf("user-001", path, "mixed.pdf"))
+
+    assert doc.status == "ready"
+    assert "unreadable_pages" not in doc.metadata
+    extraction = service.knowledge_base.get_extraction("user-001", doc.document_id)
+    assert extraction.unreadable_pages == []
+    assert "WARNING" not in extraction.markdown
+
+    set_job_context(user_id="user-001", job_id="job-clean")
+    result = run(
+        DocumentSearchTool(service.knowledge_base).execute(
+            Path("."), {"query": "typed page one"}
+        )
+    )
+    assert "WARNING" not in result.content

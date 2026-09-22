@@ -14,6 +14,10 @@ class DocumentStatus:
     QUEUED = "queued"
     PROCESSING = "processing"
     READY = "ready"
+    # Indexed and searchable, but at least one page could not be read. A
+    # distinct status rather than a metadata flag so it is visible wherever a
+    # document's status is shown, not only where metadata is inspected.
+    PARTIAL = "partial"
     FAILED = "failed"
 
 

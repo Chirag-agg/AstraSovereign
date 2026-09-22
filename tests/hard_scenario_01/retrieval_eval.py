@@ -24,7 +24,10 @@ from app.config import get_settings  # noqa: E402
 from app.main import create_app  # noqa: E402
 from run_nodes_direct import ingest  # noqa: E402
 
-# (query, expected substring in a retrieved chunk)
+# (query, expected substring in a retrieved chunk). The expectation must be
+# verbatim from the source document, case included: `expected in text` is
+# case-sensitive on purpose, so a lowercased guess at the wording reports a
+# miss that is the eval's error, not the retriever's.
 EVAL_QUERIES = [
     ("shell course thickness readings", "13.4"),
     ("Course 2 thickness", "10.9"),
@@ -42,7 +45,7 @@ EVAL_QUERIES = [
     ("nameplate design specific gravity", "DESIGNSG:0.85"),
     ("nameplate diameter 25 m", "DIAMETERD:25.0m"),
     ("2021 survey readings", "14.1"),
-    ("Course 5 not accessible scaffold", "scaffold unavailable"),
+    ("Course 5 not accessible scaffold", "Scaffold unavailable"),
     ("P and ID tank 204", "TANK-204"),
     ("inspector initials K Menon", "K. Menon"),
     ("scope full shell spot grid", "Scope: full shell"),
