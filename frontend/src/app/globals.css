@@ -3730,3 +3730,13 @@ html.theme-changing * {
   background: var(--surface-panel);
   border: 1px solid var(--carbon);
 }
+
+/* The boot gate's prompt breathes once armed, so a screen that now waits for
+   a click never reads as a frozen frame. */
+@keyframes gate-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [aria-label="Enter AstraSovereign"] * { animation: none !important; }
+}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ClickEffects from "@/components/ui/click-effects";
-import LogoPreloader from "@/components/ui/logo-preloader";
+import BootGate from "@/components/ui/boot-gate";
 import DevHmrBfcacheHandler from "@/components/DevHmrBfcacheHandler";
 
 // No next/font: Switzer and IBM Plex Mono are vendored under /public/fonts and
@@ -41,7 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="antialiased min-h-screen" style={{ background: "var(--canvas)", color: "var(--bone)" }}>
         <DevHmrBfcacheHandler />
-        <LogoPreloader />
+        <BootGate />
         {children}
         <ClickEffects />
       </body>

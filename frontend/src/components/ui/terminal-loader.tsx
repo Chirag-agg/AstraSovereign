@@ -57,7 +57,7 @@ export function EyeLoader({ label = "Starting the workbench" }: { label?: string
   );
 }
 
-const BOOT_STEPS: { label: string; note: string }[] = [
+export const BOOT_STEPS: { label: string; note: string }[] = [
   { label: "model registry", note: "config/models.yaml — 5 capabilities" },
   { label: "network guard", note: "external hosts → blocked" },
   { label: "audit chain", note: "hash-chained, append-only" },
