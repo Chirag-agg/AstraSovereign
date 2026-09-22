@@ -167,7 +167,7 @@ export const TANK_204_COURSES: CourseReading[] = [
   { course: 6, current_mm: 11.56, previous_mm: 12.4, rate_mm_yr: 0.16, status: "ALERT" },
 ];
 
-/** The four local models the router can currently reach, from config/models.yaml. */
+/** The five capabilities the router can resolve, from config/models.yaml. */
 export const MODEL_ROSTER = [
   { capability: "general", model: "llama3.1:latest", vram_mb: 4096 },
   { capability: "coding", model: "qwen2.5-coder:7b", vram_mb: 4096 },

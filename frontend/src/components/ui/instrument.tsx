@@ -45,7 +45,17 @@ export function FigurePanel({
   return (
     <section
       className={cn("relative", className)}
-      style={{ border: "1px solid var(--carbon)", borderRadius: 6, background: "var(--surface-panel)", ...style }}
+      style={{
+        border: "1px solid var(--carbon)",
+        borderRadius: 6,
+        background: "var(--surface-panel)",
+        // A grid item defaults to min-width:auto, so a wide table inside one
+        // pushes its own track wider and spills over whatever sits beside it.
+        // The panel refuses to grow past its track; the body scrolls instead.
+        minWidth: 0,
+        overflow: "hidden",
+        ...style,
+      }}
     >
       {figure !== undefined && (
         <span
@@ -87,7 +97,9 @@ export function FigurePanel({
         </header>
       )}
 
-      <div style={{ padding: flush ? 0 : 18 }}>{children}</div>
+      <div style={{ padding: flush ? 0 : 18, minWidth: 0, overflowX: flush ? "auto" : undefined }}>
+        {children}
+      </div>
     </section>
   );
 }

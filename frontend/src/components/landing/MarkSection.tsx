@@ -5,6 +5,8 @@ import { gsap } from "gsap";
 import { AstraMark } from "@/components/brand/AstraMark";
 import { useGsap, prefersReducedMotion } from "@/lib/motion";
 import { PAGE, Eyebrow } from "@/components/landing/atoms";
+import { CountUp } from "@/lib/motion";
+import { MODEL_ROSTER } from "@/lib/metrics";
 
 /**
  * The mark, given its own room.
@@ -47,16 +49,46 @@ interface Spoke {
   index: number;
   label: string;
   model: string;
+  vramMb: number;
 }
 
-/** The five capabilities declared in config/models.yaml, in wedge order. */
-const SPOKES: Spoke[] = [
-  { index: 0, label: "document", model: "llama3.1" },
-  { index: 1, label: "vision", model: "llava:7b" },
-  { index: 2, label: "coding", model: "qwen2.5-coder" },
-  { index: 3, label: "math", model: "qwen2.5-math" },
-  { index: 4, label: "general", model: "llama3.1" },
-];
+/**
+ * The five capabilities, read straight out of metrics.ts so this plate cannot
+ * drift from config/models.yaml. The vertex assignment is the only thing
+ * chosen here; the names, models and VRAM figures are the measured ones.
+ */
+const VERTEX_OF: Record<string, number> = {
+  document: 0,
+  vision: 1,
+  coding: 2,
+  math: 3,
+  general: 4,
+};
+
+const SPOKES: Spoke[] = MODEL_ROSTER.map((entry) => ({
+  index: VERTEX_OF[entry.capability] ?? 0,
+  label: entry.capability,
+  model: entry.model.replace(/:latest$/, ""),
+  vramMb: entry.vram_mb,
+})).sort((a, b) => a.index - b.index);
+
+const MAX_VRAM = Math.max(...SPOKES.map((s) => s.vramMb));
+const TOTAL_VRAM_GB = SPOKES.reduce((sum, s) => sum + s.vramMb, 0) / 1024;
+
+/** Radar radius for a VRAM figure: the polygon *is* the footprint. */
+const RADAR_BASE = 138;
+const RADAR_SPAN = 72;
+function radarRadius(vramMb: number): number {
+  return RADAR_BASE + (vramMb / MAX_VRAM) * RADAR_SPAN;
+}
+
+/** The radar polygon over all six vertices; the empty slot sits at the base. */
+const RADAR_POINTS = Array.from({ length: 6 }, (_, i) => {
+  const spoke = SPOKES.find((s) => s.index === i);
+  const r = spoke ? radarRadius(spoke.vramMb) : RADAR_BASE;
+  const [x, y] = polar(60 * i - 90, r);
+  return `${x.toFixed(2)},${y.toFixed(2)}`;
+}).join(" ");
 
 const EMPTY_SLOT = 5;
 
@@ -64,13 +96,15 @@ interface CornerStat {
   label: string;
   value: string;
   corner: "tl" | "tr" | "bl" | "br";
+  /** Numeric stats count up on entry; "0 bytes" has nowhere to count from. */
+  count?: number;
 }
 
 const STATS: CornerStat[] = [
   { label: "Cloud egress", value: "0 bytes", corner: "tl" },
-  { label: "Local models", value: "5", corner: "tr" },
-  { label: "Agent tools", value: "11", corner: "bl" },
-  { label: "Backend tests", value: "552", corner: "br" },
+  { label: "Local models", value: "5", corner: "tr", count: 5 },
+  { label: "Agent tools", value: "11", corner: "bl", count: 11 },
+  { label: "Backend tests", value: "552", corner: "br", count: 552 },
 ];
 
 const CORNER_STYLE: Record<CornerStat["corner"], React.CSSProperties> = {
@@ -80,12 +114,12 @@ const CORNER_STYLE: Record<CornerStat["corner"], React.CSSProperties> = {
   br: { right: 0, bottom: "10%" },
 };
 
-/** Mono readout under the plate — the routing contract in four clauses. */
+/** Mono readout under the plate — the routing contract, and what it costs. */
 const READOUT: { k: string; v: string }[] = [
   { k: "Router", v: "config/models.yaml" },
+  { k: "Resident if all five load", v: `${TOTAL_VRAM_GB.toFixed(0)} GB VRAM` },
   { k: "Fallback", v: "bounded · 2 hops" },
   { k: "Substitutions", v: "recorded, never silent" },
-  { k: "Egress", v: "none" },
 ];
 
 function StatCard({ stat }: { stat: CornerStat }) {
@@ -116,7 +150,7 @@ function StatCard({ stat }: { stat: CornerStat }) {
           letterSpacing: "-0.03em",
         }}
       >
-        {stat.value}
+        {stat.count !== undefined ? <CountUp value={stat.count} /> : stat.value}
       </div>
       {/* Leader line into the field, the way a callout is drawn on a plate. */}
       <span
@@ -142,12 +176,16 @@ export function MarkSection() {
     const rings = element.querySelectorAll<SVGPolygonElement>("[data-ring]");
     const cards = element.querySelectorAll<HTMLElement>("[data-mark-card]");
     const spokes = element.querySelectorAll<SVGGElement>("[data-spoke]");
+    const radar = element.querySelector<SVGPolygonElement>("[data-radar]");
+    const pulses = element.querySelectorAll<SVGCircleElement>("[data-pulse]");
     const readout = element.querySelectorAll<HTMLElement>("[data-readout]");
     const mark = element.querySelector<HTMLElement>("[data-mark]");
 
     gsap.set(rings, { scale: 0.2, opacity: 0, transformOrigin: "center" });
     gsap.set(cards, { opacity: 0, x: (i, el) => (el.dataset.from === "left" ? -28 : 28) });
     gsap.set(spokes, { opacity: 0 });
+    if (radar) gsap.set(radar, { scale: 0.55, opacity: 0, transformOrigin: "center" });
+    gsap.set(pulses, { opacity: 0 });
     gsap.set(readout, { opacity: 0, y: 10 });
     if (mark) gsap.set(mark, { scale: 0.86, opacity: 0 });
 
@@ -161,6 +199,41 @@ export function MarkSection() {
     tl.to(spokes, { opacity: 1, duration: 0.4, stagger: 0.08, ease: "power2.out" }, 0.62);
     tl.to(cards, { opacity: 1, x: 0, duration: 0.55, stagger: 0.09, ease: "power3.out" }, 0.5);
     tl.to(readout, { opacity: 1, y: 0, duration: 0.5, stagger: 0.06, ease: "power3.out" }, 0.9);
+    // The radar settles into shape last, so the footprint reads as a result
+    // rather than as another piece of the scaffolding.
+    if (radar) tl.to(radar, { scale: 1, opacity: 1, duration: 0.85, ease: "power3.out" }, 0.72);
+
+    // Each pulse runs from its capability down its own spoke into the core,
+    // then repeats on its own offset so the five never march in step.
+    pulses.forEach((pulse, i) => {
+      const angle = Number(pulse.dataset.angle ?? 0);
+      const rad = (angle * Math.PI) / 180;
+      const from = { x: Math.cos(rad) * 202, y: Math.sin(rad) * 202 };
+      const to = { x: Math.cos(rad) * 132, y: Math.sin(rad) * 132 };
+      gsap.fromTo(
+        pulse,
+        { attr: { cx: from.x, cy: from.y }, opacity: 0 },
+        {
+          attr: { cx: to.x, cy: to.y },
+          opacity: 1,
+          duration: 1.5,
+          ease: "power1.in",
+          repeat: -1,
+          repeatDelay: 2.6,
+          delay: 1.4 + i * 0.44,
+          yoyo: false,
+          onRepeat: () => gsap.set(pulse, { opacity: 0 }),
+        },
+      );
+      // Fade out as it arrives, so it reads as absorbed rather than stopping.
+      gsap.to(pulse, {
+        opacity: 0,
+        duration: 0.32,
+        repeat: -1,
+        repeatDelay: 3.78,
+        delay: 1.4 + i * 0.44 + 1.18,
+      });
+    });
 
     // Two slow rotations in opposite directions. Neither asks for attention;
     // together they keep the plate from reading as a static image.
@@ -174,6 +247,16 @@ export function MarkSection() {
     gsap.to(element.querySelector("[data-tick-group]"), {
       rotation: -360,
       duration: 180,
+      repeat: -1,
+      ease: "none",
+      transformOrigin: "center",
+    });
+
+    // The sweep is the one fast thing here: eight seconds a revolution, which
+    // is slow for a scope and still the quickest element on the plate.
+    gsap.to(element.querySelector("[data-sweep]"), {
+      rotation: 360,
+      duration: 8,
       repeat: -1,
       ease: "none",
       transformOrigin: "center",
@@ -246,6 +329,42 @@ export function MarkSection() {
               })}
             </g>
 
+            {/*
+              The VRAM radar. Each vertex is pushed out by that capability's
+              resident footprint, so the polygon is the footprint rather than a
+              decoration of it — and the collapse toward the unfilled sixth
+              vertex is the empty slot, drawn.
+            */}
+            <defs>
+              <linearGradient id="radar-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--signal)" stopOpacity="0.18" />
+                <stop offset="100%" stopColor="var(--signal)" stopOpacity="0.04" />
+              </linearGradient>
+              <linearGradient id="sweep-fade" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="var(--signal)" stopOpacity="0.13" />
+                <stop offset="55%" stopColor="var(--signal)" stopOpacity="0.04" />
+                <stop offset="100%" stopColor="var(--signal)" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+
+            {/* Scope sweep: one wedge, rotating. The oldest instrument idiom
+                there is, and the only thing on the plate that moves quickly. */}
+            <g data-sweep>
+              <path
+                d={`M 0 0 L ${(Math.cos(-Math.PI / 2) * 252).toFixed(2)} ${(Math.sin(-Math.PI / 2) * 252).toFixed(2)} A 252 252 0 0 1 ${(Math.cos(-Math.PI / 2 + 0.44) * 252).toFixed(2)} ${(Math.sin(-Math.PI / 2 + 0.44) * 252).toFixed(2)} Z`}
+                fill="url(#sweep-fade)"
+              />
+            </g>
+
+            <polygon
+              data-radar
+              points={RADAR_POINTS}
+              fill="url(#radar-fill)"
+              stroke="var(--signal)"
+              strokeWidth="1.4"
+              strokeOpacity="0.75"
+            />
+
             {/* Five capability spokes, plus the empty sixth slot. */}
             <g>
               {SPOKES.map((spoke) => {
@@ -262,6 +381,9 @@ export function MarkSection() {
                 return (
                   <g key={spoke.label} data-spoke>
                     <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--signal)" strokeWidth="1" strokeOpacity="0.5" />
+                    {/* Everything reports to the core, so the pulse runs
+                        inward — from the capability to the centre. */}
+                    <circle data-pulse data-angle={angle} r="2.4" fill="var(--signal)" cx={x2} cy={y2} />
                     <rect x={x2 - 3.5} y={y2 - 3.5} width="7" height="7" fill="var(--canvas)" stroke="var(--signal)" strokeWidth="1.1" />
                     <text
                       x={lx}
@@ -282,6 +404,16 @@ export function MarkSection() {
                       style={{ fontFamily: "var(--mono)", fontSize: 11 }}
                     >
                       {spoke.model}
+                    </text>
+                    <text
+                      x={lx}
+                      y={ly + 30}
+                      textAnchor={anchor}
+                      dominantBaseline="middle"
+                      fill="var(--signal)"
+                      style={{ fontFamily: "var(--mono)", fontSize: 10.5 }}
+                    >
+                      {(spoke.vramMb / 1024).toFixed(0)} GB VRAM
                     </text>
                   </g>
                 );

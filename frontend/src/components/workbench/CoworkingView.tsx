@@ -479,7 +479,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
 
       {/* Middle Section: Coworking Tasks & Team Communications */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 min-w-0">
           <FigurePanel
             figure="3"
             title="The board"
@@ -576,11 +576,14 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                     const colour = done ? "var(--metric)" : waiting ? "var(--ochre)" : "var(--signal)";
                     return (
                       <tr key={t.id}>
-                        <td style={{ maxWidth: 400 }}>
+                        {/* Sized so the four columns add up to the panel's
+                            track at 1280 and up, rather than pushing the
+                            hand-over button off the edge. */}
+                        <td style={{ maxWidth: 260 }}>
                           <span className="block truncate" style={{ color: "var(--bone)" }} title={t.title}>
                             {t.title}
                           </span>
-                          <span className="flex items-center gap-2 font-mono truncate" style={{ marginTop: 3, fontSize: 11, color: "var(--graphite)" }}>
+                          <span className="flex items-center gap-2 font-mono truncate" style={{ marginTop: 4, fontSize: 12, color: "var(--graphite)" }}>
                             {t.id} · {t.department}
                             {t.deliverable ? (
                               <span style={{ color: "var(--metric)" }}>· {t.deliverable.name}</span>
@@ -589,13 +592,13 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                         </td>
                         <td style={{ verticalAlign: "top" }}>
                           <span className="block truncate" style={{ color: "var(--stone)" }}>{t.assignee.name}</span>
-                          <span className="block truncate" style={{ marginTop: 3, fontSize: 11.5, color: "var(--graphite)" }}>
+                          <span className="block truncate" style={{ marginTop: 4, fontSize: 12.5, color: "var(--graphite)" }}>
                             {t.assignee.role}
                           </span>
                         </td>
                         <td style={{ verticalAlign: "top" }}>
-                          <span className="font-mono" style={{ fontSize: 11, color: "var(--granite)" }}>{t.requiredLevel}</span>
-                          <span className="flex items-center gap-2 font-mono uppercase" style={{ marginTop: 4, fontSize: 10, letterSpacing: "0.08em", color: colour }}>
+                          <span className="font-mono" style={{ fontSize: 12, color: "var(--granite)", whiteSpace: "nowrap" }}>{t.requiredLevel}</span>
+                          <span className="flex items-center gap-2 font-mono uppercase" style={{ marginTop: 5, fontSize: 10.5, letterSpacing: "0.08em", color: colour, whiteSpace: "nowrap" }}>
                             <span style={{ width: 5, height: 5, borderRadius: 99, background: colour }} />
                             {t.status}
                           </span>
@@ -624,7 +627,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
 
 
         {/* Right 1 Col: Department Communication Drawer */}
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           <div className="astra-plate rounded-[6px] p-6">
             <div className="flex items-center justify-between pb-4 border-b border-zinc-100">
               <div className="flex items-center gap-2.5">

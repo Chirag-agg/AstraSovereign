@@ -3426,7 +3426,7 @@ main :focus-visible {
 .app table { border-collapse: collapse; width: 100%; }
 .app thead th {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   font-weight: 400;
@@ -3439,7 +3439,7 @@ main :focus-visible {
 .app tbody td {
   padding: 13px 14px;
   border-bottom: 1px solid var(--carbon);
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--stone);
   vertical-align: middle;
 }
