@@ -22,10 +22,10 @@ import { prefersReducedMotion } from "@/lib/motion";
  *     because nothing is waiting on that signal to let them through — the
  *     counter arms on a ceiling too, and the click always works regardless.
  *
- * It runs once per session, so moving around the site does not re-gate it.
+ * It appears on every full page load. Reduced-motion users still get the gate —
+ * it just arrives already filled, with no climb and no breathing.
  */
 
-const SESSION_KEY = "sovereign.preloaded";
 /** How long the counter may take to reach 100 before arming anyway. */
 const ARM_CEILING_MS = 5000;
 /**
@@ -44,24 +44,14 @@ export function LogoPreloader() {
   const fillRef = React.useRef<HTMLDivElement>(null);
   const dismissRef = React.useRef<(() => void) | null>(null);
 
+  // Shown on every full page load, for everyone. There is deliberately no
+  // "already seen" flag: under React Strict Mode (on in development) this
+  // effect runs twice, and the first run's flag made the second run tear the
+  // gate down a frame after it appeared. Client-side navigation does not
+  // remount the root layout, so moving around the site never re-gates.
   React.useEffect(() => {
-    let seen = false;
-    try {
-      seen = window.sessionStorage.getItem(SESSION_KEY) === "1";
-    } catch {
-      // storage unavailable — treat as unseen
-    }
-    if (seen || prefersReducedMotion()) {
-      setMounted(false);
-      return;
-    }
     setGone(false);
     setMounted(true);
-    try {
-      window.sessionStorage.setItem(SESSION_KEY, "1");
-    } catch {
-      // ignore
-    }
   }, []);
 
   React.useEffect(() => {
@@ -73,6 +63,7 @@ export function LogoPreloader() {
 
     document.documentElement.style.overflow = "hidden";
     root.focus({ preventScroll: true });
+    const still = prefersReducedMotion();
 
     const startedAt = performance.now();
     const progress = { value: 0 };
@@ -95,7 +86,7 @@ export function LogoPreloader() {
     // about being nearly done; the last 10 belongs to the real ready signal.
     const creep = gsap.to(progress, {
       value: 90,
-      duration: 2.2,
+      duration: still ? 0 : 2.2,
       ease: "power2.out",
       onUpdate: paint,
     });
@@ -105,7 +96,7 @@ export function LogoPreloader() {
       if (armed || leaving) return;
 
       // Let the fill finish being watchable before landing it.
-      const early = ARM_FLOOR_MS - (performance.now() - startedAt);
+      const early = (still ? 0 : ARM_FLOOR_MS) - (performance.now() - startedAt);
       if (early > 0) {
         if (!armTimer) armTimer = window.setTimeout(arm, early);
         return;
@@ -122,6 +113,7 @@ export function LogoPreloader() {
         .set(prompt, { display: "block" })
         .fromTo(prompt, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" })
         .add(() => {
+          if (still) return;
           // A slow breath on the filled mark, so a plate that now waits
           // indefinitely never reads as a frozen screenshot.
           gsap.to(markFill, {

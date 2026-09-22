@@ -47,13 +47,10 @@ export function AssistantIdle({ onSubmit, demoTask }: { onSubmit: (task: string)
         .to(pulse, { opacity: 0, duration: 0.3 }, 2.4);
     }
 
-    // Stop burning frames when the tab is in the background.
-    const onVisibility = () => {
-      if (document.hidden) gsap.globalTimeline.pause();
-      else gsap.globalTimeline.resume();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
+    // No global pause for background tabs: GSAP's ticker runs on
+    // requestAnimationFrame, which the browser already stops in a hidden tab.
+    // Pausing gsap.globalTimeline from here reached into every other
+    // animation on the page as well.
   }, []);
 
   return (

@@ -238,7 +238,12 @@ const CrowdCanvas = ({ src, rows = 15, cols = 7, className }: CrowdCanvasProps) 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (reduced) {
-          gsap.globalTimeline.pause();
+          // Freeze this crowd only. This used to pause gsap.globalTimeline,
+          // which stopped every GSAP animation on the site for anyone with
+          // reduced motion on — including the preloader, which then could
+          // never be dismissed.
+          stopTicker();
+          crowd.forEach((peep) => peep.walk?.pause());
           render();
           return;
         }

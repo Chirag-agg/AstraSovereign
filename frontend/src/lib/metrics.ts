@@ -89,7 +89,7 @@ export const SYSTEM_METRICS: VerifiedMetric[] = [
   },
   {
     label: "Frontend tests",
-    value: "67",
+    value: "69",
     unit: "cases",
     source: "vitest run — frontend/src/**/*.test.tsx",
   },
