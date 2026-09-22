@@ -315,7 +315,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
     {
       title: "Benchmarks",
       href: "/benchmarks",
-      badge: "552 Tests",
+      badge: "592 Tests",
       lede: "Complete engineering board: air-gapped test coverage, model execution speeds, hardware residency, and system resource metrics.",
     },
     {

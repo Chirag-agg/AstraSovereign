@@ -24,8 +24,8 @@ export interface VerifiedMetric {
 }
 
 /** Measured 2026-09-20 on branch fix/model-routing-and-compute-verification. */
-export const MEASURED_AT = "2026-09-20";
-export const MEASURED_REF = "fix/model-routing-and-compute-verification";
+export const MEASURED_AT = "2026-09-22";
+export const MEASURED_REF = "master";
 
 export const HEADLINE_METRICS: VerifiedMetric[] = [
   {
@@ -37,7 +37,7 @@ export const HEADLINE_METRICS: VerifiedMetric[] = [
   },
   {
     label: "Backend tests",
-    value: "552",
+    value: "592",
     unit: "functions",
     source: "grep -c 'def test_' backend/tests/*.py — 67 files",
     tone: "positive",
@@ -59,7 +59,7 @@ export const HEADLINE_METRICS: VerifiedMetric[] = [
 export const SYSTEM_METRICS: VerifiedMetric[] = [
   {
     label: "Backend Python",
-    value: "14,332",
+    value: "15,504",
     unit: "lines",
     source: "wc -l backend/app/**/*.py",
   },
