@@ -64,20 +64,29 @@ async def main() -> None:
 
     hits = 0
     superseded_appearances = 0
+    reciprocal_rank_sum = 0.0
     details = []
     for query, expected in EVAL_QUERIES:
         results = await kb.search(user_id, query, top_k=5)
         texts = [r.text for r in results]
         files = [r.filename for r in results]
-        hit = any(expected in text for text in texts)
+        # Rank of the first hit (1-based); None when nothing matched. Rank is
+        # what makes a rank-sensitive regression visible: recall@5 cannot see
+        # a correct chunk moving from rank 1 to rank 4.
+        rank = next((i for i, text in enumerate(texts, start=1) if expected in text), None)
+        reciprocal_rank = 1.0 / rank if rank else 0.0
+        hit = rank is not None
         superseded = SUPERSEDED_FILENAME in files
         hits += 1 if hit else 0
         superseded_appearances += 1 if superseded else 0
+        reciprocal_rank_sum += reciprocal_rank
         details.append(
             {
                 "query": query,
                 "expected": expected,
                 "hit": hit,
+                "rank": rank,
+                "reciprocal_rank": round(reciprocal_rank, 4),
                 "superseded": superseded,
                 "top": [{"filename": r.filename, "page": r.page} for r in results],
             }
@@ -89,6 +98,7 @@ async def main() -> None:
         "queries": total,
         "recall_at_5": round(hits / total, 3),
         "hits": hits,
+        "mrr": round(reciprocal_rank_sum / total, 4),
         "superseded_appearances": superseded_appearances,
         "details": details,
     }
@@ -99,11 +109,13 @@ async def main() -> None:
     out.write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
 
     print(f"[{args.tag}] recall@5 = {hits}/{total} ({hits / total:.0%})")
+    print(f"[{args.tag}] MRR = {reciprocal_rank_sum / total:.4f}")
     print(f"[{args.tag}] superseded appearances = {superseded_appearances}/{total}")
     for detail in details:
         mark = "hit " if detail["hit"] else "MISS"
         sup = " SUPERSEDED" if detail["superseded"] else ""
-        print(f"  {mark} {detail['query']!r} -> {detail['expected']!r}{sup}")
+        where = f"@{detail['rank']}" if detail["rank"] else "@-"
+        print(f"  {mark} {where} {detail['query']!r} -> {detail['expected']!r}{sup}")
     print("record:", out)
 
 
