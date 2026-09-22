@@ -49,14 +49,32 @@ def extract_document_pages(path: Path, document_type: str) -> list[tuple[Optiona
     raise DocumentIngestionError(f"Unsupported document type '{document_type}'")
 
 
+def extract_pdf_page_texts(path: Path) -> list[tuple[int, str]]:
+    """Per-page text layer in document order, with no OCR escalation.
+
+    Unlike ``extract_document_pages`` this never raises ``DocumentRequiresOCR``:
+    a page carrying no text layer comes back as ``(page, "")`` so a caller can
+    route that page — and only that page — to OCR. A mixed PDF (some typed
+    pages, some scanned) is the case this exists for.
+    """
+    return _read_pdf_pages(path)
+
+
 def _extract_pdf_pages(path: Path) -> list[tuple[int, str]]:
+    pages = _read_pdf_pages(path)
+    if sum(len(text) for _, text in pages) == 0:
+        raise DocumentRequiresOCR("Document requires OCR")
+    return pages
+
+
+def _read_pdf_pages(path: Path) -> list[tuple[int, str]]:
+    """Per-page text layer; an individual page being empty is not an error."""
     try:
         reader = PdfReader(str(path))
     except Exception as exc:
         raise DocumentIngestionError(f"Cannot read PDF: {exc}") from exc
 
     pages: list[tuple[int, str]] = []
-    total_chars = 0
     for index, page in enumerate(reader.pages, start=1):
         try:
             text = (page.extract_text() or "").strip()
@@ -64,11 +82,7 @@ def _extract_pdf_pages(path: Path) -> list[tuple[int, str]]:
             raise DocumentIngestionError(
                 f"Cannot extract PDF text on page {index}: {exc}"
             ) from exc
-        total_chars += len(text)
         pages.append((index, text))
-
-    if total_chars == 0:
-        raise DocumentRequiresOCR("Document requires OCR")
     return pages
 
 

@@ -21,9 +21,20 @@ from pathlib import Path
 from typing import Optional
 
 from app.schemas.document import DocumentRecord, DocumentStatus
-from app.schemas.multimodal import OCRPageResult, PageEvidence, VisionAnalysisResult, VisionPageResult
+from app.schemas.extraction import ExtractionElement
+from app.schemas.multimodal import (
+    OCRPageResult,
+    OCRRegion,
+    PageEvidence,
+    VisionAnalysisResult,
+    VisionPageResult,
+)
 from app.schemas.resources import ResourceRequirements
-from app.services.document_ingestion import document_type_for
+from app.services.document_ingestion import (
+    DocumentIngestionError,
+    document_type_for,
+    extract_pdf_page_texts,
+)
 from app.services.document_preparer import DocumentPreparationError, DocumentPreparer, RenderedPage
 from app.services.knowledge_base import KnowledgeBase
 from app.services.log_context import get_job_context
@@ -71,6 +82,7 @@ class MultimodalService:
         max_pages: int = 50,
         vision_max_pages: int = 5,
         vision_wait_rounds: int = 5,
+        ocr_page_min_text_chars: int = 1,
     ) -> None:
         self._kb = knowledge_base
         self._preparer = preparer
@@ -85,10 +97,15 @@ class MultimodalService:
         self._max_pages = max_pages
         self._vision_max_pages = vision_max_pages
         self._vision_wait_rounds = max(vision_wait_rounds, 1)
+        self._ocr_min_text_chars = max(int(ocr_page_min_text_chars), 1)
 
     @property
     def knowledge_base(self) -> KnowledgeBase:
         return self._kb
+
+    @property
+    def ocr_available(self) -> bool:
+        return self._ocr is not None
 
     async def analyze(
         self,
@@ -180,24 +197,12 @@ class MultimodalService:
                     empty_text_error=str(exc),
                 )
             pages = []
+            elements: list[ExtractionElement] = []
             for rp in rendered:
-                try:
-                    regions = await self._ocr.recognize(rp.image_path)
-                except OCRProviderError as exc:
-                    logger.error(
-                        "ocr_failed",
-                        extra={
-                            "event": "ocr_failed",
-                            "user_id": user_id,
-                            "document_id": None,
-                            "page": rp.page,
-                            "provider": self._ocr.describe().get("provider"),
-                            "error": str(exc),
-                        },
-                    )
-                    regions = []
+                regions = await self._recognize(rp, user_id)
                 text = "\n".join(region.text for region in regions)
                 pages.append((rp.page, text))
+                elements.extend(self._ocr_elements(rp.page, regions))
             has_text = any(text.strip() for _, text in pages)
             if not has_text:
                 return await self._kb.ingest_pages(
@@ -208,12 +213,153 @@ class MultimodalService:
             return await self._kb.ingest_pages(
                 user_id, path, filename, pages,
                 metadata={"page_count": len(rendered), "ocr": True},
+                elements=elements,
+            )
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            _remove_empty_ancestors(tmp_dir.parent, self._tmp_root)
+
+    async def ingest_pdf(self, user_id: str, path: Path, filename: str) -> DocumentRecord:
+        """Ingest a PDF page by page, OCR-ing only the pages that need it.
+
+        A page whose text layer carries usable text is indexed from that text
+        layer (``source="text_layer"``, no bbox and no confidence — a PDF text
+        layer exposes neither, and inventing them would be a lie the audit trail
+        cannot afford). A page with no usable text layer is rendered and routed
+        to OCR, whose regions each keep their own bbox and confidence
+        (``source="ocr"``). Only the pages needing OCR are rendered.
+
+        This is the mixed-PDF path: a page-perfect text PDF and a fully scanned
+        PDF each keep their existing path (``ingest_document`` /
+        ``ingest_scanned``); this covers the case those two cannot express.
+        """
+        if self._ocr is None:
+            raise MultimodalError("OCR is not enabled on this deployment")
+        document_type = document_type_for(filename)
+        try:
+            page_texts = extract_pdf_page_texts(path)
+        except DocumentIngestionError:
+            # Unreadable PDF: let the knowledge base fail it cleanly and
+            # consistently with the text path rather than raising here.
+            return await self._kb.ingest_document(user_id, path, filename)
+
+        ocr_pages = [
+            page for page, text in page_texts if len(text) < self._ocr_min_text_chars
+        ]
+        tmp_dir = self._tmp_root / WorkspaceManager.safe_component(user_id) / "ingest"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            ocr_text: dict[int, str] = {}
+            ocr_elements: dict[int, list[ExtractionElement]] = {}
+            skipped_pages: list[int] = []
+            if ocr_pages:
+                try:
+                    rendered = await self._preparer.prepare(
+                        path, document_type, tmp_dir, pages=ocr_pages
+                    )
+                except DocumentPreparationError as exc:
+                    # Rendering legitimately fails sometimes (page cap, corrupt
+                    # page). Losing the readable text layer along with it would
+                    # be worse, so the OCR pages are dropped and named in the
+                    # document's metadata rather than hidden.
+                    logger.error(
+                        "ocr_render_failed",
+                        extra={
+                            "event": "ocr_render_failed",
+                            "user_id": user_id,
+                            "pages": ocr_pages,
+                            "error": str(exc),
+                        },
+                    )
+                    skipped_pages = list(ocr_pages)
+                    rendered = []
+                for rp in rendered:
+                    regions = await self._recognize(rp, user_id)
+                    ocr_text[rp.page] = "\n".join(region.text for region in regions)
+                    ocr_elements[rp.page] = self._ocr_elements(rp.page, regions)
+
+            pages: list[tuple[Optional[int], str]] = []
+            elements: list[ExtractionElement] = []
+            for page, text in page_texts:
+                if page in ocr_elements:
+                    pages.append((page, ocr_text[page]))
+                    elements.extend(ocr_elements[page])
+                elif text:
+                    pages.append((page, text))
+                    elements.append(
+                        ExtractionElement(
+                            type="text", page=page, text=text, source="text_layer"
+                        )
+                    )
+            metadata: dict = {
+                "page_count": len(page_texts),
+                # ``ocr`` keeps its document-level meaning — "this document had
+                # no text layer at all" — because that is what the vision path
+                # reads to choose whole-page over figure-only analysis. Per-page
+                # OCR provenance lives on the elements' ``source`` instead.
+                "ocr": not any(text for _, text in page_texts),
+            }
+            if skipped_pages:
+                metadata["ocr_skipped_pages"] = skipped_pages
+            if not any(text.strip() for _, text in pages):
+                return await self._kb.ingest_pages(
+                    user_id, path, filename, [],
+                    metadata=metadata,
+                    empty_text_error="Document requires OCR",
+                )
+            return await self._kb.ingest_pages(
+                user_id, path, filename, pages,
+                metadata=metadata,
+                elements=elements,
             )
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
             _remove_empty_ancestors(tmp_dir.parent, self._tmp_root)
 
     # ------------------------------------------------------------- internals
+
+    async def _recognize(self, rp: RenderedPage, user_id: str) -> list[OCRRegion]:
+        """OCR one rendered page.
+
+        A page that fails to OCR degrades to no regions (logged against the
+        page) instead of losing the rest of the document — the same contract
+        ``analyze`` already relies on.
+        """
+        try:
+            return await self._ocr.recognize(rp.image_path)
+        except OCRProviderError as exc:
+            logger.error(
+                "ocr_failed",
+                extra={
+                    "event": "ocr_failed",
+                    "user_id": user_id,
+                    "document_id": None,
+                    "page": rp.page,
+                    "provider": self._ocr.describe().get("provider"),
+                    "error": str(exc),
+                },
+            )
+            return []
+
+    @staticmethod
+    def _ocr_elements(page: int, regions: list[OCRRegion]) -> list[ExtractionElement]:
+        """One extraction element per OCR region.
+
+        Regions are never joined here: each keeps its own bbox and confidence,
+        so a consumer can tell which recognised text came from which part of the
+        page and trace a misread value back to where it was read.
+        """
+        return [
+            ExtractionElement(
+                type="text",
+                page=page,
+                text=region.text,
+                bbox=list(region.bbox) if region.bbox else None,
+                confidence=region.confidence,
+                source="ocr",
+            )
+            for region in regions
+        ]
 
     def _resolve_document_path(self, doc: DocumentRecord) -> Path:
         user_dir = self._uploads_root / WorkspaceManager.safe_component(doc.user_id)

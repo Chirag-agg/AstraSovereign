@@ -108,12 +108,18 @@ async def ingest(app, user_id: str) -> None:
             continue
         if document_type == "pdf":
             try:
-                extract_document_pages(path, "pdf")
+                pages = extract_document_pages(path, "pdf")
             except DocumentRequiresOCR:
                 await multimodal.ingest_scanned(user_id, path, path.name)
                 continue
             except DocumentIngestionError:
                 pass
+            else:
+                # Mirror the upload endpoint: a mixed PDF is routed per page so
+                # the harness indexes what the app indexes, not a parallel path.
+                if multimodal.ocr_available and any(not text for _, text in pages):
+                    await multimodal.ingest_pdf(user_id, path, path.name)
+                    continue
         await kb.ingest_document(user_id, path, path.name)
 
 

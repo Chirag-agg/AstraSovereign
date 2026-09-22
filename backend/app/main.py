@@ -456,6 +456,7 @@ def create_app(
         max_pages=settings.ocr_max_pages,
         vision_max_pages=settings.vision_max_pages,
         vision_wait_rounds=settings.vision_resource_wait_rounds,
+        ocr_page_min_text_chars=settings.ocr_page_min_text_chars,
     )
     if vision_config is not None:
         tools.append(DocumentVisionTool(multimodal=multimodal))

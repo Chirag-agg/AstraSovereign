@@ -84,7 +84,7 @@ async def upload_document(
 
     if document_type == "pdf":
         try:
-            extract_document_pages(destination, "pdf")
+            pages = extract_document_pages(destination, "pdf")
         except DocumentRequiresOCR:
             try:
                 doc = await multimodal.ingest_scanned(user_id, destination, filename)
@@ -96,6 +96,19 @@ async def upload_document(
             return _metadata(doc)
         except DocumentIngestionError:
             pass  # malformed PDF — let KnowledgeBase fail it cleanly
+        else:
+            # A mixed PDF (some typed pages, some scanned) is the one case the
+            # whole-document paths cannot express: keep the page text layers
+            # that exist and OCR only the pages that have none.
+            if multimodal.ocr_available and any(not text for _, text in pages):
+                try:
+                    doc = await multimodal.ingest_pdf(user_id, destination, filename)
+                except MultimodalError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail={"error": "ocr_unavailable", "message": str(exc)},
+                    )
+                return _metadata(doc)
 
     doc = await knowledge_base.ingest_document(user_id, destination, filename)
     return _metadata(doc)

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.schemas.document import ChunkRecord, DocumentRecord, DocumentStatus, SearchResult
+from app.schemas.extraction import ExtractionElement
 from app.services.document_ingestion import (
     DocumentIngestionError,
     DocumentRequiresOCR,
@@ -133,11 +134,17 @@ class KnowledgeBase:
         pages: list[tuple[Optional[int], str]],
         metadata: Optional[dict] = None,
         empty_text_error: str = "No extractable text found",
+        elements: Optional[list[ExtractionElement]] = None,
     ) -> DocumentRecord:
         """Ingest already-extracted ``(page, text)`` pairs (multimodal path).
 
         Used by the OCR pipeline for scanned PDFs and image files. When no text
         is produced, the document fails cleanly with ``empty_text_error``.
+
+        ``pages`` still drives chunking; ``elements`` — when a caller has real
+        provenance (an OCR region's bbox and confidence, a page that came from a
+        text layer) — drives the extraction artifact instead of the lossy
+        ``(page, text)`` shape.
         """
         document_type = document_type_for(filename)
         content_hash = _hash_file(path)
@@ -152,7 +159,7 @@ class KnowledgeBase:
         )
         try:
             return await self._ingest_pages(
-                user_id, doc, pages, merged_metadata, empty_text_error
+                user_id, doc, pages, merged_metadata, empty_text_error, elements=elements
             )
         except EmbeddingError as exc:
             return await self._fail_document(user_id, doc, str(exc))
@@ -206,6 +213,7 @@ class KnowledgeBase:
         pages: list[tuple[Optional[int], str]],
         metadata: dict,
         empty_text_error: str,
+        elements: Optional[list[ExtractionElement]] = None,
     ) -> DocumentRecord:
         pieces = build_chunks(pages, self._chunk_size, self._chunk_overlap)
         if not pieces:
@@ -234,9 +242,23 @@ class KnowledgeBase:
         # ``read_document`` serves. Failure here must not fail ingestion.
         if self._extraction_store is not None:
             try:
-                extraction = self._extractor.from_pages(
-                    doc.document_id, doc.filename, doc.document_type, pages
-                )
+                document_sha256 = (metadata or {}).get("content_hash", "")
+                if elements is not None:
+                    extraction = self._extractor.from_elements(
+                        doc.document_id,
+                        doc.filename,
+                        doc.document_type,
+                        elements,
+                        document_sha256=document_sha256,
+                    )
+                else:
+                    extraction = self._extractor.from_pages(
+                        doc.document_id,
+                        doc.filename,
+                        doc.document_type,
+                        pages,
+                        document_sha256=document_sha256,
+                    )
                 await asyncio.to_thread(self._extraction_store.put, user_id, extraction)
             except Exception:
                 logger.exception(

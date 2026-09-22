@@ -116,6 +116,12 @@ class Settings(BaseSettings):
     # the vision model is the registry-configured local multimodal model.
     ocr_enabled: bool = True
     ocr_max_pages: int = 50
+    # Per-page OCR routing. A PDF page whose text layer is shorter than this is
+    # treated as having no usable text layer and is routed to OCR instead, so a
+    # mixed PDF (some typed pages, some scanned) is handled page by page rather
+    # than whole-document. 1 means only a completely empty text layer is OCR'd —
+    # the conservative default that never overrides a page already carrying text.
+    ocr_page_min_text_chars: int = 1
     ocr_max_image_dimension: int = 4000
     ocr_render_scale: float = 2.0
     vision_max_pages: int = 5

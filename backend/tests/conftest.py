@@ -239,10 +239,13 @@ def make_multimodal_stack(
     vision_resources=None,
     capacity=None,
     vision_wait_rounds=3,
+    extraction_store=None,
 ):
     """Build a fully wired MultimodalService for deterministic tests.
 
-    Returns ``(service, scheduler, uploads_root, tmp_root)``.
+    Returns ``(service, scheduler, uploads_root, tmp_root)``. Pass
+    ``extraction_store`` when the test needs to inspect the extraction artifact
+    the ingestion seam persisted.
     """
     from pathlib import Path
 
@@ -253,6 +256,7 @@ def make_multimodal_stack(
     kb = KnowledgeBase(
         vector_store=JsonVectorStore(str(Path(tmp_path) / "kb")),
         embedding_provider=FakeEmbeddingProvider(),
+        extraction_store=extraction_store,
     )
     scheduler = InMemoryResourceScheduler(
         InMemoryResourceProvider(capacity or default_capacity())
