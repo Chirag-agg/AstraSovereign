@@ -6,11 +6,16 @@ import { cn } from "@/lib/utils";
 /**
  * The AstraSovereign mark.
  *
- * Six triangles closing into a hexagon around a sealed core: the six things
- * the router can reach — reason, code, math, document, vision, embed — all
- * pointing inward, nothing leaving. The scanline fill is a halftone, not a
- * gradient; the small squares at each vertex are control points, the visual
- * language of a drawing under construction rather than a finished logo.
+ * Six triangles closing into a hexagon around a sealed core, all pointing
+ * inward, nothing leaving. Five wedges answer to the five capabilities
+ * config/models.yaml declares — general, coding, math, document, vision —
+ * and the sixth is deliberately unclaimed, because adding a capability is a
+ * config change. MarkSection labels them and leaves that slot empty rather
+ * than inventing a name to make the geometry tidy.
+ *
+ * The scanline fill is a halftone, not a gradient; the small squares at each
+ * vertex are control points, the visual language of a drawing under
+ * construction rather than a finished logo.
  *
  * `interactive` adds parallax tilt toward the pointer with an idle drift.
  * It is CSS transform only — no WebGL, because on a demo box the GPU is busy
@@ -148,16 +153,67 @@ export function AstraMark({
   );
 }
 
-/** Compact lockup for the nav and the app shell. */
-export function AstraWordmark({ className }: { className?: string }) {
+/**
+ * The wordmark, set like a title card.
+ *
+ * Poster typography is condensed caps with the tracking pulled almost shut,
+ * over a hairline, with the credit line underneath set wide and small. The
+ * width axis is doing the work: Bricolage at wdth 58 gives the tall narrow
+ * letterforms a one-sheet uses, which a default-width grotesque never will.
+ *
+ * The A of ASTRA carries the accent so the mark and the word share one
+ * colour event instead of two.
+ */
+export function AstraWordmark({
+  className,
+  size = 22,
+  tagline = false,
+  taglineText = "Sovereign OS",
+}: {
+  className?: string;
+  size?: number;
+  /** Adds the rule and the credit line beneath the title. */
+  tagline?: boolean;
+  taglineText?: string;
+}) {
+  const titleSize = Math.round(size * 0.78);
+  // With the rule and the credit line the text stack is roughly a quarter
+  // taller than the title alone, so the mark grows to match it. Optically
+  // pairing the mark with the whole block, not just the first line, is what
+  // keeps the lockup from looking top-heavy.
+  const markSize = tagline ? Math.round(size * 1.3) : size;
   return (
-    <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <AstraMark size={22} handles={false} />
-      <span
-        className="font-mono uppercase"
-        style={{ fontSize: 12, letterSpacing: "0.12em", color: "var(--bone)" }}
-      >
-        AstraSovereign
+    <span className={cn("inline-flex items-center", className)} style={{ gap: size * 0.42 }}>
+      <AstraMark size={markSize} handles={false} />
+      <span className="flex flex-col" style={{ minWidth: 0 }}>
+        <span
+          className="uppercase truncate"
+          style={{
+            fontFamily: "var(--display)",
+            fontVariationSettings: "'wdth' 58",
+            fontWeight: 800,
+            fontSize: titleSize,
+            lineHeight: 0.92,
+            letterSpacing: "0.005em",
+            color: "var(--bone)",
+          }}
+        >
+          Astra<span style={{ color: "var(--signal)" }}>Sovereign</span>
+        </span>
+        {tagline && (
+          <>
+            <span
+              aria-hidden="true"
+              style={{ display: "block", height: 1, background: "var(--ash)", margin: `${Math.max(3, size * 0.16)}px 0 ${Math.max(2, size * 0.1)}px` }}
+            />
+            <span
+              className="font-mono uppercase truncate"
+              style={{ fontSize: Math.max(7.5, size * 0.33), letterSpacing: "0.34em", color: "var(--granite)" }}
+            >
+              {taglineText}
+            </span>
+          </>
+        )}
       </span>
     </span>
   );

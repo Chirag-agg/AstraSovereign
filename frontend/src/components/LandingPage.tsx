@@ -71,6 +71,7 @@ function SovereigntyStrip() {
 }
 
 function Hero({ onEnter }: { onEnter: () => void }) {
+  const [kbOpen, setKbOpen] = React.useState(true);
   const ref = useGsap(({ element }) => {
     if (prefersReducedMotion()) return;
     gsap.from(element.querySelectorAll("[data-hero-step]"), {
@@ -140,22 +141,50 @@ function Hero({ onEnter }: { onEnter: () => void }) {
             </div>
           </div>
 
+          {/*
+            The card is a legend for the growth field behind it, so it has to
+            sit *on* the field rather than in it: at 92% canvas the canopy came
+            through the panel and turned the copy to mush. It is opaque now,
+            and it closes — a legend you cannot dismiss is furniture.
+          */}
           <Parallax speed={-0.1} className="hidden lg:flex justify-end" style={{ pointerEvents: "auto" }}>
-            <div style={{ width: 268, border: "1px solid var(--carbon)", borderRadius: 10, background: "color-mix(in srgb, var(--canvas) 92%, transparent)", backdropFilter: "blur(10px)", padding: 18 }}>
-              <div className="flex items-center gap-2.5" style={{ paddingBottom: 14, borderBottom: "1px solid var(--carbon)" }}>
-                <AstraMark size={26} handles={false} />
-                <span className="font-mono uppercase" style={{ fontSize: 10.5, letterSpacing: "0.12em", color: "var(--stone)" }}>
-                  Knowledge base
-                </span>
+            {kbOpen ? (
+              <div style={{ width: 268, border: "1px solid var(--ash)", borderRadius: 10, background: "var(--canvas)", padding: 18, boxShadow: "0 18px 50px -20px rgba(0,0,0,0.9)" }}>
+                <div className="flex items-center gap-2.5" style={{ paddingBottom: 14, borderBottom: "1px solid var(--carbon)" }}>
+                  <AstraMark size={26} handles={false} />
+                  <span className="font-mono uppercase" style={{ fontSize: 10.5, letterSpacing: "0.12em", color: "var(--stone)" }}>
+                    Knowledge base
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setKbOpen(false)}
+                    aria-label="Close the knowledge base note"
+                    className="ml-auto shrink-0"
+                    style={{ background: "transparent", border: "none", color: "var(--graphite)", cursor: "pointer", padding: 2, lineHeight: 0 }}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true">
+                      <path d="M1 1 L11 11 M11 1 L1 11" stroke="currentColor" strokeWidth="1.4" fill="none" />
+                    </svg>
+                  </button>
+                </div>
+                <p style={{ margin: "14px 0 0", fontSize: 13.5, lineHeight: 1.5, color: "var(--granite)" }}>
+                  Every document you ingest branches from one local root. It grows on your
+                  hardware, it is searched on your hardware, and it has nowhere else to go.
+                </p>
+                <div className="font-mono" style={{ marginTop: 14, fontSize: 10.5, letterSpacing: "0.08em", color: "var(--graphite)" }}>
+                  CLICK THE GROWTH TO RESEED
+                </div>
               </div>
-              <p style={{ margin: "14px 0 0", fontSize: 13.5, lineHeight: 1.5, color: "var(--granite)" }}>
-                Every document you ingest branches from one local root. It grows on your
-                hardware, it is searched on your hardware, and it has nowhere else to go.
-              </p>
-              <div className="font-mono" style={{ marginTop: 14, fontSize: 10.5, letterSpacing: "0.08em", color: "var(--graphite)" }}>
-                CLICK THE GROWTH TO RESEED
-              </div>
-            </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setKbOpen(true)}
+                className="font-mono uppercase self-start"
+                style={{ fontSize: 10, letterSpacing: "0.14em", padding: "7px 11px", borderRadius: 2, border: "1px solid var(--carbon)", background: "var(--canvas)", color: "var(--graphite)", cursor: "pointer" }}
+              >
+                What is this?
+              </button>
+            )}
           </Parallax>
         </div>
       </div>

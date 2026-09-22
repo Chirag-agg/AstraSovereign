@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import type { WorkbenchSection } from "./types";
 import type { DocumentMeta, JobSummary } from "@/lib/types";
+import { AstraMark, AstraWordmark } from "@/components/brand/AstraMark";
 
 interface SidebarProps {
   currentSection: WorkbenchSection;
@@ -176,35 +177,27 @@ export default function Sidebar({
         aria-label="Workspace Navigation"
       >
         {/* Brand & Collapse Header (AstraSovereign) */}
-        <div className="flex h-14 items-center justify-between px-3.5 border-b border-zinc-100 bg-white">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-[var(--accent)] to-[var(--brand-300)] text-white shadow-xs font-bold text-sm shrink-0">
-              <span className="tracking-tighter">AS</span>
-            </div>
-            {!collapsed && (
-              <div className="flex flex-col truncate transition-opacity duration-200">
-                <span className="text-sm font-extrabold text-zinc-900 tracking-tight leading-tight truncate">
-                  AstraSovereign
-                </span>
-                <span className="text-[10px] font-semibold text-purple-600 tracking-wide uppercase truncate">
-                  Sovereign OS
-                </span>
-              </div>
+        <div
+          className="flex h-14 items-center justify-between px-3.5"
+          style={{ borderBottom: "1px solid var(--carbon)", background: "var(--surface-panel)" }}
+        >
+          <div className="flex items-center overflow-hidden">
+            {collapsed ? (
+              <AstraMark size={27} handles={false} />
+            ) : (
+              <AstraWordmark size={21} tagline />
             )}
           </div>
 
           <button
             type="button"
             onClick={() => setCollapsed(!collapsed)}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer shrink-0"
+            className="flex h-7 w-7 items-center justify-center rounded-[3px] transition-colors cursor-pointer shrink-0"
+            style={{ color: "var(--granite)", background: "transparent", border: "1px solid var(--carbon)" }}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            {collapsed ? (
-              <ChevronRight className="w-4 h-4 text-purple-600" />
-            ) : (
-              <ChevronLeft className="w-4 h-4" />
-            )}
+            {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
           </button>
         </div>
 

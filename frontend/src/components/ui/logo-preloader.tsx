@@ -19,8 +19,11 @@ import { prefersReducedMotion } from "@/lib/motion";
  */
 
 const SESSION_KEY = "sovereign.preloaded";
-const MIN_MS = 900;
-const MAX_MS = 4000;
+// The floor is what the brand moment is worth; the ceiling is the promise
+// that a stalled font request can never trap anyone behind it. Between the
+// two, a click skips straight to the lift — the curtain is never a wall.
+const MIN_MS = 2200;
+const MAX_MS = 6000;
 
 export function LogoPreloader() {
   const [mounted, setMounted] = React.useState(false);
@@ -48,6 +51,8 @@ export function LogoPreloader() {
       // ignore
     }
   }, []);
+
+  const skipRef = React.useRef<(() => void) | null>(null);
 
   React.useEffect(() => {
     if (!mounted) return;
@@ -78,17 +83,26 @@ export function LogoPreloader() {
       onUpdate: paint,
     });
 
-    const finish = () => {
+    // `skipped` collapses the minimum-display wait: someone who clicks has
+    // told us they are done looking at it.
+    const finish = (skipped = false) => {
       if (finished) return;
       finished = true;
       creep.kill();
 
       const elapsed = performance.now() - started;
-      const wait = Math.max(0, MIN_MS - elapsed);
+      const wait = skipped ? 0 : Math.max(0, MIN_MS - elapsed);
+
+      // The remaining floor is spent *climbing*, not waiting. Killing the
+      // creep and sitting on a delay froze the counter mid-number for as long
+      // as two seconds and then jumped it to 100, which reads as a hang.
+      // Stretching the last stretch over the wait keeps the number moving the
+      // whole time and lands it on 100 exactly as the curtain goes.
+      const climb = skipped ? 0.22 : Math.max(0.45, wait / 1000);
 
       gsap
-        .timeline({ delay: wait / 1000 })
-        .to(progress, { value: 100, duration: 0.42, ease: "power2.inOut", onUpdate: paint })
+        .timeline()
+        .to(progress, { value: 100, duration: climb, ease: "power1.inOut", onUpdate: paint })
         .to(root.querySelector("[data-preloader-content]"), { opacity: 0, duration: 0.26, ease: "power2.in" }, ">-0.05")
         // Split: the two halves part and leave.
         .to(root.querySelector("[data-curtain-top]"), { yPercent: -100, duration: 0.72, ease: "power4.inOut" }, "<")
@@ -107,11 +121,24 @@ export function LogoPreloader() {
         ? Promise.resolve()
         : new Promise<void>((resolve) => window.addEventListener("load", () => resolve(), { once: true })),
     ]);
-    void ready.then(finish);
-    const ceiling = window.setTimeout(finish, MAX_MS);
+    void ready.then(() => finish());
+    const ceiling = window.setTimeout(() => finish(), MAX_MS);
+
+    // The hint only appears once waiting is a choice rather than a moment.
+    const hint = root.querySelector("[data-preloader-skip]");
+    if (hint) gsap.to(hint, { opacity: 1, duration: 0.5, delay: 1.1, ease: "power2.out" });
+
+    // Click, tap, Escape or Enter all lift it.
+    skipRef.current = () => finish(true);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" || event.key === "Enter" || event.key === " ") finish(true);
+    };
+    window.addEventListener("keydown", onKey);
 
     return () => {
       window.clearTimeout(ceiling);
+      window.removeEventListener("keydown", onKey);
+      skipRef.current = null;
       creep.kill();
       document.documentElement.style.overflow = "";
     };
@@ -120,7 +147,13 @@ export function LogoPreloader() {
   if (!mounted || gone) return null;
 
   return (
-    <div ref={rootRef} className="fixed inset-0 z-[9999]" aria-hidden="true">
+    <div
+      ref={rootRef}
+      className="fixed inset-0 z-[9999]"
+      aria-hidden="true"
+      onClick={() => skipRef.current?.()}
+      style={{ cursor: "pointer" }}
+    >
       <div data-curtain-top className="absolute inset-x-0 top-0" style={{ height: "50.5%", background: "var(--canvas)" }} />
       <div data-curtain-bottom className="absolute inset-x-0 bottom-0" style={{ height: "50.5%", background: "var(--canvas)" }} />
 
@@ -151,6 +184,14 @@ export function LogoPreloader() {
             AstraSovereign
           </span>
         </div>
+
+        <span
+          data-preloader-skip
+          className="font-mono uppercase"
+          style={{ fontSize: 9.5, letterSpacing: "0.22em", color: "var(--graphite)", opacity: 0 }}
+        >
+          Click to skip
+        </span>
       </div>
     </div>
   );
