@@ -513,6 +513,76 @@ def test_exact_search_still_finds_a_partial_document_and_flags_it(tmp_path):
     assert unreadable_pages_notice([2]) in result.content
 
 
+TABLE_PAGE_REGIONS: dict[int, list[tuple[str, list[int], float]]] = {
+    1: [
+        ("Course", [100, 100, 160, 140], 0.90),
+        ("Thickness (mm)", [400, 100, 500, 140], 0.90),
+        ("Remarks", [700, 100, 780, 140], 0.90),
+        ("C1", [100, 160, 160, 200], 0.90),
+        ("13.4", [400, 160, 470, 200], 0.90),
+        ("C2", [100, 220, 160, 260], 0.90),
+        ("10.9", [400, 220, 470, 260], 0.90),
+        ("C3", [100, 280, 160, 320], 0.90),
+        ("11.2", [400, 280, 470, 320], 0.90),
+        ("C4", [100, 340, 160, 380], 0.90),
+        ("12.8", [400, 340, 470, 380], 0.90),
+    ]
+}
+
+
+def _ingest_a_table_page(root: Path, monkeypatch, *, reconstruct: bool):
+    """Ingest one table-shaped scan; return (indexed chunk texts, extraction)."""
+    from app.services import extractor as extractor_module
+    from app.services.vector_store import JsonVectorStore
+
+    captured: list[list[str]] = []
+    real_upsert = JsonVectorStore.upsert_chunks
+
+    async def spy(self, user_id, chunks):
+        captured.append([chunk.text for chunk in chunks])
+        return await real_upsert(self, user_id, chunks)
+
+    monkeypatch.setattr(JsonVectorStore, "upsert_chunks", spy)
+    if not reconstruct:
+        monkeypatch.setattr(
+            extractor_module, "reconstruct_tables", lambda elements: ([], list(elements))
+        )
+
+    store = JsonExtractionStore(Path(root) / "extractions")
+    service, _scheduler, uploads, _tmp = make_multimodal_stack(
+        Path(root), ocr=GeometryFakeOCR(TABLE_PAGE_REGIONS), extraction_store=store
+    )
+    path = upload_path(uploads, "scan.pdf")
+    make_blank_pdf(path, pages=1)
+
+    doc = run(service.ingest_scanned("user-001", path, "scan.pdf"))
+    extraction = service.knowledge_base.get_extraction("user-001", doc.document_id)
+    return captured[-1], extraction
+
+
+def test_indexed_chunk_text_is_unchanged_by_table_reconstruction(tmp_path, monkeypatch):
+    """The table is a second reading of the same regions, not a new source.
+
+    Chunks are cut from the page texts the OCR pass produced; the reconstruction
+    is written to the extraction artifact ``read_document`` serves. This pins
+    that separation. If reconstruction ever starts feeding the index, a change
+    to how a document is *displayed* would silently change what it *matches*.
+    """
+    rebuilt, with_table = _ingest_a_table_page(
+        tmp_path / "with", monkeypatch, reconstruct=True
+    )
+    plain, without_table = _ingest_a_table_page(
+        tmp_path / "without", monkeypatch, reconstruct=False
+    )
+
+    # The two runs differ in the artifact — which is the point of the pair.
+    assert [element for element in with_table.elements if element.type == "table"]
+    assert not [element for element in without_table.elements if element.type == "table"]
+    assert with_table.markdown != without_table.markdown
+    # ...and not in a single character of what was indexed.
+    assert rebuilt and rebuilt == plain
+
+
 def test_a_document_with_no_lost_pages_carries_no_warning(tmp_path):
     """The warning is about a fact, not a decoration on every document."""
     ocr = GeometryFakeOCR({2: [("SCANNED PAGE TWO", [5, 6, 120, 26], 0.88)]})

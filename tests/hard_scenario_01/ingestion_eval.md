@@ -19,6 +19,7 @@ superseded appearances = 0/20**, and no existing test may break.
 | 1 — provenance through the seam | 565 passed, 0 failed, 0 skipped | 19/20 (95%) | 0.6875 | 0/20 | 46 | 100% | 100% | ocr 100%/100%, text layer 0%/0% |
 | 1b — eval expectation corrected | 565 passed, 0 failed, 0 skipped | 20/20 (100%) | 0.7375 | 0/20 | 46 | 100% | 100% | unchanged from 1 |
 | 2.1 — per-page scan detection, loud page loss | 574 passed, 0 failed, 0 skipped | 20/20 (100%) | 0.7375 | 0/20 | 46 | 100% | 100% | unchanged from 1b |
+| 2.3–2.6 — tables from OCR geometry | 596 passed, 0 failed, 0 skipped | 20/20 (100%) | 0.7375 | 0/20 | 29 | 100% | 100% | 2026: 1 table, 6/6 rows, 7/7 values (100%); 2021: 1 table, 5/5 values, course 5 a row with no reading; P&ID: 0 tables |
 
 Row 1b is not a code change to the retriever: it corrects the *eval's* expected
 substring (see Step 0.2 below). Chunk text is byte-identical to row 1, so the
@@ -29,6 +30,16 @@ Row 2.1 adds nine tests and changes no chunk text: `ingest_pdf` and
 retrieval numbers and the extraction artifact are byte-identical to 1b. Its runs are
 `bench/results/20260922T144645Z_retrieval_eval_phase2.1.json` and
 `bench/results/20260922T144400Z_extraction_eval_phase2.1.json`.
+
+Row 2.3–2.6 adds twenty-two tests (12 synthetic-geometry, 9 real-engine
+integration, 1 pinning chunk byte-identity) and **drops `2026 elements` from 46
+to 29** — not a loss: 18 OCR fragments that were the table became one `table`
+element. The count is a shape change, and the value it is there to watch is
+`% bbox` / `% confidence`, both still 100%. Neither retrieval number moved,
+because chunks are cut from the page texts and the table is a second reading
+written to the extraction artifact; `test_indexed_chunk_text_is_unchanged_by_
+table_reconstruction` ingests the same table-shaped scan with reconstruction on
+and off and asserts the indexed chunk texts are equal in both runs.
 
 ## Phase 1 detail (2026-09-22)
 
@@ -174,6 +185,121 @@ and page list; the `read_document` prefix; the `document_search` prefix; the
 fully-read document carrying no warning anywhere.
 
 
+
+## Phase 2.3–2.6 detail (2026-09-22) — tables from OCR geometry
+
+`backend/app/services/table_reconstruction.py` is pure: no model, no I/O, no
+schema knowledge beyond the extraction element. It takes one page's OCR
+fragments and returns `(table_elements, leftover_elements)`; a fragment either
+becomes part of exactly one table or is handed back untouched. Rows come from
+vertical position (nearest-centre clustering, tolerance = 0.6 × the page's
+median element height), columns from the header row's own x-intervals, cells
+from x-overlap. No LLM is asked to guess a structure and no text is reflowed.
+
+Nothing is invented and nothing is chosen between: a cell keeps **every**
+candidate that fell into it (a struck-through printed value and the handwritten
+correction beside it are two different numbers), each with the bbox and
+confidence of the region it was read from; a cell's confidence is the minimum of
+its candidates'. Units are never converted — `0.455 in` stays `0.455 in`,
+because converting it here would bury the unit the instrument reported.
+
+Acceptance rule: ≥3 data rows, ≥2 columns, and otherwise the page keeps its
+fragments exactly as they arrived. Two extra conditions were added during
+implementation and are flagged below because they are judgment calls, not
+restatements of the spec.
+
+### Three judgment calls
+
+1. **"≥70% of rows matching the column count" is read as geometric
+   conformance**, not as a count of populated cells. Literally counted, the 2026
+   sheet's rows with an empty `Remarks` cell have 2 cells against 3 columns —
+   33%, which would reject the very table the spec requires be found. Read as
+   "every fragment in the row maps to exactly one column band, no fragment
+   left over", all fixture rows conform. The measurement this feeds is
+   `matched / (len(data) + 1) >= 0.70`.
+2. **A content guard was added beyond the spec: `_MIN_NUMERIC_ROWS = 0.5`** —
+   most data rows must carry a reading. Geometry alone cannot separate a table
+   from a justified block of prose whose lines happen to wrap at the same place:
+   both give aligned fragments in aligned columns. Only content distinguishes
+   them, and the unit test `test_a_multiline_paragraph_is_not_a_table` is
+   unsatisfiable without this. A wrong table is worse than no table.
+3. **A fragment's column is decided by its centre, bounded by the neighbouring
+   column's header** — the plain "≥90% of its width inside one band" test is
+   what the module started with, and it *dropped* the 2026 sheet's handwritten
+   `11.6`. The correction is drawn 160 px right of the value it replaces, so OCR
+   reports it spanning the gap between the thickness and remarks columns: 0.78
+   of its width in the thickness band, blocked by the 0.9 rule, and it fell out
+   of the table as a loose text element (it survived, but the cell held only
+   `10.4`). The rule now reads: a fragment whose centre is in a band belongs to
+   that band provided it never reaches another column's *header*. That is what
+   the width share was a proxy for — a reading sits under its own label, a
+   caption runs across the labels — and it is the caption case that the rule is
+   for. A caption spanning the table still overlaps the other headers and is
+   still rejected. Verified against the synthetic caption, P&ID-scatter and
+   prose fixtures, which all still report zero tables.
+
+### Measured, per fixture
+
+| fixture | tables | data rows | cells | cells w/ bbox | ambiguous cells | values recovered | accuracy |
+|---|---|---|---|---|---|---|---|
+| inspection_report_2026.pdf | 1 | 6 | 14 | 100% | 1 | 7/7 | 100% |
+| inspection_report_2021.pdf | 1 | 6 | 12 | 100% | 0 | 5/5 | 100% |
+| tank204_pid_extract.png | **0** | — | — | — | — | — | — |
+| tank204_nameplate.jpg | 0 | — | — | — | — | — | — |
+| SOP-09_Rev2.pdf | 0 | — | — | — | — | — | — |
+| SOP-09_Rev3.pdf | 0 | — | — | — | — | — | — |
+
+2021 has six rows and five values by design: course 5 could not be surveyed, and
+it gets a row with no reading rather than a reading it never had. Nothing was
+invented into it — the recovered values are exactly `READINGS_2021`.
+
+**Misread cells: none.** `extraction_eval.py` compares every value against
+`constants.py` under whitespace/case-insensitive numeric compare and lists every
+miss with its OCR confidence; the list is empty for both reports, so there is no
+confidence figure to report. The `0.455 in` reading was checked to be present
+*as written* — the converted `11.56` is asserted absent, so the pass is not a
+conversion in disguise.
+
+`read_document` renders the 2026 table verbatim as:
+
+```
+| Course | Thickness (mm) | Remarks |
+| --- | --- | --- |
+| C1 | 13.4 |  |
+| C2 | 10.9 |  |
+| C3 | 11.2 |  |
+| C4 | 12.8 |  |
+| C5 | 10.4 | 11.6 (2 candidates — ambiguous) | re-shot |
+| C6 | 0.455 in | as reported |
+```
+
+### Not verified
+
+- **Page 3 of the 2026 scan reads `Course 5 re-shot after probe fault - use 11`
+  — the trailing `.6` is lost by the OCR engine.** This is an engine reading, not
+  a reconstruction error: the fragment arrives from RapidOCR already truncated,
+  and the markdown prints what arrived. It is recorded here rather than patched,
+  because inventing the missing characters is precisely what this branch exists
+  not to do.
+- `run_scenario.py` was **not** re-run. The last run scored 1/20 with a known
+  confound (a `compute`-node model that is not pulled locally) and no GPU run is
+  available in this session; a CPU re-run would add nothing to a number already
+  established as unusable for this branch.
+- The band-boundary rule in judgment call 3 is measured against the scenario
+  fixtures and the synthetic suite. No fixture exists for a genuinely merged
+  (spanned) table cell; that shape is assumed out of scope for this phase.
+
+**Test coverage added.** `backend/tests/test_table_reconstruction.py` (12 tests)
+pins the geometry with hand-placed boxes: a clean grid; a ~1° skewed page; a
+missing cell leaving its column empty; two values in one cell in reading order;
+a wrapped remark merging into the row above; a title block above the table
+excluded; and three shapes that must *not* become tables (a wrapped paragraph,
+a P&ID-style label scatter, two data rows). `backend/tests/test_scenario_table_
+integration.py` (9 tests, `rapidocr` marker) runs the same reconstruction on the
+real fixtures through the real engine and scores it against `constants.py`.
+
+Runs: `bench/results/20260922T153717Z_extraction_eval_phase2_tables.json` and
+`bench/results/20260922T153901Z_retrieval_eval_phase2_tables.json`.
 
 Branch point: `fix/model-routing-and-compute-verification`.
 Machine: Intel i5-12450HX (8C/12T), 15.7 GB RAM, NVIDIA RTX 3050 6 GB Laptop

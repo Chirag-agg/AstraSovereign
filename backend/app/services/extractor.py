@@ -21,8 +21,10 @@ from typing import Optional
 from app.schemas.extraction import (
     DocumentExtraction,
     ExtractionElement,
+    TableCell,
     TableData,
 )
+from app.services.table_reconstruction import reconstruct_tables
 
 
 def _normalize_text(text: str) -> str:
@@ -67,16 +69,49 @@ def make_element_id(
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
+def _cell_text(cell: TableCell) -> str:
+    """Every candidate, never just one.
+
+    A cell with two values is the single most dangerous thing a reconstruction
+    can hand a reader: a struck-through printed value and the handwritten
+    correction beside it are two different numbers, and printing either alone
+    is a silent choice. Both are printed, with the count named.
+    """
+    texts = [(candidate.text or "").strip() for candidate in cell.candidates]
+    texts = [text for text in texts if text]
+    if not texts:
+        return ""
+    if len(texts) == 1:
+        return _escape_cell(texts[0])
+    joined = " | ".join(_escape_cell(text) for text in texts)
+    return f"{joined} ({len(texts)} candidates — ambiguous)"
+
+
+def _escape_cell(text: str) -> str:
+    """Keep one cell on one markdown row. The characters are markdown's, not
+    the document's: nothing is reworded, only stopped from ending the row."""
+    return text.replace("|", "\\|").replace("\n", " ").replace("\r", " ")
+
+
 def _render_table_markdown(table: TableData) -> str:
     """Markdown rendering of a reconstructed table; every candidate is kept."""
-    lines: list[str] = []
-    if table.header:
-        lines.append("| " + " | ".join(table.header) + " |")
-        lines.append("| " + " | ".join("---" for _ in table.header) + " |")
+    width = max(
+        [len(table.header)]
+        + [1 + max((cell.col for cell in row), default=-1) for row in table.rows]
+        or [0]
+    )
+    if width <= 0:
+        return ""
+    header = list(table.header) + [""] * (width - len(table.header))
+    lines = [
+        "| " + " | ".join(_escape_cell(text) for text in header) + " |",
+        "| " + " | ".join("---" for _ in range(width)) + " |",
+    ]
     for row in table.rows:
-        cells = []
+        cells = [""] * width
         for cell in row:
-            cells.append(" / ".join(cell.candidates))
+            if 0 <= cell.col < width:
+                cells[cell.col] = _cell_text(cell)
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
 
@@ -115,7 +150,7 @@ class DocumentExtractor:
         markdown: Optional[str] = None,
         unreadable_pages: Optional[list[int]] = None,
     ) -> DocumentExtraction:
-        ordered: list[ExtractionElement] = []
+        prepared: list[ExtractionElement] = []
         max_page = 0
         for index, element in enumerate(elements):
             if element.page is not None:
@@ -132,7 +167,23 @@ class DocumentExtractor:
                     element.bbox,
                 )
             # Never mutate the caller's element.
+            prepared.append(element.model_copy(update=updates) if updates else element)
+
+        ordered: list[ExtractionElement] = []
+        for index, element in enumerate(self._with_tables(prepared)):
+            updates = {}
+            if element.order != index:
+                updates["order"] = index
+            if element.element_id is None:
+                updates["element_id"] = make_element_id(
+                    document_sha256,
+                    element.page,
+                    element.type,
+                    element.text,
+                    element.bbox,
+                )
             ordered.append(element.model_copy(update=updates) if updates else element)
+
         body = markdown if markdown is not None else self._markdown_for(ordered)
         notice = unreadable_pages_notice(unreadable_pages or [])
         if notice:
@@ -187,6 +238,73 @@ class DocumentExtractor:
             markdown="\n\n".join(sections),
             unreadable_pages=unreadable_pages,
         )
+
+    @staticmethod
+    def _inside(element: ExtractionElement, bbox: Optional[list[float]]) -> bool:
+        """Does the element's centre sit inside ``bbox``?
+
+        The centre, not the whole box: a reconstructed table's bbox is the union
+        of its members, so every member is inside by construction, but a cell
+        that overhangs the union by a fraction of a pixel must not be lost.
+        """
+        if not bbox or element.bbox is None or len(element.bbox) != 4:
+            return False
+        centre_x = (element.bbox[0] + element.bbox[2]) / 2.0
+        centre_y = (element.bbox[1] + element.bbox[3]) / 2.0
+        return bbox[0] <= centre_x <= bbox[2] and bbox[1] <= centre_y <= bbox[3]
+
+    @staticmethod
+    def _with_tables(elements: list[ExtractionElement]) -> list[ExtractionElement]:
+        """Replace each page's OCR fragments with the table they formed.
+
+        Reconstruction is per page — a table never spans a page break — and it
+        only ever consumes OCR fragments: a text-layer element carries no bbox,
+        so it has no geometry to reconstruct from and is returned exactly as it
+        arrived. A page that yields no table comes back untouched, which is the
+        common case and must stay free of cost.
+
+        The table takes the position of its first member in document order, so
+        reading order is preserved without re-sorting anything.
+        """
+        by_page: dict[Optional[int], list[ExtractionElement]] = {}
+        for element in elements:
+            by_page.setdefault(element.page, []).append(element)
+
+        positions = {id(element): index for index, element in enumerate(elements)}
+        table_at: dict[int, ExtractionElement] = {}
+        consumed: set[int] = set()
+
+        for page_elements in by_page.values():
+            tables, leftovers = reconstruct_tables(page_elements)
+            if not tables:
+                continue
+            leftover_ids = {id(element) for element in leftovers}
+            members = [
+                element for element in page_elements if id(element) not in leftover_ids
+            ]
+            for table in tables:
+                owned = [
+                    element for element in members if DocumentExtractor._inside(element, table.bbox)
+                ]
+                if not owned:
+                    continue
+                anchor = min(owned, key=lambda element: positions[id(element)])
+                table_at[id(anchor)] = table
+                # Only what a table actually took is dropped from the page. An
+                # element the reconstruction consumed but no table claimed stays
+                # in the artifact as it arrived: a fragment is never lost by
+                # being placed nowhere.
+                consumed.update(id(element) for element in owned)
+
+        if not consumed:
+            return elements
+        rebuilt: list[ExtractionElement] = []
+        for element in elements:
+            if id(element) in table_at:
+                rebuilt.append(table_at[id(element)])
+            elif id(element) not in consumed:
+                rebuilt.append(element)
+        return rebuilt
 
     @staticmethod
     def _element_body(element: ExtractionElement) -> str:

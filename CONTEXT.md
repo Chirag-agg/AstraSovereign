@@ -680,9 +680,11 @@ Implemented and working locally (backend + frontend + local models + Docker):
   closure is vendored under `presentation/node_modules` (pinned `4.0.1`) and the
   real `render.cjs` is covered by a `node`-marked integration test; see
   `docs/OFFLINE_BUNDLE.md`.
-- Tests: backend `pytest` (467 passed, 17 skipped — docker/node-marked,
-  environment-gated, as of 2026-09-19) and frontend typecheck + 67 tests +
-  build (frontend not re-run this session; not expected to be affected).
+- Tests: backend `pytest` (596 passed, 0 skipped as of 2026-09-22 — the
+  docker/node-marked tests run here because Docker and Node are present; the
+  2026-09-19 figure of 467 passed / 17 skipped predates this branch) and
+  frontend typecheck + 67 tests + build (frontend not re-run this session; not
+  expected to be affected).
 - SQLite job updates are flat: 200 status updates measured at ~0.27 ms/update with
   1 job and ~0.25 ms/update with 200 jobs (0.93x) - the old full-table rewrite is
   gone.
@@ -706,6 +708,27 @@ Implemented and working locally (backend + frontend + local models + Docker):
   *were* read. Extraction and retrieval metrics live in
   `tests/hard_scenario_01/ingestion_eval.md`; that file also carries the 2.1
   entry-point audit (no remaining path produces OCR regions and drops them).
+- **Tables from OCR geometry (`table_reconstruction.py`, 2026-09-22):** the
+  elements that were separate OCR fragments on one page become one
+  `ExtractionElement(type="table", source="table_reconstruction")` when they
+  form a table — rows clustered by vertical position against the page's own
+  median line height, columns anchored on the header row's x-intervals, cells
+  assigned by x-overlap. Pure: no model, no I/O, no text reflowed. A cell keeps
+  **every** candidate that fell into it — a struck-through printed value and the
+  handwritten correction beside it are two numbers, never merged and never
+  chosen between — each with the bbox and confidence of the region it came from;
+  a cell's confidence is the minimum of its candidates'. Units are never
+  converted (`0.455 in` stays `0.455 in`). Below 3 data rows or 2 columns the
+  page keeps its fragments as text: a wrong table is worse than no table, which
+  is why a content guard (most rows must carry a reading) sits beside the
+  geometric one — geometry alone cannot tell a table from a wrapped paragraph.
+  Markdown renders each table as a markdown table and prints every candidate of
+  an ambiguous cell (`10.4 | 11.6 (2 candidates — ambiguous)`). On the scenario
+  fixtures: both survey reports reconstruct exactly, `0.455 in` is preserved as
+  written, the corrected course keeps both readings with their own bboxes, and
+  the P&ID extract yields zero tables. Chunk text is unchanged — the table is a
+  second reading written to the extraction artifact, not a new source for the
+  index; measured recall@5 20/20, MRR 0.7375, superseded 0/20.
 
 Phase-by-phase history is in `docs/HISTORY.md`.
 
@@ -901,6 +924,17 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   an import error. `tests/conftest.py` now raises a clear `UsageError` in that
   case; CI installs the deps into the runner interpreter and sets `CI`, so the
   guard skips there.
+- **Table reconstruction has no notion of a merged (spanned) cell (2026-09-22).**
+  Every cell belongs to exactly one column band; a cell spanning two columns
+  would be attributed to whichever band holds its centre. No fixture exercises
+  the shape, and the geometric acceptance rule (≥3 data rows, ≥2 columns, most
+  rows carrying a reading) is unchanged by it. Worth revisiting only if a real
+  report in scope turns out to have spanned cells.
+- **Table reconstruction runs on OCR fragments only, per page (2026-09-22).**
+  A text-layer element carries no bbox, so it has no geometry to reconstruct
+  from and is left exactly as it arrived; a table spanning a page break is not
+  joined. Both are deliberate bounds of this change, not defects — the text
+  layer is out of scope for the same reason it reports no bbox.
 
 ---
 

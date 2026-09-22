@@ -28,19 +28,36 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class CellCandidate(BaseModel):
+    """One value recognised inside a single table cell.
+
+    A cell can hold more than one candidate: a struck-through printed value with
+    a handwritten correction beside it, or a value the OCR engine reported twice.
+    Each candidate keeps the bbox and confidence of the region it was read from,
+    and ``source_element_id`` points back at that OCR element, so any value in a
+    reconstructed table can be traced to the region that produced it.
+    """
+
+    text: str
+    bbox: Optional[list[float]] = None
+    confidence: Optional[float] = None
+    source_element_id: Optional[str] = None
+
+
 class TableCell(BaseModel):
     """One cell of a reconstructed table.
 
     ``candidates`` holds every value recognised in this cell, in original
-    reading order. A cell with a struck-through printed value and a handwritten
-    correction legitimately has two candidates; they are never merged and never
-    chosen between here — choosing is a downstream (assessment) decision that
-    must remain visible in the audit trail.
+    reading order (left-to-right, then top-to-bottom). A cell with a
+    struck-through printed value and a handwritten correction legitimately has
+    two candidates; they are never merged and never chosen between here —
+    choosing is a downstream (assessment) decision that must remain visible in
+    the audit trail.
     """
 
     row: int
     col: int
-    candidates: list[str] = Field(default_factory=list)
+    candidates: list[CellCandidate] = Field(default_factory=list)
     bbox: Optional[list[float]] = None
     confidence: Optional[float] = None
 
