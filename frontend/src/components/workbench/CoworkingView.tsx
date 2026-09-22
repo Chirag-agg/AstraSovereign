@@ -388,50 +388,6 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
     setTimeout(() => setFeedbackNotice(null), 5000);
   };
 
-  const getLevelBadgeClass = (level: AuthorizationLevel) => {
-    if (level.startsWith("L1")) return "bg-slate-100 text-slate-700 border-slate-200";
-    if (level.startsWith("L2")) return "bg-blue-50 text-blue-700 border-blue-200";
-    if (level.startsWith("L3")) return "bg-purple-50 text-purple-700 border-purple-200";
-    return "bg-emerald-50 text-emerald-800 border-emerald-200 font-semibold";
-  };
-
-  const getStatusBadge = (status: CoworkingTask["status"]) => {
-    switch (status) {
-      case "Completed":
-      case "L4 Signed Off":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-            {status}
-          </span>
-        );
-      case "Pending L3 Approval":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
-            <Clock className="w-3 h-3 text-purple-600" />
-            L3 Sign-Off Pending
-          </span>
-        );
-      case "Pending L2 Review":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-            <Clock className="w-3 h-3 text-amber-600" />
-            L2 Review Required
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
-            <Clock className="w-3 h-3 text-zinc-500" />
-            In Progress
-          </span>
-        );
-    }
-  };
-
-  // Every figure on this page is counted from the task list rather than
-  // written into the markup. The previous version printed "74% complete"
-  // as a literal, which would have stayed 74% no matter what the board said.
   const doneStates = /complete|signed off/i;
   const completed = tasks.filter((t) => doneStates.test(t.status)).length;
   const waiting = tasks.filter((t) => /pending|review/i.test(t.status)).length;
@@ -493,7 +449,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
               label="Signed off"
               tone={completionPct === 100 ? "metric" : completionPct === 0 ? "neutral" : "signal"}
             />
-            <FigurePanel figure="1" title="The board">
+            <FigurePanel figure="1" title="Where things stand">
               <dl style={{ margin: 0 }}>
                 {[
                   { k: "Signed off", v: completed, c: "var(--metric)" },
@@ -523,30 +479,20 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
 
       {/* Middle Section: Coworking Tasks & Team Communications */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Task Assignment & Management Workspace */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="astra-plate rounded-[6px] p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-zinc-100">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-zinc-900">Coworking Space & Task Assignments</h2>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-800">
-                    Role-Based
-                  </span>
-                </div>
-                <p className="text-xs text-zinc-500 mt-1">
-                  Assign, track, and review tasks across departments.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
+        <div className="lg:col-span-2">
+          <FigurePanel
+            figure="3"
+            title="The board"
+            caption="a task moves only when someone at the required level signs it off"
+            actions={
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIsAssignModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+                  className="font-mono uppercase"
+                  style={{ fontSize: 10, letterSpacing: "0.08em", padding: "6px 10px", borderRadius: 2, border: "1px solid var(--signal)", background: "transparent", color: "var(--signal)", cursor: "pointer" }}
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Assign Task</span>
+                  Assign
                 </button>
                 <button
                   type="button"
@@ -554,176 +500,142 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
                     setSelectedTaskForSubmission(tasks[0] || null);
                     setIsSubmitModalOpen(true);
                   }}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-semibold transition-colors cursor-pointer"
+                  className="font-mono uppercase"
+                  style={{ fontSize: 10, letterSpacing: "0.08em", padding: "6px 10px", borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Submit Task</span>
+                  Hand over
                 </button>
               </div>
-            </div>
-
-            {/* Filter and Search Controls */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 pb-3">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-2.5" />
+            }
+            flush
+          >
+            <div
+              className="flex flex-col sm:flex-row sm:items-center gap-3"
+              style={{ padding: "12px 16px", borderBottom: "1px solid var(--carbon)" }}
+            >
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <Search className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--graphite)" }} />
                 <input
                   type="text"
-                  placeholder="Search tasks, roles, or departments..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-zinc-200 bg-zinc-50 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-purple-500 focus:bg-white transition-all"
+                  placeholder="Search tasks, people or departments"
+                  className="w-full bg-transparent font-mono"
+                  style={{ fontSize: 12, color: "var(--bone)", border: "none", outline: "none", padding: 0 }}
                 />
               </div>
-
-              <div className="flex items-center flex-wrap gap-2">
-                <div className="flex items-center gap-1 text-xs text-zinc-500">
-                  <Filter className="w-3.5 h-3.5" />
-                  <span>Dept:</span>
-                </div>
+              <div className="flex items-center gap-2 shrink-0">
                 <select
                   value={selectedDept}
                   onChange={(e) => setSelectedDept(e.target.value)}
-                  className="text-xs rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-zinc-700 cursor-pointer focus:outline-none"
+                  className="font-mono"
+                  style={{ fontSize: 11, padding: "5px 8px" }}
                 >
-                  <option value="All">All Departments</option>
-                  <option value="Legal & Contracts">Legal & Contracts</option>
-                  <option value="Finance & Accounting">Finance & Accounting</option>
-                  <option value="Operations & Supply">Operations & Supply</option>
-                  <option value="HR & Compliance">HR & Compliance</option>
-                  <option value="AI & Engineering">AI & Engineering</option>
+                  <option value="All">All departments</option>
+                  <option value="Legal &amp; Contracts">Legal &amp; Contracts</option>
+                  <option value="Finance &amp; Accounting">Finance &amp; Accounting</option>
+                  <option value="Operations &amp; Supply">Operations &amp; Supply</option>
+                  <option value="HR &amp; Compliance">HR &amp; Compliance</option>
+                  <option value="AI &amp; Engineering">AI &amp; Engineering</option>
                 </select>
-
-                <div className="flex items-center gap-1 text-xs text-zinc-500 ml-2">
-                  <span>Level:</span>
-                </div>
                 <select
                   value={selectedLevel}
                   onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="text-xs rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-zinc-700 cursor-pointer focus:outline-none"
+                  className="font-mono"
+                  style={{ fontSize: 11, padding: "5px 8px" }}
                 >
-                  <option value="All">All Auth Levels</option>
-                  <option value="L1">Level 1 (Contributor)</option>
-                  <option value="L2">Level 2 (Reviewer)</option>
-                  <option value="L3">Level 3 (Dept Lead)</option>
-                  <option value="L4">Level 4 (Officer Sign-Off)</option>
+                  <option value="All">Any level</option>
+                  <option value="L1">Level 1</option>
+                  <option value="L2">Level 2</option>
+                  <option value="L3">Level 3</option>
+                  <option value="L4">Level 4</option>
                 </select>
               </div>
             </div>
 
-            {/* Task Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-100 text-zinc-400 uppercase tracking-wider font-semibold text-[10px]">
-                    <th className="py-2.5 px-2">Task Details</th>
-                    <th className="py-2.5 px-2">Assignee</th>
-                    <th className="py-2.5 px-2">Required Auth</th>
-                    <th className="py-2.5 px-2">Status</th>
-                    <th className="py-2.5 px-2">Deliverable</th>
-                    <th className="py-2.5 px-2 text-right">Action</th>
+            <table>
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>With</th>
+                  <th>Needs</th>
+                  <th style={{ textAlign: "right" }}>Hand over</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTasks.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="font-mono" style={{ color: "var(--graphite)" }}>
+                      Nothing matches that filter.
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-50">
-                  {filteredTasks.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="text-center py-8 text-zinc-400">
-                        No tasks match current search or filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredTasks.map((t) => (
-                      <tr key={t.id} className="hover:bg-zinc-50/70 transition-colors group">
-                        {/* Task Title & Dept */}
-                        <td className="py-3 px-2 max-w-[240px]">
-                          <div className="font-semibold text-zinc-800 truncate" title={t.title}>
+                ) : (
+                  filteredTasks.map((t) => {
+                    const done = /complete|signed off/i.test(t.status);
+                    const waiting = /pending|review/i.test(t.status);
+                    const colour = done ? "var(--metric)" : waiting ? "var(--ochre)" : "var(--signal)";
+                    return (
+                      <tr key={t.id}>
+                        <td style={{ maxWidth: 400 }}>
+                          <span className="block truncate" style={{ color: "var(--bone)" }} title={t.title}>
                             {t.title}
-                          </div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] font-mono text-zinc-400">{t.id}</span>
-                            <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-zinc-100 text-zinc-600 font-medium">
-                              {t.department}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Assignee */}
-                        <td className="py-3 px-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-xs shrink-0 border border-purple-200">
-                              {t.assignee.avatar}
-                            </div>
-                            <div className="truncate">
-                              <span className="block font-medium text-zinc-800 truncate">
-                                {t.assignee.name}
-                              </span>
-                              <span className="block text-[10px] text-zinc-400 truncate">
-                                {t.assignee.role}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Authorization Level */}
-                        <td className="py-3 px-2">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded-md text-[10.5px] border ${getLevelBadgeClass(
-                              t.requiredLevel,
-                            )}`}
-                          >
-                            {t.requiredLevel}
+                          </span>
+                          <span className="flex items-center gap-2 font-mono truncate" style={{ marginTop: 3, fontSize: 11, color: "var(--graphite)" }}>
+                            {t.id} · {t.department}
+                            {t.deliverable ? (
+                              <span style={{ color: "var(--metric)" }}>· {t.deliverable.name}</span>
+                            ) : null}
                           </span>
                         </td>
-
-                        {/* Status */}
-                        <td className="py-3 px-2">{getStatusBadge(t.status)}</td>
-
-                        {/* Deliverable */}
-                        <td className="py-3 px-2">
-                          {t.deliverable ? (
-                            <div className="flex items-center gap-1.5 text-purple-700 bg-purple-50/70 px-2 py-1 rounded-lg border border-purple-100 max-w-[130px] truncate">
-                              <FileText className="w-3.5 h-3.5 shrink-0 text-purple-600" />
-                              <span className="text-[10.5px] font-medium truncate" title={t.deliverable.name}>
-                                {t.deliverable.name}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-zinc-400 text-[11px] italic">Not attached</span>
-                          )}
+                        <td style={{ verticalAlign: "top" }}>
+                          <span className="block truncate" style={{ color: "var(--stone)" }}>{t.assignee.name}</span>
+                          <span className="block truncate" style={{ marginTop: 3, fontSize: 11.5, color: "var(--graphite)" }}>
+                            {t.assignee.role}
+                          </span>
                         </td>
-
-                        {/* Actions */}
-                        <td className="py-3 px-2 text-right">
+                        <td style={{ verticalAlign: "top" }}>
+                          <span className="font-mono" style={{ fontSize: 11, color: "var(--granite)" }}>{t.requiredLevel}</span>
+                          <span className="flex items-center gap-2 font-mono uppercase" style={{ marginTop: 4, fontSize: 10, letterSpacing: "0.08em", color: colour }}>
+                            <span style={{ width: 5, height: 5, borderRadius: 99, background: colour }} />
+                            {t.status}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: "right", verticalAlign: "top", whiteSpace: "nowrap" }}>
                           <button
                             type="button"
                             onClick={() => {
                               setSelectedTaskForSubmission(t);
                               setIsSubmitModalOpen(true);
                             }}
-                            className="px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-medium text-[11px] transition-colors cursor-pointer"
+                            className="font-mono uppercase"
+                            style={{ fontSize: 10, letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
                           >
-                            Submit / Review
+                            Pass on
                           </button>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </FigurePanel>
         </div>
+
 
         {/* Right 1 Col: Department Communication Drawer */}
         <div className="space-y-4">
           <div className="astra-plate rounded-[6px] p-6">
             <div className="flex items-center justify-between pb-4 border-b border-zinc-100">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-zinc-900">Department Streams</h3>
-                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[var(--accent)] text-white">
-                  34
+              <div className="flex items-center gap-2.5">
+                <h3 className="mono-label" style={{ margin: 0 }}>Who is here</h3>
+                <span className="font-mono tnum" style={{ fontSize: 11, color: "var(--signal)" }}>
+                  {coworkers.length}
                 </span>
               </div>
-              <span className="text-[11px] font-medium text-zinc-400">Collaborative</span>
+              <span className="font-mono uppercase" style={{ fontSize: 10, letterSpacing: "0.08em", color: "var(--graphite)" }}>
+                {activities.length} update(s)
+              </span>
             </div>
 
             {/* Department member list */}
