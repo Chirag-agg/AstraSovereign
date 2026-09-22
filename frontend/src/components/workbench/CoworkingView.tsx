@@ -22,6 +22,7 @@ import {
   Award,
 } from "lucide-react";
 import type { AuthorizationLevel, Coworker, CoworkingActivity, CoworkingTask } from "./types";
+import { FigurePanel, StatSlab, Gantt, type GanttRow } from "@/components/ui/instrument";
 
 interface CoworkingViewProps {
   onOpenAgentWorkspace?: (taskPrompt?: string) => void;
@@ -428,167 +429,103 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
     }
   };
 
+  // Every figure on this page is counted from the task list rather than
+  // written into the markup. The previous version printed "74% complete"
+  // as a literal, which would have stayed 74% no matter what the board said.
+  const doneStates = /complete|signed off/i;
+  const completed = tasks.filter((t) => doneStates.test(t.status)).length;
+  const waiting = tasks.filter((t) => /pending|review/i.test(t.status)).length;
+  const active = tasks.length - completed - waiting;
+  const completionPct = tasks.length > 0 ? Math.round((completed / tasks.length) * 100) : 0;
+
+  const byDept = tasks.reduce<Record<string, { total: number; done: number }>>((acc, t) => {
+    const key = t.department;
+    const entry = acc[key] ?? { total: 0, done: 0 };
+    entry.total += 1;
+    if (doneStates.test(t.status)) entry.done += 1;
+    acc[key] = entry;
+    return acc;
+  }, {});
+
+  const deptRows: GanttRow[] = Object.entries(byDept)
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([dept, entry]) => ({
+      label: dept,
+      start: 0,
+      width: entry.total > 0 ? Math.max(0.02, entry.done / entry.total) : 0.02,
+      tone: entry.done === entry.total ? "metric" : entry.done === 0 ? "ochre" : "signal",
+      value: `${entry.done}/${entry.total}`,
+    }));
+
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
-        {/* Notice Banner */}
-      {feedbackNotice && (
-        <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 text-purple-900 text-xs flex items-center justify-between shadow-xs animate-fade-in">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
-            <span className="font-medium">{feedbackNotice}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setFeedbackNotice(null)}
-            className="text-purple-600 hover:text-purple-900 cursor-pointer text-sm"
-          >
-            ×
-          </button>
+        <div className="pb-4 border-b border-[var(--carbon)]">
+          <span className="mono-label" style={{ letterSpacing: "0.12em" }}>Handover</span>
+          <h1 className="tracking-tight" style={{ margin: "10px 0 0" }}>Work passing between departments</h1>
+          <p style={{ margin: "8px 0 0" }}>
+            A task carries the authorisation level it needs. It moves to the next person only
+            when someone at that level signs it off, and every hand-over is recorded.
+          </p>
         </div>
-      )}
 
-      {/* Top Section: Team Performance & Summary Cards */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Team Performance Chart Card */}
-        <div className="xl:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] flex flex-col justify-between">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-lg font-bold text-zinc-900 tracking-tight">Department Performance</h2>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                Overview of team tasks, completion rate, and quarterly deliverables.
-              </p>
-            </div>
-
-            <div className="flex items-center flex-wrap gap-3">
-              <div className="flex items-center gap-2 text-xs font-medium text-zinc-700 bg-purple-50/80 px-3 py-1.5 rounded-full border border-purple-100">
-                <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent)]" />
-                <span>Completed tasks (74%)</span>
-              </div>
-
-              <div className="flex items-center gap-2 text-xs font-medium text-zinc-700 bg-amber-50/80 px-3 py-1.5 rounded-full border border-amber-100">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                <span>Uncompleted tasks (26%)</span>
-              </div>
-
-              <div className="relative">
-                <button
-                  type="button"
-                  className="flex items-center gap-2 text-xs font-medium text-zinc-700 bg-zinc-50 hover:bg-zinc-100 px-3 py-1.5 rounded-xl border border-zinc-200 transition-colors"
-                >
-                  <span>Last year</span>
-                  <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Bar Chart Representation */}
-          <div className="pt-4 pb-2">
-            <div className="grid grid-cols-12 gap-2 sm:gap-4 items-end h-44 border-b border-zinc-100 pb-3">
-              {CHART_MONTHS.map((item) => (
-                <div key={item.month} className="flex flex-col items-center gap-2 h-full justify-end group">
-                  <div className="w-full flex gap-1 items-end justify-center h-36">
-                    <div
-                      className="w-2.5 sm:w-3.5 rounded-t-lg bg-[var(--accent)] group-hover:bg-[var(--accent-strong)] transition-all duration-300"
-                      style={{ height: `${item.completed}%` }}
-                      title={`${item.month}: ${item.completed}% completed`}
-                    />
-                    <div
-                      className="w-1.5 sm:w-2 rounded-t-md bg-amber-300/80 group-hover:bg-amber-400 transition-all duration-300"
-                      style={{ height: `${item.uncompleted}%` }}
-                      title={`${item.month}: ${item.uncompleted}% pending`}
-                    />
-                  </div>
-                  <span className="text-[11px] font-medium text-zinc-400 group-hover:text-zinc-700 transition-colors">
-                    {item.month}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Sub-footer stats */}
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-4 text-xs text-zinc-500 border-t border-zinc-50">
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 text-emerald-600" />
-                <span className="font-semibold text-zinc-800">+18.4%</span> productivity vs last quarter
-              </span>
-              <span className="text-zinc-500">|</span>
-              <span className="flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-purple-600" />
-                Zero unverified deliverable releases
-              </span>
-            </div>
+        {feedbackNotice && (
+          <div
+            className="flex items-center justify-between gap-3"
+            style={{ borderLeft: "2px solid var(--signal)", padding: "10px 14px", borderRadius: 2, fontSize: 13, color: "var(--stone)" }}
+          >
+            <span>{feedbackNotice}</span>
             <button
               type="button"
-              onClick={() => onOpenAgentWorkspace?.()}
-              className="text-purple-600 hover:text-purple-800 font-medium flex items-center gap-1 cursor-pointer"
+              onClick={() => setFeedbackNotice(null)}
+              aria-label="Dismiss"
+              style={{ background: "transparent", border: "none", color: "var(--granite)", cursor: "pointer", padding: 0 }}
             >
-              <span>Automate task with Local AI Agent</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
+        )}
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,210px)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-4">
+            <StatSlab
+              value={`${completionPct}%`}
+              label="Signed off"
+              tone={completionPct === 100 ? "metric" : completionPct === 0 ? "neutral" : "signal"}
+            />
+            <FigurePanel figure="1" title="The board">
+              <dl style={{ margin: 0 }}>
+                {[
+                  { k: "Signed off", v: completed, c: "var(--metric)" },
+                  { k: "Waiting on someone", v: waiting, c: "var(--ochre)" },
+                  { k: "Being worked on", v: active, c: "var(--signal)" },
+                ].map((row) => (
+                  <div key={row.k} className="flex items-baseline justify-between gap-2" style={{ padding: "9px 0", borderBottom: "1px solid var(--carbon)" }}>
+                    <dt className="font-mono uppercase" style={{ fontSize: 10, letterSpacing: "0.1em", color: "var(--graphite)" }}>{row.k}</dt>
+                    <dd className="font-mono tnum" style={{ margin: 0, fontSize: 14, color: row.c }}>{row.v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </FigurePanel>
+          </div>
+
+          <FigurePanel figure="2" title="Progress by department" caption="signed off, against everything assigned">
+            {deptRows.length > 0 ? (
+              <Gantt rows={deptRows} />
+            ) : (
+              <p className="font-mono" style={{ margin: 0, fontSize: 12, color: "var(--graphite)" }}>
+                Nothing assigned yet.
+              </p>
+            )}
+          </FigurePanel>
         </div>
 
-        {/* Right 1 Col: Quick Metric Stack */}
-        <div className="flex flex-col gap-4">
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] flex items-center justify-between">
-            <div>
-              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Total Projects</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-3xl font-extrabold text-zinc-900">173</span>
-                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                  +14%
-                </span>
-              </div>
-              <p className="text-xs text-zinc-500 mt-2">Across 5 office departments</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600">
-              <Building2 className="w-6 h-6" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] flex items-center justify-between">
-            <div>
-              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Pending Sign-Offs</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-3xl font-extrabold text-zinc-900">28</span>
-                <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
-                  L3 & L4
-                </span>
-              </div>
-              <p className="text-xs text-zinc-500 mt-2">Requires Lead or Officer approval</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600">
-              <Award className="w-6 h-6" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] flex items-center justify-between">
-            <div>
-              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">System Security</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-3xl font-extrabold text-zinc-900">100%</span>
-                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                  Protected
-                </span>
-              </div>
-              <p className="text-xs text-zinc-500 mt-2">Encrypted workspace & data security</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Middle Section: Coworking Tasks & Team Communications */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Task Assignment & Management Workspace */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)]">
+          <div className="astra-plate rounded-[6px] p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-zinc-100">
               <div>
                 <div className="flex items-center gap-2">
@@ -778,7 +715,7 @@ export default function CoworkingView({ onOpenAgentWorkspace }: CoworkingViewPro
 
         {/* Right 1 Col: Department Communication Drawer */}
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)]">
+          <div className="astra-plate rounded-[6px] p-6">
             <div className="flex items-center justify-between pb-4 border-b border-zinc-100">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-zinc-900">Department Streams</h3>

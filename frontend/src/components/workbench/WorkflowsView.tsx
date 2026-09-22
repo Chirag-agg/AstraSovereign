@@ -1,16 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import {
-  GitBranch,
-  RefreshCw,
-  AlertCircle,
-  BrainCircuit,
-  FileCode2,
-  Calculator,
-  BookOpenText,
-  ScanEye,
-} from "lucide-react";
+import { RefreshCw } from "lucide-react";
+import { FigurePanel, StatSlab, NumberedList, Gantt, type GanttRow } from "@/components/ui/instrument";
 import { getAdminModels, listJobs } from "@/lib/api";
 import type { AdminModelRow, JobSummary, JobStatus } from "@/lib/types";
 
@@ -18,28 +10,30 @@ function activeUserId(): string {
   return window.localStorage.getItem("sovereign.active-user") || "user-001";
 }
 
-const PIPELINE_STAGES: { id: string; label: string; icon: React.ReactNode }[] = [
-  { id: "reasoning", label: "Reasoning", icon: <BrainCircuit className="w-4 h-4" /> },
-  { id: "math", label: "Math", icon: <Calculator className="w-4 h-4" /> },
-  { id: "coding", label: "Coding", icon: <FileCode2 className="w-4 h-4" /> },
-  { id: "document", label: "Document", icon: <BookOpenText className="w-4 h-4" /> },
-  { id: "vision", label: "Vision", icon: <ScanEye className="w-4 h-4" /> },
+/**
+ * The five kinds of thinking a task can be routed to, in the order a document
+ * task usually walks through them. Naming them in office language rather than
+ * by model capability is deliberate: the person reading this page wants to
+ * know what the machine will do, not which weights it will load.
+ */
+const PIPELINE_STAGES: { id: string; label: string; plain: string }[] = [
+  { id: "reasoning", label: "Reasoning", plain: "works out what the task is actually asking" },
+  { id: "document", label: "Reading", plain: "reads the documents you attached" },
+  { id: "vision", label: "Looking", plain: "reads scans and photographs of pages" },
+  { id: "math", label: "Checking", plain: "re-does the arithmetic rather than trusting it" },
+  { id: "coding", label: "Computing", plain: "writes and runs code in the sealed sandbox" },
 ];
 
-function statusPill(status: JobStatus): React.ReactNode {
-  const base = "px-2.5 py-0.5 rounded-full text-xs font-semibold border";
-  switch (status) {
-    case "running":
-      return <span className={`${base} bg-amber-50 text-amber-700 border-amber-200/60`}>running</span>;
-    case "completed":
-      return <span className={`${base} bg-emerald-50 text-emerald-700 border-emerald-200/60`}>completed</span>;
-    case "failed":
-      return <span className={`${base} bg-rose-50 text-rose-700 border-rose-200/60`}>failed</span>;
-    case "cancelled":
-      return <span className={`${base} bg-slate-100 text-slate-600 border-slate-200/60`}>cancelled</span>;
-    default:
-      return <span className={`${base} bg-slate-100 text-slate-600 border-slate-200/60`}>queued</span>;
-  }
+const STATUS_TONE: Record<string, string> = {
+  running: "var(--signal)",
+  queued: "var(--ochre)",
+  completed: "var(--metric)",
+  failed: "var(--alert)",
+  cancelled: "var(--graphite)",
+};
+
+function tone(status: JobStatus | string): string {
+  return STATUS_TONE[status] ?? "var(--graphite)";
 }
 
 export default function WorkflowsView() {
@@ -69,159 +63,173 @@ export default function WorkflowsView() {
     void load();
   }, [load]);
 
-  const stageCaps = (stageId: string): string[] => {
+  const stageModel = (stageId: string): AdminModelRow | undefined => {
     const variants = [
       stageId,
       stageId.replace("document", "document_generation"),
       stageId === "coding" ? "code" : stageId,
       stageId === "document" ? "documentation" : stageId,
     ];
-    const caps = new Set<string>();
-    models
-      .filter((m) => variants.includes(m.task_type))
-      .forEach((m) => m.capabilities.forEach((c) => caps.add(c)));
-    return Array.from(caps).slice(0, 4);
+    return models.find((m) => variants.includes(m.task_type));
   };
 
-  return (    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
+  const stages = PIPELINE_STAGES.map((stage) => ({
+    ...stage,
+    model: stageModel(stage.id),
+  }));
+  const wired = stages.filter((s) => s.model?.enabled && s.model?.available).length;
+
+  // Each stage occupies its own lane on a shared track, in pipeline order, so
+  // the shape of the route is visible rather than described.
+  const lanes: GanttRow[] = stages.map((stage, i) => ({
+    label: stage.label.toLowerCase(),
+    start: i / stages.length,
+    width: 1 / stages.length,
+    tone: stage.model?.enabled && stage.model?.available ? "signal" : "ochre",
+    value: stage.model?.enabled && stage.model?.available ? "ready" : "—",
+  }));
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-4 border-b border-[var(--carbon)]">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
-              Workflows
-            </h1>
-            <p className="text-sm text-slate-600 font-medium mt-1 leading-relaxed">
-              Multi-model pipeline engine
+            <span className="mono-label" style={{ letterSpacing: "0.12em" }}>Routing</span>
+            <h1 className="tracking-tight" style={{ margin: "10px 0 0" }}>How a task gets done</h1>
+            <p style={{ margin: "8px 0 0" }}>
+              One task can need several kinds of thinking. The router picks a local model
+              for each part and records every choice it made, including the ones it had to
+              substitute.
             </p>
           </div>
-
           <button
             type="button"
             onClick={() => void load()}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors cursor-pointer disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 font-mono uppercase shrink-0"
+            style={{ fontSize: 10.5, letterSpacing: "0.08em", padding: "7px 11px", borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            <span>Refresh</span>
+            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+            Refresh
           </button>
         </div>
 
         {error && (
-          <div className="flex items-center gap-2 bg-rose-50 border border-rose-200/80 text-rose-700 rounded-xl px-4 py-3 text-sm font-medium">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+          <div
+            role="alert"
+            style={{ borderLeft: "2px solid var(--alert)", padding: "10px 14px", background: "var(--alert-surface)", borderRadius: 2, fontSize: 13, color: "var(--alert-ink)" }}
+          >
+            {error}
           </div>
         )}
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 text-slate-500 text-sm py-16 bg-white border border-slate-200/80 rounded-2xl">
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            Loading pipeline configuration...
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,210px)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-4">
+            <StatSlab
+              value={`${wired}/${stages.length}`}
+              label="Stages ready"
+              tone={wired === stages.length ? "metric" : wired === 0 ? "neutral" : "signal"}
+            />
+            <FigurePanel figure="1" title="What happens when you ask" caption="the same order every time">
+              <NumberedList
+                index={1}
+                items={[
+                  { title: "The task is read", detail: "the router decides which kinds of thinking it needs." },
+                  { title: "A local model per kind", detail: "each stage resolves to one enabled model on this machine." },
+                  { title: "The work is recorded", detail: "every call, substitution and file written lands in the audit trail." },
+                ]}
+              />
+            </FigurePanel>
           </div>
-        ) : (
-          <>
-            <div className="bg-[var(--accent)]/5 border border-[var(--accent)]/15 rounded-2xl px-5 py-4 flex items-start gap-3">
-              <GitBranch className="w-5 h-5 text-[var(--accent)] shrink-0 mt-0.5" />
-              <p className="text-sm text-slate-700 leading-relaxed">
-                Complex multi-capability requests are automatically decomposed into
-                stage pipelines. The engine routes each stage through the configured
-                model for that task type — inspect the agent trace on any job to see
-                the stages that were executed.
-              </p>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              {PIPELINE_STAGES.map((stage) => {
-                const serving = models.filter((m) => m.task_type === stage.id);
-                const primary = serving.find((m) => m.enabled);
-                const cap = stageCaps(stage.id);
-                return (
-                  <div
-                    key={stage.id}
-                    className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex flex-col gap-2"
-                  >
-                    <div className="flex items-center gap-2 text-[var(--accent)]">
-                      <span className="p-1.5 bg-[var(--accent)]/10 rounded-lg">{stage.icon}</span>
-                      <span className="text-sm font-bold text-slate-800 capitalize">{stage.label}</span>
-                    </div>
-                    {primary ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-slate-700 truncate" title={primary.model}>
-                          {primary.provider} / {primary.model}
-                        </span>
-                        <span
-                          className={`ml-auto shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                            primary.available
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
-                              : "bg-amber-50 text-amber-700 border-amber-200/60"
-                          }`}
-                        >
-                          {primary.available ? "ready" : "unavailable"}
-                        </span>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-400">No model configured</p>
-                    )}
-                    {cap.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {cap.map((c) => (
-                          <span
-                            key={c}
-                            className="px-1.5 py-0.5 rounded-md bg-slate-50 border border-slate-100 text-[10px] font-mono text-slate-500"
-                          >
-                            {c}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+          <div className="flex flex-col gap-4">
+            <FigurePanel figure="2" title="The route" caption="stages in the order they run">
+              <Gantt rows={lanes} />
+            </FigurePanel>
 
-            <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl flex flex-col overflow-hidden">
-              <div className="p-5 border-b border-slate-100">
-                <h2 className="text-base font-bold text-slate-800">Recent pipeline executions</h2>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/30">
-                      <th className="py-3 px-5">Task</th>
-                      <th className="py-3 px-5">Status</th>
-                      <th className="py-3 px-5">Model</th>
-                      <th className="py-3 px-5">Job ID</th>
+            <FigurePanel figure="3" title="Stages" flush>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Stage</th>
+                    <th>What it does</th>
+                    <th>Local model</th>
+                    <th>State</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading && models.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="font-mono" style={{ color: "var(--graphite)" }}>Loading routing table…</td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {jobs.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-10 text-center text-slate-500 text-sm">
-                          No recent jobs yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      jobs.map((job) => (
-                        <tr key={job.job_id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="py-3 px-5 font-medium text-slate-700 max-w-md truncate">
-                            {job.message}
+                  ) : (
+                    stages.map((stage) => {
+                      const ready = Boolean(stage.model?.enabled && stage.model?.available);
+                      const state = !stage.model ? "not configured" : ready ? "ready" : stage.model.enabled ? "not pulled" : "disabled";
+                      const colour = ready ? "var(--metric)" : state === "not pulled" ? "var(--ochre)" : "var(--graphite)";
+                      return (
+                        <tr key={stage.id}>
+                          <td>{stage.label}</td>
+                          <td style={{ color: "var(--granite)" }}>{stage.plain}</td>
+                          <td className="font-mono" style={{ color: stage.model ? "var(--signal)" : "var(--graphite)" }}>
+                            {stage.model?.model ?? "—"}
                           </td>
-                          <td className="py-3 px-5">{statusPill(job.status)}</td>
-                          <td className="py-3 px-5 text-xs font-mono text-slate-500">
-                            {job.model || "—"}
-                          </td>
-                          <td className="py-3 px-5 font-mono text-xs text-slate-400">
-                            {job.job_id.slice(0, 8)}...
+                          <td>
+                            <span className="inline-flex items-center gap-2 font-mono uppercase" style={{ fontSize: 10.5, letterSpacing: "0.08em", color: colour }}>
+                              <span style={{ width: 5, height: 5, borderRadius: 99, background: colour }} />
+                              {state}
+                            </span>
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        )}
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </FigurePanel>
+          </div>
+        </div>
+
+        <FigurePanel figure="4" title="Recent runs" caption="the last eight tasks through this route" flush>
+          <table>
+            <thead>
+              <tr>
+                <th>What was asked</th>
+                <th>State</th>
+                <th style={{ textAlign: "right" }}>Task</th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="font-mono" style={{ color: "var(--graphite)" }}>
+                    Nothing has run through the pipeline yet.
+                  </td>
+                </tr>
+              ) : (
+                jobs.map((job) => (
+                  <tr key={job.job_id}>
+                    <td style={{ maxWidth: 680 }}>
+                      <span className="block truncate">{job.message}</span>
+                    </td>
+                    <td>
+                      <span className="inline-flex items-center gap-2 font-mono uppercase" style={{ fontSize: 10.5, letterSpacing: "0.08em", color: tone(job.status) }}>
+                        <span
+                          className={job.status === "running" ? "astra-pulse" : undefined}
+                          style={{ width: 5, height: 5, borderRadius: 99, background: tone(job.status) }}
+                        />
+                        {job.status}
+                      </span>
+                    </td>
+                    <td className="font-mono" style={{ textAlign: "right", color: "var(--graphite)" }}>
+                      {job.job_id.substring(0, 8)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </FigurePanel>
       </div>
     </div>
   );

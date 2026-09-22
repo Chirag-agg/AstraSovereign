@@ -22,6 +22,7 @@ import {
   FileCode,
 } from "lucide-react";
 import { getHealth, getDocumentContent, getDocumentFileBlob } from "@/lib/api";
+import { FigurePanel, StatSlab } from "@/components/ui/instrument";
 import type { DocumentMeta } from "@/lib/types";
 
 function activeUserId(): string {
@@ -183,167 +184,154 @@ export default function KnowledgeBaseView({
     }
   };
 
+  const docs = documents ?? [];
+
+  // Grouped by file type, so "what is actually in the index" is legible at a
+  // glance rather than a flat list of filenames.
+  const byKind = docs.reduce<Record<string, number>>((acc, d) => {
+    const ext = d.filename.split(".").pop()?.toLowerCase() || "file";
+    acc[ext] = (acc[ext] ?? 0) + 1;
+    return acc;
+  }, {});
+  const kinds = Object.entries(byKind).sort((a, b) => b[1] - a[1]).slice(0, 6);
+
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-4 border-b border-[var(--carbon)]">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
-              Knowledge Base
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1 leading-relaxed">
-              Air-gap vector index and document knowledge base for semantic retrieval and tool augmentation.
+            <span className="mono-label" style={{ letterSpacing: "0.12em" }}>Index</span>
+            <h1 className="tracking-tight" style={{ margin: "10px 0 0" }}>Documents the agent can read</h1>
+            <p style={{ margin: "8px 0 0" }}>
+              Anything you add here is split, indexed and searchable on this machine. The
+              index is built locally, it is yours alone, and it has nowhere else to go.
             </p>
           </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              onChange={handleFileChange}
-            />
+          <div className="flex items-center gap-2 shrink-0">
+            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-2 bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center gap-1.5 font-mono uppercase"
+              style={{
+                fontSize: 10.5,
+                letterSpacing: "0.08em",
+                padding: "8px 13px",
+                borderRadius: 2,
+                border: "1px solid var(--signal)",
+                background: "transparent",
+                color: "var(--signal)",
+                cursor: uploading ? "default" : "pointer",
+                opacity: uploading ? 0.5 : 1,
+              }}
             >
-              <Upload className="w-4 h-4" />
-              <span>{uploading ? "Uploading..." : "+ Upload Document"}</span>
+              <Upload className="w-3 h-3" />
+              {uploading ? "Adding" : "Add a document"}
             </button>
           </div>
         </div>
 
-        {/* Status Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-          <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)] shrink-0">
-              <Layers className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                Total Documents
-              </span>
-              <span className="text-lg font-bold text-slate-800">
-                {documents ? documents.length : "—"}
-              </span>
-            </div>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,210px)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-4">
+            <StatSlab
+              value={String(docs.length)}
+              label="Documents indexed"
+              tone={docs.length > 0 ? "signal" : "neutral"}
+            />
+            <FigurePanel figure="1" title="The index" caption="built here, stored here">
+              <dl style={{ margin: 0 }}>
+                {[
+                  { k: "Pieces indexed", v: chunks !== null ? chunks.toLocaleString() : "—" },
+                  { k: "Embedding model", v: embedding || "—" },
+                  { k: "Vector store", v: vectorStore || "—" },
+                ].map((row) => (
+                  <div key={row.k} style={{ padding: "9px 0", borderBottom: "1px solid var(--carbon)" }}>
+                    <dt className="font-mono uppercase" style={{ fontSize: 10, letterSpacing: "0.1em", color: "var(--graphite)" }}>
+                      {row.k}
+                    </dt>
+                    <dd className="font-mono" style={{ margin: "5px 0 0", fontSize: 12, color: "var(--bone)", wordBreak: "break-word" }}>
+                      {row.v}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </FigurePanel>
+            {kinds.length > 0 && (
+              <FigurePanel figure="2" title="By kind">
+                <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  {kinds.map(([ext, n]) => (
+                    <li key={ext} className="flex items-center justify-between gap-2" style={{ padding: "7px 0", borderBottom: "1px solid var(--carbon)" }}>
+                      <span className="font-mono uppercase" style={{ fontSize: 11, letterSpacing: "0.08em", color: "var(--signal)" }}>{ext}</span>
+                      <span className="font-mono tnum" style={{ fontSize: 12, color: "var(--stone)" }}>{n}</span>
+                    </li>
+                  ))}
+                </ul>
+              </FigurePanel>
+            )}
           </div>
 
-          <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)] shrink-0">
-              <Database className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                Indexed Chunks
-              </span>
-              <span className="text-lg font-bold text-slate-800">
-                {chunks !== null ? chunks : "—"}
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)] shrink-0">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                Embedding Model
-              </span>
-              <span className="text-xs font-bold text-slate-800 truncate block max-w-[180px]">
-                {embedding || "Local SentenceTransformers"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Documents Table */}
-        <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl flex flex-col overflow-hidden">
-          {!documents || documents.length === 0 ? (
-            <div className="p-16 flex flex-col items-center justify-center text-center space-y-2">
-              <FileText className="w-12 h-12 text-slate-500 mb-2" />
-              <h3 className="text-base font-bold text-slate-800">No documents in index</h3>
-              <p className="text-xs text-slate-500 max-w-sm">
-                Upload business documents (PDF, Word, TXT, or markdown) to empower your Sovereign AI assistant.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/30">
-                    <th className="py-3.5 px-5">Document Name</th>
-                    <th className="py-3.5 px-5">Format</th>
-                    <th className="py-3.5 px-5">Status</th>
-                    <th className="py-3.5 px-5 text-right">Actions</th>
+          <FigurePanel figure="3" title="Everything in the index" caption={`${docs.length} document(s)`} flush>
+            <table>
+              <thead>
+                <tr>
+                  <th>Document</th>
+                  <th>Kind</th>
+                  <th>Pieces</th>
+                  <th>Added</th>
+                  <th style={{ textAlign: "right" }}>Open</th>
+                </tr>
+              </thead>
+              <tbody>
+                {docs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="font-mono" style={{ color: "var(--graphite)" }}>
+                      Nothing indexed yet. Add a document and the agent can read it.
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {documents.map((doc) => (
-                    <tr key={doc.document_id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3 px-5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)] shrink-0">
-                            <FileText className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <span className="font-semibold text-slate-800 block text-xs truncate max-w-xs sm:max-w-md">
-                              {doc.filename}
-                            </span>
-                            <span className="text-[10px] font-mono text-slate-400 block truncate">
-                              ID: {doc.document_id}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-[var(--accent)] border border-purple-200/60 uppercase">
-                          {doc.document_type || "txt"}
+                ) : (
+                  docs.map((doc) => (
+                    <tr key={doc.document_id}>
+                      <td style={{ maxWidth: 440 }}>
+                        <span className="block truncate" style={{ color: "var(--bone)" }}>{doc.filename}</span>
+                        <span className="block font-mono truncate" style={{ marginTop: 3, fontSize: 11, color: "var(--graphite)" }}>
+                          {doc.document_id}
                         </span>
                       </td>
-                      <td className="py-3 px-5">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
-                            doc.status === "ready"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
-                              : doc.status === "failed"
-                              ? "bg-rose-50 text-rose-700 border-rose-200/60"
-                              : "bg-amber-50 text-amber-700 border-amber-200/60"
-                          }`}
+                      <td>
+                        <span className="font-mono uppercase" style={{ fontSize: 10.5, letterSpacing: "0.08em", color: "var(--signal)" }}>
+                          {doc.filename.split(".").pop() || "file"}
+                        </span>
+                      </td>
+                      <td className="font-mono tnum" style={{ color: "var(--stone)" }}>
+                        {doc.chunk_count > 0 ? doc.chunk_count.toLocaleString() : "—"}
+                      </td>
+                      <td className="font-mono" style={{ color: "var(--granite)" }}>
+                        {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : "—"}
+                      </td>
+                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        <button
+                          type="button"
+                          onClick={() => void handleOpenPreview(doc)}
+                          className="font-mono uppercase"
+                          style={{ fontSize: 10, letterSpacing: "0.08em", padding: "5px 9px", marginRight: 6, borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
                         >
-                          {doc.status || "available"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => void handleOpenPreview(doc)}
-                            className="border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Preview</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => onDeleteDocument(doc.document_id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer inline-flex"
-                            title="Delete document"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                          Look
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteDocument(doc.document_id)}
+                          className="font-mono uppercase"
+                          style={{ fontSize: 10, letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--alert)", cursor: "pointer" }}
+                        >
+                          Remove
+                        </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </FigurePanel>
         </div>
       </div>
 

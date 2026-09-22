@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { getAdminUsers } from "@/lib/api";
 import type { AdminUserRow } from "@/lib/types";
+import { FigurePanel } from "@/components/ui/instrument";
 
 function activeUserId(): string {
   if (typeof window === "undefined") return "user-001";
@@ -301,109 +302,82 @@ export default function TeamView({
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
-        {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-4 border-b border-[var(--carbon)]">
           <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
-                Team &amp; Access Control
-              </h1>
-              {isAdmin ? (
-                <span className="flex items-center gap-1 text-[11px] font-bold text-[var(--accent)] bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[var(--accent)]" />
-                  Admin Authorized
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
-                  <Lock className="w-3 h-3 text-slate-400" />
-                  Staff View
-                </span>
-              )}
+            <span className="mono-label" style={{ letterSpacing: "0.12em" }}>Access</span>
+            <div className="flex items-center gap-3" style={{ margin: "10px 0 0" }}>
+              <h1 className="tracking-tight" style={{ margin: 0 }}>Who can use this workbench</h1>
+              <span
+                className="inline-flex items-center gap-1.5 font-mono uppercase shrink-0"
+                style={{
+                  fontSize: 10,
+                  letterSpacing: "0.1em",
+                  padding: "3px 8px",
+                  borderRadius: 2,
+                  border: `1px solid ${isAdmin ? "var(--signal)" : "var(--ash)"}`,
+                  color: isAdmin ? "var(--signal)" : "var(--granite)",
+                }}
+              >
+                {isAdmin ? "You can change this" : "View only"}
+              </span>
             </div>
-            <p className="text-sm text-slate-600 font-medium mt-1 leading-relaxed">
-              Air-gap employee roster, role delegation, and department task distribution
+            <p style={{ margin: "8px 0 0" }}>
+              Every person here has their own workspace, their own documents and their own
+              audit trail. Nothing is shared between them unless a task is handed over.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Add Employee & Admin buttons (Admin only) */}
+          <div className="flex items-center gap-2 shrink-0">
             {isAdmin && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGrantAdminAccess(false);
-                    setNewRole("Operator / Contributor (L1)");
-                    setIsAddModalOpen(true);
-                  }}
-                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 text-sm font-semibold shadow-2xs transition-colors cursor-pointer"
-                  title="Add a new standard employee"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>+ Add Employee</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGrantAdminAccess(true);
-                    setNewRole("System Administrator");
-                    setNewDept("Security & Directorate");
-                    setIsAddModalOpen(true);
-                  }}
-                  className="flex items-center gap-1.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white px-4 py-2 text-sm font-semibold shadow-xs transition-colors cursor-pointer"
-                  title="Add a new System Administrator"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>+ Add Admin</span>
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => {
+                  setGrantAdminAccess(false);
+                  setNewRole("Operator / Contributor (L1)");
+                  setIsAddModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 font-mono uppercase"
+                style={{ fontSize: 10.5, letterSpacing: "0.08em", padding: "8px 13px", borderRadius: 2, border: "1px solid var(--signal)", background: "transparent", color: "var(--signal)", cursor: "pointer" }}
+              >
+                <UserPlus className="w-3 h-3" />
+                Add a person
+              </button>
             )}
-
             <button
               type="button"
               onClick={() => void load()}
               disabled={loading}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors cursor-pointer disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 font-mono uppercase"
+              style={{ fontSize: 10.5, letterSpacing: "0.08em", padding: "8px 13px", borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-              <span>Refresh</span>
+              <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+              Refresh
             </button>
           </div>
         </div>
 
         {/* Feedback / Notice */}
         {notice && (
-          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-3 text-xs font-semibold animate-fade-in shadow-xs">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{notice}</span>
+          <div style={{ borderLeft: "2px solid var(--metric)", padding: "10px 14px", borderRadius: 2, fontSize: 13, color: "var(--metric)" }}>
+            {notice}
           </div>
         )}
 
         {/* Error */}
         {error && (
-          <div className="flex items-center gap-2 bg-rose-50 border border-rose-200/80 text-rose-700 rounded-xl px-4 py-3 text-sm font-medium">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+          <div role="alert" style={{ borderLeft: "2px solid var(--alert)", padding: "10px 14px", background: "var(--alert-surface)", borderRadius: 2, fontSize: 13, color: "var(--alert-ink)" }}>
+            {error}
           </div>
         )}
 
-        {/* Quick Admin Action Banner (Admin only) */}
         {isAdmin && (
-          <div className="p-4 rounded-2xl bg-white border border-purple-100 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-purple-100 text-[var(--accent)] flex items-center justify-center font-bold text-xs shrink-0">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-xs font-bold text-slate-900">Administrator &amp; Role Management</h3>
-                <p className="text-[11px] text-slate-500">
-                  You can add new personnel, designate System Administrators, and delegate tasks across all departments.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
+          <FigurePanel figure="1" title="What you can change" caption="administrator actions">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <p style={{ margin: 0, fontSize: 13.5, color: "var(--granite)", maxWidth: 680 }}>
+                You can add people, decide who else administers this machine, and hand a task
+                to someone in another department. Each change is written to the audit trail
+                under your name.
+              </p>
               <button
                 type="button"
                 onClick={() => {
@@ -412,17 +386,18 @@ export default function TeamView({
                   setNewDept("Security & Directorate");
                   setIsAddModalOpen(true);
                 }}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[var(--accent)] text-xs font-bold border border-purple-200 transition-colors cursor-pointer shrink-0"
+                className="inline-flex items-center gap-1.5 font-mono uppercase shrink-0"
+                style={{ fontSize: 10, letterSpacing: "0.08em", padding: "7px 11px", borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
               >
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>+ Add User as Admin</span>
+                <UserCheck className="w-3 h-3" />
+                Add an administrator
               </button>
             </div>
-          </div>
+          </FigurePanel>
         )}
 
         {/* Team Table */}
-        <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl flex flex-col overflow-hidden">
+        <div className="astra-plate rounded-[6px] flex flex-col overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center gap-2 text-slate-500 text-sm py-16">
               <RefreshCw className="w-4 h-4 animate-spin" />

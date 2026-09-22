@@ -218,7 +218,9 @@ describe("Workbench page (conversation-first)", () => {
     fireEvent.change(input, { target: { files: [file] } });
     await flush();
     expect(screen.getByText("manual.txt")).toBeInTheDocument();
-    expect(screen.getByText(/indexed/)).toBeInTheDocument();
+    // Scoped to the chip: every workbench section mounts at once, and the word
+    // "indexed" now appears in body copy elsewhere on the page too.
+    expect(document.querySelector(".chip-state")).toHaveTextContent(/indexed/);
   });
 
   it("attaches a knowledge-base document and sends its id with the job", async () => {

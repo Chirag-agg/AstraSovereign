@@ -18,6 +18,7 @@ import {
   WrapText,
   FileSearch,
 } from "lucide-react";
+import { FigurePanel, StatSlab } from "@/components/ui/instrument";
 import type { ArtifactSummary } from "@/lib/types";
 import { downloadArtifact, getArtifactPreview } from "@/lib/api";
 
@@ -116,97 +117,115 @@ export default function OutputsView({
     }
   };
 
+  const list = artifacts ?? [];
+
+  // Grouped by extension: "what came out of this machine" is more useful as a
+  // shape than as a flat count.
+  const byKind = list.reduce<Record<string, number>>((acc, a) => {
+    const ext = a.filename.split(".").pop()?.toLowerCase() || "file";
+    acc[ext] = (acc[ext] ?? 0) + 1;
+    return acc;
+  }, {});
+  const kinds = Object.entries(byKind).sort((a, b) => b[1] - a[1]);
+
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
-              Deliverables &amp; Artifacts
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1 leading-relaxed">
-              Preview and download generated documents, analysis notes, code, and compliance reports.
-            </p>
-          </div>
+        <div className="pb-4 border-b border-[var(--carbon)]">
+          <span className="mono-label" style={{ letterSpacing: "0.12em" }}>Output</span>
+          <h1 className="tracking-tight" style={{ margin: "10px 0 0" }}>Finished files</h1>
+          <p style={{ margin: "8px 0 0" }}>
+            Real files, not a preview of one: a Word document opens in Word. Everything here
+            was written on this machine by a task you asked for, and each one is tied to the
+            task that produced it.
+          </p>
         </div>
 
-        {/* Deliverables List Table */}
-        <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl flex flex-col overflow-hidden">
-          {!artifacts || artifacts.length === 0 ? (
-            <div className="p-16 flex flex-col items-center justify-center text-center space-y-2">
-              <Archive className="w-12 h-12 text-slate-500 mb-2" />
-              <h3 className="text-base font-bold text-slate-800">No deliverables yet</h3>
-              <p className="text-xs text-slate-500 max-w-sm">
-                Generated documents, reports, and code artifacts will appear here as AI tasks are completed.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/30">
-                    <th className="py-3.5 px-5">Filename</th>
-                    <th className="py-3.5 px-5">Deliverable Type</th>
-                    <th className="py-3.5 px-5">Origin Job</th>
-                    <th className="py-3.5 px-5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {artifacts.map((artifact) => (
-                    <tr key={artifact.artifact_id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3 px-5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-[var(--accent)] shrink-0">
-                            <FileText className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <span className="font-semibold text-slate-800 block text-xs truncate max-w-xs sm:max-w-md">
-                              {artifact.filename}
-                            </span>
-                            <span className="text-[10px] font-mono text-slate-400 block truncate">
-                              ID: {artifact.artifact_id}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-[var(--accent)] border border-purple-200/60 uppercase">
-                          {artifact.type || "Document"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-5">
-                        <span className="text-xs font-mono text-slate-500 truncate block max-w-[140px]">
-                          {artifact.job_id}
-                        </span>
-                      </td>
-                      <td className="py-3 px-5 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void handleOpenPreview(artifact)}
-                            className="border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Preview</span>
-                          </button>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,210px)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-4">
+            <StatSlab
+              value={String(list.length)}
+              label="Files produced"
+              tone={list.length > 0 ? "signal" : "neutral"}
+            />
+            {kinds.length > 0 && (
+              <FigurePanel figure="1" title="By kind">
+                <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  {kinds.map(([ext, n]) => (
+                    <li
+                      key={ext}
+                      className="flex items-center justify-between gap-2"
+                      style={{ padding: "7px 0", borderBottom: "1px solid var(--carbon)" }}
+                    >
+                      <span className="font-mono uppercase" style={{ fontSize: 11, letterSpacing: "0.08em", color: "var(--signal)" }}>
+                        {ext}
+                      </span>
+                      <span className="font-mono tnum" style={{ fontSize: 12, color: "var(--stone)" }}>{n}</span>
+                    </li>
+                  ))}
+                </ul>
+              </FigurePanel>
+            )}
+          </div>
 
-                          <button
-                            type="button"
-                            onClick={() => onDownloadArtifact(artifact)}
-                            className="border border-purple-200 bg-purple-50 hover:bg-purple-100 text-[var(--accent)] rounded-xl px-3 py-1.5 text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>Download</span>
-                          </button>
-                        </div>
+          <FigurePanel figure="2" title="Everything produced" caption="newest tasks first" flush>
+            <table>
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Kind</th>
+                  <th>From task</th>
+                  <th style={{ textAlign: "right" }}>Open</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="font-mono" style={{ color: "var(--graphite)" }}>
+                      Nothing produced yet. Finished tasks leave their files here.
+                    </td>
+                  </tr>
+                ) : (
+                  list.map((artifact) => (
+                    <tr key={artifact.artifact_id}>
+                      <td style={{ maxWidth: 420 }}>
+                        <span className="block truncate" style={{ color: "var(--bone)" }}>{artifact.filename}</span>
+                        <span className="block font-mono truncate" style={{ marginTop: 3, fontSize: 11, color: "var(--graphite)" }}>
+                          {artifact.artifact_id}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="font-mono uppercase" style={{ fontSize: 10.5, letterSpacing: "0.08em", color: "var(--signal)" }}>
+                          {artifact.type || artifact.filename.split(".").pop() || "file"}
+                        </span>
+                      </td>
+                      <td className="font-mono" style={{ color: "var(--granite)" }}>
+                        {artifact.job_id.substring(0, 8)}
+                      </td>
+                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        <button
+                          type="button"
+                          onClick={() => void handleOpenPreview(artifact)}
+                          className="font-mono uppercase"
+                          style={{ fontSize: 10, letterSpacing: "0.08em", padding: "5px 9px", marginRight: 6, borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
+                        >
+                          Look
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDownloadArtifact(artifact)}
+                          className="font-mono uppercase"
+                          style={{ fontSize: 10, letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 2, border: "1px solid var(--signal)", background: "transparent", color: "var(--signal)", cursor: "pointer" }}
+                        >
+                          Save
+                        </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </FigurePanel>
         </div>
       </div>
 

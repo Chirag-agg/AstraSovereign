@@ -319,60 +319,57 @@ export default function FilesView() {
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-5">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-4 border-b border-[var(--carbon)]">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
-              Workspace Files &amp; Projects
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1 leading-relaxed">
-              Create and manage projects, source code, scripts, and deliverables in isolated local workspaces.
+            <span className="mono-label" style={{ letterSpacing: "0.12em" }}>Workspace</span>
+            <h1 className="tracking-tight" style={{ margin: "10px 0 0" }}>Files the agent works in</h1>
+            <p style={{ margin: "8px 0 0" }}>
+              Each project is its own folder on this machine. The agent reads and writes
+              inside one project at a time, and never outside it.
             </p>
           </div>
-
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setIsNewProjectModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] text-white px-4 py-2 text-xs font-bold shadow-xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 font-mono uppercase"
+              style={{ fontSize: 10.5, letterSpacing: "0.08em", padding: "8px 13px", borderRadius: 2, border: "1px solid var(--signal)", background: "transparent", color: "var(--signal)", cursor: "pointer" }}
             >
-              <Plus className="w-4 h-4" />
-              <span>+ New Project</span>
+              <Plus className="w-3 h-3" />
+              New project
             </button>
-
             <button
               type="button"
               onClick={() => void loadProjects()}
               disabled={loadingProjects}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors cursor-pointer disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 font-mono uppercase"
+              style={{ fontSize: 10.5, letterSpacing: "0.08em", padding: "8px 13px", borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loadingProjects ? "animate-spin" : ""}`} />
-              <span>Refresh</span>
+              <RefreshCw className={`w-3 h-3 ${loadingProjects ? "animate-spin" : ""}`} />
+              Refresh
             </button>
           </div>
         </div>
 
         {/* Notice & Error */}
         {notice && (
-          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-xs font-semibold shadow-xs animate-fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{notice}</span>
+          <div style={{ borderLeft: "2px solid var(--metric)", padding: "10px 14px", borderRadius: 2, fontSize: 13, color: "var(--metric)" }}>
+            {notice}
           </div>
         )}
 
         {error && (
-          <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-4 py-2.5 text-xs font-medium">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+          <div role="alert" style={{ borderLeft: "2px solid var(--alert)", padding: "10px 14px", background: "var(--alert-surface)", borderRadius: 2, fontSize: 13, color: "var(--alert-ink)" }}>
+            {error}
           </div>
         )}
 
         {/* 3-Column Workspace Explorer */}
         <div className="flex flex-col lg:flex-row gap-4 min-h-[520px]">
           {/* Column 1: Projects List */}
-          <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-3 lg:w-72 shrink-0 flex flex-col">
+          <div className="astra-plate rounded-[6px] p-3 lg:w-72 shrink-0 flex flex-col">
             <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100 mb-2">
-              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              <h2 className="mono-label" style={{ margin: 0 }}>
                 Projects
               </h2>
               <button
@@ -434,9 +431,9 @@ export default function FilesView() {
           </div>
 
           {/* Column 2: Files Tree */}
-          <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-3 lg:w-80 shrink-0 flex flex-col">
+          <div className="astra-plate rounded-[6px] p-3 lg:w-80 shrink-0 flex flex-col">
             <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100 mb-2">
-              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              <h2 className="mono-label" style={{ margin: 0 }}>
                 Files
               </h2>
               {selectedProject && (
@@ -490,7 +487,7 @@ export default function FilesView() {
           </div>
 
           {/* Column 3: File Content & Editor */}
-          <div className="bg-white border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] rounded-2xl p-4 flex-1 min-w-0 flex flex-col overflow-hidden">
+          <div className="astra-plate rounded-[6px] p-4 flex-1 min-w-0 flex flex-col overflow-hidden">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2 truncate">
                 <FileText className="w-4 h-4 text-[var(--accent)] shrink-0" />

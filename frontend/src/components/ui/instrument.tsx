@@ -263,7 +263,7 @@ export interface GanttRow {
   start: number;
   /** 0..1 of the track width. */
   width: number;
-  tone?: "signal" | "metric" | "ochre" | "bone";
+  tone?: "signal" | "metric" | "ochre" | "alert" | "bone";
   value?: string;
 }
 
@@ -271,6 +271,7 @@ const TONE: Record<NonNullable<GanttRow["tone"]>, string> = {
   signal: "var(--signal)",
   metric: "var(--metric)",
   ochre: "var(--ochre)",
+  alert: "var(--alert)",
   bone: "var(--bone)",
 };
 

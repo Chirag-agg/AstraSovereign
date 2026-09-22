@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { submitChat, getJob } from "@/lib/api";
 import type { ArtifactSummary, DocumentMeta, JobSummary, Job } from "@/lib/types";
+import { FigurePanel, NumberedList } from "@/components/ui/instrument";
 
 interface HomeSearchViewProps {
   onSearchSubmit: (query: string) => void;
@@ -91,6 +92,14 @@ function statusIcon(status: string) {
       return <AlertCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />;
   }
 }
+
+const HOME_TONE: Record<string, string> = {
+  running: "var(--signal)",
+  queued: "var(--ochre)",
+  completed: "var(--metric)",
+  failed: "var(--alert)",
+  cancelled: "var(--graphite)",
+};
 
 function activeUserId(): string {
   if (typeof window === "undefined") return "user-001";
@@ -268,393 +277,264 @@ export default function HomeSearchView({
     setTimeout(() => setCopiedId(null), 2500);
   };
 
+  // The conversation panel only exists once something has been asked, so the
+  // figures after it renumber rather than leaving a gap where FIG.2 would be.
+  const figNext = messages.length > 0 ? 3 : 2;
+
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
-        {/* ROW 1: Full-Width Intelligent Chatbot Hero (Enlarged to fill full row) */}
-        <div className="w-full bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-[0_4px_25px_-2px_rgba(15,23,42,0.04)] flex flex-col space-y-6">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                  What would you like to work on?
-                </h1>
-                <p className="text-sm sm:text-base text-slate-600 mt-1.5 leading-relaxed">
-                  Ask any question, query local files, or request tasks. Answers appear directly below.
-                </p>
-              </div>
-
-              {messages.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setMessages([])}
-                  className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition-colors cursor-pointer"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  <span>Clear Chat</span>
-                </button>
-              )}
-            </div>
-
-            {/* Chat & Prompt Box (Enlarged with enhanced typography) */}
-            <form
-              onSubmit={handleFormSubmit}
-              className="rounded-2xl p-4 sm:p-6 bg-slate-50/90 border border-slate-200 focus-within:border-purple-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-purple-500/15 transition-all space-y-4 shadow-2xs"
-            >
-              <div className="flex items-start gap-3.5">
-                <Search className="w-6 h-6 text-[var(--accent)] shrink-0 mt-1" />
-                <textarea
-                  rows={3}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      void handleAskAssistant(searchQuery);
-                    }
-                  }}
-                  placeholder="Ask anything (e.g. 'Summarize our vendor guidelines', 'Calculate pipeline pressure drop', or 'Draft a legal risk assessment')..."
-                  className="w-full bg-transparent text-base sm:text-lg text-slate-900 placeholder:text-slate-400 focus:outline-none resize-none leading-relaxed font-normal"
-                />
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-200/70">
-                <div className="flex items-center gap-2.5 text-xs sm:text-sm text-slate-500 font-medium">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block shadow-2xs" />
-                  <span>Local Air-Gap Engine • Sovereign Enterprise Assistant</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="submit"
-                    disabled={!searchQuery.trim() || Boolean(activeJobId)}
-                    className="flex items-center justify-center gap-2 px-7 py-3 rounded-full bg-[var(--accent)] hover:bg-[var(--accent-strong)] active:bg-[var(--accent-strong)] text-white text-sm font-bold shadow-xs hover:shadow-md transition-all cursor-pointer disabled:opacity-40 shrink-0"
-                  >
-                    <Sparkles className="w-4 h-4 text-purple-700" />
-                    <span>{activeJobId ? "Assistant Thinking…" : "Ask Assistant"}</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </form>
-
-            {/* Suggestions */}
-            {messages.length === 0 && (
-              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2.5">
-                <span className="text-xs sm:text-sm font-bold text-slate-500 mr-1">Quick Suggestions:</span>
-                {SAMPLE_QUERIES.map((sample) => (
-                  <button
-                    key={sample.label}
-                    type="button"
-                    onClick={() => handleSelectSample(sample.query)}
-                    className="group flex items-center gap-2 px-3.5 py-2 rounded-full bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-xs sm:text-sm text-slate-700 hover:text-purple-900 transition-all shadow-2xs cursor-pointer"
-                  >
-                    <span className="font-semibold">{sample.label}</span>
-                    <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold ${sample.badgeColor}`}>
-                      {sample.badge}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* INLINE CHATBOT CONVERSATION THREAD (Enlarged with enhanced readability) */}
-          {messages.length > 0 && (
-            <div className="pt-5 border-t border-slate-200/80 space-y-5 max-h-[600px] overflow-y-auto pr-1">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider pb-1">
-                <MessageSquare className="w-4 h-4 text-[var(--accent)]" />
-                <span>Assistant Dialogue</span>
-              </div>
-
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}
-                >
-                  {msg.sender === "user" ? (
-                    <div className="max-w-[85%] rounded-2xl px-5 py-3.5 bg-[var(--accent)] text-white text-sm sm:text-base shadow-xs font-medium leading-relaxed">
-                      <div className="font-semibold text-xs text-purple-700 mb-1.5 flex items-center justify-between gap-6">
-                        <span>You</span>
-                        <span>{msg.time}</span>
-                      </div>
-                      <p className="whitespace-pre-wrap">{msg.text}</p>
-                    </div>
-                  ) : (
-                    <div className="max-w-[95%] w-full rounded-2xl p-5 sm:p-6 bg-slate-50 border border-slate-200/80 shadow-xs space-y-3">
-                      {/* Assistant Header */}
-                      <div className="flex items-center justify-between border-b border-slate-200/60 pb-2.5">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-[var(--accent)] to-[var(--brand-300)] text-white flex items-center justify-center text-xs font-bold shadow-2xs">
-                            <Bot className="w-4 h-4" />
-                          </div>
-                          <span className="text-sm font-bold text-slate-900">AstraSovereign Assistant</span>
-                          {msg.model && (
-                            <span className="text-xs font-mono text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
-                              {msg.model}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {msg.status === "completed" && (
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(msg.id, msg.text)}
-                              className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 px-2.5 py-1.5 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 transition-colors cursor-pointer"
-                            >
-                              {copiedId === msg.id ? (
-                                <>
-                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span className="text-emerald-600 font-bold">Copied</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3.5 h-3.5" />
-                                  <span>Copy</span>
-                                </>
-                              )}
-                            </button>
-                          )}
-
-                          <span className="text-xs text-slate-400">{msg.time}</span>
-                        </div>
-                      </div>
-
-                      {/* Assistant Body */}
-                      {msg.status === "running" ? (
-                        <div className="py-5 px-2 space-y-3">
-                          <div className="flex items-center gap-3 text-sm text-[var(--accent)] font-semibold">
-                            <Radio className="w-4 h-4 animate-pulse text-[var(--accent)]" />
-                            <span>{msg.step || "Analyzing request and compiling response..."}</span>
-                          </div>
-                          <div className="h-2 w-56 rounded-full bg-purple-100 overflow-hidden">
-                            <div className="h-full bg-[var(--accent)] rounded-full animate-pulse" style={{ width: "65%" }} />
-                          </div>
-                        </div>
-                      ) : msg.status === "failed" ? (
-                        <div className="flex items-start gap-2.5 text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-4 text-sm sm:text-base">
-                          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                          <p className="whitespace-pre-wrap">{msg.text}</p>
-                        </div>
-                      ) : (
-                        <div className="text-sm sm:text-base text-slate-800 leading-relaxed space-y-3 whitespace-pre-wrap font-sans">
-                          {msg.text}
-                        </div>
-                      )}
-
-                      {/* Generated deliverables (Download) */}
-                      {msg.status === "completed" && msg.artifacts && msg.artifacts.length > 0 ? (
-                        <div className="flex flex-wrap gap-2 pt-3">
-                          {msg.artifacts.map((a) => (
-                            <div
-                              key={a.artifact_id}
-                              className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800"
-                            >
-                              <FileText className="w-3.5 h-3.5 text-emerald-600" />
-                              <span className="truncate max-w-[220px] font-medium">{a.filename}</span>
-                              <span className="text-emerald-600/70">· {a.type}</span>
-                              <button
-                                type="button"
-                                onClick={() => onDownloadArtifact(a)}
-                                className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:text-emerald-900 transition-colors cursor-pointer"
-                                title="Download"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                                Download
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-
-                      {/* Technical IDE Jump Button */}
-                      {msg.status === "completed" && (
-                        <div className="pt-3 border-t border-slate-200/60 flex items-center justify-between">
-                          <span className="text-xs text-slate-400 italic">
-                            Need low-level traces or code sandbox execution?
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => onSearchSubmit(msg.text)}
-                            className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline cursor-pointer"
-                          >
-                            <span>Open in Technical AI Assistant</span>
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-              <div ref={chatBottomRef} />
-            </div>
-          )}
+        <div className="pb-4 border-b border-[var(--carbon)]">
+          <span className="mono-label" style={{ letterSpacing: "0.12em" }}>Assistant</span>
+          <h1 className="tracking-tight" style={{ margin: "10px 0 0" }}>What would you like done?</h1>
+          <p style={{ margin: "8px 0 0" }}>
+            Ask in your own words. It reads the documents you have added, does the arithmetic
+            in a sealed container, and hands back a real file. Everything happens on this
+            machine.
+          </p>
         </div>
 
-        {/* ROW 2: Feature Workbenches & Recent Activity */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-          {/* Left 2 Cols: 4 Feature Workbenches */}
-          <div className="xl:col-span-2 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                  Workspaces &amp; Tools
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Quick access to collaboration, document intelligence, deliverables, and isolated execution.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div
-                onClick={() => onNavigate("agent")}
-                className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] hover:shadow-md hover:border-purple-300 transition-all cursor-pointer group space-y-2.5"
-              >
-                <div className="w-10 h-10 rounded-2xl bg-purple-50 flex items-center justify-center text-[var(--accent)] group-hover:scale-105 transition-transform">
-                  <Terminal className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-[var(--accent)] transition-colors">
-                    AI Assistant Studio
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    Technical workspace with model configuration and live execution traces.
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 text-xs font-bold text-[var(--accent)] pt-1">
-                  <span>Open Studio</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </div>
-
-              <div
-                onClick={() => onNavigate("coworking")}
-                className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] hover:shadow-md hover:border-purple-300 transition-all cursor-pointer group space-y-2.5"
-              >
-                <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 group-hover:scale-105 transition-transform">
-                  <Users2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-[var(--accent)] transition-colors">
-                    Coworking Space
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    Department workflows, authorization levels L1–L4, and deliverable sign-offs.
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 text-xs font-bold text-[var(--accent)] pt-1">
-                  <span>Enter Coworking</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </div>
-
-              <div
-                onClick={() => onNavigate("sandbox")}
-                className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] hover:shadow-md hover:border-purple-300 transition-all cursor-pointer group space-y-2.5"
-              >
-                <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:scale-105 transition-transform">
-                  <Terminal className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-[var(--accent)] transition-colors">
-                    Code Sandbox (Docker)
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    Air-gapped code runner with read-only root and disabled network.
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 text-xs font-bold text-[var(--accent)] pt-1">
-                  <span>Open Sandbox</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </div>
-
-              <div
-                onClick={() => onNavigate("outputs")}
-                className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] hover:shadow-md hover:border-purple-300 transition-all cursor-pointer group space-y-2.5"
-              >
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform">
-                  <Download className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 group-hover:text-[var(--accent)] transition-colors">
-                    Deliverables &amp; Reports
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    View generated Word (.docx), Excel (.xlsx), and PowerPoint (.pptx) files.
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 text-xs font-bold text-[var(--accent)] pt-1">
-                  <span>View Deliverables</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right 1 Col: Recent Tasks */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.03)] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900">Recent Tasks</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800">
-                  {jobs ? jobs.length : 0}
-                </span>
-              </div>
+        <FigurePanel
+          figure="1"
+          title="Ask"
+          caption="plain English is fine"
+          actions={
+            messages.length > 0 ? (
               <button
                 type="button"
-                onClick={() => onNavigate("jobs")}
-                className="text-[11px] font-bold text-[var(--accent)] hover:underline cursor-pointer"
+                onClick={() => setMessages([])}
+                className="font-mono uppercase"
+                style={{ fontSize: 10, letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
               >
-                View all
+                Clear
               </button>
-            </div>
-
-            <div className="divide-y divide-slate-50">
-              {recentTasks.length === 0 ? (
-                <div className="py-6 text-center text-xs text-slate-400 italic">
-                  No tasks launched yet. Ask above to start.
-                </div>
-              ) : (
-                recentTasks.map((job) => (
-                  <div
-                    key={job.job_id}
-                    onClick={() => onNavigate("agent")}
-                    className="py-2.5 flex items-start gap-2.5 hover:bg-slate-50/80 rounded-xl px-2 transition-colors cursor-pointer group"
-                  >
-                    <div className="mt-0.5 shrink-0">{statusIcon(job.status)}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-800 truncate group-hover:text-purple-700">
-                          {job.message || "Untitled task"}
-                        </span>
-                        <span className="text-[10px] font-mono text-slate-400 shrink-0 ml-2 uppercase">
-                          {job.status}
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-mono text-slate-400 block truncate mt-0.5">
-                        {job.job_id}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="pt-2 border-t border-slate-100">
+            ) : undefined
+          }
+        >
+          <form onSubmit={handleFormSubmit} className="flex flex-col gap-3">
+            <textarea
+              rows={3}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void handleAskAssistant(searchQuery);
+                }
+              }}
+              placeholder="e.g. Check this inspection report against the maintenance procedure and draft the approval note"
+              className="w-full"
+              style={{ fontSize: 14.5, lineHeight: 1.6, padding: "12px 14px", resize: "vertical" }}
+            />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <span className="inline-flex items-center gap-2 font-mono uppercase" style={{ fontSize: 10, letterSpacing: "0.1em", color: "var(--granite)" }}>
+                <span className="astra-pulse" style={{ width: 5, height: 5, borderRadius: 99, background: "var(--metric)" }} />
+                Local engine · nothing leaves this machine
+              </span>
               <button
-                type="button"
-                onClick={() => onNavigate("agent")}
-                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                type="submit"
+                disabled={!searchQuery.trim() || Boolean(activeJobId)}
+                className="inline-flex items-center justify-center gap-2 font-mono uppercase"
+                style={{
+                  fontSize: 10.5,
+                  letterSpacing: "0.1em",
+                  padding: "10px 18px",
+                  borderRadius: 2,
+                  border: "none",
+                  background: "var(--chalk)",
+                  color: "var(--chalk-ink)",
+                  cursor: !searchQuery.trim() || activeJobId ? "default" : "pointer",
+                  opacity: !searchQuery.trim() || activeJobId ? 0.45 : 1,
+                }}
               >
-                <span>Launch Technical Assistant Session</span>
+                {activeJobId ? "Working" : "Ask"}
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
-          </div>
+          </form>
+
+          {messages.length === 0 && (
+            <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--carbon)" }}>
+              <span className="mono-label" style={{ marginRight: 4 }}>Or start from</span>
+              {SAMPLE_QUERIES.map((sample) => (
+                <button
+                  key={sample.label}
+                  type="button"
+                  onClick={() => void handleAskAssistant(sample.query)}
+                  className="font-mono"
+                  style={{ fontSize: 11.5, padding: "6px 11px", borderRadius: 2, border: "1px solid var(--carbon)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
+                >
+                  {sample.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </FigurePanel>
+
+        {messages.length > 0 && (
+          <FigurePanel figure="2" title="The conversation" caption={`${messages.length} message(s)`}>
+            <div style={{ maxHeight: 620, overflowY: "auto", display: "flex", flexDirection: "column", gap: 18 }}>
+              {messages.map((msg) =>
+                msg.sender === "user" ? (
+                  <div key={msg.id} style={{ borderLeft: "2px solid var(--signal)", paddingLeft: 14 }}>
+                    <div className="flex items-baseline justify-between gap-4">
+                      <span className="mono-label" style={{ color: "var(--signal)" }}>You</span>
+                      <span className="font-mono" style={{ fontSize: 10.5, color: "var(--graphite)" }}>{msg.time}</span>
+                    </div>
+                    <p style={{ margin: "7px 0 0", fontSize: 14.5, lineHeight: 1.6, color: "var(--bone)", whiteSpace: "pre-wrap" }}>
+                      {msg.text}
+                    </p>
+                  </div>
+                ) : (
+                  <div key={msg.id} style={{ border: "1px solid var(--carbon)", borderRadius: 4, padding: "16px 18px" }}>
+                    <div className="flex items-center justify-between gap-4" style={{ paddingBottom: 11, marginBottom: 12, borderBottom: "1px solid var(--carbon)" }}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="mono-label">Assistant</span>
+                        {msg.model && (
+                          <span className="font-mono truncate" style={{ fontSize: 10.5, color: "var(--signal)" }}>{msg.model}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        {msg.status === "completed" && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(msg.id, msg.text)}
+                            className="font-mono uppercase"
+                            style={{ fontSize: 10, letterSpacing: "0.08em", background: "transparent", border: "none", color: copiedId === msg.id ? "var(--metric)" : "var(--granite)", cursor: "pointer", padding: 0 }}
+                          >
+                            {copiedId === msg.id ? "Copied" : "Copy"}
+                          </button>
+                        )}
+                        <span className="font-mono" style={{ fontSize: 10.5, color: "var(--graphite)" }}>{msg.time}</span>
+                      </div>
+                    </div>
+
+                    {msg.status === "running" ? (
+                      <div className="flex flex-col gap-3" style={{ padding: "6px 0" }}>
+                        <span className="inline-flex items-center gap-2 font-mono" style={{ fontSize: 12, color: "var(--signal)" }}>
+                          <span className="astra-pulse" style={{ width: 5, height: 5, borderRadius: 99, background: "var(--signal)" }} />
+                          {msg.step || "Working on it…"}
+                        </span>
+                        <span style={{ display: "block", height: 2, background: "var(--carbon)" }}>
+                          <span className="astra-pulse" style={{ display: "block", height: 2, width: "62%", background: "var(--signal)" }} />
+                        </span>
+                      </div>
+                    ) : msg.status === "failed" ? (
+                      <div
+                        role="alert"
+                        style={{ borderLeft: "2px solid var(--alert)", padding: "10px 14px", background: "var(--alert-surface)", borderRadius: 2, fontSize: 13, color: "var(--alert-ink)", whiteSpace: "pre-wrap" }}
+                      >
+                        {msg.text}
+                      </div>
+                    ) : (
+                      <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.7, color: "var(--stone)", whiteSpace: "pre-wrap" }}>
+                        {msg.text}
+                      </p>
+                    )}
+
+                    {msg.status === "completed" && msg.artifacts && msg.artifacts.length > 0 && (
+                      <div className="flex flex-wrap gap-2" style={{ marginTop: 14 }}>
+                        {msg.artifacts.map((a) => (
+                          <button
+                            key={a.artifact_id}
+                            type="button"
+                            onClick={() => onDownloadArtifact(a)}
+                            className="inline-flex items-center gap-2 font-mono"
+                            style={{ fontSize: 11.5, padding: "7px 11px", borderRadius: 2, border: "1px solid var(--metric)", background: "transparent", color: "var(--metric)", cursor: "pointer" }}
+                          >
+                            <Download className="w-3 h-3" />
+                            <span className="truncate" style={{ maxWidth: 260 }}>{a.filename}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {msg.status === "completed" && (
+                      <div className="flex items-center justify-between gap-3" style={{ marginTop: 14, paddingTop: 11, borderTop: "1px solid var(--carbon)" }}>
+                        <span style={{ fontSize: 12, color: "var(--graphite)" }}>
+                          Want to see every step it took?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onSearchSubmit(msg.text)}
+                          className="font-mono uppercase"
+                          style={{ fontSize: 10, letterSpacing: "0.08em", background: "transparent", border: "none", color: "var(--signal)", cursor: "pointer", padding: 0 }}
+                        >
+                          Open the full trace →
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ),
+              )}
+              <div ref={chatBottomRef} />
+            </div>
+          </FigurePanel>
+        )}
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+          <FigurePanel figure={String(figNext)} title="Where to go next" caption="four places, in office language">
+            <NumberedList
+              index={figNext}
+              items={[
+                { title: "Ask with the full trace", detail: "the technical assistant shows every tool call and file written." },
+                { title: "Add documents", detail: `${docCount} indexed so far — anything you add becomes searchable.` },
+                { title: "Collect finished files", detail: "every Word document and report a task produced." },
+                { title: "Try the sealed sandbox", detail: "run a calculation in a container with no network at all." },
+              ]}
+            />
+            <div className="flex flex-wrap gap-2" style={{ marginTop: 14 }}>
+              {([
+                ["agent", "Technical assistant"],
+                ["knowledge", "Documents"],
+                ["outputs", "Finished files"],
+                ["sandbox", "Sandbox"],
+              ] as const).map(([section, label]) => (
+                <button
+                  key={section}
+                  type="button"
+                  onClick={() => onNavigate(section)}
+                  className="font-mono uppercase"
+                  style={{ fontSize: 10, letterSpacing: "0.08em", padding: "7px 11px", borderRadius: 2, border: "1px solid var(--ash)", background: "transparent", color: "var(--stone)", cursor: "pointer" }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </FigurePanel>
+
+          <FigurePanel figure={String(figNext + 1)} title="Lately" caption="the last few tasks" flush>
+            <table>
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th style={{ textAlign: "right" }}>State</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentTasks.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="font-mono" style={{ color: "var(--graphite)" }}>
+                      Nothing yet.
+                    </td>
+                  </tr>
+                ) : (
+                  recentTasks.map((job) => (
+                    <tr key={job.job_id} onClick={() => onNavigate("jobs")} style={{ cursor: "pointer" }}>
+                      <td style={{ maxWidth: 230 }}>
+                        <span className="block truncate">{job.message}</span>
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <span className="font-mono uppercase" style={{ fontSize: 10, letterSpacing: "0.08em", color: HOME_TONE[job.status] ?? "var(--graphite)" }}>
+                          {job.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </FigurePanel>
         </div>
       </div>
     </div>

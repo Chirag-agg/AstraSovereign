@@ -3724,3 +3724,9 @@ html.theme-changing * {
   --bone:     #eeeeee;
   --chalk:    #fafafa;
 }
+
+/* The figure-panel surface, for layouts that carry their own header. */
+.astra-plate {
+  background: var(--surface-panel);
+  border: 1px solid var(--carbon);
+}
