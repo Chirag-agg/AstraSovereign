@@ -39,8 +39,21 @@ import constants  # noqa: E402
 REPORT_2021 = "inspection_report_2021.pdf"
 REPORT_2026 = "inspection_report_2026.pdf"
 PID = "tank204_pid_extract.png"
+SCANS = (REPORT_2021, REPORT_2026, PID)
 
 EXPECTED_HEADER = ["Course", "Thickness (mm)", "Remarks"]
+
+# The scenario fixtures are *rendered*, not committed — ``tests/fixtures/`` is
+# gitignored and ``build_fixtures.py`` produces them from ``constants.py``. CI
+# has the sources but not the PDFs, so this file skips there rather than
+# failing on a missing file; the geometry it depends on is still pinned by
+# ``test_table_reconstruction.py``, which needs no fixtures.
+MISSING = [name for name in SCANS if not (FIXTURES / name).exists()]
+
+pytestmark = pytest.mark.skipif(
+    bool(MISSING),
+    reason=f"scenario fixtures not built: {', '.join(MISSING)}",
+)
 
 
 def run(coro):
@@ -57,7 +70,7 @@ def extractions(tmp_path_factory):
         extraction_store=JsonExtractionStore(tmp_path / "extractions"),
     )
     built = {}
-    for name in (REPORT_2021, REPORT_2026, PID):
+    for name in SCANS:
         dest = uploads / "user-001" / name
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(FIXTURES / name, dest)
