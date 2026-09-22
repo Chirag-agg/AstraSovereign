@@ -7,11 +7,10 @@ import { cn } from "@/lib/utils";
  * The AstraSovereign mark.
  *
  * Six triangles closing into a hexagon around a sealed core, all pointing
- * inward, nothing leaving. Five wedges answer to the five capabilities
- * config/models.yaml declares — general, coding, math, document, vision —
- * and the sixth is deliberately unclaimed, because adding a capability is a
- * config change. MarkSection labels them and leaves that slot empty rather
- * than inventing a name to make the geometry tidy.
+ * inward, nothing leaving. Five wedges answer to the routed capabilities in
+ * config/models.yaml — general, coding, math, document, vision — and the
+ * sixth to nomic-embed-text, the embedding model that classifies each task
+ * and chooses between the other five. MarkSection labels all six.
  *
  * The scanline fill is a halftone, not a gradient; the small squares at each
  * vertex are control points, the visual language of a drawing under

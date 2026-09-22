@@ -59,6 +59,31 @@ for (const [label, actual] of Object.entries(measured)) {
   );
 }
 
+// The mark plate draws its radar from MODEL_ROSTER and names the classifier
+// from EMBEDDING_MODEL, so both are checked against their sources as well.
+const yamlRoster = JSON.parse(
+  sh(
+    `python3 -c "import yaml,json; d=yaml.safe_load(open('config/models.yaml'))['models']; print(json.dumps({k:[v['model'],(v.get('resources') or {}).get('gpu_vram_mb')] for k,v in d.items()}))"`,
+  ),
+);
+const rosterBlock = source.split("export const MODEL_ROSTER")[1]?.split("] as const")[0] ?? "";
+for (const m of rosterBlock.matchAll(/capability: "(\w+)", model: "([^"]+)", vram_mb: (\d+)/g)) {
+  const [, capability, model, vram] = m;
+  const truth = yamlRoster[capability];
+  const ok = Boolean(truth) && truth[0] === model && String(truth[1]) === vram;
+  if (!ok) failures += 1;
+  console.log(
+    `roster:${capability}`.padEnd(20),
+    `${vram}MB`.padEnd(12),
+    truth ? `${truth[1]}MB ${truth[0]}` : "missing",
+    ok ? "" : "  ✗ MISMATCH",
+  );
+}
+const embedClaim = source.match(/EMBEDDING_MODEL = \{[^}]*model: "([^"]+)"/)?.[1];
+const embedTruth = sh(`grep -oP 'embedding_model: str = "\\K[^"]+' backend/app/config.py`);
+if (embedClaim !== embedTruth) failures += 1;
+console.log("embedding model".padEnd(20), String(embedClaim).padEnd(12), embedTruth, embedClaim === embedTruth ? "" : "  ✗ MISMATCH");
+
 if (failures > 0) {
   console.error(`\n${failures} metric(s) out of date — update frontend/src/lib/metrics.ts.`);
   process.exit(1);

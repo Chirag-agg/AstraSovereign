@@ -176,6 +176,18 @@ export const MODEL_ROSTER = [
   { capability: "vision", model: "llava:7b", vram_mb: 4096 },
 ] as const;
 
+/**
+ * The embedding model. Not a routed capability — it is not in models.yaml and
+ * the scheduler declares no GPU reservation for it — but it is the model that
+ * decides between the other five: SemanticCapabilityClassifier embeds each
+ * task and picks the nearest capability, and document_search runs on it too.
+ */
+export const EMBEDDING_MODEL = {
+  capability: "embed",
+  model: "nomic-embed-text",
+  source: "backend/app/config.py — embedding_model",
+} as const;
+
 /** The agent's complete tool surface. Every one runs on this machine. */
 export const TOOL_SURFACE = [
   "list_files",
