@@ -148,3 +148,5 @@ desktop.ini
 tests/fixtures/hard_scenario_01/
 tests/hard_scenario_01/_golden/
 bench/results/
+backend/scratch/
+data/benchmark/

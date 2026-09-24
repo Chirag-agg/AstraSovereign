@@ -32,10 +32,11 @@ function activeUserId(): string {
 
 interface KnowledgeBaseViewProps {
   documents: DocumentMeta[] | null;
-  onUploadDocument: (file: File) => void;
+  onUploadDocument: (file: File, documentKind?: string) => void;
   onDeleteDocument: (id: string) => void;
   uploading: boolean;
 }
+
 
 export default function KnowledgeBaseView({
   documents,
@@ -75,11 +76,14 @@ export default function KnowledgeBaseView({
     };
   }, []);
 
+  const [documentKind, setDocumentKind] = useState<string>("general");
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      onUploadDocument(e.target.files[0]);
+      onUploadDocument(e.target.files[0], documentKind);
     }
   };
+
 
   const handleOpenPreview = async (doc: DocumentMeta) => {
     setPreviewDoc(doc);
@@ -208,8 +212,20 @@ export default function KnowledgeBaseView({
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <label htmlFor="doc-kind-select" className="sr-only">Document type</label>
+            <select
+              id="doc-kind-select"
+              value={documentKind}
+              onChange={(e) => setDocumentKind(e.target.value)}
+              className="font-mono text-xs px-2.5 py-1.5 rounded border border-[var(--carbon)] bg-[var(--surface)] text-[var(--bone)] cursor-pointer"
+              title="Select document ingestion profile"
+            >
+              <option value="general">General</option>
+              <option value="pid">Engineering Drawing (P&ID)</option>
+            </select>
             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
             <button
+
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
               className="inline-flex items-center gap-1.5 font-mono uppercase"

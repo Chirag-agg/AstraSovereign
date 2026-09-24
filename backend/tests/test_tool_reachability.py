@@ -7,7 +7,7 @@ import pytest
 from app.services.nodes import NODE_INPUT_NODES, NODE_TOOLS
 from app.services.tool_config import ToolConfigError, validate_node_tools
 from app.services.tool_registry import ToolRegistry
-from app.services.tools import BaseTool, DocumentVisionTool, ToolResult
+from app.services.tools import BaseTool, DocumentVisionTool, PIDDiagramQATool, ToolResult
 
 
 class StubTool(BaseTool):
@@ -29,6 +29,14 @@ def test_document_vision_declares_its_document_id_sources():
         "node_input",
         "document_search",
     }
+
+
+def test_pid_diagram_qa_declares_its_document_id_sources():
+    assert PIDDiagramQATool.required_sources["document_id"] == {
+        "node_input",
+        "document_search",
+    }
+
 
 
 def test_current_shipped_configuration_passes():

@@ -764,6 +764,74 @@ class DocumentExactSearchTool(BaseTool):
         )
 
 
+class PIDDiagramQATool(BaseTool):
+    """Answers technical questions about a P&ID / engineering drawing with visual citations.
+
+    Resolves tag queries (instrument loops, connected piping lines, equipment
+    tags, drawing revisions, and local spatial topologies) from extracted
+    drawing elements and returns answers paired with cropped citation image
+    paths for verifiable audit evidence.
+    """
+
+    name = "pid_diagram_qa"
+    description = (
+        "Ask questions about a P&ID or engineering drawing (e.g. instrument loops, "
+        "connected piping lines, equipment tags, drawing revisions, or spatial neighbors). "
+        "Returns technical answers with bounding-box cropped image citations for verification."
+    )
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "document_id": {"type": "string", "description": "The ingested P&ID document ID"},
+            "question": {"type": "string", "description": "Technical inquiry about tags, lines, equipment, or connections"},
+        },
+        "required": ["document_id", "question"],
+        "additionalProperties": False,
+    }
+    required_sources = {"document_id": {"node_input", "document_search"}}
+
+
+    def __init__(self, extraction_store, qa_service: Optional[Any] = None) -> None:
+        self._store = extraction_store
+        from app.services.pid_qa import PIDQuestionAnswerer
+        self._qa = qa_service or PIDQuestionAnswerer()
+
+    async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
+        ctx = get_job_context()
+        user_id = ctx.get("user_id")
+        if not user_id:
+            raise ToolError("pid_diagram_qa requires a user context")
+        document_id = str(arguments.get("document_id", "")).strip()
+        question = str(arguments.get("question", "")).strip()
+        if not document_id or not question:
+            raise ToolError("document_id and question are required")
+
+        extraction = self._store.get(user_id, document_id)
+        if extraction is None:
+            return ToolResult(
+                ok=False,
+                summary=f"No extraction available for '{document_id}'",
+                error="not_found",
+            )
+
+        result = self._qa.answer_question(question, extraction)
+        citations_summary = [
+            f"- {c.tag} ({c.subtype}, p.{c.page}, crop: {c.image_path or 'none'})"
+            for c in result.citations
+        ]
+        summary = f"Found {result.total_tags_found} citation(s) for '{question}'"
+        content = result.answer
+        if citations_summary:
+            content += "\n\nCitations:\n" + "\n".join(citations_summary)
+
+        return ToolResult(
+            ok=True,
+            summary=summary,
+            content=content,
+        )
+
+
+
 class DocumentVisionTool(BaseTool):
     """Analyze pages of the user's ingested documents using local OCR + vision.
 

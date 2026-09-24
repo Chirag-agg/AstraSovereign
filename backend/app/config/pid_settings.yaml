@@ -1,0 +1,15 @@
+# Numeric tuning values for P&ID extraction: rendering scale, tiling grid,
+# confidence thresholds, and cropped visual evidence margins.
+settings:
+  render_dpi: 300
+  render_scale: 4.167               # 300 DPI / 72 PDF points = ~4.167
+  tile_grid_rows: 2
+  tile_grid_cols: 3
+  tile_overlap_ratio: 0.15          # 15% overlap between adjacent tiles
+  low_confidence_threshold: 0.70    # Below this threshold tag is flagged low confidence at query time
+  vlm_escalation_threshold: 0.50    # Below this threshold tag triggers secondary visual verification
+  crop_margin_pixels: 80            # Pixel padding around bounding box for visual citation snippets (80px captures full ISA bubbles)
+  dedup_iou_threshold: 0.50         # Intersection over Union threshold for seam deduplication
+  neighbor_distance_threshold: 400.0 # Point radius for topological neighbor linking in page coordinates
+  structural_invalid_confidence_multiplier: 0.50  # Multiplier applied to confidence for tags failing structural validation
+  max_render_pixels: 100000000      # 100M pixel safety limit to guard against decompression bombs

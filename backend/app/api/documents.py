@@ -9,8 +9,9 @@ documents keep the existing Phase 7 ingestion path.
 
 import logging
 from pathlib import Path
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.api.deps import get_user_id
@@ -55,8 +56,10 @@ def _metadata(doc) -> dict:
 async def upload_document(
     file: UploadFile,
     request: Request,
+    document_kind: Optional[str] = Form(None),
     user_id: str = Depends(get_user_id),
 ) -> dict:
+
     """Upload and ingest a document (pdf/txt/md/png/jpg/jpeg) into the user's KB."""
     knowledge_base = request.app.state.knowledge_base
     multimodal = request.app.state.multimodal_service
@@ -75,6 +78,22 @@ async def upload_document(
     user_dir.mkdir(parents=True, exist_ok=True)
     destination = user_dir / filename
     destination.write_bytes(await file.read())
+
+    effective_kind = (
+        (document_kind or "").strip().lower()
+        or request.query_params.get("document_kind", "").strip().lower()
+        or "general"
+    )
+
+    if effective_kind == "pid":
+        try:
+            doc = await multimodal.ingest_pid(user_id, destination, filename)
+        except MultimodalError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": "pid_extraction_failed", "message": str(exc)},
+            )
+        return _metadata(doc)
 
     if document_type in IMAGE_DOCUMENT_TYPES:
         try:

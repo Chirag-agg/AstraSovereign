@@ -154,15 +154,22 @@ export function listDocuments(userId: string): Promise<DocumentMeta[]> {
   return request<DocumentMeta[]>("/api/documents", {}, userId);
 }
 
-export function uploadDocument(userId: string, file: File): Promise<DocumentMeta> {
+export function uploadDocument(
+  userId: string,
+  file: File,
+  documentKind: string = "general",
+): Promise<DocumentMeta> {
   const form = new FormData();
   form.append("file", file);
+  form.append("document_kind", documentKind);
   return request<DocumentMeta>(
     "/api/documents",
     { method: "POST", body: form },
     userId,
   );
 }
+
+
 
 export async function deleteDocument(userId: string, documentId: string): Promise<void> {
   await request<unknown>(

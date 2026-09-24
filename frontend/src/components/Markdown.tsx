@@ -73,8 +73,31 @@ function parseBlocks(md: string): ReactNode[] {
       continue;
     }
 
+    // images / figures (e.g. visual evidence crops)
+    const imgMatch = line.trim().match(/^!\[(.*?)\]\((.*?)\)$/);
+    if (imgMatch) {
+      out.push(
+        <figure key={key++} className="my-3 rounded-lg border border-slate-200 overflow-hidden bg-slate-50/50 p-2">
+          <img
+            src={imgMatch[2]}
+            alt={imgMatch[1]}
+            className="max-h-64 rounded object-contain border border-slate-200 bg-white"
+            loading="lazy"
+          />
+          {imgMatch[1] ? (
+            <figcaption className="text-xs font-mono text-slate-500 mt-1.5 px-1">
+              {imgMatch[1]}
+            </figcaption>
+          ) : null}
+        </figure>
+      );
+      i += 1;
+      continue;
+    }
+
     // headings
     const heading = line.match(/^(#{1,4})\s+(.*)$/);
+
     if (heading) {
       out.push(
         <h3
