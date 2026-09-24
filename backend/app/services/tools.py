@@ -769,15 +769,15 @@ class PIDDiagramQATool(BaseTool):
 
     Resolves tag queries (instrument loops, connected piping lines, equipment
     tags, drawing revisions, and local spatial topologies) from extracted
-    drawing elements and returns answers paired with cropped citation image
-    paths for verifiable audit evidence.
+    drawing elements and returns answers with per-citation tag, subtype, and
+    page provenance for verifiable audit evidence.
     """
 
     name = "pid_diagram_qa"
     description = (
         "Ask questions about a P&ID or engineering drawing (e.g. instrument loops, "
         "connected piping lines, equipment tags, drawing revisions, or spatial neighbors). "
-        "Returns technical answers with bounding-box cropped image citations for verification."
+        "Returns technical answers with per-citation tag, subtype, and page provenance."
     )
     input_schema = {
         "type": "object",
@@ -815,8 +815,12 @@ class PIDDiagramQATool(BaseTool):
             )
 
         result = self._qa.answer_question(question, extraction)
+        # Citations carry the resolved tag identity and page provenance only.
+        # The crop ``image_path`` is a host-absolute path; it stays on the
+        # element/citation for server-side use but must not reach the model or
+        # the UI, which would leak workspace layout and cannot dereference it.
         citations_summary = [
-            f"- {c.tag} ({c.subtype}, p.{c.page}, crop: {c.image_path or 'none'})"
+            f"- {c.tag} ({c.subtype}, p.{c.page})"
             for c in result.citations
         ]
         summary = f"Found {result.total_tags_found} citation(s) for '{question}'"

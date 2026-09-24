@@ -42,13 +42,11 @@ class PIDExtractionError(Exception):
 class PIDSettings:
     """Runtime numeric tuning parameters for P&ID extraction."""
 
-    render_dpi: int = 300
     render_scale: float = 4.167
     tile_grid_rows: int = 2
     tile_grid_cols: int = 3
     tile_overlap_ratio: float = 0.15
     low_confidence_threshold: float = 0.70
-    vlm_escalation_threshold: float = 0.50
     crop_margin_pixels: int = 80
     dedup_iou_threshold: float = 0.50
     neighbor_distance_threshold: float = 400.0
@@ -66,13 +64,11 @@ class PIDSettings:
                 data = yaml.safe_load(f) or {}
             settings_dict = data.get("settings", {})
             return cls(
-                render_dpi=int(settings_dict.get("render_dpi", 300)),
                 render_scale=float(settings_dict.get("render_scale", 4.167)),
                 tile_grid_rows=int(settings_dict.get("tile_grid_rows", 2)),
                 tile_grid_cols=int(settings_dict.get("tile_grid_cols", 3)),
                 tile_overlap_ratio=float(settings_dict.get("tile_overlap_ratio", 0.15)),
                 low_confidence_threshold=float(settings_dict.get("low_confidence_threshold", 0.70)),
-                vlm_escalation_threshold=float(settings_dict.get("vlm_escalation_threshold", 0.50)),
                 crop_margin_pixels=int(settings_dict.get("crop_margin_pixels", 80)),
                 dedup_iou_threshold=float(settings_dict.get("dedup_iou_threshold", 0.50)),
                 neighbor_distance_threshold=float(settings_dict.get("neighbor_distance_threshold", 400.0)),
@@ -114,7 +110,7 @@ class RawTagDetection:
     tile_bbox: list[int]  # [x0, y0, x1, y1] local to tile
     global_bbox: list[int]  # [x0, y0, x1, y1] on full render
     page_bbox: list[float]  # [x0, y0, x1, y1] in PDF page units
-    confidence: float
+    confidence: Optional[float]  # None when the OCR engine reported no score
     classification: TagClassificationResult
 
 
@@ -235,6 +231,19 @@ def compute_iou(box_a: list[int], box_b: list[int]) -> float:
     return inter_area / union_area
 
 
+def _scale_confidence(value: Optional[float], multiplier: float = 1.0) -> Optional[float]:
+    """Scale and clamp a confidence score, preserving ``None``.
+
+    OCR engines are not obliged to report a per-region score. When one does not,
+    the absence must survive the pipeline rather than being replaced by an
+    invented number, so downstream consumers can tell "unscored" from "scored
+    low".
+    """
+    if value is None:
+        return None
+    return max(0.0, min(1.0, float(value) * multiplier))
+
+
 def deduplicate_detections(
     detections: list[RawTagDetection],
     iou_threshold: float = 0.50,
@@ -260,8 +269,12 @@ def deduplicate_detections(
     if not detections:
         return []
 
-    # Sort descending by confidence
-    sorted_dets = sorted(detections, key=lambda d: d.confidence, reverse=True)
+    # Sort descending by confidence, keeping unscored detections last
+    sorted_dets = sorted(
+        detections,
+        key=lambda d: (d.confidence is not None, d.confidence or 0.0),
+        reverse=True,
+    )
     kept: list[RawTagDetection] = []
 
     for candidate in sorted_dets:
@@ -290,7 +303,8 @@ def deduplicate_detections(
                 ]
                 existing.global_bbox = merged_global
                 existing.page_bbox = merged_page
-                existing.confidence = max(existing.confidence, candidate.confidence)
+                scored = [s for s in (existing.confidence, candidate.confidence) if s is not None]
+                existing.confidence = max(scored) if scored else None
                 duplicate = True
                 break
 
@@ -398,11 +412,13 @@ class PIDExtractor:
                     round(global_bbox[2] * scale_x, 2),
                     round(global_bbox[3] * scale_y, 2),
                 ]
-                raw_conf = float(region.confidence) if region.confidence is not None else 0.90
-                if not classification.is_structurally_valid:
-                    final_conf = max(0.0, min(1.0, raw_conf * self.settings.structural_invalid_confidence_multiplier))
+                if classification.is_structurally_valid:
+                    final_conf = _scale_confidence(region.confidence)
                 else:
-                    final_conf = max(0.0, min(1.0, raw_conf))
+                    final_conf = _scale_confidence(
+                        region.confidence,
+                        self.settings.structural_invalid_confidence_multiplier,
+                    )
 
                 raw_detections.append(
                     RawTagDetection(
@@ -444,7 +460,11 @@ class PIDExtractor:
                 page=page_number,
                 bbox=det.page_bbox,
                 text=det.classification.normalized_tag,
-                confidence=round(max(0.0, min(1.0, float(det.confidence))), 4),
+                confidence=(
+                    None
+                    if det.confidence is None
+                    else round(max(0.0, min(1.0, float(det.confidence))), 4)
+                ),
                 is_structurally_valid=det.classification.is_structurally_valid,
                 element_id=element_id,
                 order=index,

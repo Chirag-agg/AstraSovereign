@@ -446,6 +446,7 @@ def test_nodes_scope_tools_per_step():
         "document_exact_search",
         "read_document",
         "document_vision",
+        "pid_diagram_qa",
         "submit_findings",
         "list_files",
     }  # extract keeps its read tools plus the typed exit
