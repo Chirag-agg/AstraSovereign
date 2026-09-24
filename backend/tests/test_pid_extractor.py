@@ -1,5 +1,6 @@
 """Unit tests for P&ID tag extraction, classification, tiling, and coordinate projection."""
 
+import asyncio
 import math
 from pathlib import Path
 import pytest
@@ -19,6 +20,11 @@ from app.services.pid_extractor import (
     deduplicate_detections,
     project_tile_bbox_to_global,
 )
+
+
+def run(coro):
+    """Drive a coroutine to completion without requiring an async pytest plugin."""
+    return asyncio.run(coro)
 
 
 class MockScriptedOCR(OCRProvider):
@@ -297,8 +303,7 @@ def test_neighbor_tag_linking(tmp_path):
     assert "elem_hash_0001" not in elem3.neighbor_tag_ids
 
 
-@pytest.mark.asyncio
-async def test_pid_extractor_pipeline_synthetic(tmp_path):
+def test_pid_extractor_pipeline_synthetic(tmp_path):
     """End-to-end integration test of extract_page with a synthetic drawing image."""
     # Create synthetic test image
     img = Image.new("RGB", (600, 400), "white")
@@ -315,11 +320,13 @@ async def test_pid_extractor_pipeline_synthetic(tmp_path):
     extractor = PIDExtractor(settings=settings, ocr_provider=mock_ocr)
 
     out_dir = tmp_path / "crops"
-    elements = await extractor.extract_page(
-        image_or_pdf_path=img_path,
-        page_number=1,
-        output_dir=out_dir,
-        document_sha256="fake_sha256",
+    elements = run(
+        extractor.extract_page(
+            image_or_pdf_path=img_path,
+            page_number=1,
+            output_dir=out_dir,
+            document_sha256="fake_sha256",
+        )
     )
 
     assert len(elements) == 2
@@ -383,8 +390,7 @@ def test_structural_validation_instrument_isa51():
         assert "ANSI/ISA-5.1" in res.validation_reason
 
 
-@pytest.mark.asyncio
-async def test_pid_extractor_structural_invalid_retained_with_lowered_confidence(tmp_path):
+def test_pid_extractor_structural_invalid_retained_with_lowered_confidence(tmp_path):
     """Confirm structurally invalid tags are NOT dropped, but flagged and confidence attenuated."""
     img = Image.new("RGB", (600, 400), "white")
     img_path = tmp_path / "test_invalid_tags.png"
@@ -405,11 +411,13 @@ async def test_pid_extractor_structural_invalid_retained_with_lowered_confidence
     extractor = PIDExtractor(settings=settings, ocr_provider=mock_ocr)
 
     out_dir = tmp_path / "crops"
-    elements = await extractor.extract_page(
-        image_or_pdf_path=img_path,
-        page_number=1,
-        output_dir=out_dir,
-        document_sha256="test_sha256",
+    elements = run(
+        extractor.extract_page(
+            image_or_pdf_path=img_path,
+            page_number=1,
+            output_dir=out_dir,
+            document_sha256="test_sha256",
+        )
     )
 
     # Must NOT drop any of the 3 tags
@@ -426,6 +434,39 @@ async def test_pid_extractor_structural_invalid_retained_with_lowered_confidence
         # Visual evidence crop must still be generated
         assert elem.image_path is not None
         assert Path(elem.image_path).is_file()
+
+
+def test_unscored_ocr_region_keeps_confidence_none(tmp_path):
+    """A region the OCR engine did not score must not gain an invented confidence."""
+    img = Image.new("RGB", (600, 400), "white")
+    img_path = tmp_path / "test_unscored.png"
+    img.save(img_path)
+
+    mock_regions = [
+        OCRRegion(text="PT-204A", bbox=[50, 50, 150, 80], confidence=None),
+        OCRRegion(text="ZZ-101", bbox=[250, 50, 340, 80], confidence=None),
+    ]
+    extractor = PIDExtractor(
+        settings=PIDSettings(tile_grid_rows=1, tile_grid_cols=1, crop_margin_pixels=10),
+        ocr_provider=MockScriptedOCR(mock_regions),
+    )
+
+    elements = run(
+        extractor.extract_page(
+            image_or_pdf_path=img_path,
+            page_number=1,
+            output_dir=tmp_path / "crops",
+            document_sha256="unscored_sha",
+        )
+    )
+
+    assert {e.text for e in elements} == {"PT-204A", "ZZ-101"}
+    # Neither the valid nor the structurally invalid tag may fabricate a score;
+    # attenuating "no score" would be just as invented as raising it.
+    for elem in elements:
+        assert elem.confidence is None
+    invalid = next(e for e in elements if e.text == "ZZ-101")
+    assert invalid.is_structurally_valid is False
 
 
 def test_structural_validation_equipment_tag():
@@ -461,8 +502,8 @@ def test_structural_validation_equipment_tag():
         assert "not a recognized process equipment category" in res.validation_reason
 
 
-@pytest.mark.asyncio
-async def test_rotated_text_handling(tmp_path):
+@pytest.mark.rapidocr
+def test_rotated_text_handling(tmp_path):
     """Verify that rotated 90/270 degree text on vertical piping/instruments is extracted."""
     from PIL import ImageDraw
 
@@ -492,11 +533,13 @@ async def test_rotated_text_handling(tmp_path):
 
     extractor = PIDExtractor(ocr_provider=RapidOCREngine())
     out_dir = tmp_path / "crops"
-    elements = await extractor.extract_page(
-        image_or_pdf_path=test_img,
-        page_number=1,
-        output_dir=out_dir,
-        document_sha256="rot_hash",
+    elements = run(
+        extractor.extract_page(
+            image_or_pdf_path=test_img,
+            page_number=1,
+            output_dir=out_dir,
+            document_sha256="rot_hash",
+        )
     )
 
     tag_map = {e.text: e for e in elements}
@@ -579,8 +622,7 @@ def test_cross_page_tag_linkage():
     assert elem_p1_pt.continues_on_pages == []
 
 
-@pytest.mark.asyncio
-async def test_tile_ocr_failure_isolation(tmp_path):
+def test_tile_ocr_failure_isolation(tmp_path):
     """Verify that an OCR failure on one tile does not crash extraction of the whole page."""
     img = Image.new("RGB", (600, 400), "white")
     img_path = tmp_path / "test_tile_fail.png"
@@ -607,11 +649,13 @@ async def test_tile_ocr_failure_isolation(tmp_path):
     settings = PIDSettings(tile_grid_rows=1, tile_grid_cols=2, crop_margin_pixels=10)
     extractor = PIDExtractor(ocr_provider=FailingOCRProvider({}), settings=settings)
 
-    elements = await extractor.extract_page(
-        image_or_pdf_path=img_path,
-        page_number=1,
-        output_dir=tmp_path / "crops",
-        document_sha256="fake_sha",
+    elements = run(
+        extractor.extract_page(
+            image_or_pdf_path=img_path,
+            page_number=1,
+            output_dir=tmp_path / "crops",
+            document_sha256="fake_sha",
+        )
     )
 
     # Even though tile 2 failed, tile 1 succeeded and returned PT-204A
@@ -620,17 +664,18 @@ async def test_tile_ocr_failure_isolation(tmp_path):
     assert call_count == 2
 
 
-@pytest.mark.asyncio
-async def test_pdf_render_clean_domain_exceptions(tmp_path):
+def test_pdf_render_clean_domain_exceptions(tmp_path):
     """Verify that file-access or invalid page errors raise clean PIDExtractionError."""
     extractor = PIDExtractor(ocr_provider=FakeOCRProvider({}))
 
     # 1. Non-existent file
     with pytest.raises(PIDExtractionError) as exc_info:
-        await extractor.extract_page(
-            image_or_pdf_path=tmp_path / "does_not_exist.pdf",
-            page_number=1,
-            output_dir=tmp_path / "crops",
+        run(
+            extractor.extract_page(
+                image_or_pdf_path=tmp_path / "does_not_exist.pdf",
+                page_number=1,
+                output_dir=tmp_path / "crops",
+            )
         )
     assert "Source file not found" in str(exc_info.value)
 
@@ -638,13 +683,11 @@ async def test_pdf_render_clean_domain_exceptions(tmp_path):
     corrupt_file = tmp_path / "corrupt.png"
     corrupt_file.write_text("not an image")
     with pytest.raises(PIDExtractionError) as exc_info2:
-        await extractor.extract_page(
-            image_or_pdf_path=corrupt_file,
-            page_number=1,
-            output_dir=tmp_path / "crops",
+        run(
+            extractor.extract_page(
+                image_or_pdf_path=corrupt_file,
+                page_number=1,
+                output_dir=tmp_path / "crops",
+            )
         )
     assert "Cannot open image file" in str(exc_info2.value)
-
-
-
-
