@@ -242,11 +242,11 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   );
 
   const addAttachment = useCallback(
-    async (file: File) => {
+    async (file: File, documentKind: string = "general") => {
       const chipId = `${Date.now()}-${file.name}`;
       setChips((prev) => [...prev, { id: chipId, filename: file.name, state: "uploading" }]);
       try {
-        const doc = await uploadDocument(user, file);
+        const doc = await uploadDocument(user, file, documentKind);
         setChips((prev) =>
           prev.map((c) =>
             c.id === chipId
@@ -614,10 +614,11 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
           >
             <KnowledgeBaseView
               documents={documents}
-              onUploadDocument={(file) => void addAttachment(file)}
+              onUploadDocument={(file, kind) => void addAttachment(file, kind)}
               onDeleteDocument={(id) => void handleDeleteDocument(id)}
               uploading={chips.some((c) => c.state === "uploading")}
             />
+
           </div>
 
           <div

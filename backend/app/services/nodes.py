@@ -53,9 +53,11 @@ NODE_TOOLS = {
         "document_exact_search",
         "read_document",
         "document_vision",
+        "pid_diagram_qa",
         "submit_findings",
         "list_files",
     },
+
     "retrieve": {"document_search", "document_exact_search"},
     "compute": {"code_execution"},
     # draft is the terminal general-purpose worker node: generators plus the

@@ -72,6 +72,7 @@ from app.services.tools import (
     DocumentGenerationTool,
     DocumentSearchTool,
     DocumentVisionTool,
+    PIDDiagramQATool,
     ReadDocumentTool,
     SubmitFindingsTool,
     ListFilesTool,
@@ -401,7 +402,13 @@ def create_app(
             extraction_store=extraction_store,
         )
     )
+    tools.append(
+        PIDDiagramQATool(
+            extraction_store=extraction_store,
+        )
+    )
     tools.append(SubmitFindingsTool())
+
 
     runner = None
     if settings.sandbox_enabled:

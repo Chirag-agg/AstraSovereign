@@ -232,6 +232,90 @@ class MultimodalService:
             shutil.rmtree(tmp_dir, ignore_errors=True)
             _remove_empty_ancestors(tmp_dir.parent, self._tmp_root)
 
+    async def ingest_pid(
+        self, user_id: str, path: Path, filename: str
+    ) -> DocumentRecord:
+        """Ingest a P&ID / engineering drawing using tiled high-DPI OCR.
+
+        Extracts text tags (instrument loops, line numbers, equipment tags,
+        revisions) using an overlapping tile grid to read fine-grain text
+        accurately, projects bounding boxes to page coordinates, resolves seam
+        duplicates, generates cropped visual citations, and records neighbor
+        tag IDs.
+        """
+        if self._ocr is None:
+            raise MultimodalError("OCR is not enabled on this deployment")
+
+        from app.services.pid_extractor import PIDExtractor, PIDExtractionError
+        from app.services.document_ingestion import _hash_file
+
+        content_hash = _hash_file(path)
+        existing = await self._kb._find_by_content_hash(user_id, content_hash)
+        if existing is not None and (existing.metadata or {}).get("document_kind") == "pid":
+            return existing
+
+        user_crop_dir = (
+            self._uploads_root / WorkspaceManager.safe_component(user_id) / "crops"
+        )
+        user_crop_dir.mkdir(parents=True, exist_ok=True)
+
+        extractor = PIDExtractor(ocr_provider=self._ocr)
+        suffix = path.suffix.lower().lstrip(".")
+        page_count = 1
+        if suffix == "pdf":
+            try:
+                import pypdfium2 as pdfium
+                doc = pdfium.PdfDocument(str(path))
+                page_count = len(doc)
+                doc.close()
+            except Exception as exc:
+                raise MultimodalError(f"Cannot inspect PDF: {exc}") from exc
+
+        elements: list[ExtractionElement] = []
+        pages: list[tuple[Optional[int], str]] = []
+
+        try:
+            for p in range(1, page_count + 1):
+                page_elements = await extractor.extract_page(
+                    image_or_pdf_path=path,
+                    page_number=p,
+                    output_dir=user_crop_dir,
+                    document_sha256=content_hash,
+                )
+                elements.extend(page_elements)
+
+                tag_summaries = [
+                    f"- {elem.text} ({elem.subtype}, confidence: {elem.confidence})"
+                    for elem in page_elements
+                ]
+                text = (
+                    f"P&ID Drawing — Page {p}\n" + "\n".join(tag_summaries)
+                    if tag_summaries
+                    else f"P&ID Drawing — Page {p} (No text tags detected)"
+                )
+                pages.append((p, text))
+
+            # Resolve cross-page tag continuity (e.g. process lines continuing on next sheet)
+            extractor.link_cross_page_tags(elements)
+
+            metadata: dict = {
+                "document_kind": "pid",
+                "page_count": page_count,
+                "tag_count": len(elements),
+                "ocr": True,
+            }
+            return await self._kb.ingest_pages(
+                user_id,
+                path,
+                filename,
+                pages,
+                metadata=metadata,
+                elements=elements,
+            )
+        except PIDExtractionError as exc:
+            raise MultimodalError(f"P&ID extraction failed: {exc}") from exc
+
+
     async def ingest_pdf(self, user_id: str, path: Path, filename: str) -> DocumentRecord:
         """Ingest a PDF page by page, OCR-ing only the pages that need it.
 

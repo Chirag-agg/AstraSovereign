@@ -83,6 +83,10 @@ class ExtractionElement(BaseModel):
     heading_path: list[str] = Field(default_factory=list)
     image_path: Optional[str] = None
     table: Optional[TableData] = None
+    neighbor_tag_ids: list[str] = Field(default_factory=list)
+    is_structurally_valid: Optional[bool] = None
+    continues_on_pages: list[int] = Field(default_factory=list)
+
 
 
 class DocumentExtraction(BaseModel):
