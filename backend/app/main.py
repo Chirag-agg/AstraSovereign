@@ -478,6 +478,8 @@ def create_app(
             generators=document_generators,
             artifact_store=artifact_store,
             scheduler=scheduler,
+            knowledge_base=knowledge_base,
+            uploads_root=settings.uploads_root,
         )
     )
     presentation_renderer = presentation_renderer or NodePresentationRenderer(
@@ -490,6 +492,8 @@ def create_app(
             renderer=presentation_renderer,
             artifact_store=artifact_store,
             scheduler=scheduler,
+            knowledge_base=knowledge_base,
+            uploads_root=settings.uploads_root,
         )
     )
 

@@ -187,3 +187,91 @@ def test_xlsx_freezes_header_and_sizes_columns(tmp_path):
     assert sheet.column_dimensions["A"].width >= len("Location")
     # formula text is ignored when sizing, so computed columns stay tidy
     assert sheet.column_dimensions["D"].width <= 30
+
+
+def _image_content(paths, width_inches=4.0):
+    from app.schemas.document_content import DocumentImage
+
+    return DocumentContent(
+        title="Imaged",
+        sections=[
+            DocumentSection(
+                heading="Evidence",
+                table=[["Item", "Value"], ["Course 2", "10.9"]],
+                images=[
+                    DocumentImage(path=str(path), caption=f"Figure {i}", width_inches=width_inches)
+                    for i, path in enumerate(paths, start=1)
+                ],
+            )
+        ],
+    )
+
+
+def _media_parts(path):
+    import zipfile
+
+    with zipfile.ZipFile(path) as package:
+        return [name for name in package.namelist() if name.startswith("xl/media/")]
+
+
+def test_xlsx_embeds_section_image(tmp_path):
+    from tests.conftest import make_png
+
+    picture = make_png(tmp_path / "crop.png", ["P&ID detail"])
+    content = _image_content([picture])
+    generated = run(XlsxDocumentGenerator().generate(content, tmp_path, "imaged.xlsx"))
+
+    assert _media_parts(generated.path), "workbook carried no image part"
+    sheet = load(generated.path)["Evidence"]
+    values = [cell.value for row in sheet.iter_rows() for cell in row]
+    # Excel has no caption primitive; the caption is written into a cell.
+    assert "Figure 1" in values
+
+
+def test_xlsx_multiple_images_are_anchored_apart(tmp_path):
+    from tests.conftest import make_png
+
+    first = make_png(tmp_path / "one.png", ["one"])
+    second = make_png(tmp_path / "two.png", ["two"])
+    content = _image_content([first, second])
+    generated = run(XlsxDocumentGenerator().generate(content, tmp_path, "two.xlsx"))
+
+    assert len(_media_parts(generated.path)) == 2
+    sheet = load(generated.path)["Evidence"]
+    anchors = [(image.anchor._from.col, image.anchor._from.row) for image in sheet._images]
+    assert len(set(anchors)) == 2, "two pictures were stacked on the same anchor"
+
+
+def test_xlsx_image_is_deterministic(tmp_path):
+    from tests.conftest import make_png
+
+    picture = make_png(tmp_path / "crop.png", ["P&ID detail"])
+    content = _image_content([picture])
+    generator = XlsxDocumentGenerator()
+    first = run(generator.generate(content, tmp_path, "a.xlsx"))
+    second = run(generator.generate(content, tmp_path, "b.xlsx"))
+    assert first.path.read_bytes() == second.path.read_bytes()
+
+
+def test_xlsx_embeds_converted_bmp_image(tmp_path):
+    """A bmp (not a format Excel embeds directly) becomes a real PNG part."""
+    from tests.conftest import make_bmp
+
+    picture = make_bmp(tmp_path / "crop.bmp")
+    generated = run(
+        XlsxDocumentGenerator().generate(_image_content([picture]), tmp_path, "bmp.xlsx")
+    )
+
+    parts = _media_parts(generated.path)
+    assert parts, "workbook carried no image part"
+    assert parts[0].endswith(".png"), f"converted image kept the wrong name: {parts[0]}"
+
+
+def test_xlsx_converted_image_is_deterministic(tmp_path):
+    from tests.conftest import make_bmp
+
+    picture = make_bmp(tmp_path / "crop.bmp")
+    generator = XlsxDocumentGenerator()
+    first = run(generator.generate(_image_content([picture]), tmp_path, "a.xlsx"))
+    second = run(generator.generate(_image_content([picture]), tmp_path, "b.xlsx"))
+    assert first.path.read_bytes() == second.path.read_bytes()

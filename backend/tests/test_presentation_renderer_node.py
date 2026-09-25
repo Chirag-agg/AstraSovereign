@@ -169,3 +169,199 @@ def test_real_renderer_is_byte_deterministic(tmp_path):
     first = renderer.generate(content, tmp_path, "first.pptx")
     second = renderer.generate(content, tmp_path, "second.pptx")
     assert first.path.read_bytes() == second.path.read_bytes()
+
+
+def _slide_xml(package: zipfile.ZipFile, index: int = 1) -> str:
+    return package.read(f"ppt/slides/slide{index}.xml").decode("utf-8")
+
+
+def _slide_height_emu(package: zipfile.ZipFile) -> int:
+    presentation = package.read("ppt/presentation.xml").decode("utf-8")
+    match = re.search(r'<p:sldSz[^>]*\bcy="(\d+)"', presentation)
+    assert match, "presentation.xml has no slide size"
+    return int(match.group(1))
+
+
+def _text_shape_bottoms(slide_xml: str) -> list[int]:
+    """Bottom edge (EMU) of every shape that actually carries text."""
+    bottoms: list[int] = []
+    for shape in re.findall(r"<p:sp>.*?</p:sp>", slide_xml, flags=re.S):
+        if "<p:txBody>" not in shape:
+            continue
+        off = re.search(r'<a:off [^>]*\by="(-?\d+)"', shape)
+        ext = re.search(r'<a:ext [^>]*\bcy="(\d+)"', shape)
+        if off and ext:
+            bottoms.append(int(off.group(1)) + int(ext.group(1)))
+    return bottoms
+
+
+@pytest.mark.node
+@pytest.mark.skipif(not node_ready(), reason="Node.js runtime not available")
+def test_pptx_slide_image_renders(tmp_path):
+    from tests.conftest import make_png
+
+    picture = make_png(tmp_path / "crop.png", ["P&ID detail"])
+    renderer = NodePresentationRenderer(script_path=str(SCRIPT))
+    content = PresentationContent.model_validate(
+        {
+            "title": "Imaged",
+            "slides": [
+                {
+                    "type": "content",
+                    "title": "Evidence",
+                    "content": "Pump detail.",
+                    "image": {"path": str(picture), "caption": "P&ID detail"},
+                }
+            ],
+        }
+    )
+    generated = renderer.generate(content, tmp_path, "imaged.pptx")
+
+    with zipfile.ZipFile(generated.path) as package:
+        names = package.namelist()
+        assert any(name.startswith("ppt/media/") for name in names), (
+            "deck carried no image part"
+        )
+        rels = "".join(
+            package.read(name).decode("utf-8")
+            for name in names
+            if name.startswith("ppt/slides/_rels/") and name.endswith(".rels")
+        )
+    assert "media/" in rels, "no slide relationship points at the image part"
+
+
+@pytest.mark.node
+@pytest.mark.skipif(not node_ready(), reason="Node.js runtime not available")
+def test_pptx_image_is_byte_deterministic(tmp_path):
+    from tests.conftest import make_png
+
+    picture = make_png(tmp_path / "crop.png", ["P&ID detail"])
+    renderer = NodePresentationRenderer(script_path=str(SCRIPT))
+    content = PresentationContent.model_validate(
+        {
+            "title": "Determinism",
+            "slides": [
+                {
+                    "type": "content",
+                    "title": "Evidence",
+                    "content": "Pump detail.",
+                    "image": {"path": str(picture)},
+                }
+            ],
+        }
+    )
+    first = renderer.generate(content, tmp_path, "first.pptx")
+    second = renderer.generate(content, tmp_path, "second.pptx")
+    assert first.path.read_bytes() == second.path.read_bytes()
+
+
+def _data_slide(tmp_path, picture):
+    """The payload the presentation tool hands the renderer for a non-web-safe
+    source: a ``data:`` URI, never a path."""
+    from app.services.image_normalization import render_data_uri
+
+    data_uri = render_data_uri(picture)
+    assert data_uri and data_uri.startswith("image/png;base64,")
+    return PresentationContent.model_validate(
+        {
+            "title": "Converted",
+            "slides": [
+                {
+                    "type": "content",
+                    "title": "Evidence",
+                    "content": "Pump detail.",
+                    "image": {"data": data_uri, "caption": "P&ID detail"},
+                }
+            ],
+        }
+    )
+
+
+@pytest.mark.node
+@pytest.mark.skipif(not node_ready(), reason="Node.js runtime not available")
+def test_pptx_converted_image_renders_from_data(tmp_path):
+    """A bmp source travels as base64 PNG data. PptxGenJS silently drops a
+    malformed ``data`` value, so the media part and slide rel are the proof the
+    ``image/png;base64,`` prefix is right."""
+    from tests.conftest import make_bmp
+
+    picture = make_bmp(tmp_path / "crop.bmp")
+    renderer = NodePresentationRenderer(script_path=str(SCRIPT))
+    generated = renderer.generate(_data_slide(tmp_path, picture), tmp_path, "data.pptx")
+
+    with zipfile.ZipFile(generated.path) as package:
+        names = package.namelist()
+        assert any(
+            name.startswith("ppt/media/") and name.endswith(".png") for name in names
+        ), "deck carried no PNG image part"
+        rels = "".join(
+            package.read(name).decode("utf-8")
+            for name in names
+            if name.startswith("ppt/slides/_rels/") and name.endswith(".rels")
+        )
+    assert "media/" in rels, "no slide relationship points at the image part"
+
+
+@pytest.mark.node
+@pytest.mark.skipif(not node_ready(), reason="Node.js runtime not available")
+def test_pptx_converted_image_is_byte_deterministic(tmp_path):
+    from tests.conftest import make_bmp
+
+    picture = make_bmp(tmp_path / "crop.bmp")
+    renderer = NodePresentationRenderer(script_path=str(SCRIPT))
+    content = _data_slide(tmp_path, picture)
+    first = renderer.generate(content, tmp_path, "first.pptx")
+    second = renderer.generate(content, tmp_path, "second.pptx")
+    assert first.path.read_bytes() == second.path.read_bytes()
+
+
+@pytest.mark.node
+@pytest.mark.skipif(not node_ready(), reason="Node.js runtime not available")
+def test_pptx_ragged_table_keeps_all_cells(tmp_path):
+    """Sizing the grid from the first row alone dropped every later cell."""
+    renderer = NodePresentationRenderer(script_path=str(SCRIPT))
+    content = PresentationContent.model_validate(
+        {
+            "title": "Ragged",
+            "slides": [
+                {
+                    "type": "table",
+                    "title": "Comparison",
+                    "table": [["Item"], ["Course 2", "10.9 mm"], ["Weld seam", "ok", "note"]],
+                }
+            ],
+        }
+    )
+    generated = renderer.generate(content, tmp_path, "ragged.pptx")
+
+    with zipfile.ZipFile(generated.path) as package:
+        slide = _slide_xml(package)
+    for cell in ("Item", "Course 2", "10.9 mm", "Weld seam", "ok", "note"):
+        assert cell in slide, f"cell {cell!r} was dropped from the table"
+
+
+@pytest.mark.node
+@pytest.mark.skipif(not node_ready(), reason="Node.js runtime not available")
+def test_pptx_long_content_stays_inside_the_slide(tmp_path):
+    """A body far longer than the box must shrink its font, not run off the
+    slide; PptxGenJS cannot recalculate autofit on its own."""
+    renderer = NodePresentationRenderer(script_path=str(SCRIPT))
+
+    def sizes_for(body):
+        content = PresentationContent.model_validate(
+            {"title": "Overflow", "slides": [{"type": "content", "title": "Body", "content": body}]}
+        )
+        generated = renderer.generate(content, tmp_path, f"{len(body)}.pptx")
+        with zipfile.ZipFile(generated.path) as package:
+            slide = _slide_xml(package)
+            height = _slide_height_emu(package)
+            bottoms = _text_shape_bottoms(slide)
+        sizes = [int(value) for value in re.findall(r'\bsz="(\d+)"', slide)]
+        return sizes, bottoms, height
+
+    short_sizes, _bottoms, _height = sizes_for("A short paragraph.")
+    long_sizes, bottoms, height = sizes_for("Aggregate findings. " * 300)
+
+    assert 1500 in short_sizes, "baseline content size changed unexpectedly"
+    assert min(long_sizes) < 1500, "a long body did not shrink its font"
+    assert max(bottoms, default=0) <= height, "body text ran past the slide height"

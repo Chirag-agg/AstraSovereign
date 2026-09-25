@@ -14,11 +14,22 @@ from pydantic import BaseModel, Field
 class DocumentImage(BaseModel):
     """An image referenced by a section.
 
-    ``path`` is relative to the job workspace; the document_generation tool
-    resolves it and rejects any escape before the generator ever sees it.
+    Exactly one of the two reference forms is set. ``path`` is relative to the
+    job workspace; ``doc_id`` names an ingested image document, whose file lives
+    under the uploads root (outside the workspace). The document_generation tool
+    resolves whichever is set and rejects any escape before the generator ever
+    sees it: a workspace path or an image document becomes a readable file, and
+    a PDF document with ``page`` becomes that page rendered as PNG.
+
+    ``page`` is model-facing and only ever accompanies ``doc_id``. ``data`` is
+    the opposite — the backend fills it with rendered bytes when the source is
+    not a file, and the model cannot set it (the tool accepts no such field).
     """
 
-    path: str
+    path: str = ""
+    doc_id: str = ""
+    page: Optional[int] = None
+    data: bytes = b""
     caption: str = ""
     width_inches: Optional[float] = None
 

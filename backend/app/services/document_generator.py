@@ -21,6 +21,7 @@ from app.schemas.document_content import (
     DocumentSection,
     GeneratedDocument,
 )
+from app.services.image_normalization import ImageNormalizationError, embed_source
 from app.services.ooxml import normalize_ooxml
 
 logger = logging.getLogger("app.document_generator")
@@ -103,6 +104,10 @@ class WordDocumentGenerator(DocumentGenerator):
             doc.save(str(target))
         except DocumentGenerationError:
             raise
+        except ImageNormalizationError as exc:
+            # The message names the file only (never its resolved location), and
+            # is the actionable part for a caller: which image could not be read.
+            raise DocumentGenerationError(f"Word generation failed: {exc}") from exc
         except Exception as exc:
             raise DocumentGenerationError(
                 f"Word generation failed: {exc.__class__.__name__}"
@@ -201,20 +206,27 @@ class WordDocumentGenerator(DocumentGenerator):
             doc.add_paragraph(bullet, style="List Bullet")
         for item in section.numbered:
             doc.add_paragraph(item, style="List Number")
-        if section.table:
-            rows = len(section.table)
-            cols = max(len(row) for row in section.table)
+        table_rows = [row for row in section.table if row]
+        if table_rows:
+            rows = len(table_rows)
+            cols = max(len(row) for row in table_rows)
             table = doc.add_table(rows=rows, cols=cols)
             table.style = "Table Grid"
-            for row_index, row in enumerate(section.table):
+            for row_index, row in enumerate(table_rows):
                 for col_index in range(cols):
                     cell_text = row[col_index] if col_index < len(row) else ""
                     table.cell(row_index, col_index).text = cell_text
         for image in section.images:
+            source = image.data or image.path
+            if not source:
+                continue
             from docx.shared import Inches
 
             width = Inches(image.width_inches or 6.0)
-            doc.add_picture(image.path, width=width)
+            # A non-web-safe source (bmp/gif/tiff/webp) or a PDF page rendered
+            # for this figure arrives as PNG bytes; python-docx sniffs the
+            # header from the stream.
+            doc.add_picture(embed_source(source), width=width)
             if image.caption:
                 caption_paragraph = doc.add_paragraph()
                 caption_run = caption_paragraph.add_run(image.caption)
@@ -301,14 +313,17 @@ class XlsxDocumentGenerator(DocumentGenerator):
             workbook.properties.modified = datetime(1980, 1, 1)
             used_names: set[str] = set()
 
-            table_sections = [section for section in content.sections if section.table]
+            table_sections = [section for section in content.sections if any(section.table)]
             if table_sections:
                 for index, section in enumerate(table_sections):
                     sheet = workbook.active if index == 0 else workbook.create_sheet()
                     sheet.title = _sheet_name(
                         section.heading or content.title or "Sheet", used_names
                     )
-                    for row_index, row in enumerate(section.table, start=1):
+                    # A row with no cells widens nothing and only produces a
+                    # degenerate grid; drop it rather than write a stray blank.
+                    rows = [row for row in section.table if row]
+                    for row_index, row in enumerate(rows, start=1):
                         for col_index, cell in enumerate(row, start=1):
                             target_cell = sheet.cell(row=row_index, column=col_index)
                             target_cell.value = _coerce_cell(str(cell))
@@ -324,15 +339,15 @@ class XlsxDocumentGenerator(DocumentGenerator):
                             )
                             if is_numeric_value or is_numeric_formula:
                                 target_cell.number_format = "0.0"
-                    for col_index in range(1, max(len(row) for row in section.table) + 1):
+                    column_count = max(len(row) for row in rows)
+                    for col_index in range(1, column_count + 1):
                         sheet.cell(row=1, column=col_index).font = Font(bold=True)
                     # Freeze the header row and size columns to the widest text
                     # (formula strings are ignored so computed columns stay tidy).
-                    column_count = max(len(row) for row in section.table)
                     sheet.freeze_panes = "A2"
                     for col_index in range(1, column_count + 1):
                         longest = 0
-                        for row_index in range(1, len(section.table) + 1):
+                        for row_index in range(1, len(rows) + 1):
                             value = sheet.cell(row=row_index, column=col_index).value
                             text = "" if value is None else str(value)
                             if text.startswith("="):
@@ -341,6 +356,9 @@ class XlsxDocumentGenerator(DocumentGenerator):
                         sheet.column_dimensions[get_column_letter(col_index)].width = min(
                             max(longest + 2, 8), 30
                         )
+                    # Images sit one blank column clear of the grid, so no
+                    # figure overlaps the data it illustrates.
+                    self._add_images(sheet, section, column_count + 2, 2)
             else:
                 sheet = workbook.active
                 sheet.title = _sheet_name(content.title or "Sheet", used_names)
@@ -354,6 +372,8 @@ class XlsxDocumentGenerator(DocumentGenerator):
                     for item in (*section.paragraphs, *section.bullets, *section.numbered):
                         sheet.cell(row=row_index, column=1).value = item
                         row_index += 1
+                    # Column B keeps the picture clear of the text in column A.
+                    self._add_images(sheet, section, 2, row_index)
 
             if content.sources:
                 sheet = workbook.create_sheet(title=_sheet_name("Sources", used_names))
@@ -368,6 +388,8 @@ class XlsxDocumentGenerator(DocumentGenerator):
             workbook.save(str(target))
         except DocumentGenerationError:
             raise
+        except ImageNormalizationError as exc:
+            raise DocumentGenerationError(f"Excel generation failed: {exc}") from exc
         except Exception as exc:
             raise DocumentGenerationError(
                 f"Excel generation failed: {exc.__class__.__name__}"
@@ -381,6 +403,38 @@ class XlsxDocumentGenerator(DocumentGenerator):
             size_bytes=target.stat().st_size,
             type="excel",
         )
+
+    @staticmethod
+    def _add_images(sheet, section: DocumentSection, anchor_col: int, start_row: int) -> None:
+        """Embed a section's images below each other in one blank column.
+
+        Each picture is scaled to ``width_inches`` (default 6in) with its aspect
+        ratio preserved. A caption is written into the cell under the picture,
+        since a worksheet has no caption primitive. Rows are counted in the
+        20-pixel rows used for anchoring, so two pictures never overlap.
+        """
+        if not section.images:
+            return
+        from openpyxl.drawing.image import Image as XlsxImage
+        from openpyxl.utils import get_column_letter
+
+        row = max(start_row, 1)
+        for image in section.images:
+            source = image.data or image.path
+            if not source:
+                continue
+            picture = XlsxImage(embed_source(source))
+            natural_width, natural_height = picture.width, picture.height
+            target_width = int((image.width_inches or 6.0) * 96)
+            if natural_width and target_width > 0:
+                picture.height = int(natural_height * (target_width / natural_width))
+                picture.width = target_width
+            picture.anchor = f"{get_column_letter(anchor_col)}{row}"
+            sheet.add_image(picture)
+            row += max(2, int(picture.height / 20) + 1)
+            if image.caption:
+                sheet.cell(row=row, column=anchor_col).value = image.caption
+                row += 1
 
     @staticmethod
     def _validate(path: Path) -> None:

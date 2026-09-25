@@ -3,7 +3,12 @@ tables, sources, footer, validity, and determinism."""
 
 import asyncio
 
-from app.schemas.document_content import ApprovalNote, DocumentContent, DocumentSection
+from app.schemas.document_content import (
+    ApprovalNote,
+    DocumentContent,
+    DocumentImage,
+    DocumentSection,
+)
 from app.services.document_generator import WordDocumentGenerator
 
 
@@ -160,3 +165,27 @@ def test_empty_title_still_generates_valid_file(tmp_path):
     generated = run(WordDocumentGenerator().generate(content, tmp_path, "plain.docx"))
     assert generated.size_bytes > 0
     read_docx(generated.path)
+
+
+def test_word_embeds_converted_bmp_image(tmp_path):
+    """python-docx cannot read a bmp; the converted PNG must still land inline."""
+    from tests.conftest import make_bmp, make_png
+
+    bmp = make_bmp(tmp_path / "crop.bmp")
+    png = make_png(tmp_path / "crop.png", ["detail"])
+    content = DocumentContent(
+        title="Evidence",
+        sections=[
+            DocumentSection(
+                heading="Figures",
+                images=[
+                    DocumentImage(path=str(bmp), caption="bmp figure", width_inches=3.0),
+                    DocumentImage(path=str(png), caption="png figure", width_inches=3.0),
+                ],
+            )
+        ],
+    )
+    generated = run(WordDocumentGenerator().generate(content, tmp_path, "figs.docx"))
+    doc = read_docx(generated.path)
+    assert len(doc.inline_shapes) == 2
+    assert any(paragraph.text == "bmp figure" for paragraph in doc.paragraphs)

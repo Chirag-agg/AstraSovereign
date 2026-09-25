@@ -41,7 +41,15 @@ def run(coro):
     return asyncio.run(coro)
 
 
-def make_tool(tmp_path, requirements=None, capacity=None, generator=None, wait_rounds=3):
+def make_tool(
+    tmp_path,
+    requirements=None,
+    capacity=None,
+    generator=None,
+    wait_rounds=3,
+    knowledge_base=None,
+    uploads_root=None,
+):
     store = InMemoryArtifactStore()
     scheduler = InMemoryResourceScheduler(
         InMemoryResourceProvider(capacity or default_capacity())
@@ -51,6 +59,8 @@ def make_tool(tmp_path, requirements=None, capacity=None, generator=None, wait_r
         "scheduler": scheduler,
         "requirements": requirements,
         "wait_rounds": wait_rounds,
+        "knowledge_base": knowledge_base,
+        "uploads_root": uploads_root,
     }
     if generator is not None:
         tool = DocumentGenerationTool(generator=generator, **common)
@@ -64,6 +74,48 @@ def make_tool(tmp_path, requirements=None, capacity=None, generator=None, wait_r
             **common,
         )
     return tool, store, scheduler
+
+
+class StubKnowledgeBase:
+    """Minimal knowledge base: returns one record, scoped to its own user."""
+
+    def __init__(self, record=None):
+        self._record = record
+
+    async def get_document(self, user_id, document_id):
+        record = self._record
+        if record is None or record.document_id != document_id:
+            return None
+        return record if record.user_id == user_id else None
+
+
+def make_upload(
+    tmp_path, filename="crop.png", user_id="user-001", document_type="png", pdf=False
+):
+    """Write an upload under ``<uploads_root>/<user>/`` and return (root, record).
+
+    ``pdf`` writes a real PDF instead of a PNG, for the page-as-figure path.
+    """
+    from app.schemas.document import DocumentRecord
+
+    root = tmp_path / "uploads"
+    user_dir = root / user_id
+    user_dir.mkdir(parents=True, exist_ok=True)
+    target = user_dir / filename
+    if pdf:
+        from tests.conftest import make_text_pdf
+
+        make_text_pdf(target, ["Pump maintenance", "Seal inspection"])
+    else:
+        make_png(target, ["P&ID detail"])
+    record = DocumentRecord(
+        document_id="doc-img-1",
+        user_id=user_id,
+        filename=filename,
+        document_type=document_type,
+        status="ready",
+    )
+    return root, record
 
 
 def docx_texts(path):
@@ -462,12 +514,195 @@ def test_tool_rejects_missing_or_bad_image(tmp_path):
     with pytest.raises(ToolError, match="not found"):
         run(tool.execute(tmp_path, missing))
 
-    (tmp_path / "bad.gif").write_bytes(b"GIF89a")
+    (tmp_path / "bad.tga").write_bytes(b"TGA\x00")
     unsupported = {
         "type": "word",
         "filename": "x.docx",
         "title": "X",
-        "sections": [{"images": [{"path": "bad.gif"}]}],
+        "sections": [{"images": [{"path": "bad.tga"}]}],
     }
     with pytest.raises(ToolError, match="unsupported image type"):
         run(tool.execute(tmp_path, unsupported))
+
+    # A file with an accepted extension but unreadable content is a distinct
+    # failure: the type was fine, the bytes were not.
+    (tmp_path / "corrupt.gif").write_bytes(b"GIF89a")
+    unreadable = {
+        "type": "word",
+        "filename": "x.docx",
+        "title": "X",
+        "sections": [{"images": [{"path": "corrupt.gif"}]}],
+    }
+    with pytest.raises(ToolError, match="Cannot read image"):
+        run(tool.execute(tmp_path, unreadable))
+
+
+def _word_args(images):
+    return {
+        "type": "word",
+        "filename": "x.docx",
+        "title": "X",
+        "sections": [{"heading": "Evidence", "images": images}],
+    }
+
+
+def test_doc_id_image_resolves_from_uploads(tmp_path):
+    """A doc_id names an uploaded image outside the workspace tree; the tool
+    still embeds it (Word gets one inline shape)."""
+    root, record = make_upload(tmp_path)
+    tool, _store, _scheduler = make_tool(
+        tmp_path, knowledge_base=StubKnowledgeBase(record), uploads_root=root
+    )
+    set_job_context(user_id="user-001", job_id="job-d1")
+    args = _word_args([{"doc_id": "doc-img-1", "caption": "P&ID detail", "width_inches": 4}])
+    result = run(tool.execute(tmp_path, args))
+    assert result.ok
+
+    from docx import Document
+
+    doc = Document(str(tmp_path / "artifacts" / "x.docx"))
+    assert len(doc.inline_shapes) == 1
+    assert any(paragraph.text == "P&ID detail" for paragraph in doc.paragraphs)
+
+
+def test_rejects_doc_id_for_another_user(tmp_path):
+    root, record = make_upload(tmp_path, user_id="user-001")
+    tool, _store, _scheduler = make_tool(
+        tmp_path, knowledge_base=StubKnowledgeBase(record), uploads_root=root
+    )
+    set_job_context(user_id="user-002", job_id="job-d2")
+    with pytest.raises(ToolError, match="was not found for this user"):
+        run(tool.execute(tmp_path, _word_args([{"doc_id": "doc-img-1"}])))
+
+
+def test_rejects_non_image_doc_id(tmp_path):
+    root, record = make_upload(tmp_path, filename="spec.pdf", document_type="pdf")
+    tool, _store, _scheduler = make_tool(
+        tmp_path, knowledge_base=StubKnowledgeBase(record), uploads_root=root
+    )
+    set_job_context(user_id="user-001", job_id="job-d3")
+    with pytest.raises(ToolError, match="is not an image"):
+        run(tool.execute(tmp_path, _word_args([{"doc_id": "doc-img-1"}])))
+
+
+def test_pdf_page_is_embedded_as_a_figure_in_word(tmp_path):
+    """A page of an attached PDF is rendered in memory and embedded — the job
+    workspace may hold only ``artifacts/``, so it never lands on disk."""
+    root, record = make_upload(
+        tmp_path, filename="report.pdf", document_type="pdf", pdf=True
+    )
+    tool, _store, _scheduler = make_tool(
+        tmp_path, knowledge_base=StubKnowledgeBase(record), uploads_root=root
+    )
+    set_job_context(user_id="user-001", job_id="job-dp1")
+    args = _word_args([{"doc_id": "doc-img-1", "page": 1, "caption": "Report page 1"}])
+    assert run(tool.execute(tmp_path, args)).ok
+
+    from docx import Document
+
+    doc = Document(str(tmp_path / "artifacts" / "x.docx"))
+    assert len(doc.inline_shapes) == 1
+    assert any(p.text == "Report page 1" for p in doc.paragraphs)
+    assert set((tmp_path / "artifacts").iterdir()) == {tmp_path / "artifacts" / "x.docx"}
+
+
+def test_pdf_page_is_embedded_as_a_figure_in_excel(tmp_path):
+    from openpyxl import load_workbook
+
+    root, record = make_upload(
+        tmp_path, filename="report.pdf", document_type="pdf", pdf=True
+    )
+    tool, _store, _scheduler = make_tool(
+        tmp_path, knowledge_base=StubKnowledgeBase(record), uploads_root=root
+    )
+    set_job_context(user_id="user-001", job_id="job-dp2")
+    args = {
+        "type": "excel",
+        "filename": "x.xlsx",
+        "title": "X",
+        "sections": [
+            {"heading": "Evidence", "images": [{"doc_id": "doc-img-1", "page": 1}]}
+        ],
+    }
+    assert run(tool.execute(tmp_path, args)).ok
+
+    book = load_workbook(tmp_path / "artifacts" / "x.xlsx")
+    assert any(sheet._images for sheet in book.worksheets), (
+        "workbook carried no rendered figure"
+    )
+
+
+def test_pdf_page_out_of_range_fails_cleanly(tmp_path):
+    root, record = make_upload(
+        tmp_path, filename="report.pdf", document_type="pdf", pdf=True
+    )
+    tool, _store, _scheduler = make_tool(
+        tmp_path, knowledge_base=StubKnowledgeBase(record), uploads_root=root
+    )
+    set_job_context(user_id="user-001", job_id="job-dp3")
+    with pytest.raises(ToolError, match="does not exist"):
+        run(tool.execute(tmp_path, _word_args([{"doc_id": "doc-img-1", "page": 9}])))
+
+
+def test_page_on_a_non_pdf_is_rejected(tmp_path):
+    root, record = make_upload(tmp_path)  # a png
+    tool, _store, _scheduler = make_tool(
+        tmp_path, knowledge_base=StubKnowledgeBase(record), uploads_root=root
+    )
+    set_job_context(user_id="user-001", job_id="job-dp4")
+    with pytest.raises(ToolError, match="applies only to a PDF"):
+        run(tool.execute(tmp_path, _word_args([{"doc_id": "doc-img-1", "page": 2}])))
+
+
+def test_page_must_be_an_integer_in_range(tmp_path):
+    tool, _store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-dp5")
+    for page in (0, 501, "2"):
+        with pytest.raises(ToolError, match="between 1 and 500"):
+            run(tool.execute(tmp_path, _word_args([{"doc_id": "d1", "page": page}])))
+
+
+def test_page_without_a_doc_id_is_rejected(tmp_path):
+    tool, _store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-dp6")
+    with pytest.raises(ToolError, match="applies only to a 'doc_id'"):
+        run(tool.execute(tmp_path, _word_args([{"path": "a.png", "page": 1}])))
+
+
+def test_rejects_path_and_doc_id_together(tmp_path):
+    tool, _store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-d4")
+    images = [{"path": "crop.png", "doc_id": "doc-img-1"}]
+    with pytest.raises(ToolError, match="exactly one of"):
+        run(tool.execute(tmp_path, _word_args(images)))
+
+
+def test_rejects_image_without_source(tmp_path):
+    tool, _store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-d5")
+    with pytest.raises(ToolError, match="exactly one of"):
+        run(tool.execute(tmp_path, _word_args([{"caption": "no source"}])))
+
+
+def test_doc_id_image_unavailable_without_wiring(tmp_path):
+    """Without a knowledge base or uploads root injected, doc_id is refused
+    rather than silently ignored."""
+    tool, _store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-d6")
+    with pytest.raises(ToolError, match="not available in this deployment"):
+        run(tool.execute(tmp_path, _word_args([{"doc_id": "doc-img-1"}])))
+
+
+@pytest.mark.parametrize("doc_type,filename", [("word", "x.docx"), ("excel", "x.xlsx")])
+def test_word_and_xlsx_reject_empty_table_row(tmp_path, doc_type, filename):
+    """A cell-less row would emit a table with no cells and no error."""
+    tool, _store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-t1")
+    args = {
+        "type": doc_type,
+        "filename": filename,
+        "title": "X",
+        "sections": [{"heading": "T", "table": [[]]}],
+    }
+    with pytest.raises(ToolError, match="must not contain empty rows"):
+        run(tool.execute(tmp_path, args))

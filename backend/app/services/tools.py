@@ -19,7 +19,7 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from pydantic import BaseModel, ValidationError
 
@@ -41,6 +41,12 @@ from app.services.document_generator import (
 )
 from app.services.extractor import unreadable_pages_notice
 from app.schemas.document import DocumentStatus
+from app.services.image_resolution import (
+    ImageResolutionError,
+    parse_image_reference,
+    resolve_image_source,
+)
+from app.services.image_normalization import render_data_uri
 from app.services.presentation_renderer import PresentationRenderError
 from app.services.knowledge_base import KnowledgeBase
 from app.services.log_context import get_job_context
@@ -921,10 +927,8 @@ _SECTION_KEYS = {
     "bullets",
     "numbered",
     "table",
-    "sources",
     "images",
 }
-_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg"}
 _APPROVAL_STRING_FIELDS = (
     "reference_number",
     "date",
@@ -953,26 +957,17 @@ def _validate_artifact_filename(filename: Any, doc_type: str) -> str:
 
 
 def _validate_document_image(raw: Any) -> DocumentImage:
-    if not isinstance(raw, dict):
-        raise ToolError("each image must be an object")
-    unknown = set(raw) - {"path", "caption", "width_inches"}
-    if unknown:
-        raise ToolError(f"unknown image field(s): {', '.join(sorted(unknown))}")
-    path = raw.get("path")
-    if not isinstance(path, str) or not path.strip():
-        raise ToolError("image 'path' must be a non-empty string")
-    caption = raw.get("caption", "")
-    if not isinstance(caption, str):
-        raise ToolError("image 'caption' must be a string")
-    width = raw.get("width_inches")
-    if width is not None and (
-        isinstance(width, bool)
-        or not isinstance(width, (int, float))
-        or width <= 0
-        or width > 10
-    ):
-        raise ToolError("image 'width_inches' must be a number between 0 and 10")
-    return DocumentImage(path=path.strip(), caption=caption, width_inches=width)
+    try:
+        path, doc_id, page = parse_image_reference(raw)
+    except ImageResolutionError as exc:
+        raise ToolError(str(exc)) from exc
+    return DocumentImage(
+        path=path,
+        doc_id=doc_id,
+        page=page,
+        caption=raw.get("caption", ""),
+        width_inches=raw.get("width_inches"),
+    )
 
 
 def _validate_approval(raw: Any) -> ApprovalNote:
@@ -1014,24 +1009,16 @@ def _validate_approval(raw: Any) -> ApprovalNote:
     return ApprovalNote(**values, signatures=signatures)
 
 
-def _resolve_workspace_image(workspace: Path, path: str) -> Path:
-    if Path(path).suffix.lower() not in _IMAGE_SUFFIXES:
-        raise ToolError(f"unsupported image type in '{path}' (png/jpg/jpeg only)")
-    try:
-        resolved = resolve_within_workspace(workspace, path)
-    except WorkspaceError as exc:
-        raise ToolError(str(exc)) from exc
-    if not resolved.is_file():
-        raise ToolError(f"image not found in the job workspace: {path}")
-    return resolved
-
-
 def _validate_document_section(raw: Any) -> DocumentSection:
     if not isinstance(raw, dict):
         raise ToolError("each section must be an object")
     unknown = set(raw) - _SECTION_KEYS
     if unknown:
         raise ToolError(f"unknown section field(s): {', '.join(sorted(unknown))}")
+    if "sources" in raw:
+        raise ToolError(
+            "sources are not a section field; pass them in the top-level 'sources' array"
+        )
 
     heading = raw.get("heading", "")
     if not isinstance(heading, str):
@@ -1053,12 +1040,6 @@ def _validate_document_section(raw: Any) -> DocumentSection:
     if not isinstance(bullets, list) or not all(isinstance(item, str) for item in bullets):
         raise ToolError("section 'bullets' must be an array of strings")
 
-    sources = raw.get("sources")
-    if sources is not None and (
-        not isinstance(sources, list) or not all(isinstance(item, str) for item in sources)
-    ):
-        raise ToolError("section 'sources' must be an array of strings")
-
     numbered = raw.get("numbered", [])
     if not isinstance(numbered, list) or not all(isinstance(item, str) for item in numbered):
         raise ToolError("section 'numbered' must be an array of strings")
@@ -1069,6 +1050,10 @@ def _validate_document_section(raw: Any) -> DocumentSection:
         for row in table
     ):
         raise ToolError("section 'table' must be an array of arrays of strings")
+    # A row with no cells makes the grid width zero: the generators would emit a
+    # table with no columns, which still opens, so it must be rejected here.
+    if any(not row for row in table):
+        raise ToolError("section 'table' must not contain empty rows")
 
     images_raw = raw.get("images", [])
     if not isinstance(images_raw, list):
@@ -1106,7 +1091,10 @@ class DocumentGenerationTool(BaseTool):
         "(.docx) and Excel (.xlsx). Arguments: type ('word'|'excel'), filename, "
         "title, sections (each with heading/content/paragraphs/bullets/numbered/"
         "table/images), optional sources, and optional approval (formal "
-        "approval-note fields). Returns artifact metadata."
+        "approval-note fields). Images are embedded in Word and Excel; name each "
+        "one by doc_id (an image document from the attachments list) or by a "
+        "workspace-relative path. A PDF attachment supplies a page as a figure "
+        "by setting 'page' alongside its doc_id. Returns artifact metadata."
     )
     input_schema = {
         "type": "object",
@@ -1115,7 +1103,36 @@ class DocumentGenerationTool(BaseTool):
             "filename": {"type": "string"},
             "title": {"type": "string"},
             "document_type": {"type": "string"},
-            "sections": {"type": "array", "items": {"type": "object"}},
+            "sections": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "heading": {"type": "string"},
+                        "content": {"type": "string"},
+                        "paragraphs": {"type": "array", "items": {"type": "string"}},
+                        "bullets": {"type": "array", "items": {"type": "string"}},
+                        "numbered": {"type": "array", "items": {"type": "string"}},
+                        "table": {
+                            "type": "array",
+                            "items": {"type": "array", "items": {"type": "string"}},
+                        },
+                        "images": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "path": {"type": "string"},
+                                    "doc_id": {"type": "string"},
+                                    "page": {"type": "integer"},
+                                    "caption": {"type": "string"},
+                                    "width_inches": {"type": "number"},
+                                },
+                            },
+                        },
+                    },
+                },
+            },
             "sources": {"type": "array", "items": {"type": "string"}},
             "classification": {"type": "string"},
             "approval": {"type": "object"},
@@ -1132,6 +1149,8 @@ class DocumentGenerationTool(BaseTool):
         requirements: Optional[ResourceRequirements] = None,
         wait_rounds: int = 5,
         generators: Optional[dict[str, DocumentGenerator]] = None,
+        knowledge_base: Optional[KnowledgeBase] = None,
+        uploads_root: Optional[Union[str, Path]] = None,
     ) -> None:
         if generators is None:
             if generator is None:
@@ -1148,6 +1167,8 @@ class DocumentGenerationTool(BaseTool):
             cpu_cores=1.0, memory_mb=512
         )
         self._wait_rounds = max(wait_rounds, 1)
+        self._knowledge_base = knowledge_base
+        self._uploads_root = uploads_root
 
     @property
     def supported_types(self) -> tuple[str, ...]:
@@ -1181,7 +1202,25 @@ class DocumentGenerationTool(BaseTool):
         ]
         for section in sections:
             for image in section.images:
-                image.path = str(_resolve_workspace_image(workspace, image.path))
+                try:
+                    source = await resolve_image_source(
+                        path=image.path,
+                        doc_id=image.doc_id,
+                        page=image.page,
+                        workspace=workspace,
+                        user_id=user_id,
+                        knowledge_base=self._knowledge_base,
+                        uploads_root=self._uploads_root,
+                    )
+                except ImageResolutionError as exc:
+                    raise ToolError(str(exc)) from exc
+                # A PDF page is rendered in memory and carried as bytes; a file
+                # keeps the path the generator opens directly.
+                if isinstance(source, bytes):
+                    image.data = source
+                    image.path = ""
+                else:
+                    image.path = str(source)
 
         sources_raw = arguments.get("sources") or []
         if not isinstance(sources_raw, list) or not all(
@@ -1367,9 +1406,13 @@ class PresentationGenerationTool(BaseTool):
     description = (
         "Generate an editable PowerPoint (.pptx) presentation from structured "
         "content. Arguments: type ('pptx'), filename (must end .pptx), title, "
-        "optional subtitle/theme/document_type, and slides — each slide has "
-        "type (title|content|bullets|two-column|table|sources), title, content/"
-        "bullets/columns/table/sources. Returns artifact metadata."
+        "optional subtitle/theme/author/subject/document_type, and slides — each "
+        "slide has type (title|content|bullets|two-column|table|sources), title, "
+        "content/bullets/columns/table/sources, an optional image, and optional "
+        "speaker notes. Name an image by doc_id (an image document from the "
+        "attachments list) or by a workspace-relative path; a PDF attachment "
+        "supplies a page as a figure by setting 'page' alongside its doc_id. "
+        "Returns artifact metadata."
     )
     input_schema = {
         "type": "object",
@@ -1379,8 +1422,43 @@ class PresentationGenerationTool(BaseTool):
             "title": {"type": "string"},
             "subtitle": {"type": "string"},
             "theme": {"type": "string"},
+            "author": {"type": "string"},
+            "subject": {"type": "string"},
             "document_type": {"type": "string"},
-            "slides": {"type": "array", "items": {"type": "object"}},
+            "slides": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "type": {"type": "string"},
+                        "title": {"type": "string"},
+                        "content": {"type": "string"},
+                        "bullets": {"type": "array", "items": {"type": "string"}},
+                        "columns": {"type": "array", "items": {"type": "string"}},
+                        "column_ratios": {
+                            "type": "array",
+                            "items": {"type": "number"},
+                        },
+                        "table": {
+                            "type": "array",
+                            "items": {"type": "array", "items": {"type": "string"}},
+                        },
+                        "sources": {"type": "array", "items": {"type": "string"}},
+                        "notes": {"type": "string"},
+                        "image": {
+                            "type": "object",
+                            "properties": {
+                                "path": {"type": "string"},
+                                "doc_id": {"type": "string"},
+                                "page": {"type": "integer"},
+                                "caption": {"type": "string"},
+                                "width_inches": {"type": "number"},
+                            },
+                        },
+                    },
+                },
+            },
         },
         "required": ["type", "filename", "title", "slides"],
         "additionalProperties": False,
@@ -1393,6 +1471,8 @@ class PresentationGenerationTool(BaseTool):
         scheduler: ResourceScheduler,
         requirements: Optional[ResourceRequirements] = None,
         wait_rounds: int = 5,
+        knowledge_base: Optional[KnowledgeBase] = None,
+        uploads_root: Optional[Union[str, Path]] = None,
     ) -> None:
         self._renderer = renderer
         self._store = artifact_store
@@ -1401,6 +1481,8 @@ class PresentationGenerationTool(BaseTool):
             cpu_cores=1.0, memory_mb=1024
         )
         self._wait_rounds = max(wait_rounds, 1)
+        self._knowledge_base = knowledge_base
+        self._uploads_root = uploads_root
 
     async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
         ctx = get_job_context()
@@ -1420,13 +1502,50 @@ class PresentationGenerationTool(BaseTool):
         if not filename.lower().endswith(".pptx"):
             raise ToolError("presentation artifacts must use the '.pptx' extension")
 
+        slides = arguments.get("slides") or []
+        if not isinstance(slides, list):
+            raise ToolError("slides must be an array")
+        # Each slide image is resolved to an absolute path (or to rendered
+        # bytes) here: the render payload is written to a temporary directory,
+        # so a relative path would not resolve for the Node process. A source
+        # the renderer cannot decode — a bmp/gif/tiff/webp file, or a PDF page
+        # rendered for this slide — is handed over as base64 PNG instead.
+        for slide in slides:
+            if not isinstance(slide, dict):
+                continue
+            raw_image = slide.get("image")
+            if raw_image is None:
+                continue
+            try:
+                path, doc_id, page = parse_image_reference(raw_image)
+                resolved = await resolve_image_source(
+                    path=path,
+                    doc_id=doc_id,
+                    page=page,
+                    workspace=workspace,
+                    user_id=user_id,
+                    knowledge_base=self._knowledge_base,
+                    uploads_root=self._uploads_root,
+                )
+            except ImageResolutionError as exc:
+                raise ToolError(str(exc)) from exc
+            data_uri = render_data_uri(resolved)
+            source = {"data": data_uri} if data_uri else {"path": str(resolved)}
+            slide["image"] = {
+                **source,
+                "caption": raw_image.get("caption", ""),
+                "width_inches": raw_image.get("width_inches"),
+            }
+
         try:
             content = PresentationContent.model_validate(
                 {
                     "title": arguments.get("title") or "Presentation",
                     "subtitle": arguments.get("subtitle", ""),
                     "theme": arguments.get("theme", "general"),
-                    "slides": arguments.get("slides") or [],
+                    "author": arguments.get("author", ""),
+                    "subject": arguments.get("subject", ""),
+                    "slides": slides,
                 }
             )
         except ValidationError as exc:
@@ -1526,7 +1645,7 @@ class PresentationGenerationTool(BaseTool):
             f"Slides: {generated.slide_count}",
             f"Size: {generated.size_bytes} bytes",
             f"Status: {ArtifactStatus.COMPLETED}",
-            "The deck contains editable text boxes and tables (no images).",
+            "The deck contains editable text boxes, tables and any embedded images.",
         ]
         return ToolResult(
             ok=True,
