@@ -161,6 +161,69 @@ def _capture(node_agent):
     return recorded
 
 
+def fake_job(task_type, message):
+    """A FakeJob carrying a specific classified label and message."""
+    return type("_Job", (FakeJob,), {"task_type": task_type, "message": message})()
+
+
+def test_greeting_with_attachments_skips_the_document_nodes():
+    """Reported bug: with a document attached to the session, "hi" still ran
+    extract+retrieve — and retrieve's instruction *demands* a document_search.
+    Attachments are a permission to run the document nodes, not an obligation."""
+    node_agent = make_agent(
+        [AgentResult(status=AgentStatus.COMPLETED, response="hello", iterations=1)]
+    )
+    recorded = _capture(node_agent)
+    result = asyncio.run(
+        node_agent.run(
+            fake_job("general", "hi"), "/workspace", task_text="hi", attachments=ATTACHMENTS
+        )
+    )
+
+    assert result.response == "hello"
+    trace = recorded["trace"]
+    skipped = {entry["node"]: entry["reason"] for entry in trace if entry["type"] == "node_skipped"}
+    assert set(skipped) == {"extract", "retrieve", "compute"}
+    assert "attached" in skipped["extract"]  # distinguishable from "nothing attached"
+    assert "attached" in skipped["retrieve"]
+    assert [entry["node"] for entry in trace if entry["type"] == "node_completed"] == ["draft"]
+    assert node_agent.last_findings is None
+
+
+def test_document_request_retrieves_even_when_the_classifier_says_general():
+    """The same widening backstop compute has: a document request the ~88%
+    classifier misses must not be silently stripped of extraction/retrieval."""
+    node_agent = make_agent([])  # FakeAgent's default COMPLETED for every call
+    recorded = _capture(node_agent)
+    asyncio.run(
+        node_agent.run(
+            fake_job("general", "Summarize the attached vessel report."),
+            "/workspace",
+            task_text="Summarize the attached vessel report.",
+            attachments=ATTACHMENTS,
+        )
+    )
+
+    trace = recorded["trace"]
+    started = {entry["node"] for entry in trace if entry["type"] == "node_started"}
+    assert {"extract", "retrieve", "compute"} <= started
+
+
+def test_unclassified_job_fails_open_on_attachments():
+    """No classifier label means no opinion: attachments alone keep the old
+    behaviour, so a job that skipped classification is never gated."""
+    node_agent = make_agent([])
+    recorded = _capture(node_agent)
+    asyncio.run(
+        node_agent.run(
+            fake_job("", "hi"), "/workspace", task_text="hi", attachments=ATTACHMENTS
+        )
+    )
+
+    started = {entry["node"] for entry in recorded["trace"] if entry["type"] == "node_started"}
+    assert {"extract", "retrieve"} <= started
+
+
 def test_plain_chat_skips_heavy_nodes_and_drafts_only():
     node_agent = make_agent(
         [AgentResult(status=AgentStatus.COMPLETED, response="hello", iterations=1)]

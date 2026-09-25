@@ -92,6 +92,44 @@ CODING_INTENT_RE = re.compile(
     re.IGNORECASE,
 )
 
+# The document nodes' viability precondition. A session keeps its attachments
+# for the whole conversation, so "is anything attached?" is not the same
+# question as "does this message ask about the attachments?" — gating on the
+# manifest alone forced extract+retrieve (and retrieve's instruction *demands* a
+# document_search) onto every later message in the thread, including "hi". The
+# semantic label is the primary signal; this regex is the same cheap widening
+# backstop CODING_INTENT_RE gives compute, so a document request the ~88%
+# classifier labels ``general`` is still never silently stripped of retrieval.
+# It names document nouns, not generic verbs, so chit-chat does not trip it.
+DOCUMENT_INTENT_RE = re.compile(
+    r"\b(document\w*|report\w*|procedure\w*|sop\b|spec\w*|standard\w*|"
+    r"revision\w*|inspection\w*|survey\w*|nameplate\w*|reading\w*|"
+    r"attach\w*|upload\w*|extract\w*|cite\w*|citation\w*|"
+    r"corrosion|thickness\w*|vessel\w*)\b",
+    re.IGNORECASE,
+)
+
+# Labels that name a document-domain request outright. Anything else (coding,
+# general) must earn the document nodes through the backstop above.
+_DOCUMENT_LABELS = {"document", "vision"}
+
+
+def documents_requested(job, task: str) -> bool:
+    """Whether this request is about documents at all.
+
+    ``task_type`` is the SemanticCapabilityClassifier's label. An empty label
+    (a job that predates classification, or a directly-invoked node agent) fails
+    open, so behaviour there is unchanged and the gate can only be closed by a
+    label the classifier actually produced.
+    """
+    label = getattr(job, "task_type", "") or ""
+    if not label:
+        return True
+    if label in _DOCUMENT_LABELS:
+        return True
+    return bool(DOCUMENT_INTENT_RE.search(task or ""))
+
+
 # draft's generic (no-assessment) path has both generator tools in scope with
 # no structural gate on which one gets called, so a weak model that is more
 # "used to" producing a Word document can default to document_generation even
@@ -310,8 +348,16 @@ class NodeAgent:
         self.last_attachments = manifest
         attachment_block = render_attachment_block(manifest)
         # Attachments are a reason to run extraction even if the prompt does not
-        # name a document (the nameplate image carries no indexable text).
-        attempt_docs = bool(manifest)
+        # name a document (the nameplate image carries no indexable text) — but
+        # they are not sufficient on their own. See ``documents_requested``.
+        wants_docs = documents_requested(job, task)
+        attempt_docs = bool(manifest) and wants_docs
+        if not manifest:
+            docs_skip_reason = "no documents or images referenced in the request"
+        elif not wants_docs:
+            docs_skip_reason = "attached documents are not referenced by this request"
+        else:
+            docs_skip_reason = ""
         cursor = 0
 
         # Resolve every distinct node capability up front so the model swap points
@@ -326,12 +372,12 @@ class NodeAgent:
             # --- extract -----------------------------------------------------
             cursor, findings = await self._run_extract(
                 job, workspace, task, trace, cursor, attempt_docs, attachment_block,
-                plan["document"],
+                plan["document"], docs_skip_reason,
             )
             # --- retrieve ----------------------------------------------------
             cursor, retrieval = await self._run_retrieve(
                 job, workspace, task, trace, cursor, attempt_docs, attachment_block,
-                plan["document"],
+                plan["document"], docs_skip_reason,
             )
             self.last_retrieval = retrieval
             # --- compute -----------------------------------------------------
@@ -379,10 +425,14 @@ class NodeAgent:
         return AgentResult(status=AgentStatus.COMPLETED, response=response, iterations=cursor)
 
     async def _run_extract(
-        self, job, workspace, task, trace, cursor, attempt_docs, attachment_block, planned
+        self, job, workspace, task, trace, cursor, attempt_docs, attachment_block,
+        planned, skip_reason="",
     ):
         if not attempt_docs:
-            self._skip(trace, "extract", "no documents or images referenced in the request")
+            self._skip(
+                trace, "extract",
+                skip_reason or "no documents or images referenced in the request",
+            )
             return cursor, None
         route, confidence, runner_up = planned
         model = route.model
@@ -466,10 +516,14 @@ class NodeAgent:
         return findings, True
 
     async def _run_retrieve(
-        self, job, workspace, task, trace, cursor, attempt_docs, attachment_block, planned
+        self, job, workspace, task, trace, cursor, attempt_docs, attachment_block,
+        planned, skip_reason="",
     ):
         if not attempt_docs:
-            self._skip(trace, "retrieve", "no knowledge base documents referenced")
+            self._skip(
+                trace, "retrieve",
+                skip_reason or "no knowledge base documents referenced",
+            )
             return cursor, ""
         route, confidence, runner_up = planned
         model = route.model
