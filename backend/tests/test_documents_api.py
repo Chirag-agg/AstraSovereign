@@ -73,8 +73,107 @@ def test_upload_malformed_pdf_fails_cleanly(client):
 
 
 def test_upload_unsupported_type_rejected(client):
-    resp = upload(client, "user-001", "notes.docx", b"x")
+    resp = upload(client, "user-001", "notes.exe", b"x")
     assert resp.status_code == 400
+
+
+def test_upload_legacy_office_type_is_named(client):
+    """A pre-2007 Office file gets the actionable message, not the generic one."""
+    resp = upload(client, "user-001", "old.doc", b"x")
+    assert resp.status_code == 400
+    assert "re-save it as '.docx'" in resp.json()["detail"]["message"]
+
+
+def test_upload_docx_is_ingested(client):
+    import tempfile
+
+    from tests.conftest import make_docx
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = f"{tmp}/notes.docx"
+        make_docx(path, paragraphs=["Pump 204 inspection complete."])
+        with open(path, "rb") as fh:
+            data = fh.read()
+    resp = upload(
+        client,
+        "user-001",
+        "notes.docx",
+        data,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["status"] == "ready"
+    assert body["chunk_count"] > 0
+
+    content = client.get(
+        f"/api/documents/{body['document_id']}/content", headers={"X-User-ID": "user-001"}
+    )
+    assert content.status_code == 200
+    assert "Pump 204 inspection complete." in content.json()["text"]
+
+
+def test_upload_csv_is_ingested_as_a_table(client):
+    resp = upload(client, "user-001", "tags.csv", b"tag,value\nP-204,3.2\n", "text/csv")
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["status"] == "ready"
+    content = client.get(
+        f"/api/documents/{body['document_id']}/content", headers={"X-User-ID": "user-001"}
+    )
+    assert "| P-204 | 3.2 |" in content.json()["text"]
+
+
+def test_upload_svg_is_indexed_for_its_labels(client):
+    """Nothing offline can rasterize an SVG, so it is indexed as text rather
+    than announced as a picture."""
+    svg = (
+        b'<svg xmlns="http://www.w3.org/2000/svg">'
+        b"<title>Instrument loop</title><text>P-204</text></svg>"
+    )
+    resp = upload(client, "user-001", "loop.svg", svg, "image/svg+xml")
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["status"] == "ready"
+    assert body["document_type"] == "svg"
+    content = client.get(
+        f"/api/documents/{body['document_id']}/content", headers={"X-User-ID": "user-001"}
+    )
+    assert "P-204" in content.json()["text"]
+
+
+def test_upload_docx_with_a_picture_registers_the_picture(client, tmp_path):
+    """A picture inside a container becomes its own image document so it can be
+    embedded by doc_id — chunkless, because its text joins the container's."""
+    import tempfile
+
+    from tests.conftest import make_docx, make_image_bytes
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = f"{tmp}/report.docx"
+        make_docx(
+            path,
+            paragraphs=["Pump 204 inspection complete."],
+            pictures=[make_image_bytes()],
+        )
+        with open(path, "rb") as fh:
+            data = fh.read()
+
+    resp = upload(
+        client,
+        "user-001",
+        "report.docx",
+        data,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    assert resp.status_code == 201
+    assert resp.json()["status"] == "ready"
+
+    docs = client.get("/api/documents", headers={"X-User-ID": "user-001"}).json()
+    by_type = {doc["document_type"]: doc for doc in docs}
+    assert set(by_type) == {"docx", "png"}
+    assert by_type["png"]["status"] == "ready"
+    assert by_type["png"]["chunk_count"] == 0
 
 
 def test_get_and_delete_document(client):

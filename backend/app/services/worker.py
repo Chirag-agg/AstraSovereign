@@ -246,13 +246,18 @@ class Worker:
         """Job-scoped attachments: only the documents named on the job.
 
         Never the user's whole library — that flooded the node input with 65
-        documents and dwarfed the instruction.
+        documents and dwarfed the instruction. The pictures inside an attached
+        container come along with it, since they are only reachable through it.
         """
         if self._knowledge_base is None or not job.document_ids:
             return []
         documents = await self._knowledge_base.list_documents(job.user_id)
         wanted = set(job.document_ids)
         selected = [document for document in documents if document.document_id in wanted]
+        # The pictures inside an attached container are documents of their own;
+        # listing them beside their container is what lets the model name one as
+        # a figure in a deliverable.
+        selected = await self._knowledge_base.with_embedded_images(job.user_id, selected)
 
         def lookup(document) -> Optional[str]:
             extraction = self._knowledge_base.get_extraction(

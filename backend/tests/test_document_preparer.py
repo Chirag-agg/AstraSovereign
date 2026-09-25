@@ -10,7 +10,12 @@ from app.services.document_preparer import (
     DocumentPreparer,
     page_number_from_path,
 )
-from tests.conftest import make_png, make_text_pdf
+from tests.conftest import (
+    make_animated_gif,
+    make_multipage_tiff,
+    make_png,
+    make_text_pdf,
+)
 
 
 def run(coro):
@@ -71,6 +76,57 @@ def test_image_with_multiple_pages_requested_fails(tmp_path):
         run(DocumentPreparer().prepare(img, "jpg", tmp_path / "out", pages=[1, 2]))
 
 
+def test_animated_gif_is_one_page_per_frame(tmp_path):
+    """An animated GIF's frames are the pages a reader would page through."""
+    gif = make_animated_gif(tmp_path / "spin.gif", frames=3)
+    pages = run(DocumentPreparer().prepare(gif, "gif", tmp_path / "out"))
+    assert [p.page for p in pages] == [1, 2, 3]
+    assert all(p.image_path.exists() for p in pages)
+    assert [page_number_from_path(p.image_path) for p in pages] == [1, 2, 3]
+
+
+def test_multipage_tiff_is_one_page_per_frame(tmp_path):
+    tiff = make_multipage_tiff(tmp_path / "scan.tiff", frames=3)
+    pages = run(DocumentPreparer().prepare(tiff, "tiff", tmp_path / "out"))
+    assert [p.page for p in pages] == [1, 2, 3]
+
+
+def test_multi_frame_image_honours_a_frame_subset(tmp_path):
+    gif = make_animated_gif(tmp_path / "spin.gif", frames=4)
+    pages = run(DocumentPreparer().prepare(gif, "gif", tmp_path / "out", pages=[2, 4]))
+    assert [p.page for p in pages] == [2, 4]
+
+
+def test_multi_frame_image_beyond_the_cap_fails_cleanly(tmp_path):
+    gif = make_animated_gif(tmp_path / "spin.gif", frames=4)
+    with pytest.raises(DocumentPreparationError, match="exceeding the maximum"):
+        run(DocumentPreparer(max_pages=3).prepare(gif, "gif", tmp_path / "out"))
+
+
+def test_render_page_png_returns_png_bytes_without_writing(tmp_path):
+    """A PDF page used as a figure is rendered in memory: a job's workspace may
+    hold only ``artifacts/``, so nothing may land on disk."""
+    pdf = tmp_path / "doc.pdf"
+    make_text_pdf(pdf, ["Pump maintenance", "Page two text"])
+    data = DocumentPreparer().render_page_png(pdf, 1)
+    assert data.startswith(b"\x89PNG\r\n\x1a\n")
+    assert list(tmp_path.glob("*.png")) == []
+
+
+def test_render_page_png_rejects_a_page_out_of_range(tmp_path):
+    pdf = tmp_path / "one.pdf"
+    make_text_pdf(pdf, ["only one page"])
+    with pytest.raises(DocumentPreparationError, match="does not exist"):
+        DocumentPreparer().render_page_png(pdf, 4)
+
+
+def test_render_page_png_on_a_malformed_pdf_fails_cleanly(tmp_path):
+    bad = tmp_path / "bad.pdf"
+    bad.write_bytes(b"not a real pdf")
+    with pytest.raises(DocumentPreparationError, match="Cannot render PDF"):
+        DocumentPreparer().render_page_png(bad, 1)
+
+
 def test_unsupported_image_fails_cleanly(tmp_path):
     bogus = tmp_path / "bogus.png"
     bogus.write_bytes(b"this is not an image")
@@ -83,6 +139,25 @@ def test_unsupported_document_type_fails(tmp_path):
     doc.write_bytes(b"x")
     with pytest.raises(DocumentPreparationError, match="Unsupported document type"):
         run(DocumentPreparer().prepare(doc, "docx", tmp_path / "out"))
+
+
+def test_prepare_widened_image_formats_to_png(tmp_path):
+    """bmp/gif/tiff/webp are accepted for OCR and normalized to a PNG page."""
+    from tests.conftest import make_bmp
+
+    for name, fmt in (("scan.bmp", "BMP"), ("scan.gif", "GIF"),
+                      ("scan.tiff", "TIFF"), ("scan.webp", "WEBP")):
+        if fmt == "BMP":
+            source = make_bmp(tmp_path / name)
+        else:
+            from PIL import Image
+
+            source = tmp_path / name
+            Image.new("RGB", (120, 80), (10, 20, 30)).save(source, format=fmt)
+        pages = run(DocumentPreparer().prepare(source, name.rsplit(".", 1)[1], tmp_path / "out"))
+        assert [p.page for p in pages] == [1]
+        assert pages[0].image_path.suffix == ".png"
+        assert pages[0].image_path.exists()
 
 
 def test_oversized_image_is_downscaled(tmp_path):

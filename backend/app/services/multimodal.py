@@ -14,6 +14,7 @@ Security: only metadata is logged. Image contents, OCR text, and full vision
 responses are never logged.
 """
 
+import hashlib
 import logging
 import shutil
 import time
@@ -31,8 +32,12 @@ from app.schemas.multimodal import (
 )
 from app.schemas.resources import ResourceRequirements
 from app.services.document_ingestion import (
+    EMBEDDED_IMAGES_KEY,
     DocumentIngestionError,
+    EmbeddedMedia,
     document_type_for,
+    extract_document_pages,
+    extract_embedded_media,
     extract_pdf_page_layouts,
     page_requires_ocr,
 )
@@ -61,6 +66,30 @@ def _remove_empty_ancestors(path: Path, root: Path) -> None:
         except OSError:
             break
         current = current.parent
+
+
+def _merge_figure_text(
+    pages: list[tuple[Optional[int], str]],
+    additions: dict[Optional[int], list[str]],
+) -> list[tuple[Optional[int], str]]:
+    """Fold each figure's recognised text into the page it sits on.
+
+    The text belongs to the page a reader would find the picture on, so it is
+    appended there rather than becoming a page of its own. A figure no page
+    could be attributed to (a master slide's logo, say) is credited to the
+    document as a page-less block instead of being dropped.
+    """
+    remaining = {page: list(texts) for page, texts in additions.items()}
+    merged: list[tuple[Optional[int], str]] = []
+    for page, text in pages:
+        extra = remaining.pop(page, None)
+        if not extra:
+            merged.append((page, text))
+            continue
+        merged.append((page, "\n\n".join([text, *extra]) if text.strip() else "\n\n".join(extra)))
+    for page, texts in remaining.items():
+        merged.append((page, "\n\n".join(texts)))
+    return merged
 
 
 class MultimodalError(Exception):
@@ -231,6 +260,132 @@ class MultimodalService:
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
             _remove_empty_ancestors(tmp_dir.parent, self._tmp_root)
+
+    async def ingest_container(
+        self, user_id: str, path: Path, filename: str
+    ) -> DocumentRecord:
+        """Ingest a container document (Office/OpenDocument) with its pictures.
+
+        The container's own text is the searchable content and is read by the
+        same family extractor as before. On top of that:
+
+        - each raster picture inside it is OCR-ed (when OCR is available) and its
+          text is merged into the page the picture sits on, so wording that
+          exists only inside a figure is still found by search — no page is
+          added, because a document's page numbering must not shift because a
+          picture had a caption;
+        - each picture is registered as its own image document, so it can be
+          named as a figure in a Word/Excel/PowerPoint deliverable.
+
+        A container with no pictures keeps the plain path exactly: it delegates
+        to ``ingest_document``, so nothing about an image-free document changes.
+        """
+        document_type = document_type_for(filename)
+        media = extract_embedded_media(path, document_type)
+        if not media:
+            return await self._kb.ingest_document(user_id, path, filename)
+        try:
+            pages = extract_document_pages(path, document_type)
+        except DocumentIngestionError:
+            # Unreadable container: let the knowledge base fail it cleanly and
+            # consistently with the plain path rather than raising here.
+            return await self._kb.ingest_document(user_id, path, filename)
+
+        tmp_dir = self._tmp_root / WorkspaceManager.safe_component(user_id) / "ingest"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            additions = await self._figure_text(media=media, user_id=user_id, tmp_dir=tmp_dir)
+            merged = _merge_figure_text(pages, additions)
+            if not any(text.strip() for _, text in merged):
+                return await self._kb.ingest_pages(
+                    user_id, path, filename, [],
+                    metadata={"page_count": len(pages)},
+                    empty_text_error="No extractable text found",
+                )
+            images = await self._register_embedded_images(user_id, filename, media)
+            metadata: dict = {"page_count": len(pages)}
+            if images:
+                metadata[EMBEDDED_IMAGES_KEY] = images
+            return await self._kb.ingest_pages(
+                user_id, path, filename, merged, metadata=metadata
+            )
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            _remove_empty_ancestors(tmp_dir.parent, self._tmp_root)
+
+    async def _figure_text(
+        self,
+        *,
+        media: list[EmbeddedMedia],
+        user_id: str,
+        tmp_dir: Path,
+    ) -> dict[Optional[int], list[str]]:
+        """OCR each embedded picture, keyed by the page it belongs to.
+
+        A picture is written to the job's temp area to be recognised — OCR
+        providers take a file — and named for its page so the recognised text
+        and the rendered page line up. Best-effort throughout: a picture that
+        cannot be written or read contributes nothing rather than losing the
+        document's own text.
+        """
+        if self._ocr is None:
+            return {}
+        additions: dict[Optional[int], list[str]] = {}
+        for index, item in enumerate(media, start=1):
+            target = tmp_dir / f"page_{(item.page or 1):04d}_img{index:02d}{item.suffix}"
+            try:
+                target.write_bytes(item.data)
+            except OSError:
+                continue
+            regions = await self._recognize(
+                RenderedPage(
+                    page=item.page or 1, image_path=target, width=0, height=0
+                ),
+                user_id,
+            )
+            text = "\n".join(region.text for region in regions).strip()
+            if text:
+                additions.setdefault(item.page, []).append(
+                    text[:MAX_OCR_TEXT_CHARS_PER_PAGE]
+                )
+        return additions
+
+    async def _register_embedded_images(
+        self, user_id: str, filename: str, media: list["EmbeddedMedia"]
+    ) -> list[dict]:
+        """Give each embedded picture its own knowledge-base image document.
+
+        The file is named from the container's stem plus a digest of the
+        picture's own bytes, so re-uploading the same container reuses the same
+        file and the same document id, while a *different* picture of the same
+        name cannot overwrite it.
+        """
+        user_dir = self._uploads_root / WorkspaceManager.safe_component(user_id)
+        user_dir.mkdir(parents=True, exist_ok=True)
+        stem = WorkspaceManager.safe_component(Path(filename).stem)[:60]
+        registered: list[dict] = []
+        for index, item in enumerate(media, start=1):
+            digest = hashlib.sha256(item.data).hexdigest()[:8]
+            child_name = f"{stem}_image{index:02d}_{digest}{item.suffix}"
+            child_path = user_dir / child_name
+            try:
+                child_path.write_bytes(item.data)
+            except OSError:
+                continue
+            child = await self._kb.register_image_document(
+                user_id,
+                child_path,
+                child_name,
+                metadata={"extracted_from": Path(filename).name, "page": item.page},
+            )
+            registered.append(
+                {
+                    "doc_id": child.document_id,
+                    "filename": child.filename,
+                    "page": item.page,
+                }
+            )
+        return registered
 
     async def ingest_pid(
         self, user_id: str, path: Path, filename: str

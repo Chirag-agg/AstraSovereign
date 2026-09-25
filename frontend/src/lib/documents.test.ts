@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dedupeDocuments } from "@/lib/documents";
+import { ACCEPTED_UPLOAD_TYPES, dedupeDocuments } from "@/lib/documents";
 import { documentFixture } from "@/test-utils/factory";
 
 describe("dedupeDocuments", () => {
@@ -21,5 +21,23 @@ describe("dedupeDocuments", () => {
   it("handles null/empty", () => {
     expect(dedupeDocuments(null)).toEqual([]);
     expect(dedupeDocuments([])).toEqual([]);
+  });
+});
+
+describe("ACCEPTED_UPLOAD_TYPES", () => {
+  it("covers every family the backend ingests", () => {
+    const accepted = ACCEPTED_UPLOAD_TYPES.split(",");
+    for (const ext of [".pdf", ".png", ".bmp", ".webp", ".docx", ".xlsx", ".pptx",
+                       ".odt", ".csv", ".json", ".yaml", ".html", ".rtf", ".txt",
+                       ".md", ".env", ".py", ".svg"]) {
+      expect(accepted).toContain(ext);
+    }
+  });
+
+  it("excludes the legacy binary Office formats", () => {
+    const accepted = ACCEPTED_UPLOAD_TYPES.split(",");
+    for (const ext of [".doc", ".xls", ".ppt"]) {
+      expect(accepted).not.toContain(ext);
+    }
   });
 });

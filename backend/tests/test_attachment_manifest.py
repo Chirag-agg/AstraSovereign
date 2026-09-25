@@ -44,6 +44,30 @@ def test_manifest_classifies_mixed_image_and_scanned_pdf():
     assert media_type_for("pdf") == "application/pdf"
 
 
+def test_manifest_classifies_the_widened_file_types():
+    """The manifest must announce the newly accepted families truthfully, so the
+    model knows an uploaded bmp can be embedded and a spreadsheet is a sheet."""
+    from app.services.attachments import kind_for
+
+    manifest = build_attachment_manifest(
+        [
+            record("doc-bmp1", "crop.bmp", "bmp"),
+            record("doc-x1", "budget.xlsx", "xlsx"),
+            record("doc-p1", "deck.pptx", "pptx"),
+            record("doc-c1", "tags.csv", "csv"),
+            record("doc-code1", "script.py", "py"),
+        ]
+    )
+    assert [(item["kind"], item["media_type"]) for item in manifest] == [
+        ("image", "image/bmp"),
+        ("spreadsheet", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+        ("presentation", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+        ("spreadsheet", "text/csv"),
+        ("other", "text/plain"),
+    ]
+    assert kind_for(record("d", "notes.docx", "docx")) == "other"
+
+
 def test_render_block_is_structured_not_prose():
     block = render_attachment_block(build_attachment_manifest([record("doc-img1", "n.jpg", "jpg")]))
     assert block.startswith("attachments:")

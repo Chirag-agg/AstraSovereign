@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 
 import { threadTitle } from "@/lib/console";
-import { dedupeDocuments } from "@/lib/documents";
+import { ACCEPTED_UPLOAD_TYPES, dedupeDocuments } from "@/lib/documents";
 import type { ArtifactSummary, DocumentMeta, JobSummary } from "@/lib/types";
 import { isTerminalStatus } from "@/lib/types";
 import { formatBytes } from "./ArtifactCard";
@@ -147,7 +147,7 @@ export default function Sidebar({
                 className="visually-hidden"
                 aria-hidden="true"
                 tabIndex={-1}
-                accept=".pdf,.txt,.md,.png,.jpg,.jpeg"
+                accept={ACCEPTED_UPLOAD_TYPES}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {

@@ -12,6 +12,7 @@ to a job are enumerated into the node input as structured data.
 from typing import Callable, Optional
 
 from app.schemas.document import DocumentRecord
+from app.services.document_ingestion import PLAIN_DOCUMENT_TYPES
 from app.services.untrusted_content import wrap_untrusted
 
 # "Attached documents under a token budget get read whole": the extract node's
@@ -24,17 +25,51 @@ DEFAULT_TOTAL_CHARS = 24000
 _MEDIA_TYPES = {
     "pdf": "application/pdf",
     "txt": "text/plain",
+    "text": "text/plain",
     "md": "text/markdown",
+    "markdown": "text/markdown",
+    "rst": "text/plain",
+    "log": "text/plain",
+    "rtf": "application/rtf",
     "png": "image/png",
     "jpg": "image/jpeg",
     "jpeg": "image/jpeg",
+    "bmp": "image/bmp",
+    "gif": "image/gif",
+    "tiff": "image/tiff",
+    "tif": "image/tiff",
+    "webp": "image/webp",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "odt": "application/vnd.oasis.opendocument.text",
+    "ods": "application/vnd.oasis.opendocument.spreadsheet",
+    "odp": "application/vnd.oasis.opendocument.presentation",
     "csv": "text/csv",
+    "tsv": "text/tab-separated-values",
+    "json": "application/json",
+    "yaml": "application/yaml",
+    "yml": "application/yaml",
+    "xml": "application/xml",
+    "html": "text/html",
+    "htm": "text/html",
 }
+
+# Document types the manifest announces as ``kind: image``. Widened with the
+# ingestion set, because the model needs that signal to pick a picture for a
+# deliverable — a converted bmp is as embeddable as a png.
+_IMAGE_TYPES = ("png", "jpg", "jpeg", "bmp", "gif", "tiff", "tif", "webp")
 
 
 def media_type_for(document_type: str) -> str:
-    return _MEDIA_TYPES.get(document_type, "application/octet-stream")
+    known = _MEDIA_TYPES.get(document_type)
+    if known:
+        return known
+    # Source code, config, and the remaining plain-text families are all
+    # readable text; octet-stream would misdescribe them.
+    if document_type in PLAIN_DOCUMENT_TYPES:
+        return "text/plain"
+    return "application/octet-stream"
 
 
 def kind_for(document: DocumentRecord) -> str:
@@ -44,12 +79,14 @@ def kind_for(document: DocumentRecord) -> str:
     multimodal path records (``ocr: true``); the plain PDF path stores none.
     """
     document_type = document.document_type
-    if document_type in ("png", "jpg", "jpeg"):
+    if document_type in _IMAGE_TYPES:
         return "image"
     if document_type == "pdf":
         return "scanned_pdf" if (document.metadata or {}).get("ocr") else "text_pdf"
-    if document_type in ("xlsx", "csv"):
+    if document_type in ("xlsx", "ods", "csv", "tsv"):
         return "spreadsheet"
+    if document_type in ("pptx", "odp"):
+        return "presentation"
     return "other"
 
 

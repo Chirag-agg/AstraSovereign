@@ -15,8 +15,11 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from app.api.deps import get_user_id
+from app.services.attachments import media_type_for
 from app.services.document_ingestion import (
+    CONTAINER_DOCUMENT_TYPES,
     IMAGE_DOCUMENT_TYPES,
+    PLAIN_DOCUMENT_TYPES,
     DocumentIngestionError,
     document_type_for,
     extract_pdf_page_layouts,
@@ -60,7 +63,14 @@ async def upload_document(
     user_id: str = Depends(get_user_id),
 ) -> dict:
 
-    """Upload and ingest a document (pdf/txt/md/png/jpg/jpeg) into the user's KB."""
+    """Upload and ingest a document into the user's KB.
+
+    Accepts the document families in ``SUPPORTED_DOCUMENT_TYPES`` (pdf and the
+    raster image formats, Office and OpenDocument files, data, markup, and
+    source code). Images and image-only PDFs route through the local OCR
+    pipeline; an Office/OpenDocument file is ingested with the pictures inside
+    it; everything else goes through the knowledge base's extractor.
+    """
     knowledge_base = request.app.state.knowledge_base
     multimodal = request.app.state.multimodal_service
     uploads_root = Path(request.app.state.settings.uploads_root)
@@ -102,6 +112,19 @@ async def upload_document(
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={"error": "ocr_unavailable", "message": str(exc)},
+            )
+        return _metadata(doc)
+
+    if document_type in CONTAINER_DOCUMENT_TYPES:
+        # An Office/OpenDocument file is ingested with the pictures it carries:
+        # each becomes its own image document, and its recognised text joins the
+        # page it sits on. A container with no pictures takes the plain path.
+        try:
+            doc = await multimodal.ingest_container(user_id, destination, filename)
+        except MultimodalError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": "container_ingestion_failed", "message": str(exc)},
             )
         return _metadata(doc)
 
@@ -198,9 +221,10 @@ async def get_document_content(
     chunks.sort(key=lambda c: (c.get("page") or 0, c.get("chunk_id", "")))
     extracted_text = "\n\n".join(c.get("text", "").strip() for c in chunks if c.get("text"))
 
-    # If raw file exists and is text/markdown/code, read directly for pristine formatting
+    # If raw file exists and is already plain text, read directly for pristine
+    # formatting — the extracted chunks are the same bytes, just re-wrapped.
     raw_text = None
-    if file_path.exists() and doc.document_type in ("txt", "md", "text"):
+    if file_path.exists() and doc.document_type in PLAIN_DOCUMENT_TYPES:
         try:
             raw_text = file_path.read_text(encoding="utf-8", errors="replace")
         except Exception:
@@ -243,15 +267,7 @@ async def get_document_raw_file(
         )
 
     ext = doc.filename.split(".")[-1].lower() if "." in doc.filename else doc.document_type
-    media_type = {
-        "pdf": "application/pdf",
-        "png": "image/png",
-        "jpg": "image/jpeg",
-        "jpeg": "image/jpeg",
-        "txt": "text/plain",
-        "md": "text/markdown",
-        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    }.get(ext, "application/octet-stream")
+    media_type = media_type_for(ext)
 
     return FileResponse(
         file_path,

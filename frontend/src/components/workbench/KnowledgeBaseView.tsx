@@ -98,7 +98,7 @@ export default function KnowledgeBaseView({
 
     const ext = doc.filename.split(".").pop()?.toLowerCase() || "";
     const isPdf = ext === "pdf" || doc.document_type === "pdf";
-    const isImage = ["png", "jpg", "jpeg", "svg", "webp"].includes(ext) || ["png", "jpg", "jpeg"].includes(doc.document_type);
+    const isImage = ["png", "jpg", "jpeg", "bmp", "gif", "tiff", "tif", "webp"].includes(ext);
 
     try {
       if (isPdf) {

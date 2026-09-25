@@ -67,6 +67,49 @@ def test_scanned_pdf_ingestion_indexes_ocr_text(tmp_path):
     assert results
 
 
+def test_container_picture_is_recognised_into_the_container_page(tmp_path):
+    """OCR of a container family: a picture inside a Word file is recognised and
+    its text joins the page it sits on. No page is added, so the document's page
+    numbering is unchanged, and the picture itself is registered as an image
+    document so it can be embedded as a figure."""
+    from app.services.document_ingestion import EMBEDDED_IMAGES_KEY
+    from tests.conftest import make_docx, make_image_bytes
+
+    ocr = FakeOCRProvider(page_text={1: "TAG-P204 seal leak 4 ml/hr"})
+    service, _scheduler, _uploads, _tmp = make_multimodal_stack(tmp_path, ocr=ocr)
+    docx = tmp_path / "report.docx"
+    make_docx(docx, paragraphs=["Pump 204 inspection"], pictures=[make_image_bytes()])
+
+    doc = run(service.ingest_container("user-001", docx, "report.docx"))
+    assert doc.status == "ready"
+    assert doc.metadata.get("page_count") == 1  # a figure does not add a page
+
+    results = run(service.knowledge_base.search("user-001", "seal leak", 3))
+    assert any("TAG-P204" in hit.text for hit in results), (
+        "the figure's recognised text was not indexed"
+    )
+
+    children = doc.metadata.get(EMBEDDED_IMAGES_KEY) or []
+    assert children and children[0]["doc_id"].startswith("doc-")
+    child = run(service.knowledge_base.get_document("user-001", children[0]["doc_id"]))
+    assert child is not None
+    assert child.document_type == "png"
+    assert child.chunk_count == 0  # its text lives on the container's page
+
+
+def test_container_without_pictures_keeps_the_plain_path(tmp_path):
+    from tests.conftest import make_docx
+
+    service, _scheduler, _uploads, _tmp = make_multimodal_stack(tmp_path)
+    docx = tmp_path / "plain.docx"
+    make_docx(docx, paragraphs=["Pump 204 inspection complete."])
+
+    doc = run(service.ingest_container("user-001", docx, "plain.docx"))
+    assert doc.status == "ready"
+    assert doc.chunk_count >= 1
+    assert doc.metadata.get("embedded_images") is None
+
+
 def test_blank_pdf_fails_with_requires_ocr(tmp_path):
     service, _scheduler, uploads, _tmp = make_multimodal_stack(tmp_path)
     doc = run(ingest_scan(service, uploads, "user-001"))

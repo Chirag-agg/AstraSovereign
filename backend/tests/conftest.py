@@ -581,6 +581,197 @@ def make_image_pdf(path, image_path, page_count=1):
     c.save()
 
 
+def make_bmp(path, size=(120, 80), color=(200, 30, 30)):
+    """A non-web-safe raster, so the embedding path must convert it to PNG."""
+    from PIL import Image
+
+    Image.new("RGB", size, color).save(path, format="BMP")
+    return path
+
+
+def make_image_bytes(size=(140, 100), color=(20, 90, 200), fmt="PNG"):
+    """In-memory raster bytes, for embedding a picture in a container."""
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", size, color).save(buffer, format=fmt)
+    return buffer.getvalue()
+
+
+def make_animated_gif(path, frames=3):
+    """An animated GIF: each frame is a page the reader would page through."""
+    from PIL import Image
+
+    images = [
+        Image.new("RGB", (60, 40), (index * 70 % 256, 40, 40))
+        for index in range(frames)
+    ]
+    images[0].save(
+        path, save_all=True, append_images=images[1:], duration=100, loop=0
+    )
+    return path
+
+
+def make_multipage_tiff(path, frames=3):
+    """A multi-page TIFF — the other multi-frame raster family."""
+    from PIL import Image
+
+    images = [
+        Image.new("RGB", (60, 40), (40, index * 70 % 256, 40))
+        for index in range(frames)
+    ]
+    images[0].save(path, save_all=True, append_images=images[1:])
+    return path
+
+
+def make_docx(path, paragraphs=(), tables=(), pictures=()):
+    """A .docx with the given paragraphs and tables, in document order.
+
+    ``tables`` is a sequence of row lists (each row a list of cell strings).
+    Paragraphs come first, then tables — sufficient for the extractor tests.
+    ``pictures`` is a sequence of raster byte strings; each is embedded as a
+    real inline image (python-docx writes it under ``word/media/``), which is
+    how the embedded-picture path sees a container that carries one.
+    """
+    import io
+
+    from docx import Document
+
+    document = Document()
+    for text in paragraphs:
+        document.add_paragraph(text)
+    for rows in tables:
+        table = document.add_table(rows=len(rows), cols=max(len(r) for r in rows))
+        for r, row in enumerate(rows):
+            for c, value in enumerate(row):
+                table.cell(r, c).text = value
+    for data in pictures:
+        document.add_picture(io.BytesIO(data))
+    document.save(str(path))
+    return path
+
+
+def make_xlsx(path, sheets):
+    """An .xlsx from ``{sheet_name: [[cell, ...], ...]}``.
+
+    A cell whose text begins with "=" is stored as a formula (openpyxl's own
+    rule), so a sheet written this way has no cached value for that cell.
+    """
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    for name, rows in sheets.items():
+        sheet = workbook.create_sheet(title=name)
+        for row in rows:
+            sheet.append(row)
+    workbook.save(str(path))
+    return path
+
+
+def make_pptx(path, slides, notes=None, media=None):
+    """A minimal .pptx built with stdlib zipfile (python-pptx is not installed).
+
+    ``slides`` is a list of ``(title, body_lines)`` pairs; ``notes`` maps a
+    1-based slide number to its speaker-notes text. The parts are the minimum
+    the extractor reads: ``ppt/slides/slideN.xml`` and, when present,
+    ``ppt/notesSlides/notesSlideN.xml``.
+
+    ``media`` maps a 1-based slide number to raster byte strings placed on that
+    slide: each is written under ``ppt/media/`` and linked from the slide's
+    rels part, which is how a real deck records a picture.
+    """
+    import zipfile
+
+    def _drawingml(lines):
+        paragraphs = "".join(
+            f"<a:p><a:r><a:t>{line}</a:t></a:r></a:p>" for line in lines
+        )
+        return (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"'
+            ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+            f"<p:cSld><p:spTree><p:sp><p:txBody>{paragraphs}</p:txBody></p:sp>"
+            "</p:spTree></p:cSld></p:sld>"
+        )
+
+    def _rels(targets):
+        relationships = "".join(
+            '<Relationship Id="rId{index}" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/'
+            'relationships/image" Target="../media/{name}"/>'.format(
+                index=index, name=name
+            )
+            for index, name in enumerate(targets, start=1)
+        )
+        return (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/'
+            f'2006/relationships">{relationships}</Relationships>'
+        )
+
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for index, (title, body) in enumerate(slides, start=1):
+            archive.writestr(
+                f"ppt/slides/slide{index}.xml", _drawingml([title, *body])
+            )
+        for number, text in (notes or {}).items():
+            archive.writestr(
+                f"ppt/notesSlides/notesSlide{number}.xml", _drawingml([text])
+            )
+        written: list[str] = []
+        for number, pictures in sorted((media or {}).items()):
+            targets = []
+            for data in pictures:
+                written.append(data)
+                name = f"image{len(written)}.png"
+                archive.writestr(f"ppt/media/{name}", data)
+                targets.append(name)
+            archive.writestr(f"ppt/slides/_rels/slide{number}.xml.rels", _rels(targets))
+    return path
+
+
+def make_odt(path, paragraphs=(), tables=(), pictures=()):
+    """A minimal OpenDocument text file (stdlib zipfile; odfpy is not installed).
+
+    ``pictures`` is a sequence of raster byte strings, each written under
+    ``Pictures/`` — where an ODF file keeps the images it embeds.
+    """
+    import zipfile
+
+    blocks = "".join(
+        f'<text:p text:style-name="P1">{text}</text:p>' for text in paragraphs
+    )
+    for rows in tables:
+        cells = "".join(
+            "<table:table-row>"
+            + "".join(
+                f"<table:table-cell><text:p>{value}</text:p></table:table-cell>"
+                for value in row
+            )
+            + "</table:table-row>"
+            for row in rows
+        )
+        blocks += f"<table:table>{cells}</table:table>"
+    content = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<office:document-content'
+        ' xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"'
+        ' xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"'
+        ' xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">'
+        f"<office:body><office:text>{blocks}</office:text></office:body>"
+        "</office:document-content>"
+    )
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("mimetype", "application/vnd.oasis.opendocument.text")
+        archive.writestr("content.xml", content)
+        for index, data in enumerate(pictures, start=1):
+            archive.writestr(f"Pictures/image{index}.png", data)
+    return path
+
+
 def wait_for_job(
     client: TestClient,
     job_id: str,

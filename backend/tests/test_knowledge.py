@@ -77,6 +77,68 @@ def test_malformed_document_fails_cleanly(tmp_path):
     assert doc.error
 
 
+def test_register_image_document_is_chunkless_and_reuses_identical_bytes(tmp_path):
+    """A picture lifted out of a container earns its own id, but no chunks:
+    its text was merged into the container's, so indexing it again would only
+    duplicate search hits."""
+    from tests.conftest import make_bmp
+
+    kb = make_kb(tmp_path)
+    doc_dir = make_doc_dir(tmp_path)
+    picture = doc_dir / "crop.bmp"
+    make_bmp(picture)
+
+    first = asyncio.run(
+        kb.register_image_document(
+            "user-001", picture, "crop.bmp", metadata={"extracted_from": "report.docx"}
+        )
+    )
+    assert first.status == "ready"
+    assert first.document_type == "bmp"
+    assert first.chunk_count == 0
+
+    again = asyncio.run(kb.register_image_document("user-001", picture, "crop.bmp"))
+    assert again.document_id == first.document_id
+
+
+def test_with_embedded_images_lists_a_containers_pictures(tmp_path):
+    from types import SimpleNamespace
+
+    from app.services.document_ingestion import EMBEDDED_IMAGES_KEY
+    from tests.conftest import make_bmp
+
+    kb = make_kb(tmp_path)
+    doc_dir = make_doc_dir(tmp_path)
+    picture = doc_dir / "child.bmp"
+    make_bmp(picture)
+    child = asyncio.run(kb.register_image_document("user-001", picture, "child.bmp"))
+
+    def parent(document_id, child_ids):
+        return SimpleNamespace(
+            document_id=document_id,
+            metadata={EMBEDDED_IMAGES_KEY: [{"doc_id": i} for i in child_ids]},
+        )
+
+    expanded = asyncio.run(kb.with_embedded_images("user-001", [parent("doc-p", [child.document_id])]))
+    assert [d.document_id for d in expanded] == ["doc-p", child.document_id]
+
+    # already listed: not repeated
+    listed = asyncio.run(
+        kb.with_embedded_images("user-001", [parent("doc-p", [child.document_id]), child])
+    )
+    assert [d.document_id for d in listed] == ["doc-p", child.document_id]
+
+    # a since-deleted child is skipped rather than failing the caller
+    skipped = asyncio.run(kb.with_embedded_images("user-001", [parent("doc-q", ["doc-gone"])]))
+    assert [d.document_id for d in skipped] == ["doc-q"]
+
+    # another user's picture is not leaked into this user's manifest
+    other = asyncio.run(
+        kb.with_embedded_images("user-002", [parent("doc-r", [child.document_id])])
+    )
+    assert [d.document_id for d in other] == ["doc-r"]
+
+
 def test_document_search_tool_returns_metadata(tmp_path):
     kb = make_kb(tmp_path)
     asyncio.run(ingest_fixture(kb, make_doc_dir(tmp_path)))

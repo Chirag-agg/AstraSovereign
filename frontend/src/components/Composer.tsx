@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 
 import type { DocumentMeta } from "@/lib/types";
+import { ACCEPTED_UPLOAD_TYPES } from "@/lib/documents";
 
 export interface AttachmentChip {
   id: string;
@@ -74,7 +75,7 @@ export default function Composer({
         className="visually-hidden"
         aria-hidden="true"
         tabIndex={-1}
-        accept=".pdf,.txt,.md,.png,.jpg,.jpeg"
+        accept={ACCEPTED_UPLOAD_TYPES}
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) {

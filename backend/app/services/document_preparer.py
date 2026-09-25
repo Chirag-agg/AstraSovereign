@@ -1,11 +1,17 @@
 """Local document page/image preparation for OCR and vision.
 
 Renders PDF pages to PNG images (``pypdfium2``) and normalizes standalone image
-files (Pillow). Fully local — no cloud converters, external image processing
-services, or remote APIs. Rendered pages are written to a caller-provided temp
-directory; callers are responsible for cleanup. Failures (malformed PDF,
-unreadable page, unsupported image, oversized image, rendering failure) raise
-``DocumentPreparationError`` so the ingestion/job layer can fail cleanly.
+files (Pillow) — a still image into one page, an animated GIF or multi-page
+TIFF into one page per frame. Fully local — no cloud converters, external image
+processing services, or remote APIs. Rendered pages are written to a
+caller-provided temp directory; callers are responsible for cleanup. Failures
+(malformed PDF, unreadable page, unsupported image, oversized image, rendering
+failure) raise ``DocumentPreparationError`` so the ingestion/job layer can fail
+cleanly.
+
+A single PDF page can also be rendered to bytes in memory (``render_page_png``)
+— the deliverable generators take a stream, and a job workspace may hold only
+``artifacts/``, so a page used as a figure never lands on disk.
 
 Also extracts embedded raster images from within a PDF page (``pypdf``) —
 distinct from rendering the whole page: a page that is mostly typed text
@@ -14,6 +20,7 @@ not a busy full-page render that OCR already covers.
 """
 
 import asyncio
+import io
 import logging
 import re
 from dataclasses import dataclass
@@ -25,7 +32,7 @@ from pypdf import PdfReader
 
 logger = logging.getLogger("app.document_preparer")
 
-SUPPORTED_IMAGE_TYPES = ("png", "jpg", "jpeg")
+SUPPORTED_IMAGE_TYPES = ("png", "jpg", "jpeg", "bmp", "gif", "tiff", "tif", "webp")
 _PAGE_FILE_TEMPLATE = "page_{page:04d}.png"
 _EMBEDDED_IMAGE_FILE_TEMPLATE = "page_{page:04d}_img{index:02d}.png"
 _PAGE_RE = re.compile(r"page_(\d+)")
@@ -228,30 +235,90 @@ class DocumentPreparer:
         output_dir: Path,
         pages: Optional[list[int]],
     ) -> list[RenderedPage]:
+        """Normalize a standalone image into one PNG page per frame.
+
+        A still image is one page. An animated GIF or a multi-page TIFF is
+        several: its frames are the pages a reader would page through, so each
+        gets its own rendered file and is addressed by its frame number.
+        """
         try:
             with Image.open(path) as opened:
                 opened.load()
-                image = opened.copy()
-        except (UnidentifiedImageError, OSError) as exc:
+                frame_count = max(int(getattr(opened, "n_frames", 1) or 1), 1)
+                if frame_count == 1 and pages is not None and pages != [1]:
+                    raise DocumentPreparationError(
+                        "An image document has exactly one page (page 1)"
+                    )
+                target = self._resolve_target_pages(pages, frame_count)
+                if len(target) > self._max_pages:
+                    raise DocumentPreparationError(
+                        f"Document has {frame_count} page(s), exceeding the maximum "
+                        f"of {self._max_pages} pages"
+                    )
+                frames = []
+                for index in target:
+                    opened.seek(index - 1)
+                    frames.append(opened.copy())
+        except DocumentPreparationError:
+            raise
+        except (UnidentifiedImageError, OSError, ValueError) as exc:
             raise DocumentPreparationError(
                 f"Cannot read image '{Path(path).name}': {exc}"
             ) from exc
-        image = self._normalize_image(image)
-        if pages is not None and pages != [1]:
-            raise DocumentPreparationError(
-                "An image document has exactly one page (page 1)"
-            )
         output_dir.mkdir(parents=True, exist_ok=True)
-        out = output_dir / _PAGE_FILE_TEMPLATE.format(page=1)
-        image.save(out, format="PNG")
-        return [
-            RenderedPage(
-                page=1,
-                image_path=out,
-                width=image.width,
-                height=image.height,
+        rendered: list[RenderedPage] = []
+        for index, frame in zip(target, frames):
+            image = self._normalize_image(frame)
+            out = output_dir / _PAGE_FILE_TEMPLATE.format(page=index)
+            image.save(out, format="PNG")
+            rendered.append(
+                RenderedPage(
+                    page=index,
+                    image_path=out,
+                    width=image.width,
+                    height=image.height,
+                )
             )
-        ]
+        return rendered
+
+    # ------------------------------------------------------- PDF page to bytes
+
+    def render_page_png(self, path: Path, page: int) -> bytes:
+        """Render one PDF page to PNG bytes, entirely in memory.
+
+        The deliverable generators take a path or a stream, and a job's
+        workspace may hold only ``artifacts/``, so a page used as a figure is
+        returned as bytes rather than written anywhere.
+        """
+        try:
+            import pypdfium2 as pdfium
+
+            document = pdfium.PdfDocument(str(path))
+        except Exception as exc:
+            raise DocumentPreparationError(f"Cannot render PDF: {exc}") from exc
+        try:
+            try:
+                page_count = len(document)
+            except Exception as exc:
+                raise DocumentPreparationError(
+                    f"Cannot determine PDF page count: {exc}"
+                ) from exc
+            index = self._resolve_target_pages([page], page_count)[0]
+            try:
+                bitmap = document[index - 1].render(scale=self._scale)
+                image = self._normalize_image(bitmap.to_pil())
+            except Exception as exc:
+                raise DocumentPreparationError(
+                    f"Cannot render PDF page {index}: {exc}"
+                ) from exc
+        finally:
+            try:
+                document.close()
+            except Exception:
+                pass
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        return buffer.getvalue()
 
     # ---------------------------------------------------------- helpers
 

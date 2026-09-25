@@ -20,6 +20,7 @@ from app.services.document_ingestion import (
     DocumentRequiresOCR,
     build_chunks,
     document_type_for,
+    embedded_image_ids,
     extract_document_pages,
 )
 from app.services.embedding import EmbeddingError, EmbeddingProvider
@@ -186,6 +187,68 @@ class KnowledgeBase:
             return await self._fail_document(
                 user_id, doc, f"internal_error: {exc.__class__.__name__}"
             )
+
+    async def register_image_document(
+        self,
+        user_id: str,
+        path: Path,
+        filename: str,
+        metadata: Optional[dict] = None,
+    ) -> DocumentRecord:
+        """Register an already-extracted image file as its own image document.
+
+        Used for the raster pictures lifted out of a container upload
+        (docx/xlsx/pptx/odt): each is a real, embeddable image in its own right,
+        so it earns its own id even though the container's text is what carries
+        the searchable content. Deliberately chunkless — whatever text the
+        picture holds is merged into the container's own page text, so indexing
+        it twice would only duplicate search hits.
+        """
+        document_type = document_type_for(filename)
+        content_hash = _hash_file(path)
+        existing = await self._find_by_content_hash(user_id, content_hash)
+        if existing is not None:
+            self._log_reused(user_id, filename, existing.document_id)
+            return existing
+        merged = {"content_hash": content_hash, **(metadata or {})}
+        doc = await self._new_document(user_id, filename, document_type, merged)
+        doc.status = DocumentStatus.READY
+        doc.chunk_count = 0
+        doc.metadata = merged
+        await self._store.put_document(user_id, doc)
+        logger.info(
+            "image_document_registered",
+            extra={
+                "event": "image_document_registered",
+                "user_id": user_id,
+                "document_id": doc.document_id,
+                "file_name": filename,
+            },
+        )
+        return doc
+
+    async def with_embedded_images(
+        self, user_id: str, documents: list[DocumentRecord]
+    ) -> list[DocumentRecord]:
+        """``documents`` plus the image documents they carry inside them.
+
+        A container upload's pictures are knowledge-base documents of their own,
+        and the attachment manifest is where the model learns a doc_id — so they
+        are listed beside their container, which is what lets the model name one
+        as a figure. A child that has since been deleted, or that belongs to
+        another user, is skipped rather than failing the job.
+        """
+        known = {document.document_id for document in documents}
+        expanded = list(documents)
+        for document in documents:
+            for document_id in embedded_image_ids(document):
+                if document_id in known:
+                    continue
+                known.add(document_id)
+                child = await self._store.get_document(user_id, document_id)
+                if child is not None:
+                    expanded.append(child)
+        return expanded
 
     async def _new_document(
         self,
