@@ -4,117 +4,224 @@
 # to models already pulled into the local Ollama server (`ollama pull <model>`);
 # the backend never downloads models.
 #
+# Four models serve all five task types, each where it is strongest:
+# gpt-oss:20b is the general reasoner (an MoE, so it decodes at a fraction of
+# its 20B size), qwen3-vl carries document and vision work, devstral is the
+# agentic coding specialist, and deepseek-r1 is the reasoning specialist behind
+# math. Every one reports the `tools` capability to Ollama, which the
+# tool-invoking task types require.
+#
 # `fallback_to` declares an explicit, bounded substitution chain (max 2 hops).
 # Every fallback target must satisfy the entry's declared capabilities and
 # support tool calling, otherwise the backend refuses to start. Fallback is
 # enabled by default (MODEL_FALLBACK_ENABLED) but can be disabled for benchmarks.
+# Chains are empty here on purpose: each task names the one model chosen for it,
+# and a missing model should fail visibly rather than silently degrade.
 #
 # `model_capabilities` declares what each model can do so chains can be
 # validated at load; entries that are another task's primary model inherit that
 # entry's capabilities unless overridden here.
+#
+# ---------------------------------------------------------------------------
+# Machine profiles
+# ---------------------------------------------------------------------------
+# A dev laptop and the venue box have different silicon, and a roster sized for
+# one is wrong on the other. `default_profile` names the roster used when
+# MODEL_PROFILE is unset; a profile declares only what differs from the top
+# level, so the roster above is written once. The selected name is carried into
+# the `registry_loaded` startup log and into benchmark output, so a run on a
+# different roster is visibly a different configuration rather than a
+# mysteriously slow one. Naming a profile that does not exist is a startup
+# error, never a silent fall back to a default.
+#
+# ---------------------------------------------------------------------------
+# `num_ctx` — the context window per model
+# ---------------------------------------------------------------------------
+# Every generation call asks for OLLAMA_NUM_CTX (16384) unless the model declares
+# its own here. Ollama's default of 4096 is smaller than this app's system prompt
+# plus one tool result, which is what produced intermittent HTTP 500s. The value
+# is per model because the KV cache cost is: gpt-oss:20b uses sliding-window
+# attention and pays ~28 KiB/token, while the dense devstral/deepseek models pay
+# roughly six times that. A bigger window on a dense model does not fail — it
+# silently moves more layers off the GPU and onto the CPU, so the dense models
+# declare *less* than the global default rather than more.
+#
+# ---------------------------------------------------------------------------
+# `resources` — declared per model, and both figures are real
+# ---------------------------------------------------------------------------
+# `gpu_vram_mb` is the model's GPU-resident footprint and `memory_mb` is its
+# host footprint. They are separate pools in the scheduler: `gpu_vram_mb` is
+# checked against RESOURCE_GPU_VRAM_MB (the card) and `memory_mb` against
+# RESOURCE_MEMORY_MB (host RAM). Declaring only one is the bug this replaced —
+# the old numbers were the *total weight size*, which is neither the resident
+# portion nor the host portion, and was larger than the card.
+#
+# Every value below was measured on the dev laptop, not estimated, by loading
+# each model at the window declared here and reading Ollama's own `/api/ps`
+# (`size` = total resident, `size_vram` = the GPU portion). Rounded up to the
+# next 512 MiB. Note that most of gpt-oss and devstral live in host RAM: on a
+# 6144 MiB card only the layers that fit stay on the GPU, and llama.cpp sizes
+# that split to fill whatever VRAM is left. These must fit the host declared in
+# `backend/.env` or the scheduler rejects the request before it runs.
 
 models:
   general:
     provider: ollama
-    model: llama3.1:latest
+    model: gpt-oss:20b
     enabled: true
+    # Sliding-window KV is cheap (~28 KiB/token), and this entry's prompt is the
+    # one observed to overflow a 4096 window.
+    num_ctx: 32768
     capabilities:
       - general
       - reasoning
       - summarization
     fallback_to: []
     resources:
-      gpu_vram_mb: 4096
-      cpu_cores: 2
-      memory_mb: 4096
+      # measured: 3275 MiB on the card, 10183 MiB in host RAM at 32768
+      gpu_vram_mb: 3584
+      cpu_cores: 4
+      memory_mb: 10240
 
   coding:
     provider: ollama
-    model: qwen2.5-coder:7b
+    model: devstral:24b
     enabled: true
+    # Dense KV (~160 KiB/token): a larger window would push more of an
+    # already-CPU-offloaded model off the card for no gain.
+    num_ctx: 8192
     capabilities:
       - coding
       - debugging
       - code_review
     fallback_to: []
     resources:
+      # measured: 4065 MiB on the card, 11177 MiB in host RAM at 8192
       gpu_vram_mb: 4096
-      cpu_cores: 2
-      memory_mb: 4096
+      cpu_cores: 4
+      memory_mb: 11264
 
-  # Math specialist.
+  # Math specialist: a reasoning model, so the compute node's multi-step work
+  # gets a model that shows its working rather than pattern-matching an answer.
   math:
     provider: ollama
-    model: qwen2.5-math:1.5b
+    model: deepseek-r1:14b
     enabled: true
+    # Dense KV, and a reasoning model that can spend a whole window thinking —
+    # see `num_predict` in app/config.py for the generation-side bound.
+    num_ctx: 8192
     capabilities:
       - math
       - reasoning
     fallback_to: []
     resources:
-      gpu_vram_mb: 2048
-      cpu_cores: 2
-      memory_mb: 2048
+      # measured: 3997 MiB on the card, 6279 MiB in host RAM at 8192
+      gpu_vram_mb: 4096
+      cpu_cores: 4
+      memory_mb: 6656
 
+  # Document work spans scanned PDFs (OCR + page vision) and text extraction, so
+  # the entry must be a multimodal model that can also call tools — qwen3-vl is
+  # the only model here that is all three.
   document:
     provider: ollama
-    model: llama3.1:latest
+    model: qwen3-vl:latest
     enabled: true
     capabilities:
       - document
       - summarization
     fallback_to: []
     resources:
-      gpu_vram_mb: 4096
+      # measured: 3316 MiB on the card, 4405 MiB in host RAM at 16384
+      gpu_vram_mb: 3584
       cpu_cores: 2
-      memory_mb: 4096
+      memory_mb: 4608
 
-  # Vision has no valid smaller peer: an empty chain means it fails cleanly if
-  # the model is missing rather than producing confident nonsense from a
-  # text-only model.
+  # The only vision-capable model here, and it has no text-only peer that could
+  # stand in: an empty chain means a missing vision model fails cleanly rather
+  # than producing confident nonsense from a model that cannot see the image.
   vision:
     provider: ollama
-    model: llava:7b
+    model: qwen3-vl:latest
     enabled: true
     capabilities:
       - vision
       - image
     fallback_to: []
     resources:
-      gpu_vram_mb: 4096
+      # measured: 3316 MiB on the card, 4405 MiB in host RAM at 16384
+      gpu_vram_mb: 3584
       cpu_cores: 2
-      memory_mb: 4096
+      memory_mb: 4608
+
+  # Job-plan filler: a ~1B model that fills only the plan fields the
+  # deterministic layer leaves unset (implicit requests). Disabled by default,
+  # matching PLANNER_ENABLED=false — it is switched on only if bench/plan_eval.py
+  # shows it beats the deterministic-only baseline, so a default install is not
+  # warned about a model it never intends to run. Declared here anyway so the
+  # entry is visible in the Models UI and its weight is on the record for
+  # whoever enables it. It is not an agent capability (no tools), so it is
+  # deliberately absent from TOOL_INVOKING_CAPABILITIES.
+  planner:
+    provider: ollama
+    model: qwen3:1.7b
+    enabled: false
+    capabilities:
+      - planner
+    fallback_to: []
+    resources:
+      # measured: 3044 MiB, entirely on the card at 16384 — small enough that no
+      # layer is offloaded, so its host reservation is genuinely zero.
+      gpu_vram_mb: 3072
+      cpu_cores: 1
+      memory_mb: 0
 
 model_capabilities:
-  qwen2.5-coder:3b:
+  gpt-oss:20b:
     capabilities:
       - general
       - reasoning
       - summarization
-      - coding
-      - debugging
-      - code_review
-    tools: false
-  qwen2.5-coder:7b:
-    capabilities:
-      - coding
-      - debugging
-      - code_review
     tools: true
-  llama3.1:latest:
+  qwen3-vl:latest:
     capabilities:
       - general
       - reasoning
       - summarization
       - document
-    tools: true
-  llava:7b:
-    capabilities:
       - vision
       - image
-    tools: false
-  qwen2.5-math:1.5b:
+    tools: true
+  devstral:24b:
+    capabilities:
+      - coding
+      - debugging
+      - code_review
+    tools: true
+  deepseek-r1:14b:
     capabilities:
       - math
       - reasoning
     tools: true
+  # The planner is invoked once, outside the agent loop, for a single
+  # constrained emission — it never receives tool schemas, so declaring
+  # tools: false is the truthful record (and keeps it from ever being assigned
+  # to an agent capability).
+  qwen3:1.7b:
+    capabilities:
+      - planner
+    tools: false
+
+default_profile: dev-laptop
+
+profiles:
+  # The machine every figure above was measured on: one 6144 MiB GPU, and enough
+  # host RAM that a single model plus its offloaded layers fits.
+  dev-laptop: {}
+
+  # Placeholder for the venue box. Deliberately empty: it inherits the roster
+  # above rather than carrying numbers nobody has measured. An unmeasured figure
+  # presented as fact is exactly what the old RESOURCE_GPU_VRAM_MB=16384 was.
+  # Before the demo, run bench/measure_model_footprint.py on the venue box and
+  # add only the entries that differ here, plus its RESOURCE_* values in .env.
+  venue-box: {}
