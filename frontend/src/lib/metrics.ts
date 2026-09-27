@@ -37,9 +37,9 @@ export const HEADLINE_METRICS: VerifiedMetric[] = [
   },
   {
     label: "Backend tests",
-    value: "592",
+    value: "755",
     unit: "functions",
-    source: "grep -c 'def test_' backend/tests/*.py — 67 files",
+    source: "grep -c 'def test_' backend/tests/*.py — 76 files (2026-09-26; 766 collected)",
     tone: "positive",
   },
   {
@@ -52,7 +52,8 @@ export const HEADLINE_METRICS: VerifiedMetric[] = [
     label: "Local models",
     value: "5",
     unit: "capabilities",
-    source: "config/models.yaml — general, coding, math, document, vision",
+    source:
+      "config/models.yaml — routed: general, coding, math, document, vision (a 6th, `planner`, is disabled)",
   },
 ];
 
@@ -129,6 +130,13 @@ export const BENCHMARKS: Benchmark[] = [
     tone: "positive",
   },
   {
+    name: "Job-plan model fill (1B)",
+    value: "82% vs 89%",
+    detail:
+      "bench/plan_eval.py, 40 hand-labelled requests (2026-09-26). On the fields the deterministic plan layer leaves unset, qwen3:1.7b scores 82% against 89% for the regex layer alone: it invents a deliverable for plain chat questions, and the escalation-only merge cannot withdraw a wrong addition. Kept off — PLANNER_ENABLED=false — while the typed JobPlan stays. An 8B reaches 92% but keeps the same wrong-adds.",
+    tone: "caution",
+  },
+  {
     name: "Hard Scenario 01 (API 653)",
     value: "1–6 / 20",
     detail:
@@ -169,11 +177,11 @@ export const TANK_204_COURSES: CourseReading[] = [
 
 /** The five capabilities the router can resolve, from config/models.yaml. */
 export const MODEL_ROSTER = [
-  { capability: "general", model: "llama3.1:latest", vram_mb: 4096 },
-  { capability: "coding", model: "qwen2.5-coder:7b", vram_mb: 4096 },
-  { capability: "math", model: "qwen2.5-math:1.5b", vram_mb: 2048 },
-  { capability: "document", model: "llama3.1:latest", vram_mb: 4096 },
-  { capability: "vision", model: "llava:7b", vram_mb: 4096 },
+  { capability: "general", model: "gpt-oss:20b", vram_mb: 3584 },
+  { capability: "coding", model: "devstral:24b", vram_mb: 4096 },
+  { capability: "math", model: "deepseek-r1:14b", vram_mb: 4096 },
+  { capability: "document", model: "qwen3-vl:latest", vram_mb: 3584 },
+  { capability: "vision", model: "qwen3-vl:latest", vram_mb: 3584 },
 ] as const;
 
 /**

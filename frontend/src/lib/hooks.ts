@@ -9,8 +9,8 @@ import { ApiError, getHealth, getJob, getJobAudit, listArtifacts, listDocuments,
 import type { ArtifactSummary, AuditEvent, DevRole, DocumentMeta, Health, Job, JobSummary } from "./types";
 import { isTerminalStatus } from "./types";
 
-export const USER_IDS = ["user-001", "user-002", "user-003", "user-004", "user-005"];
 const USER_STORAGE_KEY = "sovereign.active-user";
+const DEFAULT_USER_ID = "user-001";
 const ROLE_STORAGE_KEY = "sovereign.dev-role";
 
 /**
@@ -51,19 +51,31 @@ const POLL_JOB_MS = 1000;
 const POLL_LIST_MS = 2000;
 const POLL_HEALTH_MS = 3000;
 
+/**
+ * The active identity, read raw from storage.
+ *
+ * Any id the backend accepts on `X-User-ID` is valid — the demo accounts,
+ * `admin-001`, and custom employees added in the team view. It must NOT be
+ * clamped to a fixed list. The components' local `activeUserId()` helpers read
+ * this same key without clamping, so clamping here made the create and download
+ * paths disagree: a job created as `admin-001` was listed, then downloaded as
+ * `user-001`, and the backend answered 403 "You do not have access to this job".
+ */
+function readActiveUserId(): string {
+  if (typeof window === "undefined") return DEFAULT_USER_ID;
+  try {
+    return window.localStorage.getItem(USER_STORAGE_KEY) || DEFAULT_USER_ID;
+  } catch {
+    return DEFAULT_USER_ID;
+  }
+}
+
 /** Selected dev user, persisted to localStorage. No real authentication. */
 export function useActiveUser(): [string, (user: string) => void] {
-  const [user, setUser] = useState<string>(USER_IDS[0]);
+  const [user, setUser] = useState<string>(DEFAULT_USER_ID);
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(USER_STORAGE_KEY);
-      if (stored && USER_IDS.includes(stored)) {
-        setUser(stored);
-      }
-    } catch {
-      // ignore storage access errors
-    }
+    setUser(readActiveUserId());
   }, []);
 
   const changeUser = useCallback((next: string) => {

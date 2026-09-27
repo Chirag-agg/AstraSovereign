@@ -56,8 +56,14 @@ export default function Composer({
   const attachedDocIds = new Set(
     attachments.map((chip) => chip.documentId).filter(Boolean) as string[],
   );
+  // An attachment still ingesting has no document_id yet, so submitting now
+  // would send the task without it — the agent then answers about a file it
+  // never received. Hold the send until every attachment is indexed or failed.
+  const pendingAttachments = attachments.filter(
+    (chip) => chip.state === "uploading" || chip.state === "processing",
+  ).length;
 
-  const canSend = text.trim().length > 0 && !running && !disabled;
+  const canSend = text.trim().length > 0 && !running && !disabled && pendingAttachments === 0;
 
   const send = () => {
     if (!canSend) {
@@ -180,7 +186,11 @@ export default function Composer({
             Use all documents
           </label>
           <span className="composer-hint">
-            {running ? "Agent is working…" : "Enter to send · Shift+Enter for a new line"}
+            {pendingAttachments > 0
+              ? `Waiting for ${pendingAttachments} attachment${pendingAttachments === 1 ? "" : "s"} to finish indexing…`
+              : running
+                ? "Agent is working…"
+                : "Enter to send · Shift+Enter for a new line"}
           </span>
           <div className="composer-spacer" />
           <span className="status t-mut">

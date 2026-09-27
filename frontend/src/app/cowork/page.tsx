@@ -10,6 +10,7 @@ import {
   coworkChat,
   createProject,
   deleteProject,
+  DEMO_MODE,
   listProjectFiles,
   listProjects,
   projectHistory,
@@ -40,7 +41,9 @@ function fileLang(path: string): string {
 }
 
 export default function CoworkPage() {
-  const [authed, setAuthed] = useState(false);
+  // Demo mode skips the sign-in screen: the backend asks for no session there,
+  // so the gate would only be a click that authenticates nothing.
+  const [authed, setAuthed] = useState(DEMO_MODE);
   const userId = activeUserId();
 
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
@@ -95,9 +98,9 @@ export default function CoworkPage() {
   // session gate
   useEffect(() => {
     try {
-      setAuthed(window.sessionStorage.getItem("sovereign.session") === "1");
+      setAuthed(DEMO_MODE || window.sessionStorage.getItem("sovereign.session") === "1");
     } catch {
-      setAuthed(false);
+      setAuthed(DEMO_MODE);
     }
   }, []);
 

@@ -164,7 +164,7 @@ export default function KnowledgeBaseView({
   const handleDownload = async () => {
     if (!previewDoc) return;
     try {
-      const { blob, filename } = await getDocumentFileBlob(activeUserId(), previewDoc.document_id);
+      const { blob, filename } = await getDocumentFileBlob(activeUserId(), previewDoc.document_id, previewDoc.filename);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

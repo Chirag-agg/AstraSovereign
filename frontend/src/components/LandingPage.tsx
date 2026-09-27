@@ -199,7 +199,7 @@ function Hero({ onEnter }: { onEnter: () => void }) {
           padding: "14px 0",
         }}
       >
-        <Marquee items={[...TOOL_SURFACE, "llama3.1", "qwen2.5-coder", "qwen2.5-math", "llava", "nomic-embed-text"]} />
+        <Marquee items={[...TOOL_SURFACE, "gpt-oss", "qwen3-vl", "devstral", "deepseek-r1", "nomic-embed-text"]} />
       </div>
     </header>
   );

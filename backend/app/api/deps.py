@@ -3,10 +3,10 @@
 ``get_session`` is the single seam identity flows through: a verified
 ``astra_session`` cookie always wins; a raw ``X-User-ID``/``X-Role`` header is
 trusted ONLY when ``request.app.state.dev_header_auth`` is ``True`` — a flag
-set exclusively by a ``create_app(dev_header_auth=True)`` call site in source
-(see ``tests/conftest.py``), never from configuration or environment, so
-production (the bare ``create_app()`` in ``main.py``) can never fall back to
-trusting a client-supplied header.
+set by a ``create_app(dev_header_auth=True)`` call site in source (see
+``tests/conftest.py``) or by ``settings.demo_mode``. ``demo_mode`` is off by
+default and is the one switch that turns authentication off; with it on,
+anyone who can reach the port can name any user, admin included.
 """
 
 from typing import Optional

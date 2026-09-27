@@ -31,6 +31,7 @@ import {
   ApiError,
   cancelJob,
   deleteDocument,
+  DEMO_MODE,
   downloadArtifact,
   submitChat,
   uploadDocument,
@@ -219,6 +220,18 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
       setNotice(null);
       setConsoleOpen(true);
       setCurrentSection("agent");
+      // An attachment that is still ingesting has no document_id, so it would be
+      // dropped without a word and the agent would answer about a file it never
+      // received. Say so instead of submitting a task that silently lost input.
+      const pending = chips.filter(
+        (chip) => chip.state === "uploading" || chip.state === "processing",
+      );
+      if (pending.length > 0) {
+        setNotice(
+          `Still indexing ${pending.map((chip) => chip.filename).join(", ")} — wait for it to finish, then send.`,
+        );
+        return;
+      }
       // Attachments are explicit: either the ready documents chosen in the
       // composer, or (with the toggle) every ready document in the library.
       const readyDocuments = (documents ?? []).filter((doc) => doc.status === "ready");
@@ -307,7 +320,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
   const handleDownload = useCallback(
     async (artifact: ArtifactSummary) => {
       try {
-        const { blob, filename } = await downloadArtifact(user, artifact.job_id, artifact.artifact_id);
+        const { blob, filename } = await downloadArtifact(user, artifact.job_id, artifact.artifact_id, artifact.filename);
         triggerDownload(blob, filename);
       } catch (err) {
         setNotice(`Download failed: ${messageFromError(err)}`);
@@ -750,7 +763,9 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
 }
 
 export default function WorkbenchPage() {
-  const [authed, setAuthed] = useState(false);
+  // In demo mode the backend asks for no session, so the sign-in screen is
+  // skipped rather than shown for a login that authenticates nothing.
+  const [authed, setAuthed] = useState(DEMO_MODE);
   const [showLogin, setShowLogin] = useState(false);
   // The boot curtain lifts when the client has actually hydrated and read the
   // session — not on a timer. A loader that outlives the work it describes is
@@ -759,13 +774,13 @@ export default function WorkbenchPage() {
 
   useEffect(() => {
     try {
-      const isAuthed = window.sessionStorage.getItem("sovereign.session") === "1";
+      const isAuthed = DEMO_MODE || window.sessionStorage.getItem("sovereign.session") === "1";
       setAuthed(isAuthed);
       if (!isAuthed && typeof window !== "undefined" && window.location.search.includes("login=1")) {
         setShowLogin(true);
       }
     } catch {
-      setAuthed(false);
+      setAuthed(DEMO_MODE);
     } finally {
       setBooted(true);
     }

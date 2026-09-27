@@ -23,6 +23,12 @@ import type {
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
+// Mirrors the backend's DEMO_MODE: with it on the backend accepts a request
+// that carries no session, so the client-side sign-in screen is skipped
+// rather than shown for a login that authenticates nothing. Must be set to
+// "true" on both sides — this one only decides whether the gate is rendered.
+export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -300,6 +306,7 @@ export async function downloadArtifact(
   userId: string,
   jobId: string,
   artifactId: string,
+  fallbackFilename?: string,
 ): Promise<DownloadResult> {
   let response: Response;
   try {
@@ -323,7 +330,10 @@ export async function downloadArtifact(
   const blob = await response.blob();
   const disposition = response.headers.get("content-disposition") || "";
   const match = disposition.match(/filename="?([^";]+)"?/i);
-  const filename = match ? match[1] : "artifact.docx";
+  // The header names the file exactly; the fallback uses the caller's known
+  // filename rather than a hardcoded extension, so a header the browser did not
+  // expose cannot silently mislabel the download.
+  const filename = match ? match[1] : fallbackFilename || "artifact";
   return { blob, filename };
 }
 
@@ -342,7 +352,11 @@ export function getDocumentContent(userId: string, documentId: string): Promise<
   return request<DocumentContentResult>(`/api/documents/${encodeURIComponent(documentId)}/content`, {}, userId);
 }
 
-export async function getDocumentFileBlob(userId: string, documentId: string): Promise<{ blob: Blob; filename: string }> {
+export async function getDocumentFileBlob(
+  userId: string,
+  documentId: string,
+  fallbackFilename?: string,
+): Promise<{ blob: Blob; filename: string }> {
   let response: Response;
   try {
     response = await fetch(
@@ -358,7 +372,7 @@ export async function getDocumentFileBlob(userId: string, documentId: string): P
   const blob = await response.blob();
   const disposition = response.headers.get("content-disposition") || "";
   const match = disposition.match(/filename="?([^";]+)"?/i);
-  const filename = match ? match[1] : "document";
+  const filename = match ? match[1] : fallbackFilename || "document";
   return { blob, filename };
 }
 
