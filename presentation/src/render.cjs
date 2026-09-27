@@ -327,6 +327,196 @@ function addTableSlide(pptx, deck, slide) {
   return s;
 }
 
+// Chart families drawn from the uniform (categories, series) shape. Kept in
+// step with CHART_TYPES in the backend schema, which is the gate the model sees.
+const CHART_TYPES = new Set(["bar", "line", "area", "pie", "doughnut", "radar"]);
+const PIE_TYPES = new Set(["pie", "doughnut"]);
+
+// A chart palette anchored on the theme, extended with fixed accents so a
+// multi-series chart never repeats a colour for the first six series.
+function chartColors(deck) {
+  return [deck.accent, deck.accent2, "2E7D6B", "8A5A2B", "5B6B8C", "9C3B56"];
+}
+
+function addChartSlide(pptx, deck, slide) {
+  const s = pptx.addSlide();
+  s.background = { color: deck.bg };
+  if (slide.title) {
+    s.addText(slide.title, {
+      x: MARGIN, y: 0.5, w: CONTENT_W, h: 0.9, fontSize: 26, bold: true, color: deck.text,
+      fit: "shrink",
+    });
+    s.addShape("rect", { x: MARGIN, y: 1.35, w: 1.1, h: 0.05, fill: { color: deck.accent2 } });
+  }
+  const chart = slide.chart;
+  const hasImage = Boolean(slideImage(slide));
+  const top = CONTENT_TOP + 0.05;
+  const height = hasImage ? IMAGE_BAND_Y - top - 0.2 : CONTENT_H;
+
+  const series = chart && Array.isArray(chart.series) ? chart.series : [];
+  const labels = chart && Array.isArray(chart.categories) ? chart.categories.map(String) : [];
+  if (series.length === 0 || labels.length === 0) {
+    // The backend model rejects a chart slide without data, so this is only
+    // reachable if the payload bypassed it; show the body text rather than a
+    // blank slide headlined "chart".
+    s.addText(String(slide.content || ""), {
+      x: MARGIN, y: top, w: CONTENT_W, h: height, fontSize: 16, color: deck.text,
+      valign: "top", fit: "shrink",
+    });
+    addImageBand(s, slide, top + height + 0.1);
+    return s;
+  }
+
+  const requested = String(chart.type || "bar").toLowerCase();
+  const type = CHART_TYPES.has(requested) ? requested : "bar";
+  const isPie = PIE_TYPES.has(type);
+  const data = series.map((entry) => ({
+    name: String(entry.name == null ? "" : entry.name) || "Series",
+    labels,
+    values: (Array.isArray(entry.values) ? entry.values : []).map(Number),
+  }));
+  // A legend names the series; with one series (or a pie, where it names the
+  // slices) there is nothing to disambiguate, so it is off unless asked for.
+  const showLegend =
+    chart.show_legend === undefined || chart.show_legend === null
+      ? data.length > 1 || isPie
+      : Boolean(chart.show_legend);
+
+  const options = {
+    x: MARGIN,
+    y: top,
+    w: CONTENT_W,
+    h: height,
+    chartColors: chartColors(deck),
+    showLegend,
+    legendPos: "b",
+    legendColor: deck.text,
+    legendFontSize: 11,
+    showValue: Boolean(chart.show_values),
+    dataLabelColor: deck.text,
+    dataLabelFontSize: 10,
+    dataLabelPosition: isPie ? "bestFit" : "outEnd",
+    catAxisLabelColor: deck.muted,
+    catAxisLabelFontSize: 11,
+    valAxisLabelColor: deck.muted,
+    valAxisLabelFontSize: 11,
+    catGridLine: { style: "none" },
+    valGridLine: { color: deck.light, style: "solid" },
+  };
+  if (chart.title) {
+    options.showTitle = true;
+    options.title = String(chart.title);
+    options.titleColor = deck.text;
+    options.titleFontSize = 14;
+  }
+  if (type === "bar") {
+    // PptxGenJS draws horizontal bars by default; "col" is the vertical column
+    // chart the request usually means, and the only one that reads well here.
+    options.barDir = "col";
+    options.barGrouping = chart.stacked ? "stacked" : "clustered";
+  }
+
+  s.addChart(type, data, options);
+  addImageBand(s, slide, top + height + 0.1);
+  return s;
+}
+
+// A flow diagram: labelled boxes joined by arrows. Row for a short flow,
+// column once it would otherwise be crushed — the step count decides, so a
+// five-step pipeline reads top-to-bottom rather than as five slivers.
+function addDiagramSlide(pptx, deck, slide) {
+  const s = pptx.addSlide();
+  s.background = { color: deck.bg };
+  if (slide.title) {
+    s.addText(slide.title, {
+      x: MARGIN, y: 0.5, w: CONTENT_W, h: 0.9, fontSize: 26, bold: true, color: deck.text,
+      fit: "shrink",
+    });
+    s.addShape("rect", { x: MARGIN, y: 1.35, w: 1.1, h: 0.05, fill: { color: deck.accent2 } });
+  }
+  const diagram = slide.diagram;
+  const nodes = diagram && Array.isArray(diagram.nodes) ? diagram.nodes : [];
+  const hasImage = Boolean(slideImage(slide));
+  const top = CONTENT_TOP + 0.05;
+  const height = hasImage ? IMAGE_BAND_Y - top - 0.2 : CONTENT_H;
+
+  if (nodes.length < 2) {
+    // The backend model rejects a diagram without two labelled nodes; this
+    // guard only keeps a payload that bypassed it from drawing nothing.
+    s.addText(String(slide.content || ""), {
+      x: MARGIN, y: top, w: CONTENT_W, h: height, fontSize: 16, color: deck.text,
+      valign: "top", fit: "shrink",
+    });
+    addImageBand(s, slide, top + height + 0.1);
+    return s;
+  }
+
+  const requested = String(diagram.layout || "row").toLowerCase();
+  const layout = requested === "column" || nodes.length > 4 ? "column" : "row";
+  const arrow = 0.45; // reserved gap for the connector between boxes
+  const gaps = nodes.length - 1;
+
+  const boxText = (node) =>
+    node.detail
+      ? [
+          { text: String(node.label), options: { bold: true, breakLine: true } },
+          { text: String(node.detail), options: { fontSize: "75%", color: deck.muted } },
+        ]
+      : String(node.label);
+
+  if (layout === "row") {
+    const boxW = (CONTENT_W - arrow * gaps) / nodes.length;
+    const boxH = Math.min(height, 1.8);
+    const y = top + (height - boxH) / 2;
+    nodes.forEach((node, i) => {
+      const x = MARGIN + i * (boxW + arrow);
+      s.addShape("roundRect", {
+        x, y, w: boxW, h: boxH,
+        fill: { color: deck.light },
+        line: { color: deck.accent, width: 1 },
+        rectRadius: 0.08,
+      });
+      s.addText(boxText(node), {
+        x: x + 0.12, y: y + 0.1, w: boxW - 0.24, h: boxH - 0.2,
+        fontSize: 13, color: deck.text, align: "center", valign: "middle", fit: "shrink",
+      });
+      if (i < gaps) {
+        const ax = x + boxW + 0.06;
+        s.addShape("rightArrow", {
+          x: ax, y: y + boxH / 2 - 0.14, w: arrow - 0.12, h: 0.28,
+          fill: { color: deck.accent2 },
+        });
+      }
+    });
+  } else {
+    const boxH = (height - arrow * gaps) / nodes.length;
+    const x = MARGIN + CONTENT_W * 0.08;
+    const boxW = CONTENT_W * 0.84;
+    nodes.forEach((node, i) => {
+      const y = top + i * (boxH + arrow);
+      s.addShape("roundRect", {
+        x, y, w: boxW, h: boxH,
+        fill: { color: deck.light },
+        line: { color: deck.accent, width: 1 },
+        rectRadius: 0.08,
+      });
+      s.addText(boxText(node), {
+        x: x + 0.18, y: y + 0.08, w: boxW - 0.36, h: boxH - 0.16,
+        fontSize: 13, color: deck.text, align: "center", valign: "middle", fit: "shrink",
+      });
+      if (i < gaps) {
+        const ay = y + boxH + 0.05;
+        s.addShape("downArrow", {
+          x: x + boxW / 2 - 0.14, y: ay, w: 0.28, h: arrow - 0.1,
+          fill: { color: deck.accent2 },
+        });
+      }
+    });
+  }
+  addImageBand(s, slide, top + height + 0.1);
+  return s;
+}
+
 function addSourcesSlide(pptx, deck, slide) {
   const s = pptx.addSlide();
   s.background = { color: deck.bg };
@@ -372,6 +562,12 @@ function renderSlide(pptx, deck, slide) {
       break;
     case "table":
       s = addTableSlide(pptx, deck, slide);
+      break;
+    case "chart":
+      s = addChartSlide(pptx, deck, slide);
+      break;
+    case "diagram":
+      s = addDiagramSlide(pptx, deck, slide);
       break;
     case "sources":
       s = addSourcesSlide(pptx, deck, slide);

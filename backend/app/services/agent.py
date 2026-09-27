@@ -9,7 +9,6 @@ execution trace stored on the job.
 
 import json
 import logging
-import re
 import time
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -19,7 +18,14 @@ from pydantic import BaseModel
 from app.schemas.job import Job, JobStatus
 from app.services.job_manager import JobManager
 from app.services.log_context import set_job_context
-from app.services.ollama_service import OllamaService, OllamaServiceError
+from app.services.ollama_service import (
+    OllamaContextOverflowError,
+    OllamaService,
+    OllamaServiceError,
+    estimate_prompt_tokens,
+)
+from app.services.plan import DELIVERABLE_WORD
+from app.services.plan_defaults import resolve_explicit
 from app.services.tool_registry import ToolRegistry, coerce_arguments
 from app.services.tools import ToolError, ToolResult
 from app.services.untrusted_content import wrap_untrusted
@@ -31,6 +37,20 @@ TASK_MARKER = "TASK:"
 
 # Cap on file content passed back into the model prompt (per observation).
 MAX_OBSERVATION_CHARS = 4000
+
+# A tool result shorter than this is left alone by the history trim — it is
+# either already a placeholder or too small to be worth losing.
+TRIM_MIN_RESULT_CHARS = 200
+
+# Appended to a tool result's first line when its body is dropped to free
+# context. The line survives so the model still knows the call happened and
+# what it returned in summary — the same "truncated, never silently dropped"
+# rule as MAX_OBSERVATION_CHARS, applied to history instead of one result.
+TRIM_PLACEHOLDER = " ...[earlier result trimmed to free context]"
+
+# Tool results this close to the end of the conversation are never trimmed:
+# the most recent turns are what the model is reasoning about right now.
+TRIM_KEEP_RECENT = 4
 
 # Tools where an identical repeat (same name, same arguments) back-to-back is
 # a real symptom worth steering away from rather than a legitimate re-check
@@ -84,12 +104,20 @@ class Agent:
         model_client: OllamaService,
         max_iterations: int = 10,
         max_tool_calls: int = 20,
+        prompt_trim_ratio: float = 0.85,
+        max_overflow_retries: int = 3,
     ) -> None:
         self._manager = manager
         self._tools = tool_registry
         self._model = model_client
         self._max_iterations = max_iterations
         self._max_tool_calls = max_tool_calls
+        # Fraction of a model's window the prompt may occupy before history is
+        # trimmed proactively, and how many times one job may react to an
+        # overflow it did not predict. The proactive trim is per-call and
+        # unbounded by design; this bounds the exceptional path.
+        self._prompt_trim_ratio = prompt_trim_ratio
+        self._max_overflow_retries = max(int(max_overflow_retries), 0)
 
     # ------------------------------------------------------------------ run
 
@@ -109,6 +137,7 @@ class Agent:
         tool_names: Optional[set[str]] = None,
         terminal_tools: Optional[set[str]] = None,
         require_tool_success: Optional[set[str]] = None,
+        require_tool_success_nudge: Optional[str] = None,
         content_validator: Optional[Callable[[str, list[dict]], Optional[str]]] = None,
     ) -> AgentResult:
         job_id = job.job_id
@@ -122,6 +151,9 @@ class Agent:
         task_text = job.message if task_text is None else task_text
         iterations = 0
         tool_calls = 0
+        # Bounded count of reactive trims after an overflow the pre-call estimate
+        # did not predict. Per job, so a job cannot loop on the recovery path.
+        overflow_retries = 0
         legacy_envelope_used = 0
         argument_coercions = 0
         stage = "planning"
@@ -132,6 +164,10 @@ class Agent:
         # the node's typed output is a tool call, not free-text JSON.
         terminal = set(terminal_tools or set())
         terminal_hit: Optional[str] = None
+        # The deterministic plan for this request, computed once. The
+        # document-creation nudge below reads it instead of matching the request
+        # text itself — the same rules, from their single home in plan_defaults.
+        plan = resolve_explicit(task_text)
 
         if append_start:
             self._append(trace, "agent_started", task_type=job.task_type, model=model)
@@ -216,6 +252,25 @@ class Agent:
                         self._append(trace, "tool_choice_narrowed", tools=sorted(call_tools))
 
             model_call_start = time.monotonic()
+            call_schemas = self._schemas_for(call_tools)
+            # Proactive trim, before the request goes out. Ollama truncates an
+            # oversized prompt by silently dropping its middle, so a prompt this
+            # close to the window is a tool result about to vanish without
+            # notice. Trimming here loses the *oldest* observations instead, and
+            # says so in the trace. Unbounded in count by design — it is how the
+            # window is respected rather than discovered.
+            num_ctx = self._num_ctx_for(model)
+            if num_ctx:
+                trimmed = self._trim_to_fit(messages, call_schemas, num_ctx)
+                if trimmed is not messages:
+                    messages = trimmed
+                    self._append(
+                        trace,
+                        "context_trimmed",
+                        model=model,
+                        proactive=True,
+                        prompt_tokens=estimate_prompt_tokens(messages, call_schemas),
+                    )
             logger.info(
                 "model_call_started",
                 extra={
@@ -229,8 +284,61 @@ class Agent:
                 raw, native_calls, _model_used = await self._model.chat(
                     messages,
                     model=model,
-                    tools=self._schemas_for(call_tools),
+                    tools=call_schemas,
                 )
+            except OllamaContextOverflowError as exc:
+                # The prompt still filled the window despite the estimate above
+                # (or the window is unknown). Trim harder and re-issue the same
+                # turn; the iteration already counted against the budget is given
+                # back, because this is a recovery of one turn, not a new one.
+                if overflow_retries >= self._max_overflow_retries:
+                    logger.error(
+                        "context_overflow_unrecovered",
+                        extra={
+                            "event": "context_overflow_unrecovered",
+                            "job_id": job_id,
+                            "user_id": user_id,
+                            "model": model,
+                            "retries": overflow_retries,
+                        },
+                    )
+                    return await self._fail(
+                        job_id,
+                        user_id,
+                        job.task_type,
+                        model,
+                        trace,
+                        iterations,
+                        tool_calls,
+                        f"Context window exceeded for model '{model}' after "
+                        f"{overflow_retries} trim retries: {exc}",
+                    )
+                overflow_retries += 1
+                messages = self._trim_to_fit(
+                    messages,
+                    call_schemas,
+                    num_ctx,
+                    keep_recent=max(TRIM_KEEP_RECENT - overflow_retries, 1),
+                )
+                self._append(
+                    trace,
+                    "context_trimmed",
+                    model=model,
+                    retry=overflow_retries,
+                    error=self._shorten(str(exc), 200),
+                )
+                logger.warning(
+                    "context_overflow_recovered",
+                    extra={
+                        "event": "context_overflow_recovered",
+                        "job_id": job_id,
+                        "user_id": user_id,
+                        "model": model,
+                        "retry": overflow_retries,
+                    },
+                )
+                iterations -= 1
+                continue
             except OllamaServiceError as exc:
                 logger.error(
                     "model_call_completed",
@@ -375,6 +483,9 @@ class Agent:
                 # real, successful call in THIS run's own trace segment. Unlike
                 # ``terminal_tools`` this does not replace the final answer —
                 # it just gates accepting one that was never actually checked.
+                # The wording is the caller's when the tool is not a verifier
+                # (a document generator needs its schema named, not "no number
+                # may appear") — the default below assumes a numeric check.
                 if require_tool_success and iterations < max_iter:
                     verified = any(
                         entry.get("type") == "tool_result"
@@ -388,7 +499,8 @@ class Agent:
                         messages.append(
                             {
                                 "role": "user",
-                                "content": (
+                                "content": require_tool_success_nudge
+                                or (
                                     f"You have not verified this with a successful call to "
                                     f"{names}. No number may appear in your answer unless it "
                                     f"came from a real, successful {names} result. Call {names} "
@@ -437,25 +549,17 @@ class Agent:
                     continue
                 # Document-creation tasks must actually produce a deliverable via
                 # document_generation; a bare text answer (or a refusal) is not
-                # acceptable.
+                # acceptable. The plan already applied the coding guard, so
+                # "write a script that emits a document" is treated as the
+                # coding request it is.
                 has_generated = any(
                     e.get("type") == "tool_call" and e.get("tool") == "document_generation" for e in trace
-                )
-                looks_like_coding = bool(
-                    re.search(r"\b(python|javascript|typescript|function|def\b|code|program|script)\b", job.message or "", re.IGNORECASE)
-                )
-                looks_like_doc_request = bool(
-                    re.search(
-                        r"\b(create|write|make|build|compose|generate|prepare|draft)\w*\b.*\b(doc|docx|document|report|note|notes|memo|letter|word|pdf|spreadsheet|sheet)\b",
-                        job.message or "",
-                        re.IGNORECASE,
-                    )
                 )
                 if (
                     enforce_contracts
                     and job.task_type in ("document", "general")
-                    and looks_like_doc_request
-                    and not looks_like_coding
+                    and plan.deliverable == DELIVERABLE_WORD
+                    and not plan.needs_code
                     and not has_generated
                     and iterations < max_iter
                 ):
@@ -823,10 +927,88 @@ class Agent:
             )
         return f"Tool '{tool_name}' result: {result.summary}"
 
+    def _num_ctx_for(self, model: str) -> Optional[int]:
+        """The window this model runs at, or None when the client can't say.
+
+        Duck-typed on purpose: the agent's model client is any object with a
+        ``chat`` method in tests, and an unknowable window simply disables the
+        proactive trim rather than breaking the loop.
+        """
+        accessor = getattr(self._model, "num_ctx_for", None)
+        if not callable(accessor):
+            return None
+        try:
+            return accessor(model)
+        except Exception:  # noqa: BLE001 - a probe must never fail the job
+            return None
+
+    @staticmethod
+    def _trim_oldest_observations(
+        messages: list[dict], keep_recent: int = TRIM_KEEP_RECENT
+    ) -> list[dict]:
+        """Replace the oldest tool results with a one-line marker.
+
+        Messages are rewritten rather than removed: an assistant turn that
+        requested a tool stays paired with the tool message answering it, so the
+        tool-call protocol the model just used is still legible. The first line
+        of each result (``Tool 'x' result: <summary>``) is kept, so what the
+        model loses is the body text, not the fact that the call happened.
+        """
+        if len(messages) <= 2 + keep_recent:
+            return messages
+        trimmed = list(messages)
+        last_kept = len(trimmed) - keep_recent
+        for index in range(2, max(last_kept, 2)):
+            message = trimmed[index]
+            if not isinstance(message, dict) or message.get("role") != "tool":
+                continue
+            content = message.get("content")
+            if not isinstance(content, str) or len(content) <= TRIM_MIN_RESULT_CHARS:
+                continue
+            first_line = content.split("\n", 1)[0]
+            trimmed[index] = {**message, "content": first_line + TRIM_PLACEHOLDER}
+        return trimmed
+
+    def _trim_to_fit(
+        self,
+        messages: list[dict],
+        tools: Optional[list[dict]],
+        num_ctx: Optional[int],
+        keep_recent: int = TRIM_KEEP_RECENT,
+    ) -> list[dict]:
+        """Trim oldest results until the estimate is under the usable window.
+
+        Trims repeatedly (each round keeping one fewer recent result) rather
+        than once per overflow, so a single pass has a real chance of getting
+        under the line. With no known window there is nothing to measure
+        against, so exactly one round is applied — still the same loss made
+        visible here instead of silently server-side.
+        """
+        target = int(num_ctx * self._prompt_trim_ratio) if num_ctx else 0
+        result = messages
+        while keep_recent >= 0:
+            if num_ctx and estimate_prompt_tokens(result, tools) <= target:
+                break
+            candidate = self._trim_oldest_observations(result, keep_recent)
+            keep_recent -= 1
+            # A round that freed nothing (its keep-window already covered every
+            # message) still steps in, so a short conversation reaches a tighter
+            # window instead of giving up on the first no-op.
+            if candidate == result:
+                continue
+            result = candidate
+            if not num_ctx:
+                break
+        return result
+
     def _system_prompt(self) -> str:
+        # Names and descriptions only. The JSON schemas are sent once, in the
+        # `tools` parameter of the model call, which is the authoritative channel
+        # and the only one tool calls are parsed from — inlining them here as
+        # well paid for every schema twice, roughly half the baseline prompt,
+        # which is what pushed the first agent turn into the context ceiling.
         tools_desc = "\n".join(
-            f"- {t['name']}: {t['description']} (schema: {json.dumps(t['input_schema'])})"
-            for t in self._tools.describe()
+            f"- {t['name']}: {t['description']}" for t in self._tools.describe()
         )
         lines = [
             "You are a local AI assistant for the On-Premise AI Workbench.",
@@ -864,7 +1046,10 @@ class Agent:
             "- To embed a picture in a Word or Excel deliverable, add \"images\": [{\"doc_id\":\"<id of an uploaded image document, from the attachments list>\",\"caption\":\"...\",\"width_inches\":6}] to a section. Only use \"path\" with a workspace-relative path for a file already in the job workspace. Any uploaded image format may be named (png, jpg, jpeg, bmp, gif, tiff, tif, webp); a format Word or Excel cannot embed directly is converted automatically. A picture taken out of an attached Word/Excel/PowerPoint file is listed in the attachments as its own image document, so it can be named the same way. An attached PDF can supply a page as a figure: set \"page\" alongside its doc_id, as in {\"doc_id\":\"<id of an attached PDF>\",\"page\":3}.",
             "- For a spreadsheet, call document_generation with type \"excel\", filename ending \".xlsx\", and sections whose tables become worksheets; a cell beginning with \"=\" is written as a real formula.",
             "- Write thorough, well-structured, multi-page content that fully covers the requested scope; split it into many clearly headed sections.",
-            "- If the request asks for PowerPoint slides or a presentation deck, call presentation_generation with {\"type\": \"pptx\", \"filename\": \"<name>.pptx\", \"title\": \"...\", \"theme\": \"executive|technical|report|general\", \"slides\": [...]}. Each slide has type title|content|bullets|two-column|table|sources, a short title, and the matching body (content string, bullets array, columns array, table rows, or sources array). Start with a title slide and end with a Sources slide that cites the documents you used. Each slide may also carry a picture in \"image\" ({\"doc_id\":\"<id of an uploaded image document>\"}, or {\"path\":\"<workspace-relative path>\"}, with optional \"caption\"/\"width_inches\"; png/jpg/jpeg/bmp/gif/tiff/tif/webp, converted automatically when the format is not one PowerPoint embeds directly; an attached PDF supplies a page by setting \"page\" with its doc_id) and short speaker notes in \"notes\"; the deck may also set \"author\" and \"subject\".",
+            "- If the request asks for PowerPoint slides or a presentation deck, call presentation_generation with {\"type\": \"pptx\", \"filename\": \"<name>.pptx\", \"title\": \"...\", \"theme\": \"executive|technical|report|general\", \"slides\": [...]}. Each slide has type title|content|bullets|two-column|table|chart|diagram|sources, a short title, and the matching body (content string, bullets array, columns array, table rows, chart object, diagram object, or sources array). Start with a title slide and end with a Sources slide that cites the documents you used. Each slide may also carry a picture in \"image\" ({\"doc_id\":\"<id of an uploaded image document>\"}, or {\"path\":\"<workspace-relative path>\"}, with optional \"caption\"/\"width_inches\"; png/jpg/jpeg/bmp/gif/tiff/tif/webp, converted automatically when the format is not one PowerPoint embeds directly; an attached PDF supplies a page by setting \"page\" with its doc_id) and short speaker notes in \"notes\"; the deck may also set \"author\" and \"subject\".",
+            "- A slide is a headline plus a few short points — NOT a paragraph. Never put a block of prose on a slide; move the detail into that slide's \"notes\" and keep the visible text to short bullets. A deck of long text-only slides is a failure: vary the slide types so the deck reads as a designed presentation, not a document.",
+            "- Choose the slide type that fits the content: bullets for a short list of points; two-column to contrast two things or place text beside a picture; table when several items share the same fields; diagram for any process, pipeline, workflow or set of stages ({\"layout\": \"row|column\", \"nodes\": [{\"label\": \"...\", \"detail\": \"...\"}]}); chart when the material has numbers.",
+            "- Use a chart only for numbers you actually have from the request or the source material — never invent figures to fill one. A chart slide is type \"chart\" with \"chart\": {\"type\": \"bar|line|area|pie|doughnut|radar\", \"categories\": [\"...\"], \"series\": [{\"name\": \"...\", \"values\": [<numbers>]}], optional \"title\", \"show_values\", \"stacked\"}. Every series must have exactly one value per category, and a pie/doughnut takes exactly one series. Use bar for comparisons across categories, line or area for a trend, pie/doughnut for parts of a whole, and radar for several measures across the same items. If the material has no numbers, a chart is not the right visual — use a diagram, a table or two columns instead.",
             "",
         ]
         return "\n".join(lines)

@@ -145,6 +145,108 @@ def test_presentation_content_rejects_bad_column_ratios():
     SlideContent(type="two-column", columns=["a", "b"], column_ratios=[2, 1])  # ok
 
 
+def _chart_slide(**chart):
+    return SlideContent(type="chart", title="Growth", chart=chart)
+
+
+def test_chart_slide_carries_categories_and_series():
+    slide = _chart_slide(
+        type="line",
+        title="Complexity",
+        categories=["n=10", "n=100"],
+        series=[{"name": "O(n log n)", "values": [33, 664]}],
+    )
+    assert slide.chart.type == "line"
+    assert slide.chart.categories == ["n=10", "n=100"]
+    assert slide.chart.series[0].values == [33.0, 664.0]
+    # Numerical strings are accepted — a model may write values as text.
+    assert _chart_slide(
+        type="bar", categories=["a"], series=[{"name": "s", "values": ["12"]}]
+    ).chart.series[0].values == [12.0]
+
+
+def test_chart_type_synonyms_normalise():
+    """A model reaches for "column" and "donut"; both draw the same chart, so
+    they are normalised rather than costing a validation round-trip."""
+    assert _chart_slide(type="COLUMN", categories=["a"], series=[{"name": "s", "values": [1]}]).chart.type == "bar"
+    assert _chart_slide(type="donut", categories=["a"], series=[{"name": "s", "values": [1]}]).chart.type == "doughnut"
+
+
+def test_chart_rejects_data_that_would_draw_a_wrong_chart():
+    """A short series silently drops trailing bars and a pie with two series
+    stacks one ring — both look finished while showing the wrong thing."""
+    with pytest.raises(ValidationError):
+        _chart_slide(type="bar", categories=["a", "b"], series=[{"name": "s", "values": [1]}])
+    with pytest.raises(ValidationError):
+        _chart_slide(
+            type="pie",
+            categories=["a", "b"],
+            series=[{"name": "s", "values": [1, 2]}, {"name": "t", "values": [3, 4]}],
+        )
+    with pytest.raises(ValidationError):
+        _chart_slide(type="bar", categories=[], series=[{"name": "s", "values": []}])
+    with pytest.raises(ValidationError):
+        _chart_slide(type="bar", categories=["a"], series=[])
+    with pytest.raises(ValidationError):
+        _chart_slide(type="pie", categories=["a"], series=[{"name": "s", "values": ["not a number"]}])
+
+
+def test_an_unknown_chart_type_is_rejected():
+    with pytest.raises(ValidationError):
+        _chart_slide(type="hologram", categories=["a"], series=[{"name": "s", "values": [1]}])
+    # scatter needs an (x, y) pair per point, not this model's shape.
+    with pytest.raises(ValidationError):
+        _chart_slide(type="scatter", categories=["a"], series=[{"name": "s", "values": [1]}])
+
+
+def test_a_chart_slide_without_chart_data_is_rejected():
+    """A 'chart' slide with no chart would render headlined but empty."""
+    with pytest.raises(ValidationError):
+        SlideContent(type="chart", title="empty")
+    SlideContent(type="content", title="fine")  # a chart is optional elsewhere
+
+
+def _diagram(**overrides):
+    payload = {"nodes": [{"label": "a"}, {"label": "b"}]}
+    payload.update(overrides)
+    return SlideContent(type="diagram", title="Flow", diagram=payload)
+
+
+def test_diagram_slide_carries_labelled_nodes():
+    slide = SlideContent(
+        type="diagram",
+        title="Pipeline",
+        diagram={
+            "layout": "column",
+            "nodes": [
+                {"label": "Pretrained model", "detail": "start here"},
+                {"label": "Reward model"},
+                {"label": "Policy optimisation"},
+            ],
+        },
+    )
+    assert slide.diagram.layout == "column"
+    assert [n.label for n in slide.diagram.nodes] == [
+        "Pretrained model",
+        "Reward model",
+        "Policy optimisation",
+    ]
+
+
+def test_diagram_rejects_a_flow_that_is_not_a_flow():
+    """Fewer than two steps, a blank label, or an unknown layout would draw an
+    empty or meaningless figure, so each is rejected where the model can fix it."""
+    with pytest.raises(ValidationError):  # one node is not a flow
+        _diagram(nodes=[{"label": "only"}])
+    with pytest.raises(ValidationError):  # an unlabelled box says nothing
+        _diagram(nodes=[{"label": ""}, {"label": "b"}])
+    with pytest.raises(ValidationError):  # unknown layout
+        _diagram(layout="spiral", nodes=[{"label": "a"}, {"label": "b"}])
+    with pytest.raises(ValidationError):  # missing diagram on a diagram slide
+        SlideContent(type="diagram", title="empty")
+    _diagram(nodes=[{"label": "a"}, {"label": "b"}])  # ok
+
+
 def test_slide_image_requires_exactly_one_source():
     with pytest.raises(ValidationError):
         SlideContent(type="content", image={"caption": "no source"})
@@ -329,6 +431,92 @@ def _pptx_args(**overrides):
     }
     args.update(overrides)
     return args
+
+
+def test_presentation_tool_accepts_and_renders_a_chart_slide(tmp_path):
+    """A chart slide reaches the renderer as a chart slide — the tool must not
+    drop a slide type the deck is meant to carry."""
+    from app.services.log_context import set_job_context
+
+    renderer = CapturingRenderer()
+    tool = make_presentation_tool(tmp_path, renderer=renderer)
+    set_job_context(user_id="user-001", job_id="job-chart")
+    args = _pptx_args(
+        slides=[
+            {
+                "type": "chart",
+                "title": "Growth",
+                "chart": {
+                    "type": "line",
+                    "categories": ["n=10", "n=100"],
+                    "series": [{"name": "O(n log n)", "values": [33, 664]}],
+                    "show_values": True,
+                },
+            }
+        ]
+    )
+    result = run(tool.execute(tmp_path, args))
+    assert result.ok
+
+    slide = renderer.contents[0].slides[0]
+    assert slide.type == "chart"
+    assert slide.chart is not None
+    assert slide.chart.series[0].values == [33.0, 664.0]
+    assert slide.chart.show_values is True
+
+
+def test_presentation_tool_renders_a_diagram_slide(tmp_path):
+    """A diagram slide reaches the renderer as a diagram slide."""
+    from app.services.log_context import set_job_context
+
+    renderer = CapturingRenderer()
+    tool = make_presentation_tool(tmp_path, renderer=renderer)
+    set_job_context(user_id="user-001", job_id="job-diagram")
+    args = _pptx_args(
+        slides=[
+            {
+                "type": "diagram",
+                "title": "Pipeline",
+                "diagram": {
+                    "layout": "column",
+                    "nodes": [
+                        {"label": "Base model"},
+                        {"label": "Reward model", "detail": "learned from rankings"},
+                        {"label": "PPO"},
+                    ],
+                },
+            }
+        ]
+    )
+    result = run(tool.execute(tmp_path, args))
+    assert result.ok
+
+    slide = renderer.contents[0].slides[0]
+    assert slide.type == "diagram"
+    assert [n.label for n in slide.diagram.nodes] == ["Base model", "Reward model", "PPO"]
+
+
+def test_presentation_rejects_a_malformed_chart_slide(tmp_path):
+    """A series with the wrong number of values must fail before rendering."""
+    from app.services.log_context import set_job_context
+
+    tool = make_presentation_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-chart-bad")
+    args = _pptx_args(
+        slides=[
+            {
+                "type": "chart",
+                "title": "Bad",
+                "chart": {
+                    "type": "bar",
+                    "categories": ["a", "b"],
+                    "series": [{"name": "s", "values": [1]}],
+                },
+            }
+        ]
+    )
+    with pytest.raises(ToolError):
+        run(tool.execute(tmp_path, args))
 
 
 def test_presentation_tool_embeds_workspace_image(tmp_path):

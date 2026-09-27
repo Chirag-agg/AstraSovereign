@@ -412,10 +412,11 @@ class SubmitFindingsTool(BaseTool):
         "set value_mm to the handwritten/latest value. The task completes only when "
         "this call is accepted."
     )
-    # NOTE: no per-field "description" keys. Ollama/llama3.1 stops emitting native
-    # tool calls when a tool's parameter schema carries descriptions (measured:
-    # stripped -> called, present -> prose). Keep the durable rules in the tool
-    # description above instead; it does not go through the parameter grammar.
+    # NOTE: no per-field "description" keys. An Ollama model stops emitting
+    # native tool calls when a tool's parameter schema carries descriptions
+    # (measured: stripped -> called, present -> prose). Keep the durable rules in
+    # the tool description above instead; it does not go through the parameter
+    # grammar.
     input_schema = {
         "type": "object",
         "properties": {
@@ -1407,12 +1408,17 @@ class PresentationGenerationTool(BaseTool):
         "Generate an editable PowerPoint (.pptx) presentation from structured "
         "content. Arguments: type ('pptx'), filename (must end .pptx), title, "
         "optional subtitle/theme/author/subject/document_type, and slides — each "
-        "slide has type (title|content|bullets|two-column|table|sources), title, "
-        "content/bullets/columns/table/sources, an optional image, and optional "
-        "speaker notes. Name an image by doc_id (an image document from the "
-        "attachments list) or by a workspace-relative path; a PDF attachment "
-        "supplies a page as a figure by setting 'page' alongside its doc_id. "
-        "Returns artifact metadata."
+        "slide has type (title|content|bullets|two-column|table|chart|diagram|sources), "
+        "title, content/bullets/columns/table/chart/diagram/sources, an optional "
+        "image, and optional speaker notes. A chart slide carries a chart object "
+        "({type: bar|line|area|pie|doughnut|radar, categories, series: [{name, "
+        "values}]}) and draws a real editable PowerPoint chart. A diagram slide "
+        "carries a diagram object ({layout: row|column, nodes: [{label, detail}]}) "
+        "and draws labelled boxes joined by arrows for a process or pipeline. "
+        "Name an image by "
+        "doc_id (an image document from the attachments list) or by a "
+        "workspace-relative path; a PDF attachment supplies a page as a figure "
+        "by setting 'page' alongside its doc_id. Returns artifact metadata."
     )
     input_schema = {
         "type": "object",
@@ -1445,6 +1451,49 @@ class PresentationGenerationTool(BaseTool):
                             "items": {"type": "array", "items": {"type": "string"}},
                         },
                         "sources": {"type": "array", "items": {"type": "string"}},
+                        "chart": {
+                            "type": "object",
+                            "properties": {
+                                "type": {"type": "string"},
+                                "title": {"type": "string"},
+                                "categories": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                                "series": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {"type": "string"},
+                                            "values": {
+                                                "type": "array",
+                                                "items": {"type": "number"},
+                                            },
+                                        },
+                                    },
+                                },
+                                "show_legend": {"type": "boolean"},
+                                "show_values": {"type": "boolean"},
+                                "stacked": {"type": "boolean"},
+                            },
+                        },
+                        "diagram": {
+                            "type": "object",
+                            "properties": {
+                                "layout": {"type": "string"},
+                                "nodes": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "label": {"type": "string"},
+                                            "detail": {"type": "string"},
+                                        },
+                                    },
+                                },
+                            },
+                        },
                         "notes": {"type": "string"},
                         "image": {
                             "type": "object",

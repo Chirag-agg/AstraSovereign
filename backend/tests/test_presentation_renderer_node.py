@@ -132,6 +132,26 @@ NOTED_SLIDES = [
     pytest.param({"type": "bullets", "title": "T", "bullets": ["b"]}, id="bullets"),
     pytest.param({"type": "two-column", "title": "T", "columns": ["a", "b"]}, id="two-column"),
     pytest.param({"type": "table", "title": "T", "table": [["h1", "h2"], ["v1", "v2"]]}, id="table"),
+    pytest.param(
+        {
+            "type": "chart",
+            "title": "T",
+            "chart": {
+                "type": "bar",
+                "categories": ["a", "b"],
+                "series": [{"name": "s", "values": [1, 2]}],
+            },
+        },
+        id="chart",
+    ),
+    pytest.param(
+        {
+            "type": "diagram",
+            "title": "T",
+            "diagram": {"nodes": [{"label": "a"}, {"label": "b"}]},
+        },
+        id="diagram",
+    ),
     pytest.param({"type": "sources", "title": "T", "sources": ["s"]}, id="sources"),
 ]
 
@@ -140,7 +160,7 @@ NOTED_SLIDES = [
 @pytest.mark.node
 @pytest.mark.skipif(not node_ready(), reason="Node.js runtime not available")
 def test_speaker_notes_are_written_for_every_slide_type(tmp_path, slide):
-    """Notes must survive for all six slide types, not just some renderers."""
+    """Notes must survive for every slide type, not just some renderers."""
     marker = f"Speaker note marker {slide['type']}"
     renderer = NodePresentationRenderer(script_path=str(SCRIPT))
     content = PresentationContent.model_validate(
@@ -157,6 +177,107 @@ def test_speaker_notes_are_written_for_every_slide_type(tmp_path, slide):
         assert notes_parts, "renderer produced no notes slide for a slide with notes"
         notes_text = "".join(package.read(name).decode("utf-8") for name in notes_parts)
     assert marker in notes_text
+
+
+@pytest.mark.node
+@pytest.mark.skipif(not node_ready(), reason="Node.js runtime not available")
+def test_a_chart_slide_renders_a_real_chart_part(tmp_path):
+    """A chart slide must produce an OOXML chart part carrying the data.
+
+    This is the point of the slide type: a deck that only ever contained text
+    and bullets could not show a trend or a comparison at all. The categories
+    and series names prove the numbers reached PowerPoint, not just a title.
+    """
+    renderer = NodePresentationRenderer(script_path=str(SCRIPT))
+    content = PresentationContent.model_validate(
+        {
+            "title": "Charts",
+            "slides": [
+                {"type": "title", "title": "Charts"},
+                {
+                    "type": "chart",
+                    "title": "Growth",
+                    "chart": {
+                        "type": "line",
+                        "categories": ["n=10", "n=100", "n=1000"],
+                        "series": [
+                            {"name": "O(n log n)", "values": [33, 664, 9966]},
+                            {"name": "O(n^2)", "values": [100, 10000, 1000000]},
+                        ],
+                    },
+                },
+                {
+                    "type": "chart",
+                    "title": "Split",
+                    "chart": {
+                        "type": "pie",
+                        "categories": ["Load", "Parse", "Sort"],
+                        "series": [{"name": "ms", "values": [12, 30, 45]}],
+                    },
+                },
+                {"type": "sources", "title": "Sources", "sources": ["CLRS"]},
+            ],
+        }
+    )
+    generated = renderer.generate(content, tmp_path, "charts.pptx")
+
+    assert generated.slide_count == 4
+    with zipfile.ZipFile(generated.path) as package:
+        chart_parts = sorted(
+            name
+            for name in package.namelist()
+            if re.match(r"ppt/charts/chart\d+\.xml$", name)
+        )
+        assert len(chart_parts) == 2, f"expected 2 chart parts, found {chart_parts}"
+        blob = "".join(package.read(name).decode("utf-8") for name in chart_parts)
+    assert "lineChart" in blob and "pieChart" in blob
+    assert "O(n log n)" in blob and "n=1000" in blob and "Parse" in blob
+
+
+@pytest.mark.node
+@pytest.mark.skipif(not node_ready(), reason="Node.js runtime not available")
+def test_a_diagram_slide_renders_boxes_and_arrows(tmp_path):
+    """A process needs a figure, not another bullet list.
+
+    The labels must reach the slide, and the joins must be real arrow shapes —
+    without them it is a row of unconnected boxes, which shows no flow.
+    """
+    renderer = NodePresentationRenderer(script_path=str(SCRIPT))
+    content = PresentationContent.model_validate(
+        {
+            "title": "Pipeline",
+            "slides": [
+                {
+                    "type": "diagram",
+                    "title": "The RLHF pipeline",
+                    "diagram": {
+                        "layout": "column",
+                        "nodes": [
+                            {"label": "Pretrained model", "detail": "start here"},
+                            {"label": "Human feedback"},
+                            {"label": "Reward model"},
+                            {"label": "Policy optimisation"},
+                            {"label": "Evaluation"},
+                        ],
+                    },
+                }
+            ],
+        }
+    )
+    generated = renderer.generate(content, tmp_path, "diagram.pptx")
+
+    with zipfile.ZipFile(generated.path) as package:
+        slide_parts = [
+            name
+            for name in package.namelist()
+            if name.startswith("ppt/slides/slide") and name.endswith(".xml")
+        ]
+        slide_xml = package.read(sorted(slide_parts)[0]).decode("utf-8")
+
+    assert "roundRect" in slide_xml, "diagram drew no boxes"
+    assert slide_xml.count("downArrow") == 4, "a five-step flow needs four arrows"
+    for label in ("Pretrained model", "Reward model", "Evaluation"):
+        assert label in slide_xml
 
 
 @pytest.mark.node
