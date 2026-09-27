@@ -223,6 +223,53 @@ describe("Workbench page (conversation-first)", () => {
     expect(document.querySelector(".chip-state")).toHaveTextContent(/indexed/);
   });
 
+  it("will not send while an attachment is still indexing", async () => {
+    // Submitting mid-ingest used to drop the attachment silently — the job went
+    // out with an empty document_ids and the agent answered about a file it had
+    // never received. The send must be held until the file is indexed.
+    vi.useFakeTimers();
+    window.sessionStorage.setItem("sovereign.session", "1");
+    let chatCalls = 0;
+    installFetch((url, init) => {
+      const path = url.replace(API, "");
+      const method = init?.method || "GET";
+      if (path === "/health") {
+        return jsonResponse(healthFixture());
+      }
+      if (path === "/api/documents" && method === "POST") {
+        return jsonResponse(documentFixture({ status: "processing" }), 201);
+      }
+      if (path === "/api/documents") {
+        return jsonResponse([]);
+      }
+      if (path.startsWith("/api/jobs") || path.includes("/api/artifacts") || path.includes("/audit")) {
+        return jsonResponse([]);
+      }
+      if (path === "/api/chat" && method === "POST") {
+        chatCalls += 1;
+        return jsonResponse({ job_id: "job-1", status: "queued" }, 202);
+      }
+      return jsonResponse({ detail: { message: "not found" } }, 404);
+    });
+    render(<WorkbenchPage />);
+    await flush();
+    const file = new File(["data"], "tables.png", { type: "image/png" });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+    await flush();
+
+    fireEvent.change(screen.getByLabelText("Task description"), {
+      target: { value: "convert this image into excel" },
+    });
+    await flush();
+
+    const send = screen.getByRole("button", { name: "Send" });
+    expect(send).toBeDisabled();
+    fireEvent.click(send);
+    await flush();
+    expect(chatCalls).toBe(0);
+  });
+
   it("attaches a knowledge-base document and sends its id with the job", async () => {
     vi.useFakeTimers();
     window.sessionStorage.setItem("sovereign.session", "1");

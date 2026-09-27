@@ -83,6 +83,11 @@ def test_cors_allows_frontend_origin(client):
     resp = client.get("/health", headers=headers)
     assert resp.status_code == 200
     assert resp.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    # Content-Disposition is not CORS-safelisted, so without this the browser
+    # hides an artifact's real filename from the frontend and the download is
+    # saved misnamed (a .pptx as .docx, which then fails to open).
+    expose = resp.headers.get("access-control-expose-headers") or ""
+    assert "content-disposition" in expose.lower()
 
 
 def test_cors_rejects_unknown_origin(client):

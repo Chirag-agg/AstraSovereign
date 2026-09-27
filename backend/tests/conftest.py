@@ -812,6 +812,11 @@ def app_settings(tmp_path):
         job_store_root=str(tmp_path / "jobs"),
         artifact_store_root=str(tmp_path / "artifacts"),
         database_path=str(tmp_path / "astra.db"),
+        # Pinned, not inherited: a developer's local .env may set DEMO_MODE, and
+        # these are the production-shaped settings the auth tests build their app
+        # from. Leaving it to the environment would let a local demo switch
+        # silently disarm the assertion that headers are not trusted.
+        demo_mode=False,
     )
 
 

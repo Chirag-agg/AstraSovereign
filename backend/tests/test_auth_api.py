@@ -138,3 +138,32 @@ def test_production_shaped_app_rejects_header_only_requests(app_settings, test_m
             headers={"X-User-ID": "user-001", "X-Role": "admin"},
         )
         assert admin_resp.status_code in (401, 403)
+
+
+def test_demo_mode_opens_the_app_without_a_session(app_settings, test_models):
+    """``demo_mode`` is the one configuration switch that turns authentication
+    off. A request then needs no session cookie: the caller is whoever the
+    X-User-ID/X-Role header names, and the default user when it carries no
+    header at all. The app is built exactly as production builds it — only the
+    setting differs — which is the switch a demo flips."""
+    registry = build_registry(test_models)
+    app = create_app(
+        settings=app_settings.model_copy(update={"demo_mode": True}),
+        ollama_transport=httpx.MockTransport(make_scripted_handler([])),
+        model_registry=registry,
+        user_store=InMemoryUserStore(),
+        # dev_header_auth intentionally omitted: demo_mode alone opens it.
+    )
+    from fastapi.testclient import TestClient
+
+    with TestClient(app) as c:
+        named = c.get(
+            "/api/auth/me", headers={"X-User-ID": "user-004", "X-Role": "admin"}
+        )
+        assert named.status_code == 200
+        assert named.json()["user_id"] == "user-004"
+        assert named.json()["role"] == "admin"
+
+        anonymous = c.get("/api/auth/me")
+        assert anonymous.status_code == 200
+        assert anonymous.json()["user_id"] == "user-001"

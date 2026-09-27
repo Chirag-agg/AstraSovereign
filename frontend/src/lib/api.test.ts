@@ -131,6 +131,19 @@ describe("api client", () => {
     expect(result.blob.size).toBe(10);
   });
 
+  it("falls back to the caller's filename when the header is not exposed", async () => {
+    // A browser hides Content-Disposition unless the server exposes it via CORS,
+    // so the header can be absent even for a well-formed download.
+    installFetch(() => new Response("pptx-bytes", { status: 200 }));
+    const result = await downloadArtifact(
+      "user-001",
+      "job-1",
+      "art-1",
+      "deforestation_presentation.pptx",
+    );
+    expect(result.filename).toBe("deforestation_presentation.pptx");
+  });
+
   it("maps backend detail messages into ApiError", async () => {
     installFetch(() =>
       jsonResponse({ detail: { error: "job_not_found", message: "Job not found." } }, 404),

@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { useHealth, useJob } from "./hooks";
+import { useActiveUser, useHealth, useJob } from "./hooks";
 import {
   installFetch,
   jsonResponse,
@@ -12,6 +12,7 @@ import {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
+  window.localStorage.clear();
 });
 
 async function flush(ms = 0) {
@@ -103,5 +104,26 @@ describe("useJob polling", () => {
     await flush(3000);
     expect(screen.getByTestId("healthy")).toHaveTextContent("yes");
     expect(screen.getByTestId("herror")).toHaveTextContent("");
+  });
+});
+
+function UserHarness() {
+  const [user] = useActiveUser();
+  return <span data-testid="user">{user}</span>;
+}
+
+describe("useActiveUser identity", () => {
+  it("keeps a stored non-demo identity instead of clamping it to user-001", async () => {
+    // Regression: the download path read the stored id raw while this hook
+    // rewrote anything outside user-001..005 back to user-001, so a job the
+    // user could see (owned by admin-001) answered 403 on download.
+    window.localStorage.setItem("sovereign.active-user", "admin-001");
+    render(<UserHarness />);
+    expect(await screen.findByText("admin-001")).toBeTruthy();
+  });
+
+  it("falls back to user-001 when nothing is stored", async () => {
+    render(<UserHarness />);
+    expect(await screen.findByText("user-001")).toBeTruthy();
   });
 });

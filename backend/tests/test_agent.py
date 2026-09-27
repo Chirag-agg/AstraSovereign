@@ -6,7 +6,7 @@ from pathlib import Path
 
 import httpx
 
-from app.services.agent import Agent, AgentStatus
+from app.services.agent import Agent, AgentStatus, TRIM_PLACEHOLDER
 from app.services.job_manager import JobManager
 from app.services.job_store import InMemoryJobStore
 from app.services.ollama_service import OllamaService
@@ -18,7 +18,7 @@ from app.services.tools import (
     ToolResult,
     WriteFileTool,
 )
-from tests.conftest import make_scripted_handler
+from tests.conftest import _chat_message_from_script, make_scripted_handler
 
 DEFAULT_TOOLS = ToolRegistry([ListFilesTool(), ReadFileTool(), WriteFileTool()])
 
@@ -378,6 +378,77 @@ def test_require_tool_success_blocks_an_unverified_final_answer(tmp_path):
     assert tool_calls_in(final.execution_trace) == ["code_execution"]
 
 
+def _capture_messages(handler, sink: list[list[dict]]):
+    """Record every outgoing message list, so a test can assert on the exact
+    wording the agent steered the model with."""
+
+    async def wrapped(request: httpx.Request) -> httpx.Response:
+        if request.url.path in ("/api/chat", "/api/generate"):
+            try:
+                payload = json.loads(request.content.decode())
+            except ValueError:
+                payload = {}
+            sink.append(payload.get("messages") or [])
+        return await handler(request)
+
+    return wrapped
+
+
+def test_require_tool_success_nudge_wording_is_the_callers_when_supplied(tmp_path):
+    """The default nudge is written for a numeric check ("no number may appear").
+    A document generator needs its argument schema named instead, so the caller
+    can supply the wording — and the default must not leak through."""
+
+    captured: list[list[dict]] = []
+
+    async def scenario():
+        manager = JobManager(store=InMemoryJobStore(), default_model="test-model")
+        job = await manager.create_job(user_id="user-001", message="compute something")
+        script = [
+            json.dumps({"type": "final", "response": "here is the report, in prose"}),
+            json.dumps(
+                {
+                    "type": "tool_call",
+                    "tool": "submit_findings",
+                    "arguments": {"readings": []},
+                    "reasoning": "fine",
+                }
+            ),
+            json.dumps({"type": "final", "response": "done"}),
+        ]
+        service = OllamaService(
+            base_url="http://ollama.test",
+            default_model="test-model",
+            timeout_seconds=5,
+            transport=httpx.MockTransport(
+                _capture_messages(make_scripted_handler(script), captured)
+            ),
+        )
+        agent = Agent(
+            manager=manager,
+            tool_registry=ToolRegistry([FakeSubmitFindingsTool()]),
+            model_client=service,
+        )
+        try:
+            return await agent.run(
+                job,
+                model="test-model",
+                workspace=tmp_path,
+                require_tool_success={"submit_findings"},
+                require_tool_success_nudge="Call submit_findings now with the structured object.",
+                max_iterations=4,
+                max_tool_calls=4,
+            )
+        finally:
+            await service.aclose()
+
+    result = asyncio.run(scenario())
+    assert result.status == AgentStatus.COMPLETED
+    steered = [m["content"] for messages in captured for m in messages if m.get("role") == "user"]
+    assert "Call submit_findings now with the structured object." in steered
+    assert not any("No number may appear" in text for text in steered)
+
+
 class CountingSearchTool(BaseTool):
     name = "document_search"
     description = "test double for the knowledge base"
@@ -735,3 +806,170 @@ def test_content_validator_gives_up_only_on_the_last_budgeted_turn(tmp_path):
     assert result.status == AgentStatus.COMPLETED
     assert result.iterations == 2
     assert result.response == "still too short again"
+
+
+# --------------------------------------------------------------------------
+# Context window: prompt diet, proactive trim, bounded overflow recovery
+# --------------------------------------------------------------------------
+
+# Script marker: reply to this turn the way Ollama does when the prompt fills
+# the window and it gives up.
+OVERFLOW_BODY = "error: the input length exceeds the context size"
+
+
+def _window_handler(script, overflow_every=False):
+    """A chat handler that scripts replies and records every request payload.
+
+    ``overflow_every`` makes the script play out and then keep answering with an
+    overflow, which is how the exhaustion path is reached without scripting a
+    fixed number of failures.
+    """
+    state = {"script": list(script), "sent": []}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/tags":
+            return httpx.Response(200, json={"models": [{"name": "test-model"}]})
+        if request.url.path == "/api/chat":
+            payload = json.loads(request.content)
+            state["sent"].append(payload)
+            if state["script"]:
+                item = state["script"].pop(0)
+                if item == "OVERFLOW":
+                    return httpx.Response(500, text=OVERFLOW_BODY)
+                return httpx.Response(
+                    200,
+                    json={
+                        "model": "test-model",
+                        "message": _chat_message_from_script(item),
+                    },
+                )
+            if overflow_every:
+                return httpx.Response(500, text=OVERFLOW_BODY)
+            raise AssertionError("model called more times than scripted")
+        return httpx.Response(404, json={"error": "not found"})
+
+    return handler, state
+
+
+def run_agent_with_window(
+    handler,
+    message,
+    workspace: Path,
+    num_ctx,
+    max_iterations=5,
+    max_tool_calls=5,
+    max_overflow_retries=3,
+):
+    async def scenario():
+        store = InMemoryJobStore()
+        manager = JobManager(store=store, default_model="test-model")
+        job = await manager.create_job(user_id="user-001", message=message)
+        service = OllamaService(
+            base_url="http://ollama.test",
+            default_model="test-model",
+            timeout_seconds=5,
+            transport=httpx.MockTransport(handler),
+            options={"num_ctx": num_ctx, "num_predict": 4096},
+        )
+        agent = Agent(
+            manager=manager,
+            tool_registry=DEFAULT_TOOLS,
+            model_client=service,
+            max_iterations=max_iterations,
+            max_tool_calls=max_tool_calls,
+            max_overflow_retries=max_overflow_retries,
+        )
+        try:
+            result = await agent.run(job=job, model="test-model", workspace=workspace)
+            final = await manager.get_job_for_worker(job.job_id)
+            return result, final
+        finally:
+            await service.aclose()
+
+    return asyncio.run(scenario())
+
+
+def test_system_prompt_drops_the_inlined_schemas_but_still_lists_every_tool():
+    """The diet: schemas travel once, in the `tools` parameter.
+
+    Inlining them in the prompt as well paid for every schema twice, which was
+    roughly half the baseline prompt and is what pushed the first turn into the
+    window ceiling.
+    """
+    agent = Agent(manager=None, tool_registry=DEFAULT_TOOLS, model_client=None)
+    prompt = agent._system_prompt()
+
+    assert "(schema:" not in prompt
+    for tool in DEFAULT_TOOLS.describe():
+        assert tool["name"] in prompt
+        assert tool["description"] in prompt
+
+
+def test_a_prompt_over_the_trim_ratio_is_trimmed_before_the_call_is_sent(tmp_path):
+    """Proactive trim: the oldest tool result is compacted pre-flight.
+
+    Ollama drops the middle of an oversized prompt silently; trimming here loses
+    the oldest observations instead, and records that it happened.
+    """
+    (tmp_path / "big.txt").write_text("filler " * 1500, encoding="utf-8")
+    handler, state = _window_handler(
+        [
+            '{"type":"tool_call","tool":"read_file","arguments":{"path":"big.txt"}}',
+            '{"type":"final","response":"done"}',
+        ]
+    )
+    # The system prompt alone is ~1600 tokens, so a 2048 window puts the *first*
+    # turn over the 85% line and the second (system prompt + a ~4000-character
+    # observation) well over it — which is the case the trim exists for.
+    result, final = run_agent_with_window(
+        handler, "read the big file", tmp_path, num_ctx=2048
+    )
+
+    assert result.status == AgentStatus.COMPLETED
+    assert len(state["sent"]) == 2
+    second = state["sent"][1]["messages"]
+    assert any(TRIM_PLACEHOLDER in (m.get("content") or "") for m in second)
+    # The tool result is compacted, never dropped: its summary line survives.
+    assert any(
+        "Tool 'read_file' result:" in (m.get("content") or "") for m in second
+    )
+    entries = [t for t in final.execution_trace if t["type"] == "context_trimmed"]
+    assert entries and entries[0].get("proactive") is True
+
+
+def test_an_overflow_is_trimmed_and_the_turn_retried_without_spending_an_iteration(
+    tmp_path,
+):
+    handler, state = _window_handler(
+        [
+            "OVERFLOW",
+            '{"type":"final","response":"recovered"}',
+        ]
+    )
+    result, final = run_agent_with_window(
+        handler, "hi", tmp_path, num_ctx=4096, max_overflow_retries=3
+    )
+
+    assert result.status == AgentStatus.COMPLETED
+    assert result.response == "recovered"
+    # The failed attempt was given back: the job spent one iteration, not two.
+    assert result.iterations == 1
+    assert len(state["sent"]) == 2
+    entries = [t for t in final.execution_trace if t["type"] == "context_trimmed"]
+    assert entries and entries[0].get("retry") == 1
+
+
+def test_repeated_overflow_fails_with_the_named_reason_after_the_bound(tmp_path):
+    handler, state = _window_handler([], overflow_every=True)
+    result, final = run_agent_with_window(
+        handler, "hi", tmp_path, num_ctx=4096, max_overflow_retries=2
+    )
+
+    assert result.status == AgentStatus.FAILED
+    # One initial attempt plus exactly `max_overflow_retries` retries — the
+    # recovery path is bounded, so a job cannot loop on it.
+    assert len(state["sent"]) == 3
+    assert "Context window exceeded" in result.error
+    assert "test-model" in result.error
+    failure = [t for t in final.execution_trace if t["type"] == "agent_failed"]
+    assert failure and "Context window exceeded" in failure[-1]["error"]
