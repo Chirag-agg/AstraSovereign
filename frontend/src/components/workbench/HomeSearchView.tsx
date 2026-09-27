@@ -27,6 +27,7 @@ import {
 import { submitChat, getJob } from "@/lib/api";
 import type { ArtifactSummary, DocumentMeta, JobSummary, Job } from "@/lib/types";
 import { FigurePanel, NumberedList } from "@/components/ui/instrument";
+import { ModeSwitch } from "@/components/workbench/ModeSwitch";
 
 interface HomeSearchViewProps {
   onSearchSubmit: (query: string) => void;
@@ -284,14 +285,17 @@ export default function HomeSearchView({
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 bg-[var(--canvas)]">
       <div className="max-w-[1500px] mx-auto w-full space-y-6">
-        <div className="pb-4 border-b border-[var(--carbon)]">
-          <span className="mono-label" style={{ letterSpacing: "0.12em" }}>Assistant</span>
-          <h1 className="tracking-tight" style={{ margin: "10px 0 0" }}>What would you like done?</h1>
-          <p style={{ margin: "8px 0 0" }}>
-            Ask in your own words. It reads the documents you have added, does the arithmetic
-            in a sealed container, and hands back a real file. Everything happens on this
-            machine.
-          </p>
+        <div className="pb-4 border-b border-[var(--carbon)] flex flex-col gap-4">
+          <div>
+            <span className="mono-label" style={{ letterSpacing: "0.12em" }}>Quick ask</span>
+            <h1 className="tracking-tight" style={{ margin: "10px 0 0" }}>What would you like done?</h1>
+            <p style={{ margin: "8px 0 0" }}>
+              Ask in your own words and get a plain answer here. When you need to see every
+              step it took, keep the files it made, or check the audit trail, use the
+              Assistant workspace.
+            </p>
+          </div>
+          <ModeSwitch current="home" onSwitch={(mode) => onNavigate(mode)} />
         </div>
 
         <FigurePanel

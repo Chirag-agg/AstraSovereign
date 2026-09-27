@@ -1,13 +1,15 @@
 "use client";
 
 // Minimal, safe markdown renderer (no HTML passthrough). Supports paragraphs,
-// fenced code blocks, headings, bullet/numbered lists, inline code, and bold.
+// fenced code blocks, headings, bullet/numbered lists, inline code, bold and
+// *italic*. Italic needs the text to hug both asterisks, so arithmetic such as
+// `5 * 3 * 2` is never mistaken for emphasis.
 
 import type { ReactNode } from "react";
 
 function inline(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*(?=\S)[^*\n]*?\S\*|\*\S\*)/g);
   parts.forEach((part, i) => {
     if (!part) {
       return;
@@ -27,6 +29,8 @@ function inline(text: string): ReactNode[] {
           {part.slice(2, -2)}
         </strong>
       );
+    } else if (/^\*\S(?:[^*\n]*\S)?\*$/.test(part)) {
+      nodes.push(<em key={i}>{part.slice(1, -1)}</em>);
     } else {
       nodes.push(part);
     }

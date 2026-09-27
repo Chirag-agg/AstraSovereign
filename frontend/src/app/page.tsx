@@ -86,6 +86,7 @@ function ActiveAgentWorkspace({
   running,
   healthError,
   onResetSession,
+  onNavigate,
 }: {
   userId: string;
   activeJobId: string;
@@ -105,6 +106,7 @@ function ActiveAgentWorkspace({
   running: boolean;
   healthError: string | null;
   onResetSession?: () => void;
+  onNavigate?: (section: WorkbenchSection) => void;
 }) {
   const { job, error } = useJob(userId, activeJobId);
 
@@ -135,6 +137,7 @@ function ActiveAgentWorkspace({
       setConsoleOpen={setConsoleOpen}
       healthError={healthError || error}
       onResetSession={onResetSession}
+      onNavigate={onNavigate}
     />
   );
 }
@@ -547,6 +550,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
                 running={running}
                 healthError={healthError}
                 onResetSession={startNew}
+                onNavigate={setCurrentSection}
               />
             ) : (
               <AgentWorkspaceView
@@ -569,6 +573,7 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
                 setConsoleOpen={() => undefined}
                 healthError={healthError}
                 onResetSession={startNew}
+                onNavigate={setCurrentSection}
               />
             )}
           </div>
