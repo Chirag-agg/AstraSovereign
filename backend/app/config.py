@@ -30,12 +30,6 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
 
-    # Per-request timeout for calls to Ollama (seconds). The typed node
-    # pipeline chains several tool-calling turns per node on CPU-bound local
-    # models (qwen2.5-coder:7b, llava:7b); 120s was measured losing a job
-    # mid-run, so the default is generous enough to survive a slow node.
-    ollama_timeout_seconds: float = 300.0
-
     # Ollama residency hint sent on every request ("5m" reproduces Ollama's own
     # default idle-unload). On a genuine capability switch between pipeline
     # nodes, the node sequence additionally force-unloads the outgoing model
@@ -45,6 +39,39 @@ class Settings(BaseSettings):
     # model's reservation is requested (best-effort; never blocks a job past
     # this deadline even if the unload doesn't complete in time).
     ollama_unload_wait_seconds: float = 2.0
+
+    # Context window requested on every generation call. Ollama's own default is
+    # 4096, which this app's system prompt plus one tool result already fills —
+    # that is what produced the HTTP 500s this setting exists to remove. A model
+    # whose KV cache is unusually cheap (e.g. sliding-window attention) declares
+    # a larger window of its own in config/models.yaml.
+    ollama_num_ctx: int = 16384
+    # Cap on generated tokens per turn. Kept well under num_ctx so generation
+    # cannot fill the window and leave no room for a final answer; it is also a
+    # latency bound, since a CPU-offloaded model decodes at ~17 tok/s. A
+    # reasoning model that legitimately needs more room overrides it per model.
+    ollama_num_predict: int = 4096
+    # Floor for the per-call generation cap once the remaining window is taken
+    # into account. Below this, a reasoning model spends the whole budget
+    # thinking and returns empty content, which is worse than truncating it.
+    ollama_num_predict_min: int = 512
+    # Fraction of the window a prompt may occupy before history is trimmed.
+    # Ollama truncates an oversized prompt by silently dropping its middle,
+    # which loses a tool result without saying so; trimming the oldest
+    # observation ourselves is the same loss made visible and bounded.
+    ollama_prompt_trim_ratio: float = 0.85
+    # How many times one job may react to an overflow it did not predict.
+    # Proactive trimming is per-call and unbounded by design; this bounds the
+    # exceptional path so a job cannot loop on it.
+    ollama_max_overflow_retries: int = 3
+
+    # Which roster in config/models.yaml describes this machine (see the
+    # `profiles` block there). Empty means the file's `default_profile`.
+    # The intended venue box and a dev laptop have different silicon, and a
+    # roster tuned for one is wrong on the other — the profile name is carried
+    # into logs and benchmark output so a CPU-offloaded run is visibly a
+    # different configuration rather than a mysteriously slow one.
+    model_profile: str = ""
 
     # Path to the models configuration file (task type -> model mapping).
     models_config: str = str(REPO_ROOT / "config" / "models.yaml")
@@ -173,6 +200,15 @@ class Settings(BaseSettings):
     session_ttl_seconds: int = 43200
     session_cookie_secure: bool = False
 
+    # Demo mode: run the app with authentication off. A request needs no session
+    # cookie and no password — the caller is taken from the X-User-ID/X-Role
+    # header, defaulting to DEFAULT_USER_ID when neither is sent, so anyone who
+    # can reach the port can act as any user, admin included. That is the point
+    # of a demo, and it is why this defaults to False and must be switched on
+    # explicitly: a deployment that forgets to set it stays closed, whereas one
+    # that sets it is knowingly open. Never enable it on a reachable host.
+    demo_mode: bool = False
+
     # Model fallback: follow each entry's declared `fallback_to` chain when the
     # configured model is unavailable. Disable for benchmarks (bench/ forces it
     # off) so routing effectiveness is measured without silent substitution.
@@ -188,6 +224,15 @@ class Settings(BaseSettings):
     # capability label; below it the job is `general`. See
     # app/services/capability_classifier.py and bench/classifier_eval.py.
     classifier_threshold: float = 0.55
+
+    # The job-plan filler: a ~1B model that fills ONLY the plan fields the
+    # deterministic layer left unset (see app/services/plan_filler.py). Default
+    # off — it is enabled only if bench/plan_eval.py shows it beats the
+    # deterministic-only baseline on the implicit cases. It is paid for like any
+    # other model (a declared resource reservation), so a deployment that does
+    # not want it simply leaves it off.
+    planner_enabled: bool = False
+    planner_model: str = "qwen3:1.7b"
 
 
 @lru_cache
