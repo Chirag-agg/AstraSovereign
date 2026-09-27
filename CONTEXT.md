@@ -251,8 +251,11 @@ models, and provides an agentic pipeline that:
   (Ollama endpoint + reachability, local-only inference). The backend exposes no
   external-API counter, so the UI explicitly says "not tracked by backend â€” no
   counter to display" instead of fabricating a number.
-- **Dev user selector**: `user-001`â€¦`user-005` via `X-User-ID` (persisted in
-  localStorage); no authentication. Backend ownership rules keep users isolated.
+- **Dev user selector**: `user-001`…`user-005` via `X-User-ID` (persisted in
+  localStorage); no authentication. The top bar additionally offers `admin-001`
+  and any custom employee from the team view, so the stored id is read raw —
+  never clamped to the five demo accounts (see Known Issues, 2026-09-27).
+  Backend ownership rules keep users isolated.
 - **CI pipeline**: `.github/workflows/ci.yml` runs on every push (all branches)
   and pull request â€” Backend `pytest` (Python 3.13; docker-marked sandbox tests
   auto-skip; `libgl1`/`libglib2.0-0` installed for opencv/rapidocr) and Frontend
@@ -503,15 +506,19 @@ models, and provides an agentic pipeline that:
   `user_id|role|expires_at|hmac` cookie tokens), and `POST /api/auth/login`
   /`logout`/`GET /api/auth/me` (`api/auth.py`). `deps.py::get_session` derives
   identity from the verified cookie; the old header-trust logic survives only
-  as a fallback gated on `app.state.dev_header_auth`, which only the test
-  `client_factory` sets — production's bare `create_app()` cannot fall back to
-  it structurally, not just by convention. `admin.py::require_admin` now
+  as a fallback gated on `app.state.dev_header_auth`, which the test
+  `client_factory` sets and which `settings.demo_mode` also opens. Production
+  leaves both off, so the bare `create_app()` trusts a client header only when
+  a deployment has deliberately switched authentication off
+  (`DEMO_MODE=true`, for a local demo) — the default is closed.
+  `admin.py::require_admin` now
   checks `session.role == "admin"` from a real account. A single admin account
   is bootstrapped on first startup (random password written once to
   `data/bootstrap_admin_password.txt`, `0o600`); further accounts are created
   via `python -m app.services.create_user`. Regression-tested directly:
   `test_production_shaped_app_rejects_header_only_requests` builds the app the
-  way production actually is and confirms a header-only request gets 401.
+  way production actually is (with `demo_mode` off, which is the default) and
+  confirms a header-only request gets 401.
   Frontend login UI is an explicit follow-up — the backend is fully
   self-contained without it via the `dev_header_auth` seam.
 - **Terminal-tool narrowing on the last budgeted turn (2026-09-20)**: targets
@@ -736,14 +743,25 @@ Phase-by-phase history is in `docs/HISTORY.md`.
 
 ## Known Issues
 
-- **Model mapping (updated 2026-09-19):** `general`/`document` use
-  `llama3.1:latest`; `coding` (and the `compute` node, which routes on the
-  `coding` capability) uses `qwen2.5-coder:7b` (previously `llama3.1:latest`
-  with `qwen2.5-coder:7b` only as fallback, which meant `model_auto_selection`
-  never actually reported more than one model across task types); `math`
-  (`qwen2.5-math:1.5b`) is now enabled; `vision` uses `llava:7b`; embeddings
-  use `nomic-embed-text`. `qwen3:1.7b` is NOT usable: it returns an empty JSON
+- **Model mapping (updated 2026-09-26):** `general` uses `gpt-oss:20b`;
+  `document` and `vision` use `qwen3-vl:latest` (the only model with a vision
+  encoder); `coding` (and the `compute` node, which routes on the
+  `coding` capability) uses `devstral:24b`; `math` uses `deepseek-r1:14b`;
+  embeddings use `nomic-embed-text`. All four declare `tools: true`, which the
+  tool-invoking task types require at config load. `qwen3:1.7b` is NOT usable:
+  it returns an empty JSON
   object for the agent protocol, so jobs hit the iteration limit.
+- **`gpt-oss:20b` cannot tool-call inside the agent loop (2026-09-27).** It
+  emits native calls to a builtin `container.exec` tool this app does not have,
+  returns empty content, and never settles on a final answer — so any task whose
+  only path to success is a tool call burns the whole iteration budget and
+  produces nothing. No prompt or instruction wording fixes it (measured against
+  the draft loop, then against a tool-free re-prompt, where it thrashed the same
+  way). Where the model's output is free text rather than a tool call, request
+  it through a **constrained completion** instead — a JSON Schema in Ollama's
+  `format` makes the call shape unemittable and the model answers directly (see
+  `draft`'s content phase below). This supersedes nothing: it is a property of
+  this model, not of the loop.
 - **No availability-aware routing for undeclared entries:** a configured but
   unpulled model without a `fallback_to` chain fails the job at the model call
   (`OllamaModelNotFoundError`); startup preflight and the Models UI warn about it.
@@ -863,19 +881,25 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   in Python - no model turn, structural cross-deliverable consistency. The
   sandbox output rides along as a calculation appendix. But it is unexerciseable
   until extract produces findings: **extract's model adherence is the remaining
-  scenario blocker** - llama3.1 intermittently calls no tool at all across the
-  iteration budget, so no assessment exists. Terminal-tool narrowing
+  scenario blocker** - the extract model intermittently calls no tool at all
+  across the iteration budget, so no assessment exists. (The observation was
+  made against `llama3.1:latest`, which the 2026-09-26 model swap removed;
+  `document` now resolves to `qwen3-vl:latest`, and the blocker has not been
+  re-measured against it.) Terminal-tool narrowing
   (2026-09-20, Architecture Decisions) forces `submit_findings` as the only
   option on the single last allowed call rather than fixing the underlying
   adherence gap, so it is a mitigation, not the fix, until measured against a
   real model. The two real fixes remain: a stronger tool-capable extract
   model, or deterministic extraction (build `FindingsObject` from the injected
   extraction / Docling table), which removes the model from that loop.
-- **Ollama call timeout (fixed 2026-09-19).** A single slow generation on CPU
-  had exceeded the default 120 s `OLLAMA_TIMEOUT_SECONDS` and failed a job
-  mid-sequence. The default is now 300 s (`config.py` + `.env.example`); keep
-  `BENCH_MODE`/pre-ingest in the demo checklist regardless, since the node
-  pipeline can still chain several slow tool-calling turns per node.
+- **Ollama call timeout (removed 2026-09-26).** A single slow generation on CPU
+  had exceeded the then-default 120 s `OLLAMA_TIMEOUT_SECONDS` and failed a job
+  mid-sequence; the default was raised to 300 s, and the deadline has now been
+  removed altogether — `OllamaService` sends no timeout, so a request waits as
+  long as the model takes. The earlier failure mode (a mid-run deadline losing
+  the job) is gone, and the new one is a wedged call that never returns, which
+  is visible in the trace and cleared by restarting the backend. Tests that need
+  a deadline still pass `timeout_seconds` explicitly.
 - **Docling chosen for table extraction (2026-09-14).** Spike: `docling==2.127.0`
   (torch 2.14 CPU) runs fully offline (`HF_HUB_OFFLINE=1` + dead proxy) once
   `docling-project/docling-models` (342 MB) and `docling-project/docling-layout-heron`
@@ -935,6 +959,98 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   from and is left exactly as it arrived; a table spanning a page break is not
   joined. Both are deliberate bounds of this change, not defects — the text
   layer is out of scope for the same reason it reports no bbox.
+- **The ~1B plan-filler model does not beat the regexes (measured 2026-09-26).**
+  The decision "what is this job asking for?" now has one home — a typed
+  `JobPlan` (`backend/app/services/plan.py`) filled in layers: the five moved
+  regexes (`plan_defaults.py`), then an optional model fill over the fields they
+  leave unset (`plan_filler.py`), then defaults; layers combine through an
+  escalation-only `merge`, so a later layer can add a requirement but never
+  withdraw one. The model layer was built behind `PLANNER_ENABLED` and scored by
+  `bench/plan_eval.py` (40 hand-labelled requests) rather than switched on. On
+  the fields the deterministic layer leaves unset, `qwen3:1.7b` scores **89% ->
+  82% (delta -8)**: it invents a deliverable for plain chat questions ("what
+  does corrosion allowance mean?" -> `slides`, "write 1000 words on merge sort"
+  -> `word`) and a document requirement for almost everything, and because the
+  merge can only add, those wrong additions cannot be withdrawn downstream — a
+  bad model plan is worse than no model layer. `qwen3:8b` clears the baseline
+  (+3) but keeps the same wrong-adds on the most common operator phrasings and
+  at ~5 GB cannot stay resident on the 16 GB host the way the 1.4 GB model was
+  meant to. So **`PLANNER_ENABLED` stays false** and the layer is off in the
+  default path; the `JobPlan`, the deterministic move, the disagreement log and
+  the eval all stay, because the single decision object is worth having whoever
+  fills it. The remaining evidence that would earn re-enabling is a model that
+  wins on the implicit fields without adding wrong deliverables to chat.
+- **A deliverable no longer depends on the model calling the generator
+  (2026-09-27).** `"create a doc of 1000 words on merge sort"` reached `draft`,
+  spent the whole 8-iteration budget, and produced nothing: `gpt-oss:20b` cannot
+  emit the `document_generation` call inside the loop (see the model quirk
+  above), so the required tool call was never going to happen. The fix keeps the
+  model's own generator call when it makes one — it picks a meaningful filename
+  and title — and otherwise builds the file in Python from the model's material:
+  `_run_draft`'s backstop calls `_render_deliverable`, which reuses whatever
+  prose the run did produce and, when the run produced none (the observed case),
+  asks for the material in one **constrained** completion
+  (`format=CONTENT_SCHEMA` forcing `{"content": ...}`, no tools in reach, so a
+  tool call is unemittable; measured 1785 words first try), then splits it on
+  `## ` headings into the generator's `sections`. Content comes from the model;
+  the file comes from Python — the same split as the assessment path. Honest
+  degradation is preserved: an empty reply degrades the job visibly rather than
+  claiming an artifact. Live: the reported request now yields a 42 KB
+  `document.docx`. Tests: `test_nodes.py`'s
+  `test_a_document_request_renders_the_file_without_the_model_calling_the_tool`,
+  `::test_the_model_gets_first_refusal_before_the_content_phase`,
+  `::test_an_empty_constrained_reply_degrades_rather_than_claiming_a_file`.
+- **A job was listed but not downloadable (2026-09-27).** Download answered 403
+  "You do not have access to this job" for a job the user could see. Two readers
+  of the same identity key had drifted: the components' local `activeUserId()`
+  helpers return `localStorage['sovereign.active-user']` raw (so `admin-001` or
+  a custom employee works), while `useActiveUser()` — which `page.tsx` uses for
+  both submit and download — clamped anything outside `user-001`…`user-005`
+  back to `user-001`. A job created as `admin-001` (via a view that read the id
+  raw) was therefore fetched as `user-001` and the backend's ownership check
+  correctly refused it. The identity was never the bug; reading it two ways was.
+  Fixed by removing the clamp in `useActiveUser` so both readers agree; a
+  regression test in `hooks.test.tsx` asserts a stored `admin-001` survives the
+  hook. The twelve duplicated `activeUserId()` helpers still each read the key
+  directly and are the remaining consolidation target.
+- **Every PowerPoint deck declared slide masters it never wrote (2026-09-27).**
+  PptxGenJS 4.0.1 emits one `<Override PartName="/ppt/slideMasters/slideMasterN.xml">`
+  per *slide* while writing a single master, so a six-slide deck declared five
+  masters that are not in the package — an OPC violation (`[Content_Types].xml`
+  must not name a part that does not exist). PowerPoint tolerates the dangling
+  declarations, but stricter OOXML consumers (LibreOffice, mobile viewers, most
+  import pipelines) refuse or repair the file. `normalize_ooxml`
+  (`backend/app/services/ooxml.py`) now reconciles `[Content_Types].xml` with
+  the parts actually present before rewriting the package, which covers docx,
+  xlsx and any future renderer, not just the deck path. Tests in
+  `backend/tests/test_ooxml.py` build a package with a ghost override and assert
+  it is dropped while real overrides survive.
+- **Deliverables were all named `document.*` (2026-09-27).** Every
+  deterministically rendered file was literally `document.docx` /
+  `document.xlsx` / `document.pptx`, so a doc and a deck were indistinguishable
+  in the outputs list and a download saved them all under the same name — the
+  likely source of a "I asked for a ppt and got a docx" report that the pipeline
+  itself could not reproduce (a click on a stale card, not a wrong render).
+  `_render_content` now derives the stem from the request via
+  `deliverable_stem` (`backend/app/services/nodes.py`): strip the leading
+  instruction, prefer the `on/about …` subject, drop pronouns, slugify, and
+  fall back to `document`. Tests in `test_nodes.py`
+  (`test_the_deliverable_filename_names_the_request_not_the_word_document` and
+  two neighbours) pin the subject preference, the whole-request fallback and
+  filename safety.
+- **A 4096-token context window fails long jobs on a 6 GB GPU (open,
+  2026-09-27).** Some jobs died with
+  `OllamaRequestError: Ollama returned HTTP 500 for model 'gpt-oss:20b'`. The
+  server log shows `n_ctx_slot = 4096` … `task.n_tokens = 3984` … `stop
+  processing: n_tokens = 4095, truncated = 1`: a long agent loop overflows the
+  default context and the slot returns 500. Nothing in the app sets `num_ctx`,
+  `num_predict` or `think`, so the default stands. Raising it is not free on
+  this host — an RTX 3050 Laptop with 6 GB, already ~4.1 GB resident — and an
+  8192 probe returned empty content (`done_reason: length`) while sitting at
+  4.09 GB. Also note `RESOURCE_GPU_VRAM_MB=16384` in `backend/.env` does not
+  match the 6 GB card the scheduler is actually on. Left un-tuned deliberately:
+  the fix touches VRAM, the scheduler and the benchmarks, so it is a decision to
+  make with the deployment target in hand, not a silent config nudge.
 
 ---
 

@@ -50,7 +50,8 @@ cd frontend && npm ci && npm run build
 
 ## 4. Local models (Ollama)
 
-Required models: `qwen2.5-coder:3b` (text tasks), `llava:7b` (vision),
+Required models: `gpt-oss:20b` (general tasks), `qwen3-vl:latest` (document and
+vision tasks), `devstral:24b` (coding), `deepseek-r1:14b` (math), and
 `nomic-embed-text` (embeddings). Transfer the Ollama models directory, or
 re-create each model offline from a local GGUF/modelfile.
 

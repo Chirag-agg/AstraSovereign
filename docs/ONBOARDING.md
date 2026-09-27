@@ -42,11 +42,11 @@ Pull the models your config needs (see `config/models.yaml`) plus an embedding
 model:
 
 ```powershell
-ollama pull llama3.1        # general/reasoning
-ollama pull llama3           # coding
-ollama pull nomic-embed-text # embeddings (required for the knowledge base)
-# optional, for vision (document_vision tool):
-ollama pull llava:7b
+ollama pull gpt-oss:20b       # general
+ollama pull qwen3-vl:latest   # document and vision
+ollama pull devstral:24b      # coding
+ollama pull deepseek-r1:14b   # math/reasoning
+ollama pull nomic-embed-text  # embeddings (required for the knowledge base)
 ```
 
 Set `DEFAULT_MODEL` in `backend/.env` to the general model you pulled. The

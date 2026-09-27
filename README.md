@@ -184,10 +184,12 @@ Open http://localhost:3000.
 
 ## Notes
 
-- Small-model profile (all local, verified with the code sandbox and Word
-  generation): `qwen2.5-coder:3b` for general, document, and coding tasks,
-  `llava:7b` for vision, and `nomic-embed-text` for embeddings. Configure these in
-  `config/models.yaml`; `backend/.env` sets `DEFAULT_MODEL`.
+- Model profile (all local, verified with the code sandbox and Word
+  generation): `gpt-oss:20b` for general tasks, `qwen3-vl:latest` for document
+  and vision tasks, `devstral:24b` for coding, `deepseek-r1:14b` for math, and
+  `nomic-embed-text` for embeddings. Configure these in
+  `config/models.yaml`; `backend/.env` sets `DEFAULT_MODEL` (keep it the
+  `general` entry's model).
 - `qwen3:1.7b` is not recommended: it does not follow the agent's strict-JSON
   protocol (it returns an empty object), so jobs hit the iteration limit. Use a
   model that reliably emits `{"type":"final"|"tool_call",...}`.

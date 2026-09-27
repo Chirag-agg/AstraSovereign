@@ -42,7 +42,7 @@ Document Upload -> Ingestion -> Text Extraction -> Chunking
   sandbox (`SANDBOX_ENABLED=true`). The backend never pulls images.
 - OCR (RapidOCR) and PDF rendering (pypdfium2) are pure-local Python packages with
   no external service dependency. The vision model must already be pulled into
-  Ollama (`ollama pull llava:7b`); nothing is auto-downloaded.
+  Ollama (`ollama pull qwen3-vl`); nothing is auto-downloaded.
 
 ## 1. Install dependencies
 
@@ -59,8 +59,11 @@ pip install -r requirements-dev.txt   # test deps (pytest)
 
 ```bash
 ollama serve                 # start the server (usually runs automatically)
-ollama pull llama3.1         # or any open-weight model you want to use
-ollama list                  # confirm the model name
+ollama pull gpt-oss:20b      # general
+ollama pull qwen3-vl         # document/vision
+ollama pull devstral:24b     # coding
+ollama pull deepseek-r1:14b  # math
+ollama list                  # confirm the model names
 ```
 
 Ollama must be reachable at `http://localhost:11434` (default). The backend never
@@ -81,6 +84,12 @@ Key variables (all optional; defaults shown):
 | `OLLAMA_BASE_URL`        | `http://localhost:11434` | Local Ollama endpoint (must stay local)     |
 | `DEFAULT_MODEL`          | *(required)*          | Fallback model (see routing below)            |
 | `MODELS_CONFIG`          | `../config/models.yaml` | Task-type → model mapping (registry)       |
+| `MODEL_PROFILE`          | *(empty)*             | Roster in `models.yaml` for this machine (empty = its `default_profile`) |
+| `OLLAMA_NUM_CTX`         | `16384`               | Context window requested per call (per-model override in `models.yaml`) |
+| `OLLAMA_NUM_PREDICT`     | `4096`                | Cap on generated tokens, clamped to the room left in the window |
+| `OLLAMA_NUM_PREDICT_MIN` | `512`                 | Floor for that clamp                            |
+| `OLLAMA_PROMPT_TRIM_RATIO` | `0.85`              | Fraction of the window a prompt may fill before old tool results are trimmed |
+| `OLLAMA_MAX_OVERFLOW_RETRIES` | `3`              | Bounded trims-and-retries after an unpredicted overflow |
 | `MAX_AGENT_ITERATIONS`   | `10`                  | Max model decisions per job (hard stop)       |
 | `MAX_AGENT_TOOL_CALLS`   | `20`                  | Max tool executions per job (hard stop)       |
 | `WORKSPACES_ROOT`        | `../data/workspaces`  | Per-job workspace root                       |
@@ -93,7 +102,7 @@ Key variables (all optional; defaults shown):
 | `RESOURCE_CAPACITY_MODE`| `configured`           | `configured` (values below) or `auto` (local discovery) |
 | `RESOURCE_CPU_CORES`    | `8`                    | Scheduler CPU capacity                       |
 | `RESOURCE_MEMORY_MB`    | `16384`                | Scheduler memory capacity                    |
-| `RESOURCE_GPU_VRAM_MB`  | `16384`                | VRAM per GPU (`GPU-0`, `GPU-1`, ...)         |
+| `RESOURCE_GPU_VRAM_MB`  | `6144`                 | VRAM per GPU (`GPU-0`, `GPU-1`, ...); must match the real card, since the scheduler rejects any model declaring more |
 | `RESOURCE_GPU_COUNT`    | `1`                    | Number of GPUs in capacity                   |
 | `KNOWLEDGE_BASE_ROOT`   | `../data/knowledge`    | Per-user KB vector store location            |
 | `UPLOADS_ROOT`          | `../data/uploads`      | Uploaded document files (per user)           |
@@ -111,7 +120,6 @@ Key variables (all optional; defaults shown):
 | `VISION_RESOURCE_WAIT_ROUNDS` | `5`                | Max wait rounds for vision-model resources   |
 | `MULTIMODAL_TMP_ROOT`      | `../data/tmp`         | Per-job temp dir for rendered pages (cleaned)|
 | `HOST` / `PORT`          | `127.0.0.1` / `8000`  | FastAPI bind address (localhost only)         |
-| `OLLAMA_TIMEOUT_SECONDS` | `300`                 | Per-request timeout for Ollama calls          |
 | `LOG_LEVEL` / `LOG_FILE` | `INFO` / `../logs/backend.log` | Structured JSON logging            |
 
 ## 3b. Model routing (`config/models.yaml`)
@@ -123,45 +131,71 @@ The model registry maps **task types** to **local models**. Edit
 models:
   general:
     provider: ollama
-    model: qwen2.5:7b
+    model: gpt-oss:20b
     enabled: true
     capabilities: [general, reasoning, summarization]
+    fallback_to: []
+    num_ctx: 32768            # per-model context window; see below
     resources:
-      gpu_vram_mb: 8000
-      cpu_cores: 2
-      memory_mb: 4096
+      gpu_vram_mb: 3584       # GPU-resident footprint (measured)
+      cpu_cores: 4
+      memory_mb: 10240        # host footprint, offloaded weights included
 
   coding:
     provider: ollama
-    model: qwen2.5-coder:7b
+    model: devstral:24b
     enabled: true
     capabilities: [coding, debugging, code_review]
-    resources:
-      gpu_vram_mb: 8000
-      cpu_cores: 2
-      memory_mb: 4096
-
-  document:
-    provider: ollama
-    model: <placeholder>
-    enabled: false
-    capabilities: [document, summarization]
-
-  vision:
-    provider: ollama
-    model: llava:7b
-    enabled: true
-    capabilities: [vision, image, document]
+    fallback_to: []
+    num_ctx: 8192
     resources:
       gpu_vram_mb: 4096
-      cpu_cores: 2
-      memory_mb: 4096
+      cpu_cores: 4
+      memory_mb: 11264
+
+  math:
+    provider: ollama
+    model: deepseek-r1:14b
+    enabled: true
+    capabilities: [math, reasoning]
+    fallback_to: []
+    num_ctx: 8192
+    resources:
+      gpu_vram_mb: 4096
+      cpu_cores: 4
+      memory_mb: 6656
 ```
 
+**`resources` declares two different things, and both matter.** `gpu_vram_mb` is
+the model's GPU-resident footprint and `memory_mb` is its host footprint
+(including any weights Ollama offloaded to the CPU). The scheduler checks them
+against separate pools — `RESOURCE_GPU_VRAM_MB` and `RESOURCE_MEMORY_MB` — so
+declaring only one lets a second model be admitted while the host is already
+full. On a small card most of a 20B model lives in host RAM: gpt-oss:20b holds
+only ~3.3 GB on a 6 GB GPU and ~10 GB in system memory. **Measure these, don't
+estimate them** — load the model at its window and read `/api/ps` (`size` =
+total resident, `size_vram` = the GPU portion). The numbers shipped here were
+measured on an RTX 3050 Laptop (6144 MiB).
+
+**`num_ctx` is per model because the KV cache cost is.** Ollama defaults to a
+4096-token window, which is smaller than this app's system prompt plus one tool
+result — the cause of intermittent `HTTP 500`s from `/api/chat`. A model with
+cheap sliding-window attention (gpt-oss:20b, ~28 KiB/token) can afford 32768; a
+dense model (devstral, deepseek-r1, ~160 KiB/token) is set *below* the global
+default instead, because a bigger window on a dense model does not fail — it
+quietly moves more layers off the GPU and onto the CPU.
+
+`document` and `vision` both point at `qwen3-vl:latest` in the shipped config;
+the `model_capabilities` mapping at the foot of the file declares what each
+model can do (`tools: true` for all four) so fallback chains can be validated
+at load.
+
 **Task types:** `general` (explanations, reasoning, summaries), `coding`
-(programming/scripting/debug requests, code blocks), `document` (reserved for
-future file inputs), `vision` (image/photo requests — routed to the local
-multimodal model). The `vision` entry also drives the `document_vision` tool:
+(programming/scripting/debug requests, code blocks), `math` (quantitative and
+multi-step calculation, including the `compute` node), `document` (file
+questions — backed by `document_search` over the local knowledge base),
+`vision` (image/photo requests — routed to the local multimodal model). The
+`vision` entry also drives the `document_vision` tool:
 its declared `resources` are requested through the resource scheduler before
 any vision inference, so the scheduler is never bypassed.
 
@@ -375,7 +409,7 @@ A deterministic `FakeOCRProvider` is used in tests. Configurable language/settin
 live behind the abstraction for a later swap (e.g. PaddleOCR).
 
 **Vision** (`VisionProvider` abstraction → `OllamaVisionProvider`): the registry-
-configured local multimodal model (default `llava:7b`) is asked about each page
+configured local multimodal model (`qwen3-vl:latest`) is asked about each page
 with the OCR text as optional context (per the "OCR first, vision when needed"
 strategy). The model name comes only from `config/models.yaml` — never hardcoded.
 If the model is missing/disabled/unreachable the multimodal task **fails cleanly**
@@ -508,14 +542,14 @@ Response (terminal example):
   "created_at": "2026-08-29T14:57:12.414083Z",
   "started_at": "2026-08-29T14:57:12.414562Z",
   "completed_at": "2026-08-29T14:57:28.017370Z",
-  "model": "llama3.1:latest",
+  "model": "gpt-oss:20b",
   "response": "...",
   "error": null,
   "agent_stage": "completed",
   "iteration_count": 2,
   "tool_call_count": 1,
   "execution_trace": [
-    { "step": 1, "type": "agent_started", "task_type": "general", "model": "llama3.1:latest" },
+    { "step": 1, "type": "agent_started", "task_type": "general", "model": "gpt-oss:20b" },
     { "step": 2, "type": "tool_call", "tool": "list_files", "arguments": {} },
     { "step": 3, "type": "tool_result", "tool": "list_files", "result_summary": "1 file(s) found" },
     { "step": 4, "type": "final", "response_summary": "..." }
@@ -554,9 +588,11 @@ allocated CPU/memory/VRAM per GPU:
 {
   "ollama": { "reachable": true },
   "models": {
-    "general": { "configured": "qwen2.5:7b", "available": true, "enabled": true },
-    "coding":  { "configured": "qwen2.5-coder:7b", "available": true, "enabled": true },
-    "document": { "configured": "<placeholder>", "available": false, "enabled": false }
+    "general":  { "configured": "gpt-oss:20b", "available": true, "enabled": true },
+    "coding":   { "configured": "devstral:24b", "available": true, "enabled": true },
+    "math":     { "configured": "deepseek-r1:14b", "available": true, "enabled": true },
+    "document": { "configured": "qwen3-vl:latest", "available": true, "enabled": true },
+    "vision":   { "configured": "qwen3-vl:latest", "available": true, "enabled": true }
   },
   "scheduler": {
     "queued_jobs": 1,
@@ -577,11 +613,11 @@ allocated CPU/memory/VRAM per GPU:
     "status": "ok",
     "ocr": { "enabled": true, "provider": { "provider": "rapidocr", "engine": "rapidocr-onnxruntime" } },
     "vision": {
-      "model": "llava:7b",
+      "model": "qwen3-vl:latest",
       "enabled": true,
-      "available": false,
+      "available": true,
       "provider": { "provider": "ollama" },
-      "resources": { "cpu_cores": 2.0, "memory_mb": 4096, "gpu_id": null, "gpu_vram_mb": 4096 }
+      "resources": { "cpu_cores": 2.0, "memory_mb": 8192, "gpu_id": null, "gpu_vram_mb": 8192 }
     }
   },
   "document_generation": {
