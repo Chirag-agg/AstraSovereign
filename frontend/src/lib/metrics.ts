@@ -24,7 +24,7 @@ export interface VerifiedMetric {
 }
 
 /** Measured 2026-09-20 on branch fix/model-routing-and-compute-verification. */
-export const MEASURED_AT = "2026-09-22";
+export const MEASURED_AT = "2026-09-27";
 export const MEASURED_REF = "master";
 
 export const HEADLINE_METRICS: VerifiedMetric[] = [
@@ -37,14 +37,14 @@ export const HEADLINE_METRICS: VerifiedMetric[] = [
   },
   {
     label: "Backend tests",
-    value: "755",
+    value: "819",
     unit: "functions",
     source: "grep -c 'def test_' backend/tests/*.py — 76 files (2026-09-26; 766 collected)",
     tone: "positive",
   },
   {
     label: "Agent tools",
-    value: "11",
+    value: "12",
     unit: "local only",
     source: "BaseTool subclasses in backend/app/services/tools.py",
   },
@@ -60,7 +60,7 @@ export const HEADLINE_METRICS: VerifiedMetric[] = [
 export const SYSTEM_METRICS: VerifiedMetric[] = [
   {
     label: "Backend Python",
-    value: "15,504",
+    value: "20,698",
     unit: "lines",
     source: "wc -l backend/app/**/*.py",
   },
@@ -90,7 +90,7 @@ export const SYSTEM_METRICS: VerifiedMetric[] = [
   },
   {
     label: "Frontend tests",
-    value: "69",
+    value: "78",
     unit: "cases",
     source: "vitest run — frontend/src/**/*.test.tsx",
   },
@@ -206,6 +206,7 @@ export const TOOL_SURFACE = [
   "document_search",
   "read_document",
   "document_exact_search",
+  "pid_diagram_qa",
   "document_vision",
   "document_generation",
   "presentation_generation",

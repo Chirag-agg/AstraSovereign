@@ -122,8 +122,8 @@ interface CornerStat {
 const STATS: CornerStat[] = [
   { label: "Cloud egress", value: "0 bytes", corner: "tl" },
   { label: "Routed models", value: "5", corner: "tr", count: 5 },
-  { label: "Agent tools", value: "11", corner: "bl", count: 11 },
-  { label: "Backend tests", value: "592", corner: "br", count: 592 },
+  { label: "Agent tools", value: "12", corner: "bl", count: 12 },
+  { label: "Backend tests", value: "819", corner: "br", count: 819 },
 ];
 
 const CORNER_STYLE: Record<CornerStat["corner"], React.CSSProperties> = {
