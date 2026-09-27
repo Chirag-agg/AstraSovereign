@@ -11,6 +11,7 @@ that exhausts its budget degrades to ``REFER_ASSESSMENT_INCOMPLETE`` rather than
 failing or leaving a blank field.
 """
 
+import json
 import logging
 import re
 from typing import Any, Callable, Optional
@@ -31,13 +32,20 @@ from app.services.findings import (
     traceability_violations,
 )
 from app.services.log_context import set_job_context
+from app.services.ollama_service import OllamaServiceError
+from app.services.plan import (
+    DELIVERABLE_EXCEL,
+    DELIVERABLE_SLIDES,
+    DELIVERABLE_WORD,
+    JobPlan,
+)
+from app.services.plan_defaults import resolve
 
 logger = logging.getLogger("app.nodes")
 
 # Capability each node asks the router for at entry. ``extract`` needs a
 # tool-capable text model to orchestrate reads; the vision model is invoked by
-# the ``document_vision`` tool, not as the node's own model (llava rejects the
-# tools API with HTTP 400).
+# the ``document_vision`` tool, not as the node's own model.
 NODE_CAPABILITY = {
     "extract": "document",
     "retrieve": "document",
@@ -75,79 +83,25 @@ NODE_TOOLS = {
 # the static reachability check as a producer of e.g. ``document_id``.
 NODE_INPUT_NODES = {"extract", "retrieve"}
 
-# _run_compute's "is this a computational task" precondition (no attachments,
-# so no findings to compute from) reads job.task_type == "coding" from the
-# SemanticCapabilityClassifier alone. That classifier is a small hand-curated
-# nearest-exemplar match (measured ~88% held-out accuracy) sitting entirely
-# outside this node's own control — a misclassified plain-text coding request
-# ("reverse this string in python and test it") skips compute silently and
-# falls through to draft's general model with no code_execution tool at all,
-# a much larger quality gap than a wrong label. This backstop is deliberately
-# a cheap, deterministic, second opinion the classifier's own accuracy cannot
-# regress: it only ever WIDENS compute's activation (never narrows it), so a
-# classifier fix later is additive, not a replacement for this.
-CODING_INTENT_RE = re.compile(
-    r"\b(python|javascript|typescript|function|def\b|code|program|script|"
-    r"algorithm|compile|debug)\b",
-    re.IGNORECASE,
-)
-
-# The document nodes' viability precondition. A session keeps its attachments
-# for the whole conversation, so "is anything attached?" is not the same
-# question as "does this message ask about the attachments?" — gating on the
-# manifest alone forced extract+retrieve (and retrieve's instruction *demands* a
-# document_search) onto every later message in the thread, including "hi". The
-# semantic label is the primary signal; this regex is the same cheap widening
-# backstop CODING_INTENT_RE gives compute, so a document request the ~88%
-# classifier labels ``general`` is still never silently stripped of retrieval.
-# It names document nouns, not generic verbs, so chit-chat does not trip it.
-DOCUMENT_INTENT_RE = re.compile(
-    r"\b(document\w*|report\w*|procedure\w*|sop\b|spec\w*|standard\w*|"
-    r"revision\w*|inspection\w*|survey\w*|nameplate\w*|reading\w*|"
-    r"attach\w*|upload\w*|extract\w*|cite\w*|citation\w*|"
-    r"corrosion|thickness\w*|vessel\w*)\b",
-    re.IGNORECASE,
-)
-
-# Labels that name a document-domain request outright. Anything else (coding,
-# general) must earn the document nodes through the backstop above.
-_DOCUMENT_LABELS = {"document", "vision"}
+# Every "what does this request actually ask for?" signal now lives in
+# ``plan_defaults`` (the deterministic layer) and arrives here as a ``JobPlan``.
+# See ``_plan_for`` — this module no longer matches request text itself.
 
 
-def documents_requested(job, task: str) -> bool:
-    """Whether this request is about documents at all.
+def no_output_reason(trace: list[dict]) -> str:
+    """Name the real reason the terminal node produced nothing.
 
-    ``task_type`` is the SemanticCapabilityClassifier's label. An empty label
-    (a job that predates classification, or a directly-invoked node agent) fails
-    open, so behaviour there is unchanged and the gate can only be closed by a
-    label the classifier actually produced.
+    Derived from draft's own trace entry rather than assumed: the previous
+    message blamed "the supplied documents" even for a job that never had one.
     """
-    label = getattr(job, "task_type", "") or ""
-    if not label:
-        return True
-    if label in _DOCUMENT_LABELS:
-        return True
-    return bool(DOCUMENT_INTENT_RE.search(task or ""))
-
-
-# draft's generic (no-assessment) path has both generator tools in scope with
-# no structural gate on which one gets called, so a weak model that is more
-# "used to" producing a Word document can default to document_generation even
-# when the request explicitly asked for a deck (observed). This is checked
-# against the ORIGINAL request text, before draft wraps it with retrieved
-# context, so "make a PPT" is detected regardless of what else is in scope.
-PRESENTATION_INTENT_RE = re.compile(
-    r"\b(ppt|pptx|powerpoint|presentation|slide\w*|deck)\b", re.IGNORECASE
-)
-
-# "Write 500 words" / "a 500-word report" was pure prompt wording (WRITING
-# RULES / DOCUMENT GENERATION RULES in agent.py's system prompt) with no
-# structural check behind it (observed: a "500 words" request answered with
-# ~50) — the same shape of gap as PRESENTATION_INTENT_RE and
-# CODING_INTENT_RE above: a weak model's compliance was the only thing
-# enforcing it. Matches "500 words"/"500-word" but not a bare number, so it
-# only fires when a length was actually requested.
-WORD_COUNT_RE = re.compile(r"\b(\d{2,5})[\s-]*words?\b", re.IGNORECASE)
+    for entry in reversed(trace):
+        if entry.get("node") != "draft":
+            continue
+        if entry.get("type") == "node_degraded":
+            return f"the draft step degraded ({entry.get('reason') or 'no reason given'})"
+        if entry.get("type") == "node_skipped":
+            return f"the draft step was skipped ({entry.get('reason') or 'nothing to draft from'})"
+    return "the run finished without producing output"
 
 
 def _collect_text(value: Any) -> list[str]:
@@ -210,6 +164,157 @@ def make_word_count_validator(min_words: int) -> Callable[[str, list[dict]], Opt
         )
 
     return validator
+
+
+# A request that names a deliverable, with no assessment to render it from:
+# which generator produces it, plus the file type and extension to use.
+DELIVERABLE_RENDER = {
+    DELIVERABLE_WORD: ("document_generation", "word", "docx"),
+    DELIVERABLE_EXCEL: ("document_generation", "excel", "xlsx"),
+    DELIVERABLE_SLIDES: ("presentation_generation", "pptx", "pptx"),
+}
+
+_SECTION_HEADING_RE = re.compile(r"^#{1,3}\s+(.+?)\s*$")
+
+# "create a doc of..." / "can you please make me a..." — the instruction wrapper,
+# dropped so the filename is the subject rather than the verb.
+_LEADING_INSTRUCTION_RE = re.compile(
+    r"^(?:please\s+|can you\s+|could you\s+|i(?:'d| would) like\s+)*"
+    r"(?:create|write|make|build|compose|generate|prepare|draft|produce|design|give me)\b"
+    r"(?:\s+(?:me|us)\b)?"
+    r"[\s:,-]*",
+    re.IGNORECASE,
+)
+_LEADING_ARTICLE_RE = re.compile(r"^(?:a|an|the)\b[\s-]*", re.IGNORECASE)
+_NON_FILENAME_CHARS_RE = re.compile(r"[^a-z0-9]+")
+
+# "a report on the corrosion" — the subject is worth more in a filename than the
+# deliverable noun, so the clause a topic preposition introduces wins.
+_TOPIC_RE = re.compile(r"\b(?:on|about|regarding|covering)\b[\s:]+(.+)$", re.IGNORECASE)
+# ...unless the "subject" is a pronoun: "make a deck on it" must not become it.pptx.
+_PRONOUN_TOPIC = {
+    "it", "this", "that", "these", "those", "them", "me", "us", "him", "her",
+    "which", "what", "something", "anything",
+}
+
+_FILENAME_STEM_WORDS = 7
+_FILENAME_STEM_CHARS = 48
+
+
+def deliverable_stem(message: str) -> str:
+    """A filename stem that says what the file is.
+
+    Every deterministic deliverable used to be written as ``document.<ext>``, so
+    a deck and a report — from different requests, even different users — shared
+    one name. In the outputs list and the browser's download folder they were
+    indistinguishable, and a stale report was one click away from being mistaken
+    for the deck just requested.
+
+    The instruction wrapper is dropped and the subject preferred, so
+    "create a pptx of 3 slides on Operating System" becomes
+    ``operating-system.pptx`` rather than ``document.pptx``. Falls back to
+    ``document`` when nothing usable survives.
+    """
+    text = (message or "").strip()
+    text = _LEADING_INSTRUCTION_RE.sub("", text).strip()
+    topic = _TOPIC_RE.search(text)
+    if topic and topic.group(1).strip().lower() not in _PRONOUN_TOPIC:
+        text = topic.group(1)
+    text = _LEADING_ARTICLE_RE.sub("", text.strip()).strip()
+    words = [word for word in _NON_FILENAME_CHARS_RE.split(text.lower()) if word]
+    if words and words[0] in _PRONOUN_TOPIC:
+        words = []
+    stem = "-".join(words[:_FILENAME_STEM_WORDS])[:_FILENAME_STEM_CHARS].strip("-")
+    return stem or "document"
+
+
+def content_sections(text: str) -> list[dict]:
+    """Turn model-written text into a generator's ``sections``.
+
+    A ``## Heading`` line (``#`` or ``###`` work too) starts a section and the
+    text between headings becomes its paragraphs. Text with no headings becomes
+    one section, so nothing the model actually wrote is ever dropped.
+    """
+    sections: list[dict] = []
+    heading: Optional[str] = None
+    buffer: list[str] = []
+
+    def flush() -> None:
+        body = "\n".join(buffer).strip()
+        paragraphs = [part.strip() for part in body.split("\n\n") if part.strip()]
+        if heading or paragraphs:
+            section: dict = {"heading": heading or "Document"}
+            if paragraphs:
+                section["paragraphs"] = paragraphs
+            sections.append(section)
+
+    for line in (text or "").splitlines():
+        match = _SECTION_HEADING_RE.match(line)
+        if match:
+            flush()
+            heading, buffer = match.group(1), []
+        else:
+            buffer.append(line)
+    flush()
+    return sections
+
+
+def content_slides(sections: list[dict]) -> list[dict]:
+    """One bullets slide per section — the deck form of the same content."""
+    slides = []
+    for section in sections:
+        bullets = [part for part in section.get("paragraphs", []) if part.strip()]
+        if bullets:
+            slides.append(
+                {"type": "bullets", "title": section.get("heading", ""), "bullets": bullets[:40]}
+            )
+    return slides
+
+
+# The one shape the constrained content call may return. Passing this as
+# Ollama's ``format`` makes a tool call structurally unemittable, which is the
+# point: the model writes the material, Python writes the file.
+CONTENT_SCHEMA = {
+    "type": "object",
+    "properties": {"content": {"type": "string"}},
+    "required": ["content"],
+}
+
+_CONTENT_SYSTEM = (
+    "You are a technical writer producing the finished text of a document. "
+    "Write the complete material the request asks for, in full, with nothing "
+    "about what you would do instead."
+)
+
+
+def _content_from_json(raw: str) -> str:
+    """The ``content`` string out of the constrained reply, or empty.
+
+    A malformed or empty reply is not an exception here: the caller treats an
+    empty result as "no content" and degrades visibly, the same way the
+    classifier degrades rather than failing the job.
+    """
+    try:
+        parsed = json.loads(raw or "")
+    except (ValueError, TypeError):
+        return ""
+    if isinstance(parsed, dict) and isinstance(parsed.get("content"), str):
+        return parsed["content"].strip()
+    return ""
+
+
+def _generator_succeeded(trace: list[dict], floor: int, tool_name: str) -> bool:
+    """Whether this node's own run produced a real artifact from ``tool_name``.
+
+    Only entries after ``floor`` count, so a generator call from an earlier node
+    sharing the trace cannot stand in for one this run never made.
+    """
+    return any(
+        entry.get("type") == "tool_result"
+        and entry.get("tool") == tool_name
+        and entry.get("ok") is True
+        for entry in trace[floor:]
+    )
 
 
 # Infrastructure failures mean the work could not be attempted; they must fail
@@ -286,6 +391,10 @@ class NodeAgent:
         self.last_assessment: Optional[AssessmentResult] = None
         self.last_retrieval: str = ""
         self.last_attachments: list[dict] = []
+        # The plan for the run in flight. Set by ``run`` (and by ``_plan_for``
+        # when the caller supplied none) — the nodes read their activation and
+        # tool contracts from it instead of matching request text themselves.
+        self._job_plan: JobPlan = JobPlan()
         self._tool_calls = 0
         # Every node's user-relevant output, in order. draft is the only exit and
         # drafts from whatever this holds (never an enumerated source list).
@@ -330,6 +439,15 @@ class NodeAgent:
         runner_up = general.model if general is not None and general.model != model else ""
         return 0.6, runner_up
 
+    def _plan_for(self, job, task: str) -> JobPlan:
+        """The deterministic plan, for callers that did not supply one.
+
+        The worker builds the plan (it holds the classifier's label and, when
+        enabled, the planner model). A directly-invoked node agent resolves the
+        same object here, so node behaviour is identical either way.
+        """
+        return resolve(task, getattr(job, "task_type", "") or "")
+
     async def run(
         self,
         job,
@@ -337,6 +455,7 @@ class NodeAgent:
         lead_model: str = "",
         task_text: Optional[str] = None,
         attachments: Optional[list[dict]] = None,
+        job_plan: Optional[JobPlan] = None,
     ) -> AgentResult:
         task = task_text if task_text is not None else job.message
         trace: list[dict] = []
@@ -347,17 +466,41 @@ class NodeAgent:
         manifest = list(attachments or [])
         self.last_attachments = manifest
         attachment_block = render_attachment_block(manifest)
+        self._job_plan = job_plan or self._plan_for(job, task)
+        trace.append({"step": 1, **self._job_plan.to_trace()})
+        if self._job_plan.disagreements:
+            logger.info(
+                "plan_disagreement",
+                extra={
+                    "event": "plan_disagreement",
+                    "job_id": job.job_id,
+                    "disagreements": self._job_plan.disagreements,
+                },
+            )
         # Attachments are a reason to run extraction even if the prompt does not
         # name a document (the nameplate image carries no indexable text) — but
-        # they are not sufficient on their own. See ``documents_requested``.
-        wants_docs = documents_requested(job, task)
+        # they are not sufficient on their own. See ``JobPlan.needs_documents``.
+        wants_docs = self._job_plan.needs_documents
         attempt_docs = bool(manifest) and wants_docs
+        # extract is gated one step narrower than retrieve: its only possible
+        # output is a typed tank-inspection ``FindingsObject``, so a request
+        # that is about an attachment without asking for that assessment (a
+        # converted image, a Q&A over a PDF) can only make it degrade, at the
+        # cost of a full model turn. The attachment's extracted text still
+        # reaches draft through the manifest block.
+        attempt_findings = bool(manifest) and self._job_plan.needs_findings
         if not manifest:
             docs_skip_reason = "no documents or images referenced in the request"
         elif not wants_docs:
             docs_skip_reason = "attached documents are not referenced by this request"
         else:
             docs_skip_reason = ""
+        if not manifest or not wants_docs:
+            findings_skip_reason = docs_skip_reason
+        else:
+            findings_skip_reason = (
+                "this request does not ask for an inspection assessment"
+            )
         cursor = 0
 
         # Resolve every distinct node capability up front so the model swap points
@@ -371,8 +514,8 @@ class NodeAgent:
                     plan[capability] = self._resolve(capability, job)
             # --- extract -----------------------------------------------------
             cursor, findings = await self._run_extract(
-                job, workspace, task, trace, cursor, attempt_docs, attachment_block,
-                plan["document"], docs_skip_reason,
+                job, workspace, task, trace, cursor, attempt_findings, attachment_block,
+                plan["document"], findings_skip_reason,
             )
             # --- retrieve ----------------------------------------------------
             cursor, retrieval = await self._run_retrieve(
@@ -389,11 +532,17 @@ class NodeAgent:
             self.last_assessment = assessment
             # draft is the terminal node and the only user-facing exit. It runs
             # whenever ANY node produced output (collected generically in
-            # ``self._node_outputs``), and for non-attachment jobs.
-            something_to_draft = bool(self._node_outputs) or not attempt_docs
+            # ``self._node_outputs``), for non-attachment jobs, and whenever an
+            # attachment was supplied at all — the manifest is draft's only view
+            # of the file (it has no document_vision), so a run where the
+            # document nodes were skipped or degraded must still draft from it.
+            something_to_draft = (
+                bool(self._node_outputs) or not attempt_docs or bool(attachment_block)
+            )
             cursor, response = await self._run_draft(
                 job, workspace, task, trace, cursor, findings, assessment,
                 something_to_draft, plan["general"], working=compute_response,
+                attachment_block=attachment_block,
             )
         except NodeCancelledError:
             trace.append({"step": len(trace) + 1, "type": "agent_cancelled"})
@@ -416,19 +565,16 @@ class NodeAgent:
         if response is None:
             return AgentResult(
                 status=AgentStatus.COMPLETED,
-                response=(
-                    "Assessment could not be grounded in the supplied documents; "
-                    "no deliverables were generated."
-                ),
+                response=f"No deliverable was produced: {no_output_reason(trace)}.",
                 iterations=cursor,
             )
         return AgentResult(status=AgentStatus.COMPLETED, response=response, iterations=cursor)
 
     async def _run_extract(
-        self, job, workspace, task, trace, cursor, attempt_docs, attachment_block,
+        self, job, workspace, task, trace, cursor, attempt_findings, attachment_block,
         planned, skip_reason="",
     ):
-        if not attempt_docs:
+        if not attempt_findings:
             self._skip(
                 trace, "extract",
                 skip_reason or "no documents or images referenced in the request",
@@ -463,12 +609,22 @@ class NodeAgent:
         cursor += result.iterations
         findings, submit_called = self._submitted_findings(trace, start)
         if findings is None:
+            # A run that failed outright (a generation limit, a model that never
+            # settled) says so in its own error; reporting the missing tool call
+            # instead would name a symptom of the failure as if it were the
+            # cause. Only a *completed* run's outcome is really "not called".
+            if result.status != AgentStatus.COMPLETED and result.error:
+                reason = result.error
+            else:
+                reason = (
+                    "submit_findings was rejected by schema validation"
+                    if submit_called
+                    else "submit_findings was not called"
+                )
             self._node_degraded(
                 trace,
                 "extract",
-                "submit_findings was rejected by schema validation"
-                if submit_called
-                else "submit_findings was not called",
+                reason,
                 iterations=result.iterations,
                 tool_calls=result.tool_calls,
             )
@@ -574,9 +730,9 @@ class NodeAgent:
         self, job, workspace, task, trace, cursor, findings, retrieval, planned
     ):
         has_findings = findings is not None and bool(findings.readings)
-        computational = getattr(job, "task_type", "") == "coding" or bool(
-            CODING_INTENT_RE.search(task or "")
-        )
+        # ``needs_code`` is the classifier's ``coding`` label OR the coding
+        # backstop, i.e. exactly the condition this node used to compute inline.
+        computational = self._job_plan.needs_code
         if not has_findings and not computational:
             self._skip(trace, "compute", "no findings and the task is not computational")
             return cursor, None, False, None
@@ -689,7 +845,7 @@ class NodeAgent:
 
     async def _run_draft(
         self, job, workspace, task, trace, cursor, findings, assessment, something_to_draft,
-        planned, working=None,
+        planned, working=None, attachment_block="",
     ):
         if not something_to_draft:
             self._skip(trace, "draft", "nothing grounded to draft from")
@@ -710,6 +866,9 @@ class NodeAgent:
             return cursor, await self._render_assessment(
                 job, workspace, trace, assessment, findings, working
             )
+        # Retrieved context for the content phase; the assessment path carries
+        # its payload inside the instruction instead, so this stays None there.
+        context: Optional[str] = None
         if assessment is not None:
             payload = assessment.model_dump_json()
             instruction = (
@@ -723,43 +882,90 @@ class NodeAgent:
                 f"ASSESSMENT: {payload}"
             )
             node_task = f"{instruction}\n\nREQUEST:\n{task}"
-        elif self._node_outputs:
-            context = "\n\n".join(self._node_outputs)
-            node_task = (
-                "Answer the request using the results below; cite sources and do not "
-                "invent content.\n"
-                f"RESULTS:\n{context}\n\nREQUEST:\n{task}"
-            )
         else:
-            # Degenerate path: a plain prompt passes through (nearly) unmodified,
-            # so chat does not get wordier just because it ran through the engine.
-            node_task = task
+            # draft has no document_vision, so the manifest block is its only
+            # view of an attached file's content — and the only thing carrying
+            # it when the document nodes were skipped because the request is
+            # about the attachment without being an assessment (an image being
+            # converted). The assessment branch above never includes it: there
+            # the typed object is the grounding, per compute's "do not read raw
+            # scanned text" rule.
+            context_parts = []
+            if attachment_block:
+                context_parts.append(attachment_block)
+            if self._node_outputs:
+                context_parts.append("\n\n".join(self._node_outputs))
+            context = "\n\n".join(context_parts) or None
+            if self._node_outputs:
+                node_task = (
+                    "Answer the request using the results below; cite sources and do not "
+                    f"invent content.\nRESULTS:\n{context}\n\nREQUEST:\n{task}"
+                )
+            elif attachment_block:
+                node_task = f"{attachment_block}\n\nREQUEST:\n{task}"
+            else:
+                # Degenerate path: a plain prompt passes through (nearly)
+                # unmodified, so chat does not get wordier just because it ran
+                # through the engine.
+                node_task = task
+            # A request that names a deliverable gets one line naming the
+            # generator, rather than discovering the requirement only through
+            # the nudge after a wasted turn.
+            generator = self._job_plan.required_tool_success()
+            if generator:
+                gen_tool = sorted(generator)[0]
+                node_task = (
+                    f"{node_task}\n\nProduce the requested file by calling "
+                    f"{gen_tool} with the full content in its sections "
+                    "(or slides) — prose alone is not the deliverable."
+                )
+                if gen_tool == "presentation_generation":
+                    node_task += (
+                        " Vary the slide types so it reads as a designed presentation, not a document. "
+                        "Use 'diagram' for processes, 'table' for structured fields, 'two-column' to "
+                        "contrast, and 'chart' for numbers. Do not rely entirely on 'bullets' and 'content'."
+                    )
         # Only the no-assessment paths reach the model with both generator
         # tools in scope and no gate on which one gets called (the assessment
         # path above is either fully deterministic via _render_assessment, or
         # its own instruction text already names presentation_generation
-        # explicitly). Require it when the ORIGINAL request text asked for a
-        # deck, so a model that defaults to Word anyway cannot finish without
-        # actually producing the requested pptx.
-        require_success = None
+        # explicitly). Require the generator the request actually named, so a
+        # model that defaults to Word anyway cannot finish without producing the
+        # requested file. The plan resolved that from the ORIGINAL request text
+        # (before draft wrapped it with retrieved context), and it already
+        # applies the coding guard — "write a script that emits a document" is a
+        # coding request that merely mentions a document.
+        require_success = self._job_plan.required_tool_success() or None
         content_validator = None
-        if assessment is None:
-            if PRESENTATION_INTENT_RE.search(task or ""):
-                require_success = {"presentation_generation"}
-            # Same reasoning as the deck gate above: only the no-assessment
-            # paths lack a structural length check (the assessment path
-            # renders deterministically or already writes full content from
-            # typed data, not free-text word count).
-            word_count_match = WORD_COUNT_RE.search(task or "")
-            if word_count_match:
-                content_validator = make_word_count_validator(int(word_count_match.group(1)))
+        # Same reasoning as the deck gate: only the no-assessment paths lack a
+        # structural length check (the assessment path renders deterministically
+        # or already writes full content from typed data, not free-text word
+        # count). A bare "write 1000 words" has no deliverable but still has a
+        # length, so this is not tied to the deliverable.
+        if self._job_plan.word_count:
+            content_validator = make_word_count_validator(self._job_plan.word_count)
+        # The default require_tool_success nudge is written for a numeric check
+        # ("no number may appear"), which is nonsense for a document generator.
+        # Name the tool's real contract instead.
+        generator_nudge = None
+        if require_success and require_success & _CONTENT_GENERATOR_TOOLS:
+            names = ", ".join(sorted(require_success))
+            generator_nudge = (
+                f"You have not produced the requested deliverable. Prose is not a "
+                f"deliverable: the file must actually be created by calling {names}. "
+                f"Call {names} now, following its argument schema — a filename with the "
+                "right extension, a title, and sections (or slides) holding the complete "
+                "content. Do not refuse and do not answer with prose alone."
+            )
         await self._ensure_reservation(job, model, route.requirements, trace=trace)
+        floor = len(trace)
         result = await self._agent.run(
             job, model=model, workspace=workspace, trace=trace,
             task_text=node_task,
             max_iterations=self._budgets["draft"], max_tool_calls=10,
             append_start=False, enforce_contracts=False, tool_names=NODE_TOOLS["draft"],
             require_tool_success=require_success,
+            require_tool_success_nudge=generator_nudge,
             content_validator=content_validator,
         )
         if _is_infrastructure_failure(result):
@@ -768,6 +974,35 @@ class NodeAgent:
         if result.status == AgentStatus.CANCELLED:
             raise NodeCancelledError()
         cursor += result.iterations
+        # A deliverable the model never actually produced: build it in Python
+        # from whatever the model wrote. This is the original bug — gpt-oss:20b
+        # answers "create a doc of 1000 words" in prose, makes zero tool calls,
+        # and the job ends with no deliverable after burning the whole budget.
+        # A tool call is still preferred when the model makes one, because the
+        # model picks a meaningful filename and title; Python is the backstop.
+        render = DELIVERABLE_RENDER.get(self._job_plan.deliverable)
+        if (
+            render is not None
+            and self._tools is not None
+            and self._tools.get(render[0]) is not None
+            and not _generator_succeeded(trace, floor, render[0])
+        ):
+            extra, rendered = await self._render_deliverable(
+                job, workspace, trace, task, model, route, result, context
+            )
+            cursor += extra
+            if rendered is None:
+                self._node_degraded(
+                    trace, "draft",
+                    "the requested deliverable could not be produced from the model's output",
+                    iterations=result.iterations, tool_calls=result.tool_calls,
+                )
+                return cursor, None
+            self._node_completed(
+                trace, "draft",
+                iterations=result.iterations, tool_calls=result.tool_calls,
+            )
+            return cursor, rendered
         if result.status != AgentStatus.COMPLETED:
             self._node_degraded(
                 trace, "draft", result.error or "draft did not complete",
@@ -832,6 +1067,158 @@ class NodeAgent:
         if refer:
             parts.append(f"refer courses {', '.join(refer)} for engineering review")
         return "; ".join(parts) or "No action required."
+
+    async def _render_deliverable(
+        self, job, workspace, trace, task, model, route, result, context
+    ):
+        """Build the requested file in Python from what the model produced.
+
+        The model had its chance to call the generator and did not. It may still
+        have written the material as prose (a normal ``final`` answer), in which
+        case that text is what gets rendered. If the run ended without any
+        usable text — the observed failure: the budget ran out mid-loop — one
+        tool-free pass asks for the material on its own, where the model is
+        being asked to write rather than to tool-call.
+
+        Returns ``(extra_iterations, response_or_None)``.
+        """
+        extra = 0
+        content = (result.response or "").strip()
+        if result.status != AgentStatus.COMPLETED or not content:
+            content, extra = await self._content_from_model(
+                job, workspace, trace, task, model, route, context
+            )
+            if not content:
+                return extra, None
+        rendered = await self._render_content(job, workspace, trace, content)
+        return extra, rendered
+
+    async def _content_from_model(self, job, workspace, trace, task, model, route, context):
+        """One constrained completion: the model writes the material, nothing else.
+
+        The agent loop is deliberately bypassed here. gpt-oss:20b emits native
+        calls to a builtin ``container.exec`` tool this app does not have, so
+        inside the loop it never settles on a final answer — it spends the whole
+        iteration budget and returns nothing, which is the original bug. A JSON
+        Schema passed as ``format`` constrains decoding to a ``{"content": ...}``
+        object, making a tool call structurally impossible to emit; measured
+        1381 words with '## ' headings for this exact request, first try.
+
+        Returns ``(content_or_None, iterations_used)``. This never consumes the
+        agent's loop budget, so the second element is always 0.
+        """
+        if self._ollama is None:
+            return None, 0
+        await self._ensure_reservation(job, model, route.requirements, trace=trace)
+        set_job_context(job_id=job.job_id, user_id=job.user_id, task_type=job.task_type)
+        messages = [
+            {"role": "system", "content": _CONTENT_SYSTEM},
+            {"role": "user", "content": self._content_instruction(task, context)},
+        ]
+        try:
+            raw, _calls, _used = await self._ollama.chat(
+                messages, model=model, format=CONTENT_SCHEMA
+            )
+        except OllamaServiceError as exc:
+            raise NodeInfrastructureError(
+                f"{exc.__class__.__name__}: {exc}"
+            ) from exc
+        content = _content_from_json(raw)
+        if content:
+            trace.append(
+                {
+                    "step": len(trace) + 1,
+                    "type": "content_generated",
+                    "model": model,
+                    "words": len(content.split()),
+                }
+            )
+        return content, 0
+
+    def _content_instruction(self, task: str, context: Optional[str]) -> str:
+        words = self._job_plan.word_count
+        length = (
+            f"Write at least {words} words. "
+            if words
+            else "Write a thorough, well-developed answer. "
+        )
+        grounded = (
+            f"\n\nUse only the material below; do not invent facts.\nRESULTS:\n{context}"
+            if context
+            else ""
+        )
+        return (
+            f"REQUEST:\n{task}{grounded}\n\n"
+            "Write the complete content of the requested document now. "
+            "Start each section with a line of the form '## Heading'. Do not "
+            "describe what you would write and do not ask questions — write the "
+            f"finished material. {length}"
+        )
+
+    async def _render_content(self, job, workspace, trace, content):
+        """Call the planned generator with sections parsed from ``content``.
+
+        Returns the response to report, or ``None`` if the generator failed.
+        """
+        tool_name, doc_type, extension = DELIVERABLE_RENDER[self._job_plan.deliverable]
+        tool = self._tools.get(tool_name)
+        sections = content_sections(content)
+        title = (job.message or "Document").strip()[:120]
+        filename = f"{deliverable_stem(job.message)}.{extension}"
+        if self._job_plan.deliverable == DELIVERABLE_SLIDES:
+            args = {
+                "type": "pptx",
+                "filename": filename,
+                "title": title,
+                "slides": content_slides(sections),
+            }
+        else:
+            args = {
+                "type": doc_type,
+                "filename": filename,
+                "title": title,
+                "document_type": "document",
+                "sections": sections,
+            }
+        set_job_context(job_id=job.job_id, user_id=job.user_id, task_type=job.task_type)
+        trace.append(
+            {
+                "step": len(trace) + 1,
+                "type": "tool_call",
+                "tool": tool_name,
+                "arguments": {"type": args.get("type"), "filename": filename, "title": title},
+            }
+        )
+        try:
+            result = await tool.execute(workspace, args)
+        except Exception as exc:
+            trace.append(
+                {
+                    "step": len(trace) + 1,
+                    "type": "tool_result",
+                    "tool": tool_name,
+                    "ok": False,
+                    "result_summary": str(exc)[:200],
+                }
+            )
+            logger.warning(
+                "draft_render_failed",
+                extra={"event": "draft_render_failed", "job_id": job.job_id, "error": str(exc)},
+            )
+            return None
+        self._tool_calls += 1
+        trace.append(
+            {
+                "step": len(trace) + 1,
+                "type": "tool_result",
+                "tool": tool_name,
+                "ok": result.ok,
+                "result_summary": result.summary,
+            }
+        )
+        if not result.ok:
+            return None
+        return result.summary or content
 
     async def _render_assessment(self, job, workspace, trace, assessment, findings, working):
         """Render all three deliverables from the assessment object in Python.

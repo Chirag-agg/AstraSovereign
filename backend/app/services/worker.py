@@ -18,6 +18,7 @@ from app.services.job_manager import JobManager
 from app.services.job_queue import JobQueue
 from app.services.capability_classifier import SemanticCapabilityClassifier
 from app.services.ollama_service import OllamaService, OllamaServiceError
+from app.services.plan_defaults import resolve
 from app.services.context import ContextManager
 from app.services.projects import CoworkProjects, ProjectLocks, ProjectNotFoundError
 from app.services.resource_scheduler import ResourceScheduler
@@ -41,6 +42,7 @@ class Worker:
         projects: Optional[CoworkProjects] = None,
         project_locks: Optional[ProjectLocks] = None,
         context_manager: Optional[ContextManager] = None,
+        planner: Optional[object] = None,
     ) -> None:
         self._queue = queue
         self._manager = manager
@@ -54,6 +56,11 @@ class Worker:
         self._projects = projects
         self._project_locks = project_locks
         self._context_manager = context_manager
+        # Optional PlanFiller (duck-typed: anything with
+        # `async fill(task, plan) -> JobPlan`). None is the default path — the
+        # plan is then the deterministic layer plus defaults, byte-identical to
+        # the behaviour before the model layer existed.
+        self._planner = planner
         self._task: Optional[asyncio.Task] = None
         self._state = "stopped"  # stopped | idle | running
         self._active_job_id: Optional[str] = None
@@ -179,10 +186,47 @@ class Worker:
                 task_text = self._context_manager.build_request(
                     job.user_id, job.project_id, job.message
                 )
+            # The one place the request is interpreted. Built from the final task
+            # text so a cowork project's context counts, then handed to the node
+            # sequence, which reads its activation and tool contracts from it
+            # rather than matching request text itself. Layers run in order —
+            # deterministic, then the optional model fill over the fields still
+            # unset, then defaults for whatever is left. The model never sees a
+            # settled field as a question and cannot overwrite one (fill's merge
+            # is escalation-only); with the planner off, this is exactly the
+            # deterministic plan plus defaults.
+            plan = resolve(task_text, classification.task_type)
+            if self._planner is not None:
+                plan = await self._planner.fill(task_text, plan)
+            plan = plan.with_defaults()
+            logger.info(
+                "plan_resolved",
+                extra={
+                    "event": "plan_resolved",
+                    "job_id": job_id,
+                    "user_id": job.user_id,
+                    "capability": plan.capability,
+                    "deliverable": plan.deliverable,
+                    "length_words": plan.length_words,
+                    "sources": {k: v.value for k, v in plan.sources.items()},
+                    "source_counts": plan.source_counts(),
+                },
+            )
+            if plan.disagreements:
+                logger.info(
+                    "plan_disagreement",
+                    extra={
+                        "event": "plan_disagreement",
+                        "job_id": job_id,
+                        "user_id": job.user_id,
+                        "disagreements": plan.disagreements,
+                    },
+                )
             if self._node_agent is not None:
                 manifest = await self._attachment_manifest(job)
                 agent_result = await self._node_agent.run(
-                    job, workspace, task_text=task_text, attachments=manifest
+                    job, workspace, task_text=task_text, attachments=manifest,
+                    job_plan=plan,
                 )
             else:
                 agent_result = await self._agent.run(

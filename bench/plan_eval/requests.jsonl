@@ -1,0 +1,40 @@
+{"id": "A01", "case": "implicit_deliverable", "task": "put together a two-pager on the last inspection", "expected": {"deliverable": "word", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "A02", "case": "implicit_deliverable", "task": "I need something to hand the auditor about the corrosion findings", "expected": {"deliverable": "word", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "A03", "case": "implicit_deliverable", "task": "summarise this for the client, they want a proper write-up", "expected": {"deliverable": "word", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "A04", "case": "implicit_deliverable", "task": "I am presenting to the review board next week, get me ready", "expected": {"deliverable": "slides", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "A05", "case": "implicit_deliverable", "task": "the team wants the readings laid out in a grid they can sort", "expected": {"deliverable": "excel", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "A06", "case": "implicit_deliverable", "task": "can you lay out the survey results side by side for the meeting", "expected": {"deliverable": "excel", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "A07", "case": "implicit_deliverable", "task": "we need a written record of this decision", "expected": {"deliverable": "word", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "A08", "case": "implicit_deliverable", "task": "produce the handover paperwork for vessel V-101", "expected": {"deliverable": "word", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "A09", "case": "implicit_deliverable", "task": "get the findings ready for circulation", "expected": {"deliverable": "word", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "A10", "case": "implicit_deliverable", "task": "make the inspection results presentable to management", "expected": {"deliverable": "slides", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "A11", "case": "implicit_deliverable", "task": "I have to submit a summary of the readings by Friday", "expected": {"deliverable": "word", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "A12", "case": "implicit_deliverable", "task": "assemble the survey data into something the client can flip through", "expected": {"deliverable": "slides", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "B01", "case": "chat_no_deliverable", "task": "what does corrosion allowance mean?", "expected": {"deliverable": "none", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "B02", "case": "chat_no_deliverable", "task": "explain the difference between API 650 and API 653", "expected": {"deliverable": "none", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "B03", "case": "chat_no_deliverable", "task": "thanks, that helps", "expected": {"deliverable": "none", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "B04", "case": "chat_no_deliverable", "task": "who are you?", "expected": {"deliverable": "none", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "B05", "case": "chat_no_deliverable", "task": "how do I improve my sleep?", "expected": {"deliverable": "none", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "B06", "case": "chat_no_deliverable", "task": "what is the capital of Australia?", "expected": {"deliverable": "none", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "C01", "case": "explicit_deliverable", "task": "make a pptx of the findings", "expected": {"deliverable": "slides", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "C02", "case": "explicit_deliverable", "task": "create a deck for the review", "expected": {"deliverable": "slides", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "C03", "case": "explicit_deliverable", "task": "build a spreadsheet of the corrosion rates", "expected": {"deliverable": "excel", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "C04", "case": "explicit_deliverable", "task": "write a report on the inspection", "expected": {"deliverable": "word", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "C05", "case": "explicit_deliverable", "task": "create a doc of 1000 words on merge sort", "expected": {"deliverable": "word", "length_words": 1000, "needs_documents": false, "needs_code": false}}
+{"id": "C06", "case": "explicit_deliverable", "task": "save the summary as notes.pptx", "expected": {"deliverable": "slides", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "C07", "case": "explicit_deliverable", "task": "put the numbers in results.xlsx", "expected": {"deliverable": "excel", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "C08", "case": "explicit_deliverable", "task": "write the findings to report.docx", "expected": {"deliverable": "word", "length_words": null, "needs_documents": false, "needs_code": false}}
+{"id": "C09", "case": "explicit_deliverable", "task": "generate a PDF of the procedure", "expected": {"deliverable": "word", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "C10", "case": "explicit_deliverable", "task": "make me a memo about the survey", "expected": {"deliverable": "word", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "D01", "case": "length", "task": "write 1000 words on merge sort", "expected": {"deliverable": "none", "length_words": 1000, "needs_documents": false, "needs_code": false}}
+{"id": "D02", "case": "length", "task": "write a 500 word report on the inspection", "expected": {"deliverable": "word", "length_words": 500, "needs_documents": true, "needs_code": false}}
+{"id": "D03", "case": "length", "task": "give me 300 words on corrosion", "expected": {"deliverable": "none", "length_words": 300, "needs_documents": true, "needs_code": false}}
+{"id": "D04", "case": "length", "task": "make a 750 word summary document of the readings", "expected": {"deliverable": "word", "length_words": 750, "needs_documents": true, "needs_code": false}}
+{"id": "E01", "case": "flags", "task": "reverse this string in python and test it", "expected": {"deliverable": "none", "length_words": null, "needs_documents": false, "needs_code": true}}
+{"id": "E02", "case": "flags", "task": "fix the bug in this function", "expected": {"deliverable": "none", "length_words": null, "needs_documents": false, "needs_code": true}}
+{"id": "E03", "case": "flags", "task": "write a python script that emits a report.docx", "expected": {"deliverable": "none", "length_words": null, "needs_documents": false, "needs_code": true}}
+{"id": "E04", "case": "flags", "task": "check the two files I sent", "expected": {"deliverable": "none", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "E05", "case": "flags", "task": "compare the attached procedure with the report", "expected": {"deliverable": "none", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "E06", "case": "flags", "task": "what does the nameplate say about the design pressure?", "expected": {"deliverable": "none", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "E07", "case": "flags", "task": "compute the corrosion rate from these readings", "expected": {"deliverable": "none", "length_words": null, "needs_documents": true, "needs_code": false}}
+{"id": "E08", "case": "flags", "task": "extract the survey dates from these inspection reports", "expected": {"deliverable": "none", "length_words": null, "needs_documents": true, "needs_code": false}}

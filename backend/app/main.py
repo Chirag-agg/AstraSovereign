@@ -59,6 +59,7 @@ from app.services.multimodal import MultimodalService
 from app.services.network_guard import NetworkGuard, make_guarded_transport
 from app.services.ocr_provider import OCRProvider, RapidOCREngine
 from app.services.ollama_service import OllamaService
+from app.services.plan_filler import PlanFiller
 from app.services.projects import CoworkProjects, ProjectLocks
 from app.services.resource_provider import InMemoryResourceProvider, LocalResourceProvider
 from app.services.resource_scheduler import InMemoryResourceScheduler
@@ -318,12 +319,17 @@ def create_app(
 
     ``dev_header_auth``: when True, ``deps.get_session`` falls back to
     trusting a raw ``X-User-ID``/``X-Role`` header when no valid session
-    cookie is present. This can ONLY be set here, by a call site in source
-    (see ``tests/conftest.py``) — never from configuration or environment —
-    so the production app (the bare ``create_app()`` below) can never fall
-    back to trusting a client-supplied header. Defaults to False.
+    cookie is present. It is set two ways: here, by a call site in source
+    (see ``tests/conftest.py``), or by ``settings.demo_mode``, which is the
+    single configuration switch that opens the app with authentication off.
+    Either way the app then trusts a client-supplied header, so both are off
+    by default and ``demo_mode`` is only ever turned on deliberately for a
+    local demo.
     """
     settings = settings or get_settings()
+    # Demo mode and the test seam are the same mechanism; the setting exists so
+    # a demo can be switched on without a source change.
+    dev_header_auth = dev_header_auth or settings.demo_mode
     setup_logging(settings)
     audit_store = SqliteAuditStore(settings.database_path)
     set_audit_store(audit_store)
@@ -344,22 +350,30 @@ def create_app(
     network_guard = NetworkGuard(allowed_hosts={_base_url_host(settings.ollama_base_url)})
     guarded_transport = make_guarded_transport(ollama_transport, network_guard)
 
-    ollama_options = (
-        {"temperature": 0.0, "seed": settings.bench_seed}
-        if settings.bench_mode
-        else None
-    )
+    if model_registry is None:
+        model_registry = ModelRegistry.from_file(
+            settings.models_config, profile=settings.model_profile or None
+        )
+
+    # A context window is requested on every call. Ollama's own default (4096) is
+    # smaller than this app's system prompt plus one tool result, which is what
+    # produced intermittent HTTP 500s; a model whose KV cache is unusually cheap
+    # or expensive overrides it in config/models.yaml.
+    ollama_options = {
+        "num_ctx": settings.ollama_num_ctx,
+        "num_predict": settings.ollama_num_predict,
+    }
+    if settings.bench_mode:
+        ollama_options.update({"temperature": 0.0, "seed": settings.bench_seed})
     ollama_service = OllamaService(
         base_url=settings.ollama_base_url,
         default_model=settings.default_model,
-        timeout_seconds=settings.ollama_timeout_seconds,
         transport=guarded_transport,
         options=ollama_options,
         keep_alive=settings.ollama_keep_alive,
+        model_options=model_registry.model_options(),
+        min_num_predict=settings.ollama_num_predict_min,
     )
-
-    if model_registry is None:
-        model_registry = ModelRegistry.from_file(settings.models_config)
 
     vision_config = model_registry.get("vision")
 
@@ -510,6 +524,8 @@ def create_app(
         model_client=ollama_service,
         max_iterations=settings.max_agent_iterations,
         max_tool_calls=settings.max_agent_tool_calls,
+        prompt_trim_ratio=settings.ollama_prompt_trim_ratio,
+        max_overflow_retries=settings.ollama_max_overflow_retries,
     )
 
     capability_router = CapabilityRouter(registry=model_registry)
@@ -553,6 +569,14 @@ def create_app(
         projects=projects,
         project_locks=project_locks,
         context_manager=context_manager,
+        # Built only when switched on: with the layer off there is no second
+        # model call and the plan is exactly what the deterministic layer plus
+        # defaults produced.
+        planner=(
+            PlanFiller(ollama_service, model=settings.planner_model)
+            if settings.planner_enabled
+            else None
+        ),
     )
 
     app = FastAPI(
@@ -612,6 +636,11 @@ def create_app(
             allow_credentials=True,
             allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
             allow_headers=["Content-Type", "X-User-ID", "X-Role"],
+            # Content-Disposition carries the download's real filename, and it is
+            # not a CORS-safelisted response header: without exposing it the
+            # browser hides it from the frontend, which then names the saved file
+            # generically — a .pptx saved as .docx will not open.
+            expose_headers=["Content-Disposition"],
         )
 
     app.include_router(auth_router)
