@@ -67,6 +67,7 @@ DOCUMENT_CONTENT_TOOLS = {
     "read_document",
     "document_vision",
     "document_exact_search",
+    "recall_work",
 }
 
 
@@ -102,8 +103,8 @@ class Agent:
         manager: JobManager,
         tool_registry: ToolRegistry,
         model_client: OllamaService,
-        max_iterations: int = 10,
-        max_tool_calls: int = 20,
+        max_iterations: int = 30,
+        max_tool_calls: int = 50,
         prompt_trim_ratio: float = 0.85,
         max_overflow_retries: int = 3,
     ) -> None:
@@ -172,7 +173,14 @@ class Agent:
         if append_start:
             self._append(trace, "agent_started", task_type=job.task_type, model=model)
             await self._sync(job_id, trace, stage, iterations, tool_calls)
-        set_job_context(job_id=job_id, user_id=user_id, task_type=job.task_type, model=model)
+        set_job_context(
+            job_id=job_id,
+            user_id=user_id,
+            task_type=job.task_type,
+            model=model,
+            workspace_ids=[job.project_id] if job.project_id else None,
+            classifications=[job.classification] if job.classification else None,
+        )
         logger.info(
             "agent_started",
             extra={
@@ -969,6 +977,57 @@ class Agent:
             trimmed[index] = {**message, "content": first_line + TRIM_PLACEHOLDER}
         return trimmed
 
+    @staticmethod
+    def _compact_older_history(
+        messages: list[dict], keep_recent: int = 4
+    ) -> list[dict]:
+        """Compact older history turns into an aggregated summary when conversations span many iterations.
+
+        Preserves:
+        1. System prompt (messages[0])
+        2. Original user task (messages[1])
+        3. Compact progress summary of intermediate tool actions
+        4. The most recent `keep_recent` active turns
+        """
+        if len(messages) <= 2 + keep_recent:
+            return messages
+
+        head = messages[:2]
+        tail = messages[-keep_recent:]
+        middle = messages[2:-keep_recent]
+
+        if not middle:
+            return messages
+
+        step_notes = []
+        for msg in middle:
+            role = msg.get("role")
+            if role == "tool":
+                content = str(msg.get("content", ""))
+                first_line = content.split("\n", 1)[0]
+                if first_line:
+                    step_notes.append(f"- {first_line}")
+            elif role == "assistant" and msg.get("tool_calls"):
+                for tc in msg.get("tool_calls", []):
+                    fn = tc.get("function", {}) if isinstance(tc, dict) else {}
+                    name = fn.get("name") or (tc.get("name") if isinstance(tc, dict) else "")
+                    if name:
+                        step_notes.append(f"- Executed tool `{name}`")
+
+        deduped_notes = []
+        for note in step_notes:
+            if not deduped_notes or deduped_notes[-1] != note:
+                deduped_notes.append(note)
+
+        summary_text = (
+            "[Context compacted for earlier iterations]\n"
+            "Summary of prior actions:\n"
+            + ("\n".join(deduped_notes[-15:]) if deduped_notes else "- Prior turns completed.")
+        )
+        summary_msg = {"role": "user", "content": summary_text}
+
+        return head + [summary_msg] + tail
+
     def _trim_to_fit(
         self,
         messages: list[dict],
@@ -978,27 +1037,35 @@ class Agent:
     ) -> list[dict]:
         """Trim oldest results until the estimate is under the usable window.
 
-        Trims repeatedly (each round keeping one fewer recent result) rather
-        than once per overflow, so a single pass has a real chance of getting
-        under the line. With no known window there is nothing to measure
-        against, so exactly one round is applied — still the same loss made
-        visible here instead of silently server-side.
+        Applies progressive multi-tier compaction:
+        Tier 1: Trim tool output bodies down to single-line summaries.
+        Tier 2: Tighter keep_recent observation window.
+        Tier 3: Aggregate older turns into a compact history digest while preserving
+                system prompt, original task, and active working turns.
         """
         target = int(num_ctx * self._prompt_trim_ratio) if num_ctx else 0
         result = messages
-        while keep_recent >= 0:
+        kr = keep_recent
+        while kr >= 0:
             if num_ctx and estimate_prompt_tokens(result, tools) <= target:
-                break
-            candidate = self._trim_oldest_observations(result, keep_recent)
-            keep_recent -= 1
-            # A round that freed nothing (its keep-window already covered every
-            # message) still steps in, so a short conversation reaches a tighter
-            # window instead of giving up on the first no-op.
+                return result
+            candidate = self._trim_oldest_observations(result, kr)
+            kr -= 1
             if candidate == result:
                 continue
             result = candidate
             if not num_ctx:
                 break
+
+        # Tier 3: If still overflowing on deep iterations, apply sliding window history compaction
+        if num_ctx and estimate_prompt_tokens(result, tools) > target:
+            for active_tail in (4, 3, 2):
+                compacted = self._compact_older_history(result, keep_recent=active_tail)
+                if estimate_prompt_tokens(compacted, tools) <= target or compacted != result:
+                    result = compacted
+                if estimate_prompt_tokens(result, tools) <= target:
+                    break
+
         return result
 
     def _system_prompt(self) -> str:

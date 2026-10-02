@@ -107,6 +107,7 @@ def build_attachment_manifest(
             "media_type": media_type_for(document.document_type),
             "kind": kind_for(document),
             "pages": (document.metadata or {}).get("page_count"),
+            "vlm_summary": (document.metadata or {}).get("vlm_summary"),
         }
         if extraction_lookup is not None:
             text = extraction_lookup(document) or ""
@@ -144,6 +145,8 @@ def render_attachment_block(manifest: list[dict]) -> str:
         lines.append(f"    media_type: {item['media_type']}")
         lines.append(f"    kind: {item['kind']}")
         lines.append(f"    pages: {pages if pages is not None else 'unknown'}")
+        if item.get("vlm_summary"):
+            lines.append(f"    vlm_summary: {item['vlm_summary']}")
         content = item.get("content")
         if content:
             lines.append("    content:")

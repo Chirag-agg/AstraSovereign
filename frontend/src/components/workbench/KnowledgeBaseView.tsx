@@ -58,7 +58,7 @@ export default function KnowledgeBaseView({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [wordWrap, setWordWrap] = useState(true);
-  const [activeTab, setActiveTab] = useState<"document" | "metadata">("document");
+  const [activeTab, setActiveTab] = useState<"document" | "ocr" | "metadata">("document");
 
   useEffect(() => {
     let alive = true;
@@ -317,6 +317,26 @@ export default function KnowledgeBaseView({
                         <span className="font-mono uppercase" style={{ fontSize: 10.5, letterSpacing: "0.08em", color: "var(--signal)" }}>
                           {doc.filename.split(".").pop() || "file"}
                         </span>
+                        <span className="flex items-center gap-1 mt-1">
+                          {doc.ocr_processed && (
+                            <span
+                              title="OCR processed"
+                              className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded font-mono uppercase"
+                              style={{ fontSize: 9, letterSpacing: "0.06em", background: "var(--surface)", border: "1px solid var(--carbon)", color: "var(--stone)" }}
+                            >
+                              <Layers className="w-2.5 h-2.5" />OCR
+                            </span>
+                          )}
+                          {doc.vlm_summary && (
+                            <span
+                              title={doc.vlm_summary}
+                              className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded font-mono uppercase"
+                              style={{ fontSize: 9, letterSpacing: "0.06em", background: "var(--surface)", border: "1px solid var(--carbon)", color: "var(--signal)" }}
+                            >
+                              <Eye className="w-2.5 h-2.5" />VLM
+                            </span>
+                          )}
+                        </span>
                       </td>
                       <td className="font-mono tnum" style={{ color: "var(--stone)" }}>
                         {doc.chunk_count > 0 ? doc.chunk_count.toLocaleString() : "—"}
@@ -394,6 +414,15 @@ export default function KnowledgeBaseView({
                     }`}
                   >
                     Full File
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("ocr")}
+                    className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
+                      activeTab === "ocr" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    OCR &amp; Vision Text
                   </button>
                   <button
                     type="button"
@@ -497,7 +526,7 @@ export default function KnowledgeBaseView({
                         Ingestion Engine
                       </span>
                       <span className="font-bold text-slate-800 text-sm">
-                        Local Air-Gap Ingestion
+                        {previewDoc.ocr_processed ? "OCR + Vector Index" : "Local Air-Gap Ingestion"}
                       </span>
                     </div>
 
@@ -511,6 +540,26 @@ export default function KnowledgeBaseView({
                     </div>
                   </div>
 
+                  {previewDoc.vlm_summary && (
+                    <div className="p-5 rounded-2xl bg-purple-50 border border-purple-200 shadow-2xs space-y-1.5">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Eye className="w-3.5 h-3.5 text-purple-500" />
+                        <h4 className="font-bold text-purple-800 text-xs uppercase tracking-wide">VLM Document Summary</h4>
+                        <span className="ml-auto text-[10px] font-mono text-purple-400 bg-purple-100 px-1.5 py-0.5 rounded">cached · reused in chat</span>
+                      </div>
+                      <p className="text-purple-700 text-xs leading-relaxed">{previewDoc.vlm_summary}</p>
+                    </div>
+                  )}
+
+                  {previewDoc.unreadable_pages && previewDoc.unreadable_pages.length > 0 && (
+                    <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200 shadow-2xs space-y-1.5">
+                      <h4 className="font-bold text-amber-800 text-xs uppercase tracking-wide mb-1">⚠ Unreadable Pages</h4>
+                      <p className="text-amber-700 text-xs">
+                        OCR could not extract text from page(s): <span className="font-mono font-bold">{previewDoc.unreadable_pages.join(", ")}</span>. The document is indexed as partial.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2">
                     <h4 className="font-bold text-slate-800 text-xs">Vector Store & Retrieval Specification</h4>
                     <p className="text-slate-600 leading-relaxed text-xs">
@@ -519,6 +568,93 @@ export default function KnowledgeBaseView({
                     </p>
                   </div>
                 </div>
+              ) : activeTab === "ocr" ? (
+                previewText !== null || previewUrl ? (
+                  <div className="w-full h-full flex flex-col bg-white overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-purple-50 text-[11px] font-mono text-purple-900 shrink-0">
+                      <span className="font-semibold flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-purple-600" />
+                        OCR &amp; Vision Collected Images &amp; Extracted Text
+                        {previewText && ` · ${previewText.split("\n").length} lines · ${previewText.trim().split(/\s+/).filter(Boolean).length} words`}
+                      </span>
+                      <span className="text-purple-500">Multimodal Pipeline Data</span>
+                    </div>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-6 bg-slate-50">
+                      {/* VLM Image + Description Panel */}
+                      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                            <Eye className="w-4 h-4 text-purple-600" />
+                            Document Vision Image &amp; Description
+                          </h4>
+                          {previewDoc.vlm_summary && (
+                            <span className="text-[10px] font-mono text-purple-600 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+                              VLM Analyzed
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                          {previewUrl ? (
+                            <div className="md:col-span-1 border border-slate-200 rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center p-2 h-48">
+                              {previewType === "pdf" ? (
+                                <iframe src={previewUrl} className="w-full h-full border-0 rounded" title="PDF Page Render" />
+                              ) : (
+                                <img src={previewUrl} alt="Collected OCR/VLM page" className="max-w-full max-h-full object-contain rounded" />
+                              )}
+                            </div>
+                          ) : (
+                            <div className="md:col-span-1 border border-slate-200 rounded-xl bg-slate-100 flex items-center justify-center h-48 text-slate-400 text-xs font-mono">
+                              No page image available
+                            </div>
+                          )}
+
+                          <div className="md:col-span-2 space-y-2">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                              VLM Generated Description
+                            </span>
+                            <div className="p-3 bg-purple-50/60 border border-purple-100 rounded-xl text-xs text-purple-900 leading-relaxed">
+                              {previewDoc.vlm_summary || "No VLM caption was cached for this document. If this is a scanned document, re-upload to trigger automatic VLM captioning."}
+                            </div>
+
+                            {previewDoc.unreadable_pages && previewDoc.unreadable_pages.length > 0 && (
+                              <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                                ⚠ Unreadable pages flagged during OCR: {previewDoc.unreadable_pages.join(", ")}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* OCR Extracted Text Section */}
+                      {previewText !== null && (
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
+                          <div className="px-4 py-2 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-700 flex items-center justify-between">
+                            <span>Extracted OCR Line Text</span>
+                            <span className="font-mono text-[10px] text-slate-400">Indexed Tokens</span>
+                          </div>
+
+                          <div className="p-4 font-mono text-xs text-slate-700 max-h-96 overflow-y-auto">
+                            <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-slate-700">
+                              {previewText}
+                            </pre>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-20 px-6 text-center space-y-3 m-auto">
+                    <FileCode className="w-12 h-12 text-[var(--accent)] mx-auto opacity-70" />
+                    <h4 className="text-sm font-bold text-slate-800">
+                      No Extracted Text Found
+                    </h4>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      This document has no recognized text layer or OCR output.
+                    </p>
+                  </div>
+                )
               ) : previewType === "pdf" && previewUrl ? (
                 <div className="w-full h-full flex flex-col p-2">
                   <iframe

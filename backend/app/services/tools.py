@@ -13,6 +13,7 @@ registered with the ArtifactStore.
 """
 
 import asyncio
+import json
 import logging
 import re
 import time
@@ -24,7 +25,7 @@ from typing import Any, Optional, Union
 from pydantic import BaseModel, ValidationError
 
 from app.schemas.artifact import Artifact, ArtifactStatus
-from app.schemas.findings import FindingsObject
+from app.schemas.findings import AssessmentResult, FindingsObject
 from app.schemas.document_content import (
     ApprovalNote,
     ApprovalSignature,
@@ -46,15 +47,21 @@ from app.services.image_resolution import (
     parse_image_reference,
     resolve_image_source,
 )
-from app.services.image_normalization import render_data_uri
+from app.services.image_normalization import (
+    ImageNormalizationError,
+    render_data_uri,
+    render_data_uri_normalized,
+)
 from app.services.presentation_renderer import PresentationRenderError
 from app.services.knowledge_base import KnowledgeBase
 from app.services.log_context import get_job_context
+from app.services.memory_recall import MemoryRecall
 from app.services.multimodal import MultimodalError, MultimodalService
 from app.services.resource_scheduler import ResourceScheduler
 from app.services.ollama_service import OllamaService
 from app.services.sandbox_runner import ExecutionResult, SandboxRunner, SandboxRunnerError
 from app.services.workspace import WorkspaceError, resolve_within_workspace
+from app.services import refinery_figures as _rfig
 
 logger = logging.getLogger("app.tools")
 
@@ -642,6 +649,70 @@ class ReadDocumentTool(BaseTool):
         )
 
 
+class RecallWorkTool(BaseTool):
+    """Recall the current user's prior jobs and generated artifacts."""
+
+    name = "recall_work"
+    description = (
+        "Recall the user's prior work by searching job messages, attached document "
+        "filenames, and generated artifact names. With no query, return recent work."
+    )
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string"},
+            "since": {"type": "string"},
+            "limit": {"type": "integer"},
+        },
+        "additionalProperties": False,
+    }
+
+    def __init__(self, recall: MemoryRecall) -> None:
+        self._recall = recall
+
+    async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
+        from datetime import datetime
+
+        ctx = get_job_context()
+        user_id = ctx.get("user_id")
+        if not user_id:
+            raise ToolError("recall_work requires a user context")
+        query = str(arguments.get("query", "")).strip()
+        since_value = arguments.get("since")
+        try:
+            since = datetime.fromisoformat(since_value) if since_value else None
+        except ValueError as exc:
+            raise ToolError("since must be an ISO-8601 timestamp") from exc
+        limit = max(0, min(int(arguments.get("limit", 10)), 100))
+        scope = {
+            "workspace_ids": ctx.get("workspace_ids"),
+            "classifications": ctx.get("classifications"),
+        }
+        if query:
+            results = await self._recall.find_work(
+                user_id, query, since=since, limit=limit, **scope
+            )
+        else:
+            results = await self._recall.recent_work(user_id, limit, **scope)
+        logger.info(
+            "recall_work_completed",
+            extra={
+                "event": "recall_work",
+                "user_id": user_id,
+                "job_id": ctx.get("job_id"),
+                "query": query,
+                "result_count": len(results),
+            },
+        )
+        if not results:
+            return ToolResult(ok=True, summary="Nothing found", content="Nothing found")
+        return ToolResult(
+            ok=True,
+            summary=f"Found {len(results)} prior job(s)",
+            content=json.dumps(results, ensure_ascii=True, indent=2),
+        )
+
+
 class DocumentExactSearchTool(BaseTool):
     """Literal/regex search across all of the user's ingested documents.
 
@@ -1045,12 +1116,46 @@ def _validate_document_section(raw: Any) -> DocumentSection:
     if not isinstance(numbered, list) or not all(isinstance(item, str) for item in numbered):
         raise ToolError("section 'numbered' must be an array of strings")
 
-    table = raw.get("table", [])
-    if not isinstance(table, list) or not all(
-        isinstance(row, list) and all(isinstance(cell, str) for cell in row)
-        for row in table
-    ):
+    table_raw = raw.get("table", [])
+    if isinstance(table_raw, dict):
+        if "rows" in table_raw and isinstance(table_raw["rows"], list):
+            rows = table_raw["rows"]
+            headers = table_raw.get("headers")
+            if isinstance(headers, list) and headers and (not rows or headers != rows[0]):
+                table_raw = [headers] + rows
+            else:
+                table_raw = rows
+        elif "columns" in table_raw and isinstance(table_raw["columns"], list):
+            cols = table_raw["columns"]
+            if cols and all(isinstance(c, list) for c in cols):
+                max_len = max(len(c) for c in cols)
+                table_raw = [[str(c[r]) if r < len(c) else "" for c in cols] for r in range(max_len)]
+            else:
+                table_raw = []
+        elif "data" in table_raw and isinstance(table_raw["data"], list):
+            table_raw = table_raw["data"]
+        else:
+            table_raw = []
+
+    if isinstance(table_raw, list) and table_raw and all(isinstance(r, dict) for r in table_raw):
+        keys = list(table_raw[0].keys())
+        table_raw = [keys] + [[str(r.get(k, "")) for k in keys] for r in table_raw]
+
+    if not isinstance(table_raw, list):
         raise ToolError("section 'table' must be an array of arrays of strings")
+
+    table: list[list[str]] = []
+    for row in table_raw:
+        if isinstance(row, list):
+            cells = [str(cell) if cell is not None else "" for cell in row]
+            if any(c.strip() for c in cells):
+                table.append(cells)
+            elif not row:
+                # Bare empty row []
+                table.append([])
+        elif row is not None and str(row).strip():
+            table.append([str(row)])
+
     # A row with no cells makes the grid width zero: the generators would emit a
     # table with no columns, which still opens, so it must be rejected here.
     if any(not row for row in table):
@@ -1089,13 +1194,11 @@ class DocumentGenerationTool(BaseTool):
     name = "document_generation"
     description = (
         "Generate a deliverable document from structured content. Supports Word "
-        "(.docx) and Excel (.xlsx). Arguments: type ('word'|'excel'), filename, "
-        "title, sections (each with heading/content/paragraphs/bullets/numbered/"
-        "table/images), optional sources, and optional approval (formal "
-        "approval-note fields). Images are embedded in Word and Excel; name each "
-        "one by doc_id (an image document from the attachments list) or by a "
-        "workspace-relative path. A PDF attachment supplies a page as a figure "
-        "by setting 'page' alongside its doc_id. Returns artifact metadata."
+        "(.docx) and Excel (.xlsx). (Note: For PowerPoint .pptx presentations, "
+        "use the 'presentation_generation' tool instead). Arguments: type ('word'|'excel'), "
+        "filename, title, sections (each with heading/content/paragraphs/bullets/"
+        "numbered/table/images), optional sources, and optional approval fields. "
+        "Returns artifact metadata."
     )
     input_schema = {
         "type": "object",
@@ -1115,8 +1218,7 @@ class DocumentGenerationTool(BaseTool):
                         "bullets": {"type": "array", "items": {"type": "string"}},
                         "numbered": {"type": "array", "items": {"type": "string"}},
                         "table": {
-                            "type": "array",
-                            "items": {"type": "array", "items": {"type": "string"}},
+                            "description": "Table grid as a 2D array of string cells [[col1, col2], [val1, val2]], or an object with rows/columns.",
                         },
                         "images": {
                             "type": "array",
@@ -1198,8 +1300,13 @@ class DocumentGenerationTool(BaseTool):
             raise ToolError("title must not be empty")
 
         document_label = str(arguments.get("document_type") or "document").strip()
+        raw_sections = arguments.get("sections")
+        if isinstance(raw_sections, dict):
+            raw_sections = [raw_sections]
+        elif not isinstance(raw_sections, list):
+            raise ToolError("sections must be an array of section objects")
         sections = [
-            _validate_document_section(raw) for raw in arguments["sections"]
+            _validate_document_section(raw) for raw in raw_sections
         ]
         for section in sections:
             for image in section.images:
@@ -1562,6 +1669,23 @@ class PresentationGenerationTool(BaseTool):
         for slide in slides:
             if not isinstance(slide, dict):
                 continue
+            # Pre-sanitize columns if present as dict objects (e.g. LLM passing dicts instead of strings)
+            if "columns" in slide and isinstance(slide["columns"], list):
+                sanitized_cols = []
+                for col in slide["columns"]:
+                    if isinstance(col, dict):
+                        heading = col.get("heading") or col.get("title") or ""
+                        body = col.get("body") or col.get("content") or col.get("text") or ""
+                        bullets = col.get("bullets") or []
+                        bullet_str = "\n".join(f"• {b}" for b in bullets if b)
+                        parts = [p for p in (heading, body, bullet_str) if p]
+                        sanitized_cols.append("\n\n".join(parts) if parts else str(col))
+                    elif isinstance(col, str):
+                        sanitized_cols.append(col)
+                    else:
+                        sanitized_cols.append(str(col))
+                slide["columns"] = sanitized_cols
+
             raw_image = slide.get("image")
             if raw_image is None:
                 continue
@@ -1578,10 +1702,18 @@ class PresentationGenerationTool(BaseTool):
                 )
             except ImageResolutionError as exc:
                 raise ToolError(str(exc)) from exc
-            data_uri = render_data_uri(resolved)
-            source = {"data": data_uri} if data_uri else {"path": str(resolved)}
+            # Normalize through the PPTX pipeline: cap long edge at 1600 px
+            # and re-encode to PNG, rejecting anything that isn't PNG/JPEG
+            # after round-tripping.  render_data_uri_normalized always returns
+            # a string (never None) so the slide always carries ``data``.
+            try:
+                data_uri = render_data_uri_normalized(resolved)
+            except ImageNormalizationError as exc:
+                raise ToolError(
+                    f"image normalization failed: {exc}"
+                ) from exc
             slide["image"] = {
-                **source,
+                "data": data_uri,
                 "caption": raw_image.get("caption", ""),
                 "width_inches": raw_image.get("width_inches"),
             }
@@ -1739,3 +1871,146 @@ class PresentationGenerationTool(BaseTool):
         raise PresentationRenderError(
             "presentation generation resources not available within the wait limit"
         )
+
+
+class RefineryFiguresTool(BaseTool):
+    """Generate deterministic evidence figures for a refinery inspection deck.
+
+    Produces up to three PNG figures from the typed findings / assessment
+    objects — no model call, no network access, no generated imagery:
+
+    - ``thickness_chart``  — bar chart of measured shell thickness per course
+      with the retirement-limit line drawn as a dashed overlay.
+    - ``life_timeline``    — horizontal timeline of remaining life per course
+      with next-inspection tick marks.
+    - ``schematic``        — simplified cylindrical tank silhouette with
+      per-course band colouring and thickness callouts.
+
+    Each figure is written as a PNG into ``artifacts/figures/`` inside the job
+    workspace.  The tool returns the workspace-relative paths so they can be
+    passed directly to ``presentation_generation`` as slide image references.
+    """
+
+    name = "generate_refinery_figures"
+    description = (
+        "Generate up to three deterministic evidence figures (PNG) for a "
+        "refinery inspection deck from the typed findings and assessment objects. "
+        "Figures: 'thickness_chart' (bar chart of shell thickness per course with "
+        "retirement-limit line), 'life_timeline' (remaining-life horizontal timeline), "
+        "'schematic' (tank silhouette with course colouring and callouts). "
+        "Pass 'figures' as a list of figure names to generate (default: all three). "
+        "Returns workspace-relative PNG paths for use in presentation_generation image fields."
+    )
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "findings": {
+                "type": "object",
+                "description": "FindingsObject serialised as JSON (tank, geometry, readings, ...).",
+            },
+            "assessment": {
+                "type": "object",
+                "description": (
+                    "AssessmentResult serialised as JSON (min_thickness_mm, "
+                    "alert_thickness_mm, courses: [{course, current_mm, status, ...}]). "
+                    "Optional for 'schematic'; required for 'thickness_chart' and "
+                    "'life_timeline'."
+                ),
+            },
+            "figures": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Which figures to generate. Valid values: 'thickness_chart', "
+                    "'life_timeline', 'schematic'. Defaults to all three."
+                ),
+            },
+        },
+        "required": ["findings"],
+        "additionalProperties": False,
+    }
+
+    _ALL_FIGURES = ("thickness_chart", "life_timeline", "schematic")
+
+    async def execute(self, workspace: Path, arguments: dict[str, Any]) -> ToolResult:
+        raw_findings = arguments.get("findings")
+        if not isinstance(raw_findings, dict):
+            raise ToolError("'findings' must be an object")
+        try:
+            findings = FindingsObject.model_validate(raw_findings)
+        except Exception as exc:
+            raise ToolError(f"invalid findings object: {exc}") from exc
+
+        raw_assessment = arguments.get("assessment")
+        assessment: Optional[AssessmentResult] = None
+        if raw_assessment is not None:
+            if not isinstance(raw_assessment, dict):
+                raise ToolError("'assessment' must be an object")
+            try:
+                assessment = AssessmentResult.model_validate(raw_assessment)
+            except Exception as exc:
+                raise ToolError(f"invalid assessment object: {exc}") from exc
+
+        requested = arguments.get("figures") or list(self._ALL_FIGURES)
+        if not isinstance(requested, list):
+            raise ToolError("'figures' must be an array of strings")
+        unknown = set(requested) - set(self._ALL_FIGURES)
+        if unknown:
+            raise ToolError(
+                f"unknown figure(s): {', '.join(sorted(unknown))}; "
+                f"valid: {', '.join(self._ALL_FIGURES)}"
+            )
+
+        # Write figures into <workspace>/artifacts/figures/
+        figures_dir = workspace / "artifacts" / "figures"
+        figures_dir.mkdir(parents=True, exist_ok=True)
+
+        generated: dict[str, str] = {}
+        errors: list[str] = []
+
+        for fig_name in requested:
+            try:
+                png_data = self._render(fig_name, findings, assessment)
+            except Exception as exc:
+                errors.append(f"{fig_name}: {exc}")
+                continue
+            rel_path = f"artifacts/figures/{fig_name}.png"
+            out = figures_dir / f"{fig_name}.png"
+            out.write_bytes(png_data)
+            generated[fig_name] = rel_path
+
+        if not generated and errors:
+            raise ToolError("all figures failed: " + "; ".join(errors))
+
+        lines = ["Generated refinery figures:"]
+        for fig_name, rel_path in generated.items():
+            lines.append(f"  {fig_name}: {rel_path}")
+        if errors:
+            lines.append("Partial failures (some figures skipped):")
+            for err in errors:
+                lines.append(f"  {err}")
+
+        paths_summary = ", ".join(f"{k}='{v}'" for k, v in generated.items())
+        return ToolResult(
+            ok=True,
+            summary=f"Generated {len(generated)} refinery figure(s): {paths_summary}",
+            content="\n".join(lines),
+        )
+
+    @staticmethod
+    def _render(
+        name: str,
+        findings: FindingsObject,
+        assessment: Optional[AssessmentResult],
+    ) -> bytes:
+        if name == "thickness_chart":
+            if assessment is None:
+                raise ValueError("'thickness_chart' requires an assessment object")
+            return _rfig.thickness_bar_chart(findings, assessment)
+        if name == "life_timeline":
+            if assessment is None:
+                raise ValueError("'life_timeline' requires an assessment object")
+            return _rfig.remaining_life_timeline(assessment)
+        if name == "schematic":
+            return _rfig.equipment_schematic(findings, assessment)
+        raise ValueError(f"unknown figure '{name}'")

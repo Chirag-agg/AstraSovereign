@@ -13,36 +13,48 @@ const fs = require("fs");
 
 const THEMES = {
   executive: {
-    bg: "FFFFFF",
+    bg: "F8FAFC",
+    cardBg: "FFFFFF",
+    cardBorder: "E2E8F0",
     accent: "1F3B57",
-    accent2: "B7791F",
-    text: "1A2733",
-    muted: "5A6B7B",
-    light: "EEF3F8",
+    accent2: "D97706",
+    text: "0F172A",
+    muted: "475569",
+    light: "F1F5F9",
+    tagBg: "EFF6FF",
   },
   technical: {
-    bg: "FFFFFF",
-    accent: "123B6B",
-    accent2: "0F7A5C",
-    text: "17212B",
-    muted: "4A5A68",
-    light: "EAF1FA",
+    bg: "F8FAFC",
+    cardBg: "FFFFFF",
+    cardBorder: "CBD5E1",
+    accent: "0F4C81",
+    accent2: "0D9488",
+    text: "0F172A",
+    muted: "475569",
+    light: "F0FDFA",
+    tagBg: "F0F9FF",
   },
   report: {
-    bg: "FFFFFF",
-    accent: "7047EB",
-    accent2: "0E7490",
-    text: "1E293B",
-    muted: "64748B",
-    light: "F1EDFB",
+    bg: "F8FAFC",
+    cardBg: "FFFFFF",
+    cardBorder: "E2E8F0",
+    accent: "6D28D9",
+    accent2: "0284C7",
+    text: "0F172A",
+    muted: "475569",
+    light: "F5F3FF",
+    tagBg: "F3E8FF",
   },
   general: {
-    bg: "FFFFFF",
-    accent: "2E4A62",
-    accent2: "B45309",
-    text: "1F2937",
-    muted: "6B7280",
+    bg: "F8FAFC",
+    cardBg: "FFFFFF",
+    cardBorder: "E2E8F0",
+    accent: "1E293B",
+    accent2: "EA580C",
+    text: "0F172A",
+    muted: "475569",
     light: "F1F5F9",
+    tagBg: "F8FAFC",
   },
 };
 
@@ -148,47 +160,75 @@ function parseArgs(argv) {
   return args;
 }
 
+function addHeader(s, deck, title, typeTag) {
+  s.addShape("rect", { x: 0, y: 0, w: "100%", h: 0.1, fill: { color: deck.accent } });
+  if (title) {
+    s.addText(title, {
+      x: MARGIN, y: 0.45, w: CONTENT_W - 2.5, h: 0.8, fontSize: 24, bold: true, color: deck.text,
+      fit: "shrink",
+    });
+    s.addShape("rect", { x: MARGIN, y: 1.3, w: 1.2, h: 0.04, fill: { color: deck.accent2 } });
+  }
+  if (typeTag) {
+    s.addShape("roundRect", {
+      x: SLIDE_W - MARGIN - 2.2, y: 0.5, w: 2.2, h: 0.35,
+      fill: { color: deck.tagBg }, line: { color: deck.cardBorder, width: 0.8 }, rectRadius: 0.05,
+    });
+    s.addText(String(typeTag).toUpperCase(), {
+      x: SLIDE_W - MARGIN - 2.2, y: 0.5, w: 2.2, h: 0.35,
+      fontSize: 10, bold: true, color: deck.accent, align: "center", valign: "middle",
+    });
+  }
+}
+
 function addTitleSlide(pptx, deck, slide) {
   const s = pptx.addSlide();
   s.background = { color: deck.bg };
-  s.addShape("rect", { x: 0, y: 0, w: "100%", h: 0.35, fill: { color: deck.accent } });
+  // Hero container card
+  s.addShape("roundRect", {
+    x: MARGIN, y: MARGIN, w: CONTENT_W, h: SLIDE_H - MARGIN * 2,
+    fill: { color: deck.cardBg }, line: { color: deck.cardBorder, width: 1 }, rectRadius: 0.1,
+  });
+  s.addShape("rect", { x: MARGIN, y: MARGIN, w: 0.15, h: SLIDE_H - MARGIN * 2, fill: { color: deck.accent } });
+  
   if (slide.title) {
     s.addText(slide.title, {
-      x: MARGIN, y: 2.6, w: CONTENT_W, h: 1.2, fontSize: 40, bold: true, color: deck.text,
+      x: MARGIN + 0.5, y: 2.2, w: CONTENT_W - 1.0, h: 1.4, fontSize: 36, bold: true, color: deck.text,
       fit: "shrink",
     });
   }
   if (slide.content) {
     s.addText(slide.content, {
-      x: MARGIN, y: 3.9, w: CONTENT_W, h: 1.0, fontSize: 16, color: deck.muted,
+      x: MARGIN + 0.5, y: 3.7, w: CONTENT_W - 1.0, h: 1.0, fontSize: 16, color: deck.muted,
       fit: "shrink",
     });
   }
-  // A picture sits in the foot band, clear of the title and subtitle.
-  addImageBand(s, slide, slide.content ? 5.05 : 4.0);
+  addImageBand(s, slide, slide.content ? 4.9 : 4.0);
   return s;
 }
 
 function addContentSlide(pptx, deck, slide) {
   const s = pptx.addSlide();
   s.background = { color: deck.bg };
-  if (slide.title) {
-    s.addText(slide.title, {
-      x: MARGIN, y: 0.5, w: CONTENT_W, h: 0.9, fontSize: 26, bold: true, color: deck.text,
-      fit: "shrink",
-    });
-    s.addShape("rect", { x: MARGIN, y: 1.35, w: 1.1, h: 0.05, fill: { color: deck.accent2 } });
-  }
+  addHeader(s, deck, slide.title, "Overview");
+  
   const paragraphs = Array.isArray(slide.content) ? slide.content : [slide.content || ""];
   const image = slideImage(slide);
-  const textWidth = (image ? SIDE_TEXT_W : CONTENT_W) - 0.2;
+  const textWidth = (image ? SIDE_TEXT_W : CONTENT_W);
+  
+  // Card backdrop for text content
+  s.addShape("roundRect", {
+    x: MARGIN, y: CONTENT_TOP, w: textWidth, h: CONTENT_H,
+    fill: { color: deck.cardBg }, line: { color: deck.cardBorder, width: 1 }, rectRadius: 0.08,
+  });
+
   s.addText(
     paragraphs.map((p) => ({ text: p, options: { bullet: false, breakLine: true } })),
     {
-      x: MARGIN,
-      y: CONTENT_TOP,
-      w: textWidth,
-      h: CONTENT_H,
+      x: MARGIN + 0.25,
+      y: CONTENT_TOP + 0.2,
+      w: textWidth - 0.5,
+      h: CONTENT_H - 0.4,
       fontSize: fitFont(15, totalChars(paragraphs), image ? 900 : 1600),
       color: deck.text,
       valign: "top",
@@ -202,50 +242,44 @@ function addContentSlide(pptx, deck, slide) {
 function addBulletSlide(pptx, deck, slide) {
   const s = pptx.addSlide();
   s.background = { color: deck.bg };
-  if (slide.title) {
-    s.addText(slide.title, {
-      x: MARGIN, y: 0.5, w: CONTENT_W, h: 0.9, fontSize: 26, bold: true, color: deck.text,
-      fit: "shrink",
-    });
-    s.addShape("rect", { x: MARGIN, y: 1.35, w: 1.1, h: 0.05, fill: { color: deck.accent2 } });
-  }
+  addHeader(s, deck, slide.title, "Key Points");
+
   const items = Array.isArray(slide.bullets) ? slide.bullets : slide.content ? [slide.content] : [];
   const image = slideImage(slide);
-  const textWidth = (image ? SIDE_TEXT_W : CONTENT_W) - 0.2;
+  const textWidth = (image ? SIDE_TEXT_W : CONTENT_W);
+  
+  s.addShape("roundRect", {
+    x: MARGIN, y: CONTENT_TOP, w: textWidth, h: CONTENT_H,
+    fill: { color: deck.cardBg }, line: { color: deck.cardBorder, width: 1 }, rectRadius: 0.08,
+  });
+
   s.addText(
     items.map((b) => ({ text: String(b), options: { bullet: { code: "2022" } } })),
     {
-      x: MARGIN + 0.1,
-      y: 1.75,
-      w: textWidth,
-      h: CONTENT_H,
+      x: MARGIN + 0.3,
+      y: CONTENT_TOP + 0.25,
+      w: textWidth - 0.6,
+      h: CONTENT_H - 0.5,
       fontSize: fitFont(16, totalChars(items), image ? 450 : 700),
       color: deck.text,
       valign: "top",
-      paraSpaceAfter: 12,
+      paraSpaceAfter: 14,
       fit: "shrink",
     },
   );
-  addImageSide(slide, s, { y: 1.75, h: CONTENT_H });
+  addImageSide(slide, s, { y: CONTENT_TOP, h: CONTENT_H });
   return s;
 }
 
 function addTwoColumnSlide(pptx, deck, slide) {
   const s = pptx.addSlide();
   s.background = { color: deck.bg };
-  if (slide.title) {
-    s.addText(slide.title, {
-      x: MARGIN, y: 0.5, w: CONTENT_W, h: 0.9, fontSize: 26, bold: true, color: deck.text,
-      fit: "shrink",
-    });
-    s.addShape("rect", { x: MARGIN, y: 1.35, w: 1.1, h: 0.05, fill: { color: deck.accent2 } });
-  }
+  addHeader(s, deck, slide.title, "Comparison");
+
   const cols = slide.columns && slide.columns.length === 2 ? slide.columns : [slide.content || "", ""];
   const usable = CONTENT_W - COLUMN_GUTTER;
   const ratios = slide.column_ratios || slide.columnRatios;
   let widths;
-  // The typed schema rejects a bad ratio before it gets here; this guard keeps a
-  // malformed value from ever reaching PptxGenJS, whose failure is opaque.
   if (
     Array.isArray(ratios) &&
     ratios.length === 2 &&
@@ -256,17 +290,29 @@ function addTwoColumnSlide(pptx, deck, slide) {
   } else {
     widths = [usable / 2, usable / 2];
   }
-  const top = CONTENT_TOP + 0.05;
+  const top = CONTENT_TOP;
   const height = bodyHeight(Boolean(slideImage(slide)));
   const fontSize = fitFont(14, totalChars([cols[0], cols[1]]), 1200);
   const rightX = MARGIN + widths[0] + COLUMN_GUTTER;
+
+  // Left Column Card
+  s.addShape("roundRect", {
+    x: MARGIN, y: top, w: widths[0], h: height,
+    fill: { color: deck.cardBg }, line: { color: deck.cardBorder, width: 1 }, rectRadius: 0.08,
+  });
   s.addText(String(cols[0]), {
-    x: MARGIN, y: top, w: widths[0], h: height, fontSize, color: deck.text, valign: "top", fit: "shrink",
+    x: MARGIN + 0.2, y: top + 0.2, w: widths[0] - 0.4, h: height - 0.4, fontSize, color: deck.text, valign: "top", fit: "shrink",
   });
-  s.addShape("rect", { x: MARGIN + widths[0] + COLUMN_GUTTER / 2, y: top, w: 0.03, h: Math.max(height - 0.2, 0.1), fill: { color: deck.light } });
+
+  // Right Column Card
+  s.addShape("roundRect", {
+    x: rightX, y: top, w: CONTENT_W - widths[0] - COLUMN_GUTTER, h: height,
+    fill: { color: deck.cardBg }, line: { color: deck.cardBorder, width: 1 }, rectRadius: 0.08,
+  });
   s.addText(String(cols[1]), {
-    x: rightX, y: top, w: CONTENT_W - widths[0] - COLUMN_GUTTER, h: height, fontSize, color: deck.text, valign: "top", fit: "shrink",
+    x: rightX + 0.2, y: top + 0.2, w: CONTENT_W - widths[0] - COLUMN_GUTTER - 0.4, h: height - 0.4, fontSize, color: deck.text, valign: "top", fit: "shrink",
   });
+
   addImageBand(s, slide, top + height + 0.1);
   return s;
 }
@@ -274,17 +320,10 @@ function addTwoColumnSlide(pptx, deck, slide) {
 function addTableSlide(pptx, deck, slide) {
   const s = pptx.addSlide();
   s.background = { color: deck.bg };
-  if (slide.title) {
-    s.addText(slide.title, {
-      x: MARGIN, y: 0.5, w: CONTENT_W, h: 0.9, fontSize: 26, bold: true, color: deck.text,
-      fit: "shrink",
-    });
-    s.addShape("rect", { x: MARGIN, y: 1.35, w: 1.1, h: 0.05, fill: { color: deck.accent2 } });
-  }
+  addHeader(s, deck, slide.title, "Data Table");
+
   const rows = slide.table && Array.isArray(slide.table) ? slide.table : [];
   if (rows.length === 0) return s;
-  // Grid from the widest row, with every row padded to it: sizing the grid from
-  // the first row alone silently dropped every cell beyond a short header.
   const grid = rows.reduce((max, row) => Math.max(max, row.length), 0) || 2;
   const pad = (row) => Array.from({ length: grid }, (_, c) => String(row[c] == null ? "" : row[c]));
   const header = pad(rows[0]);
@@ -306,10 +345,10 @@ function addTableSlide(pptx, deck, slide) {
         text: h,
         options: { bold: true, color: "FFFFFF", fill: { color: deck.accent }, align: "left" },
       })),
-      ...body.map((r) =>
+      ...body.map((r, ri) =>
         r.map((cell) => ({
           text: cell,
-          options: { color: deck.text, fill: { color: "FFFFFF" }, align: "left" },
+          options: { color: deck.text, fill: { color: ri % 2 === 0 ? "FFFFFF" : deck.light }, align: "left" },
         })),
       ),
     ],
@@ -320,7 +359,7 @@ function addTableSlide(pptx, deck, slide) {
       colW: CONTENT_W / grid,
       fontSize,
       rowH,
-      border: { type: "solid", color: deck.light },
+      border: { type: "solid", color: deck.cardBorder },
     },
   );
   addImageBand(s, slide, tableTop + rowH * rowCount + 0.1);
@@ -341,13 +380,8 @@ function chartColors(deck) {
 function addChartSlide(pptx, deck, slide) {
   const s = pptx.addSlide();
   s.background = { color: deck.bg };
-  if (slide.title) {
-    s.addText(slide.title, {
-      x: MARGIN, y: 0.5, w: CONTENT_W, h: 0.9, fontSize: 26, bold: true, color: deck.text,
-      fit: "shrink",
-    });
-    s.addShape("rect", { x: MARGIN, y: 1.35, w: 1.1, h: 0.05, fill: { color: deck.accent2 } });
-  }
+  addHeader(s, deck, slide.title, "Visual Analytics");
+
   const chart = slide.chart;
   const hasImage = Boolean(slideImage(slide));
   const top = CONTENT_TOP + 0.05;
@@ -356,9 +390,6 @@ function addChartSlide(pptx, deck, slide) {
   const series = chart && Array.isArray(chart.series) ? chart.series : [];
   const labels = chart && Array.isArray(chart.categories) ? chart.categories.map(String) : [];
   if (series.length === 0 || labels.length === 0) {
-    // The backend model rejects a chart slide without data, so this is only
-    // reachable if the payload bypassed it; show the body text rather than a
-    // blank slide headlined "chart".
     s.addText(String(slide.content || ""), {
       x: MARGIN, y: top, w: CONTENT_W, h: height, fontSize: 16, color: deck.text,
       valign: "top", fit: "shrink",
@@ -375,18 +406,22 @@ function addChartSlide(pptx, deck, slide) {
     labels,
     values: (Array.isArray(entry.values) ? entry.values : []).map(Number),
   }));
-  // A legend names the series; with one series (or a pie, where it names the
-  // slices) there is nothing to disambiguate, so it is off unless asked for.
   const showLegend =
     chart.show_legend === undefined || chart.show_legend === null
       ? data.length > 1 || isPie
       : Boolean(chart.show_legend);
 
+  // Background Card for Chart
+  s.addShape("roundRect", {
+    x: MARGIN, y: top, w: CONTENT_W, h: height,
+    fill: { color: deck.cardBg }, line: { color: deck.cardBorder, width: 1 }, rectRadius: 0.08,
+  });
+
   const options = {
-    x: MARGIN,
-    y: top,
-    w: CONTENT_W,
-    h: height,
+    x: MARGIN + 0.2,
+    y: top + 0.2,
+    w: CONTENT_W - 0.4,
+    h: height - 0.4,
     chartColors: chartColors(deck),
     showLegend,
     legendPos: "b",
@@ -410,8 +445,6 @@ function addChartSlide(pptx, deck, slide) {
     options.titleFontSize = 14;
   }
   if (type === "bar") {
-    // PptxGenJS draws horizontal bars by default; "col" is the vertical column
-    // chart the request usually means, and the only one that reads well here.
     options.barDir = "col";
     options.barGrouping = chart.stacked ? "stacked" : "clustered";
   }
@@ -421,19 +454,11 @@ function addChartSlide(pptx, deck, slide) {
   return s;
 }
 
-// A flow diagram: labelled boxes joined by arrows. Row for a short flow,
-// column once it would otherwise be crushed — the step count decides, so a
-// five-step pipeline reads top-to-bottom rather than as five slivers.
 function addDiagramSlide(pptx, deck, slide) {
   const s = pptx.addSlide();
   s.background = { color: deck.bg };
-  if (slide.title) {
-    s.addText(slide.title, {
-      x: MARGIN, y: 0.5, w: CONTENT_W, h: 0.9, fontSize: 26, bold: true, color: deck.text,
-      fit: "shrink",
-    });
-    s.addShape("rect", { x: MARGIN, y: 1.35, w: 1.1, h: 0.05, fill: { color: deck.accent2 } });
-  }
+  addHeader(s, deck, slide.title, "Process Flow");
+
   const diagram = slide.diagram;
   const nodes = diagram && Array.isArray(diagram.nodes) ? diagram.nodes : [];
   const hasImage = Boolean(slideImage(slide));
@@ -441,8 +466,6 @@ function addDiagramSlide(pptx, deck, slide) {
   const height = hasImage ? IMAGE_BAND_Y - top - 0.2 : CONTENT_H;
 
   if (nodes.length < 2) {
-    // The backend model rejects a diagram without two labelled nodes; this
-    // guard only keeps a payload that bypassed it from drawing nothing.
     s.addText(String(slide.content || ""), {
       x: MARGIN, y: top, w: CONTENT_W, h: height, fontSize: 16, color: deck.text,
       valign: "top", fit: "shrink",
@@ -453,7 +476,7 @@ function addDiagramSlide(pptx, deck, slide) {
 
   const requested = String(diagram.layout || "row").toLowerCase();
   const layout = requested === "column" || nodes.length > 4 ? "column" : "row";
-  const arrow = 0.45; // reserved gap for the connector between boxes
+  const arrow = 0.45;
   const gaps = nodes.length - 1;
 
   const boxText = (node) =>
@@ -472,8 +495,8 @@ function addDiagramSlide(pptx, deck, slide) {
       const x = MARGIN + i * (boxW + arrow);
       s.addShape("roundRect", {
         x, y, w: boxW, h: boxH,
-        fill: { color: deck.light },
-        line: { color: deck.accent, width: 1 },
+        fill: { color: deck.cardBg },
+        line: { color: deck.accent, width: 1.5 },
         rectRadius: 0.08,
       });
       s.addText(boxText(node), {
@@ -496,8 +519,8 @@ function addDiagramSlide(pptx, deck, slide) {
       const y = top + i * (boxH + arrow);
       s.addShape("roundRect", {
         x, y, w: boxW, h: boxH,
-        fill: { color: deck.light },
-        line: { color: deck.accent, width: 1 },
+        fill: { color: deck.cardBg },
+        line: { color: deck.accent, width: 1.5 },
         rectRadius: 0.08,
       });
       s.addText(boxText(node), {
@@ -520,22 +543,23 @@ function addDiagramSlide(pptx, deck, slide) {
 function addSourcesSlide(pptx, deck, slide) {
   const s = pptx.addSlide();
   s.background = { color: deck.bg };
-  if (slide.title) {
-    s.addText(slide.title, {
-      x: MARGIN, y: 0.5, w: CONTENT_W, h: 0.9, fontSize: 26, bold: true, color: deck.text,
-      fit: "shrink",
-    });
-    s.addShape("rect", { x: MARGIN, y: 1.35, w: 1.1, h: 0.05, fill: { color: deck.accent2 } });
-  }
+  addHeader(s, deck, slide.title, "References");
+
   const sources = Array.isArray(slide.sources) ? slide.sources : slide.content ? [slide.content] : [];
   const height = bodyHeight(Boolean(slideImage(slide)));
+
+  s.addShape("roundRect", {
+    x: MARGIN, y: 1.8, w: CONTENT_W, h: height,
+    fill: { color: deck.cardBg }, line: { color: deck.cardBorder, width: 1 }, rectRadius: 0.08,
+  });
+
   s.addText(
     sources.map((src) => ({ text: String(src), options: { bullet: { code: "2013" } } })),
     {
-      x: MARGIN + 0.1,
-      y: 1.8,
-      w: CONTENT_W - 0.2,
-      h: height,
+      x: MARGIN + 0.3,
+      y: 2.0,
+      w: CONTENT_W - 0.6,
+      h: height - 0.4,
       fontSize: fitFont(13, totalChars(sources), 900),
       color: deck.muted,
       valign: "top",

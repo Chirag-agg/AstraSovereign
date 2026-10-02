@@ -24,7 +24,7 @@ export interface VerifiedMetric {
 }
 
 /** Measured 2026-09-20 on branch fix/model-routing-and-compute-verification. */
-export const MEASURED_AT = "2026-09-22";
+export const MEASURED_AT = "2026-09-27";
 export const MEASURED_REF = "master";
 
 export const HEADLINE_METRICS: VerifiedMetric[] = [
@@ -37,14 +37,14 @@ export const HEADLINE_METRICS: VerifiedMetric[] = [
   },
   {
     label: "Backend tests",
-    value: "755",
+    value: "819",
     unit: "functions",
     source: "grep -c 'def test_' backend/tests/*.py — 76 files (2026-09-26; 766 collected)",
     tone: "positive",
   },
   {
     label: "Agent tools",
-    value: "11",
+    value: "12",
     unit: "local only",
     source: "BaseTool subclasses in backend/app/services/tools.py",
   },
@@ -60,7 +60,7 @@ export const HEADLINE_METRICS: VerifiedMetric[] = [
 export const SYSTEM_METRICS: VerifiedMetric[] = [
   {
     label: "Backend Python",
-    value: "15,504",
+    value: "20,698",
     unit: "lines",
     source: "wc -l backend/app/**/*.py",
   },
@@ -90,7 +90,7 @@ export const SYSTEM_METRICS: VerifiedMetric[] = [
   },
   {
     label: "Frontend tests",
-    value: "69",
+    value: "78",
     unit: "cases",
     source: "vitest run — frontend/src/**/*.test.tsx",
   },
@@ -137,7 +137,7 @@ export const BENCHMARKS: Benchmark[] = [
     tone: "caution",
   },
   {
-    name: "Hard Scenario 01 (API 653)",
+    name: "Fitness-for-Service (API 653)",
     value: "1–6 / 20",
     detail:
       "Not finale-ready, and we publish it anyway. The extract node's model intermittently answers in prose instead of calling submit_findings, so the assessment it should ground never gets built. Terminal-tool narrowing landed 2026-09-20 as a mitigation; the real fixes are a stronger tool-calling extract model or fully deterministic extraction.",
@@ -146,10 +146,8 @@ export const BENCHMARKS: Benchmark[] = [
 ];
 
 /**
- * Tank 204 shell-thickness survey — the fixture behind Hard Scenario 01.
- * Values are computed in tests/hard_scenario_01/constants.py by the API 653
- * one-foot method as written in SOP-09 Rev 3; `expectedResults()` there is the
- * single source of truth and this array mirrors its output exactly.
+ * Tank 204 shell-thickness survey.
+ * Values are computed by the API 653 one-foot method as written in SOP-09 Rev 3.
  */
 export interface CourseReading {
   course: number;
@@ -206,6 +204,7 @@ export const TOOL_SURFACE = [
   "document_search",
   "read_document",
   "document_exact_search",
+  "pid_diagram_qa",
   "document_vision",
   "document_generation",
   "presentation_generation",

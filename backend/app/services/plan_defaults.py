@@ -53,7 +53,7 @@ DOCUMENT_INTENT_RE = re.compile(
     r"\b(document\w*|report\w*|procedure\w*|sop\b|spec\w*|standard\w*|"
     r"revision\w*|inspection\w*|survey\w*|nameplate\w*|reading\w*|"
     r"attach\w*|upload\w*|extract\w*|cite\w*|citation\w*|"
-    r"corrosion|thickness\w*|vessel\w*)\b",
+    r"corrosion|thickness\w*|vessel\w*|screenshot\w*|image\w*|photo\w*|picture\w*|figure\w*)\b",
     re.IGNORECASE,
 )
 

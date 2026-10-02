@@ -35,6 +35,27 @@ class JobStore(ABC):
     async def list_all(self) -> list[Job]:
         """Return a snapshot of every stored job."""
 
+    async def list_for_recall(
+        self,
+        user_id: str,
+        workspace_ids: Optional[list[str]] = None,
+        classifications: Optional[list[str]] = None,
+    ) -> list[Job]:
+        """Return recall candidates after applying access scope."""
+        jobs = [job for job in await self.list_all() if job.user_id == user_id]
+        if workspace_ids is not None:
+            jobs = [
+                job for job in jobs
+                if not job.project_id or job.project_id in workspace_ids
+            ]
+        if classifications is not None:
+            jobs = [
+                job for job in jobs
+                if not getattr(job, "classification", None)
+                or job.classification in classifications
+            ]
+        return jobs
+
 
 def _new_job_id() -> str:
     return f"job-{uuid.uuid4().hex[:12]}"
@@ -110,6 +131,50 @@ class SqliteJobStore(JobStore):
 
     async def list_all(self) -> list[Job]:
         return await asyncio.to_thread(self._list_all_sync)
+
+    def _list_for_recall_sync(
+        self,
+        user_id: str,
+        workspace_ids: Optional[list[str]],
+        classifications: Optional[list[str]],
+    ) -> list[Job]:
+        clauses = ["user_id = ?"]
+        params: list[object] = [user_id]
+        if workspace_ids is not None:
+            if not workspace_ids:
+                clauses.append("json_extract(data, '$.project_id') IS NULL")
+            else:
+                placeholders = ", ".join("?" for _ in workspace_ids)
+                clauses.append(
+                    "(json_extract(data, '$.project_id') IS NULL OR "
+                    f"json_extract(data, '$.project_id') IN ({placeholders}))"
+                )
+                params.extend(workspace_ids)
+        if classifications is not None:
+            if not classifications:
+                clauses.append("json_extract(data, '$.classification') IS NULL")
+            else:
+                placeholders = ", ".join("?" for _ in classifications)
+                clauses.append(
+                    "(json_extract(data, '$.classification') IS NULL OR "
+                    f"json_extract(data, '$.classification') IN ({placeholders}))"
+                )
+                params.extend(classifications)
+        with db.jobs_lock:
+            rows = self._conn.execute(
+                "SELECT data FROM jobs WHERE " + " AND ".join(clauses), params
+            ).fetchall()
+        return [self._row_to_job(row) for row in rows]
+
+    async def list_for_recall(
+        self,
+        user_id: str,
+        workspace_ids: Optional[list[str]] = None,
+        classifications: Optional[list[str]] = None,
+    ) -> list[Job]:
+        return await asyncio.to_thread(
+            self._list_for_recall_sync, user_id, workspace_ids, classifications
+        )
 
 
 class InMemoryJobStore(JobStore):

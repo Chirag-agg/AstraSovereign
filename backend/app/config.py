@@ -77,8 +77,8 @@ class Settings(BaseSettings):
     models_config: str = str(REPO_ROOT / "config" / "models.yaml")
 
     # Agent loop limits (bounded, deterministic termination).
-    max_agent_iterations: int = 10
-    max_agent_tool_calls: int = 20
+    max_agent_iterations: int = 30
+    max_agent_tool_calls: int = 50
 
     # Per-job workspace root (data/workspaces/<user>/<job>/).
     workspaces_root: str = str(REPO_ROOT / "data" / "workspaces")

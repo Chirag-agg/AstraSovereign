@@ -24,8 +24,10 @@ function sh(command) {
 const measured = {
   "Backend tests": sh(`grep -rhcE '^\\s*(async )?def test_' backend/tests/*.py | paste -sd+ | bc`),
   "Agent tools": sh(`grep -cE '^\\s+name = "' backend/app/services/tools.py`),
+  // Enabled entries only: a declared-but-disabled model (planner) is on the
+  // record in models.yaml but is not something a task can be routed to.
   "Local models": sh(
-    `python3 -c "import yaml,sys; d=yaml.safe_load(open('config/models.yaml')); print(len(d['models']))"`,
+    `python3 -c "import yaml,sys; d=yaml.safe_load(open('config/models.yaml')); print(sum(1 for m in d['models'].values() if m.get('enabled', True)))"`,
   ),
   "HTTP routes": sh(`grep -rhoE '@router\\.(get|post|delete|put)\\("[^"]+"' backend/app/api/*.py | wc -l`),
   "Backend Python": sh(`find backend/app -name '*.py' | xargs wc -l | tail -1 | awk '{print $1}'`),

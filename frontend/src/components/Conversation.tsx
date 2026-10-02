@@ -60,44 +60,37 @@ function statusLine(job: Job): string {
   return "Failed";
 }
 
-function AuditTrail({ userId, jobId }: { userId: string; jobId: string }) {
-  const [events, setEvents] = useState<{ event_type: string; component: string; status: string }[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
+type AuditEvent = { event_type: string; component: string; status: string };
 
+/** Audit events for a finished job, fetched the first time they are shown. */
+function AuditList({ userId, jobId }: { userId: string; jobId: string }) {
+  const [events, setEvents] = useState<AuditEvent[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getJobAudit(userId, jobId)
+      .then((evts) => alive && setEvents(evts))
+      .catch((err) => alive && setError(err instanceof ApiError ? err.message : "Could not load audit"));
+    return () => {
+      alive = false;
+    };
+  }, [userId, jobId]);
+
+  if (error) return <p className="trace-note">{error}</p>;
+  if (events === null) return <p className="trace-note">loading…</p>;
+  if (events.length === 0) return <p className="trace-note">No audit events.</p>;
   return (
-    <details
-      onToggle={(e) => {
-        if (e.currentTarget.open && !loaded) {
-          setLoaded(true);
-          getJobAudit(userId, jobId)
-            .then((evts) => setEvents(evts))
-            .catch((err) => setError(err instanceof ApiError ? err.message : "Could not load audit"));
-        }
-      }}
-    >
-      <summary>Audit trail</summary>
-      {error ? (
-        <div className="banner banner-error" role="alert">
-          {error}
-        </div>
-      ) : events === null ? (
-        <div className="loading-row">loading…</div>
-      ) : events.length === 0 ? (
-        <div className="loading-row">No audit events.</div>
-      ) : (
-        <ul className="notice-list">
-          {events.map((e) => (
-            <li key={`${e.event_type}-${e.component}`}>
-              <span className="status t-mut">
-                <span className="dot" aria-hidden="true" />
-              </span>{" "}
-              {e.event_type} · {e.component} · {e.status}
-            </li>
-          ))}
-        </ul>
-      )}
-    </details>
+    <ol className="audit-list">
+      {events.map((e, i) => (
+        <li key={`${e.event_type}-${e.component}-${i}`}>
+          <span className="audit-type">{e.event_type}</span>
+          <span className="audit-meta">
+            {e.component} · {e.status}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -120,50 +113,47 @@ export default function Conversation({
   consoleOpen: boolean;
   setConsoleOpen: (open: boolean) => void;
 }) {
-  // auto-open the console while the agent is actively working
+  const active = job?.status === "running" || job?.status === "queued";
+
+  // Like a model's visible thinking: open while the work is happening, folded
+  // away once there is an answer, and always one click from being reopened.
   useEffect(() => {
-    if (job && (job.status === "running" || job.status === "queued")) {
-      setConsoleOpen(true);
-    }
-  }, [job?.status, setConsoleOpen]);
+    if (!job) return;
+    setConsoleOpen(active);
+  }, [job?.status, active, setConsoleOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [auditRequested, setAuditRequested] = useState(false);
+  useEffect(() => {
+    if (consoleOpen && job && !active) setAuditRequested(true);
+  }, [consoleOpen, job, active]);
 
   if (!job) {
-    return <AssistantIdle onSubmit={onSubmit} demoTask={DEMO_TASK} />;
+    return (
+      <div style={{ maxWidth: 820, margin: "0 auto", width: "100%" }}>
+        <AssistantIdle onSubmit={onSubmit} demoTask={DEMO_TASK} />
+      </div>
+    );
   }
 
   // The documents this job actually read (job-scoped manifest), shown on the
   // user message so the context that entered the model is visible after submit.
-  const attachedDocuments: { document_id: string; filename: string }[] = (
-    job.document_ids ?? []
-  ).map(
-    (id) =>
-      documents?.find((document) => document.document_id === id) ?? {
-        document_id: id,
-        filename: id,
-      },
+  const attachedDocuments: { document_id: string; filename: string }[] = (job.document_ids ?? []).map(
+    (id) => documents?.find((document) => document.document_id === id) ?? { document_id: id, filename: id },
   );
 
+  const steps = job.execution_trace?.length ?? 0;
+  const hasTrace = steps > 0 || active;
+
   return (
-    <div className="conversation font-mono">
-      {/* user message */}
-      <div className="msg-user rounded border border-zinc-200/80 bg-zinc-100/40 p-3 mb-3">
-        <div className="flex items-center gap-2 mb-1.5 text-xs text-zinc-400">
-          <span className="px-1.5 py-0.2 rounded border border-zinc-200 bg-zinc-100 text-[10px] font-bold text-zinc-500">
-            {userId.toUpperCase()}
-          </span>
-          <span className="text-[11px] font-medium text-zinc-500">User Prompt</span>
-        </div>
-        <div className="text-xs text-zinc-600 leading-relaxed">{job.message}</div>
+    <div className="conversation">
+      {/* The question, quietly. */}
+      <div className="turn-ask">
+        <span className="turn-label">You asked</span>
+        <p className="turn-ask-text">{job.message}</p>
         {attachedDocuments.length > 0 ? (
-          <div
-            className="mt-2 flex flex-wrap gap-1.5"
-            aria-label="Documents attached to this job"
-          >
+          <div className="turn-docs" aria-label="Documents attached to this job">
             {attachedDocuments.map((document) => (
-              <span
-                key={document.document_id}
-                className="inline-flex items-center rounded border border-zinc-200 bg-zinc-100/70 px-1.5 py-0.5 text-[10px] text-zinc-500"
-              >
+              <span key={document.document_id} className="turn-doc">
                 {document.filename}
               </span>
             ))}
@@ -171,70 +161,67 @@ export default function Conversation({
         ) : null}
       </div>
 
-      {/* assistant */}
-      <div className="msg-assistant rounded border border-zinc-200 bg-zinc-100/20 p-3.5">
-        <div className="flex items-center justify-between border-b border-zinc-200 pb-2 mb-3 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="px-1.5 py-0.2 rounded border border-sky-900 bg-sky-950/60 text-[10px] font-bold text-sky-400">
-              AGENT
+      {/* How it got there — the trace and the audit trail, folded by default. */}
+      {hasTrace ? (
+        <details
+          className="reasoning"
+          open={consoleOpen}
+          onToggle={(e) => setConsoleOpen((e.currentTarget as HTMLDetailsElement).open)}
+        >
+          <summary>
+            <span className={`reasoning-dot ${active ? "is-live" : ""}`} aria-hidden="true" />
+            <span className="reasoning-title">{active ? "Working" : "How it got there"}</span>
+            <span className="reasoning-meta">
+              {statusLine(job)}
+              {steps > 0 ? ` · ${steps} step${steps === 1 ? "" : "s"}` : ""}
             </span>
-            <span className="font-medium text-white">Execution Engine</span>
-            <span className="text-zinc-500 text-[11px]">· {statusLine(job)}</span>
-          </div>
-          <span className="text-[10px] text-zinc-500 font-mono">SOCKET: /run/ollama.sock</span>
-        </div>
+            <span className="reasoning-hint">{consoleOpen ? "Hide" : "Show reasoning & audit trail"}</span>
+          </summary>
 
-        {job.status === "queued" ? (
-          <div className="ack flex items-center gap-2 py-2 text-xs text-amber-400 font-mono">
-            <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-            <span>Agent is about to start local execution…</span>
-          </div>
-        ) : null}
-
-        {job.status === "running" ? (
-          onCancel ? (
-            <div className="my-2 p-2.5 rounded border border-zinc-200 bg-zinc-100/60 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-emerald-400">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>Working on it — the agent is executing locally</span>
+          <div className="reasoning-body">
+            <WorkConsole job={job} expanded onToggle={() => undefined} />
+            {!active ? (
+              <div className="reasoning-audit">
+                <span className="turn-label">Audit trail</span>
+                {auditRequested ? <AuditList userId={userId} jobId={job.job_id} /> : null}
               </div>
-              <button
-                type="button"
-                onClick={onCancel}
-                className="px-2 py-1 rounded border border-red-200 text-red-400 hover:bg-red-100/40 text-[11px] cursor-pointer"
-              >
+            ) : null}
+          </div>
+        </details>
+      ) : null}
+
+      {/* The answer — the thing the page is for. */}
+      <div className="turn-answer" aria-live="polite">
+        {active ? (
+          // Status lives in the reasoning header above; this slot only says
+          // where the answer will land, so the two never repeat each other.
+          <div className="answer-waiting">
+            <span style={{ color: "var(--graphite)" }}>The answer will appear here.</span>
+            {onCancel && job.status === "running" ? (
+              <button type="button" onClick={onCancel} className="answer-stop">
                 Stop
               </button>
-            </div>
-          ) : (
-            <div className="ack flex items-center gap-2 py-2 text-xs text-emerald-400 font-mono">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Working on it — the agent is executing locally.</span>
-            </div>
-          )
-        ) : null}
-
-        {(job.execution_trace && job.execution_trace.length > 0) || job.status === "running" ? (
-          <div style={{ margin: "8px 0 14px" }}>
-            <WorkConsole job={job} expanded={consoleOpen} onToggle={() => setConsoleOpen(!consoleOpen)} />
+            ) : null}
           </div>
         ) : null}
 
         {job.status === "completed" ? (
-          <div className="assistant-content">
-            {job.response ? (
-              <Markdown text={job.response} />
-            ) : (
-              <div className="loading-row">Completed.</div>
-            )}
+          <>
+            <div className="answer-head">
+              <span className="answer-label">Answer</span>
+              {job.model ? <span className="answer-model">{job.model}</span> : null}
+            </div>
+            <div className="answer-body">
+              {job.response ? <Markdown text={job.response} /> : <p>Completed.</p>}
+            </div>
             {job.artifacts.length > 0 ? (
-              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="answer-files">
                 {job.artifacts.map((artifact) => (
                   <ArtifactCard key={artifact.artifact_id} artifact={artifact} onDownload={onDownload} />
                 ))}
               </div>
             ) : null}
-          </div>
+          </>
         ) : null}
 
         {job.status === "failed" ? (
@@ -255,12 +242,6 @@ export default function Conversation({
         {job.status === "cancelled" ? (
           <div className="banner banner-ok" role="alert">
             <span aria-hidden="true">—</span> The task was cancelled.
-          </div>
-        ) : null}
-
-        {job.status !== "queued" && job.status !== "running" ? (
-          <div style={{ marginTop: 8 }}>
-            <AuditTrail userId={userId} jobId={job.job_id} />
           </div>
         ) : null}
       </div>

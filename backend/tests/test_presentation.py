@@ -541,9 +541,7 @@ def test_presentation_tool_embeds_workspace_image(tmp_path):
 
     image = renderer.contents[0].slides[0].image
     assert image is not None and image.caption == "P&ID detail"
-    # the payload is written to a temp dir, so the path must be absolute by now
-    assert Path(image.path).is_absolute()
-    assert Path(image.path).is_file()
+    assert image.data and image.data.startswith("image/png;base64,")
 
 
 def test_presentation_tool_resolves_doc_id_image(tmp_path):
@@ -577,7 +575,9 @@ def test_presentation_tool_resolves_doc_id_image(tmp_path):
         ]
     )
     assert run(tool.execute(tmp_path, args)).ok
-    assert Path(renderer.contents[0].slides[0].image.path).is_file()
+    image = renderer.contents[0].slides[0].image
+    assert image is not None
+    assert image.data and image.data.startswith("image/png;base64,")
 
 
 def test_presentation_tool_converts_non_web_safe_image_to_data(tmp_path):
@@ -703,3 +703,32 @@ def test_presentation_tool_keeps_author_and_subject(tmp_path):
     assert run(tool.execute(tmp_path, args)).ok
     assert renderer.contents[0].author == "MRPL"
     assert renderer.contents[0].subject == "Inspection review"
+
+
+def test_presentation_tool_sanitizes_dict_columns(tmp_path):
+    """LLMs sometimes pass dict objects instead of plain strings inside slide columns."""
+    from app.services.log_context import set_job_context
+
+    renderer = CapturingRenderer()
+    tool = make_presentation_tool(tmp_path, renderer=renderer)
+    set_job_context(user_id="user-001", job_id="job-p5")
+    args = _pptx_args(
+        slides=[
+            {
+                "type": "two-column",
+                "title": "Dict Columns",
+                "columns": [
+                    {"heading": "Column A", "body": "Body content A", "bullets": ["Bullet 1", "Bullet 2"]},
+                    "Plain string column B",
+                ],
+            }
+        ]
+    )
+    assert run(tool.execute(tmp_path, args)).ok
+    cols = renderer.contents[0].slides[0].columns
+    assert len(cols) == 2
+    assert "Column A" in cols[0]
+    assert "Body content A" in cols[0]
+    assert "• Bullet 1" in cols[0]
+    assert cols[1] == "Plain string column B"
+

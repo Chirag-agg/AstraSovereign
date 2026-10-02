@@ -773,3 +773,49 @@ def test_successful_chat_logs_the_token_counts(caplog):
     assert records, "expected a token-count log line"
     assert records[0].prompt_eval_count == 1234
     assert records[0].eval_count == 56
+
+
+def test_chat_rescues_tool_call_from_500_raw_error():
+    from app.services.ollama_service import rescue_tool_call_from_raw_error
+
+    raw_err = (
+        '{"error":"error parsing tool call: raw=\'{\\n  \\"type\\": \\"excel\\",\\n'
+        '  \\"filename\\": \\"screenshot.xlsx\\",\\n  \\"title\\": \\"Data\\",\\n'
+        '  \\"sections\\": [{\\"heading\\": \\"Sheet\\", \\"table\\": [[\\"A\\", \\"B\\"]]}]\\n}\'"}'
+    )
+    rescued = rescue_tool_call_from_raw_error(raw_err)
+    assert len(rescued) == 1
+    assert rescued[0]["name"] == "document_generation"
+    assert rescued[0]["arguments"]["type"] == "excel"
+    assert rescued[0]["arguments"]["filename"] == "screenshot.xlsx"
+
+    async def scenario():
+        def handler(request):
+            return httpx.Response(500, text=raw_err)
+
+        service = make_service(handler)
+        try:
+            content, calls, model = await service.chat(
+                [{"role": "user", "content": "make xlsx"}],
+                tools=[
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "document_generation",
+                            "parameters": {
+                                "properties": {"type": {}, "filename": {}, "sections": {}}
+                            },
+                        },
+                    }
+                ],
+            )
+            assert content == ""
+            assert len(calls) == 1
+            assert calls[0]["name"] == "document_generation"
+            assert calls[0]["arguments"]["filename"] == "screenshot.xlsx"
+            assert model == "test-model"
+        finally:
+            await service.aclose()
+
+    asyncio.run(scenario())
+

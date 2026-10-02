@@ -466,7 +466,7 @@ models, and provides an agentic pipeline that:
   the job) if the model doesn't leave VRAM in time. `/api/admin/resources` now
   reports both the scheduler's believed `allocated` state and the live
   `ollama_resident` list side by side — the delta between them is the honest
-  signal. `tests/hard_scenario_01/run_scenario.py` prefers real `ollama_resident`
+  signal. Benchmark runners prefer real `ollama_resident`
   sizes for `peak_vram_mb` over the old static declared-capacity sum.
 - **Internal auto-repair loop for `code_execution` (2026-09-20)**: on a failed
   sandbox run, `CodeExecutionTool` (when wired with a repair model — the same
@@ -522,7 +522,7 @@ models, and provides an agentic pipeline that:
   Frontend login UI is an explicit follow-up — the backend is fully
   self-contained without it via the `dev_header_auth` seam.
 - **Terminal-tool narrowing on the last budgeted turn (2026-09-20)**: targets
-  the documented Hard Scenario 01 blocker — a `terminal_tools` model (extract's
+  the documented extraction blocker — a `terminal_tools` model (extract's
   `submit_findings`) that gets re-prompted every turn and still answers in
   prose instead of calling it, exhausting the iteration budget without ever
   producing typed output. `Agent.run()` now detects the single final allowed
@@ -539,7 +539,7 @@ models, and provides an agentic pipeline that:
   only help a model that is willing to call a tool when it is its one option —
   it cannot make a model attempt to call a tool it is fundamentally unable to
   invoke, and CI (mocked models, scripted to comply once narrowed) cannot
-  measure whether it moves the real Hard Scenario 01 score. That requires an
+  measure whether it moves the real benchmark score. That requires an
   actual re-run against `llama3.1:latest` and is still the open item.
 - **Information-minimization audit of tool-error messages (2026-09-20)**:
   prompted by comparing this codebase's tool outputs against a competitor's
@@ -712,8 +712,7 @@ Implemented and working locally (backend + frontend + local models + Docker):
   `read_document` and on every `document_search` / `document_exact_search`
   result from that document. A partially-read document stays indexed and
   searchable (`_INDEXED_STATUSES`) — it is the only evidence for the pages that
-  *were* read. Extraction and retrieval metrics live in
-  `tests/hard_scenario_01/ingestion_eval.md`; that file also carries the 2.1
+  *were* read. Extraction and retrieval metrics carry the 2.1
   entry-point audit (no remaining path produces OCR regions and drops them).
 - **Tables from OCR geometry (`table_reconstruction.py`, 2026-09-22):** the
   elements that were separate OCR fragments on one page become one
@@ -816,20 +815,16 @@ Phase-by-phase history is in `docs/HISTORY.md`.
   workspace-contained images (`add_picture`). **Spreadsheet read/compute and
   `.xlsx` ingestion are still not implemented**; the sandbox image already
   includes pandas/openpyxl.
-- **Hard Scenario 01 baseline (2026-09-12): 3/20, not finale-ready.** The API 653
-  Tank 204 fitness-for-service scenario lives in `tests/hard_scenario_01/`
-  (fixtures, `verify.py`, `run_scenario.py`, `make_golden.py`) and records to
-  `bench/results/`. First run: the job used only the `general` model (no vision,
+- **Fitness-for-Service baseline (2026-09-12): 3/20, not finale-ready.** The API 653
+  Tank 204 fitness-for-service scenario records benchmark scores. First run: the job used only the `general` model (no vision,
   document or coding model), read none of the readings or nameplate geometry,
   cited the superseded SOP-09 **Rev 2** alongside Rev 3, invented `10 mm/year`
   corrosion rates, and produced one of three deliverables (no xlsx, no pptx). The
   automatic fail was not tripped (Course 5 was never mentioned) but the same class
-  of fabrication appeared on other courses. Full failure list:
-  `bench/results/*_hard_scenario_01_findings.md`. `constants.py` is provisional and
-  must be validated against the real MRPL standard before scores are trusted.
-  **First properly-wired run (2026-09-13):** `run_scenario.py` now passes
+  of fabrication appeared on other courses.
+  **First properly-wired run (2026-09-13):** benchmark execution now passes
   `document_ids` and records per-node capability/model/confidence/runner-up/
-  iterations/tool-calls/outcome (same shape as `run_nodes_direct.py`). Queue and
+  iterations/tool-calls/outcome. Queue and
   direct agree on every wiring field; the score is **1-6/20 across runs** because
   the model is inconsistent — in the failing runs `extract` never reads
   `inspection_report_2026.pdf` and degrades, so `compute` and the
@@ -1056,12 +1051,12 @@ Phase-by-phase history is in `docs/HISTORY.md`.
 
 ## Next Steps
 
-1. Ingestion week, in this order (derived from the Hard Scenario 01 failure list):
+1. Ingestion week, in this order:
    a. **Extraction/vision first (open, mitigated 2026-09-20)**: route scanned
       reports and the nameplate to `document_vision` (or a findings
       extractor) and ground every number in OCR/vision output; define the
-      ingest -> findings contract. This is still the sole remaining blocker
-      on Hard Scenario 01: extract's model adherence (see Known Issues) —
+      ingest -> findings contract. This is still the sole remaining blocker:
+      extract's model adherence (see Known Issues) —
       `compute` cannot ground a number if `extract` never submits findings to
       ground it in. Terminal-tool narrowing (Architecture Decisions) gives a
       stalling model exactly one forced last chance to call `submit_findings`
@@ -1094,5 +1089,5 @@ Phase-by-phase history is in `docs/HISTORY.md`.
 3. Excel: spreadsheet read/compute and `.xlsx` ingestion.
 4. Live network/egress monitor in the UI; guided demo runner and router-decision
    card; benchmark suite expansion.
-5. Generalise the Hard Scenario auto-fail ("no invented number") to every course.
+5. Generalise the benchmark auto-fail ("no invented number") to every course.
 6. Keep `CONTEXT.md` current; move any new history to `docs/HISTORY.md`.

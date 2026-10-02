@@ -40,6 +40,7 @@ def _safe_filename(name: str) -> str:
 
 
 def _metadata(doc) -> dict:
+    meta = doc.metadata or {}
     return {
         "document_id": doc.document_id,
         "filename": doc.filename,
@@ -51,7 +52,13 @@ def _metadata(doc) -> dict:
         # Pages the pipeline could not read. Surfaced at the API so a caller
         # sees an incomplete document as incomplete without having to know to
         # inspect metadata.
-        "unreadable_pages": list((doc.metadata or {}).get("unreadable_pages") or []),
+        "unreadable_pages": list(meta.get("unreadable_pages") or []),
+        # Cached one-shot VLM caption written during ingestion (if the vision
+        # model was available). Reused every time this document is mentioned so
+        # the model never re-runs a costly vision pass for the same content.
+        "vlm_summary": meta.get("vlm_summary"),
+        # Whether this document was processed by the OCR pipeline.
+        "ocr_processed": bool(meta.get("ocr")),
     }
 
 
@@ -177,6 +184,41 @@ async def list_documents(
     docs = await knowledge_base.list_documents(user_id)
     docs.sort(key=lambda d: d.created_at, reverse=True)
     return [_metadata(doc) for doc in docs]
+
+
+@router.get("/search-by-name")
+async def search_documents_by_name(
+    q: str,
+    request: Request,
+    user_id: str = Depends(get_user_id),
+) -> list[dict]:
+    """Find documents whose filename contains the query string (case-insensitive).
+
+    Used by the chat UI to resolve a document name typed in a message (e.g.
+    "summarise report.pdf") to the knowledge-base document_id so the agent
+    receives it as an explicit attachment. Returns documents sorted by match
+    quality (exact stem match first, then substring match, newest first).
+    """
+    knowledge_base = request.app.state.knowledge_base
+    if not (q or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "missing_query", "message": "q must not be empty"},
+        )
+    needle = q.strip().lower()
+    docs = await knowledge_base.list_documents(user_id)
+    # Score: 2 = exact stem match, 1 = substring match in filename, 0 = no match
+    scored: list[tuple[int, object]] = []
+    for doc in docs:
+        name_lower = doc.filename.lower()
+        stem_lower = Path(doc.filename).stem.lower()
+        if stem_lower == needle or name_lower == needle:
+            scored.append((2, doc))
+        elif needle in name_lower:
+            scored.append((1, doc))
+    # Stable sort: highest score first, then newest first within the same score
+    scored.sort(key=lambda pair: (-pair[0], -pair[1].created_at.timestamp()))
+    return [_metadata(doc) for _, doc in scored]
 
 
 @router.get("/{document_id}")

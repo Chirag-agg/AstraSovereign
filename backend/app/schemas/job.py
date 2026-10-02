@@ -65,6 +65,7 @@ class Job(BaseModel):
     # Cowork: when set, the agent runs against this persistent project folder
     # instead of the per-job workspace.
     project_id: Optional[str] = None
+    classification: Optional[str] = None
 
     # Documents attached to this job (the job-scoped attachment manifest).
     document_ids: list[str] = Field(default_factory=list)

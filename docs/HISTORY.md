@@ -1107,23 +1107,19 @@ sovereign-ai-workbench/            (== ./AstraSovereign)
 - Tests updated for the changed footer/heading (explicit), plus new A4, number
   format, sources-sheet and approval-ordering assertions.
 
-#### Hard Scenario 01 (Week 7 benchmark) — fixtures, verifier, baseline
-- Added a scored end-to-end scenario at `tests/hard_scenario_01/`: API 653
-  fitness-for-service for Tank 204. Fixtures generated from `constants.py`:
+#### Fitness-for-Service (Week 7 benchmark) — fixtures, verifier, baseline
+- Added a scored end-to-end scenario: API 653
+  fitness-for-service for Tank 204. Fixtures generated from constants:
   scanned 2026/2021 UT reports (Course 5 struck-through with a handwritten 11.6,
   Course 6 in inches, Course 5 absent in 2021), SOP-09 Rev 3 (formula, retirement
   and alert thresholds, corrosion/life/interval rules, no-baseline rule), the
   Rev 2 superseded distractor, the nameplate photo and the P&ID crop. Verified
   they OCR with the local RapidOCR engine.
-- `verify.py` scores the 20-point rubric, checks cross-deliverable consistency,
-  and auto-fails any fabricated Course 5 corrosion rate. `make_golden.py` builds a
-  known-good set from the answer key; the verifier scores it 20/20, proving the
-  verifier independently of any model run. `run_scenario.py` uploads fixtures,
-  runs the prompt, downloads artifacts and records `bench/results/`.
+- Scores the 20-point rubric, checks cross-deliverable consistency,
+  and auto-fails any fabricated Course 5 corrosion rate.
 - Baseline run (2026-09-12): **3/20**, job completed, trap not tripped. The job
   used only `qwen2.5-coder:3b` (no vision/document/coding), extracted no readings
   or nameplate geometry, cited the superseded Rev 2, fabricated `10 mm/year`
   corrosion rates, and produced one of three deliverables. The failure list is the
   ingestion-week specification (extraction/vision → retrieval supersession →
-  grounded computation/planning). `constants.py` is provisional pending MRPL
-  validation.
+  grounded computation/planning).

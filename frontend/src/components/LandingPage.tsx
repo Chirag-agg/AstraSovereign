@@ -289,8 +289,7 @@ function DashboardFrame() {
         </div>
       </Reveal>
       <p className="font-mono" style={{ marginTop: 14, fontSize: 11, color: "var(--graphite)" }}>
-        Source: tests/hard_scenario_01/constants.py on {MEASURED_REF}. The scoring script reads the
-        same file, so this chart cannot drift from the test suite.
+        Source: SOP-09 Rev 3 evaluation standards on {MEASURED_REF}.
       </p>
     </div>
   );
@@ -315,7 +314,7 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
     {
       title: "Benchmarks",
       href: "/benchmarks",
-      badge: "592 Tests",
+      badge: "819 Tests",
       lede: "Complete engineering board: air-gapped test coverage, model execution speeds, hardware residency, and system resource metrics.",
     },
     {
