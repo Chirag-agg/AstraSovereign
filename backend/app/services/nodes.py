@@ -73,6 +73,7 @@ NODE_TOOLS = {
     "draft": {
         "document_generation",
         "presentation_generation",
+        "recall_work",
         "list_files",
         "read_file",
         "write_file",
@@ -140,6 +141,25 @@ def _submitted_content_word_count(trace_segment: list[dict]) -> int:
     return total
 
 
+def _generator_already_succeeded(trace_segment: list[dict]) -> Optional[str]:
+    """Return the tool name of the first generator that produced a successful
+    result in this trace segment, or None if none has succeeded yet.
+
+    A successful generator run is one where a ``tool_result`` entry with
+    ``ok=True`` follows a ``tool_call`` entry for a generator tool.  We look
+    for the *result* entry rather than the call entry so a call that errored
+    does not count.
+    """
+    for entry in trace_segment:
+        if (
+            entry.get("type") == "tool_result"
+            and entry.get("tool") in _CONTENT_GENERATOR_TOOLS
+            and entry.get("ok") is True
+        ):
+            return entry["tool"]
+    return None
+
+
 def make_word_count_validator(min_words: int) -> Callable[[str, list[dict]], Optional[str]]:
     """A content_validator (see Agent.run) requiring at least min_words,
     counted from whichever channel actually carries the content: the plain
@@ -147,6 +167,12 @@ def make_word_count_validator(min_words: int) -> Callable[[str, list[dict]], Opt
     longer, so "write 500 words and save it as a docx" isn't penalized for
     a short chat confirmation when the real 500 words are in the file, and
     a pure chat request with no deliverable is still checked on its own.
+
+    When a generator tool has already been called successfully but the
+    content is still short, the nudge explicitly tells the model to call
+    the *same* tool again with expanded content — NOT to create a second
+    file.  This prevents the duplicate-document bug where the model would
+    interpret a generic "expand" nudge as permission to write a new file.
     """
 
     def validator(response: str, trace_segment: list[dict]) -> Optional[str]:
@@ -155,6 +181,19 @@ def make_word_count_validator(min_words: int) -> Callable[[str, list[dict]], Opt
         actual = max(response_words, content_words)
         if actual >= min_words:
             return None
+
+        # If a generator already wrote a file, tell the model to expand that
+        # exact file rather than creating a new one.
+        succeeded_tool = _generator_already_succeeded(trace_segment)
+        if succeeded_tool:
+            return (
+                f"The file was created but its content is too short: about {actual} words "
+                f"against a minimum of {min_words}. Call {succeeded_tool} again with the "
+                "SAME filename and SAME title, but with substantially more content — add more "
+                "sections, subsections, and detail until the word count is met. "
+                "Do NOT create a second file with a different name."
+            )
+
         return (
             f"This falls well short of the requested length: about {actual} words "
             f"so far against a minimum of {min_words}. A short answer is not "
@@ -260,14 +299,169 @@ def content_sections(text: str) -> list[dict]:
 
 
 def content_slides(sections: list[dict]) -> list[dict]:
-    """One bullets slide per section — the deck form of the same content."""
-    slides = []
+    """Convert sections into a varied slide deck instead of uniform bullet lists.
+
+    Heuristics applied per section (in priority order):
+
+    1. **Markdown table** — any paragraph containing ``|``-separated columns
+       with a separator row is rendered as a ``table`` slide.
+    2. **Numeric data** — paragraphs containing ``Label: number`` or
+       ``Label – number`` patterns with ≥ 3 data points become a ``chart``
+       (bar) slide with the extracted series.
+    3. **Process / step sequence** — headings or leading bullets that start
+       with ``Step``, ``Stage``, ``Phase``, ``Part``, ``Chapter``, numbers
+       followed by a period, or arrow/dash connectors produce a ``diagram``
+       slide with one node per step (max 7).
+    4. **Long prose** (paragraph > 120 words) → ``content`` slide so it does
+       not get truncated by a bullet layout.
+    5. **Two or more paragraphs** — if the section has ≥ 2 paragraph groups
+       the first goes in column A and the rest in column B (``two-column``).
+    6. **Default** — ``bullets`` slide, same as before.
+    """
+    # --- helpers -----------------------------------------------------------
+
+    _NUM_PAIR_RE = re.compile(
+        r"^(.+?)[\s:–\-]+([+\-]?\d[\d,. ]*%?)$", re.MULTILINE
+    )
+    _STEP_RE = re.compile(
+        r"^(?:step|stage|phase|part|chapter|section)[\s\d.:)]+",
+        re.IGNORECASE,
+    )
+    _ORDERED_RE = re.compile(r"^\d+[.)]\s+")
+    _TABLE_ROW_RE = re.compile(r"\|")
+    _TABLE_SEP_RE = re.compile(r"^\|?[\s\-:|]+\|")
+
+    def _parse_table(paragraph: str) -> Optional[list[list[str]]]:
+        """Parse a markdown table from a paragraph string, return rows or None."""
+        lines = [ln for ln in paragraph.splitlines() if ln.strip()]
+        if len(lines) < 2:
+            return None
+        # must have at least one | in first line and a separator line
+        if not _TABLE_ROW_RE.search(lines[0]):
+            return None
+        sep_idx = None
+        for idx, ln in enumerate(lines[1:], 1):
+            if _TABLE_SEP_RE.match(ln.strip()):
+                sep_idx = idx
+                break
+        if sep_idx is None:
+            return None
+        rows: list[list[str]] = []
+        for ln in lines:
+            if _TABLE_SEP_RE.match(ln.strip()):
+                continue
+            cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+            if cells:
+                rows.append(cells)
+        return rows if len(rows) >= 2 else None
+
+    def _extract_numeric_pairs(paragraphs: list[str]) -> list[tuple[str, float]]:
+        """Extract (label, value) pairs from bullet/paragraph text."""
+        pairs: list[tuple[str, float]] = []
+        for para in paragraphs:
+            for m in _NUM_PAIR_RE.finditer(para):
+                label = m.group(1).strip().rstrip(":")
+                raw = m.group(2).replace(",", "").replace(" ", "").rstrip("%")
+                try:
+                    pairs.append((label[:60], float(raw)))
+                except ValueError:
+                    pass
+        return pairs
+
+    def _extract_steps(paragraphs: list[str]) -> list[str]:
+        """Extract ordered step labels from paragraphs."""
+        steps: list[str] = []
+        for para in paragraphs:
+            lines = para.splitlines()
+            for line in lines:
+                line = line.strip()
+                if _STEP_RE.match(line) or _ORDERED_RE.match(line):
+                    # strip the leading marker, keep label
+                    label = _STEP_RE.sub("", line).strip()
+                    label = _ORDERED_RE.sub("", label).strip()
+                    if label:
+                        steps.append(label[:80])
+                if len(steps) >= 7:
+                    break
+            if len(steps) >= 7:
+                break
+        return steps
+
+    # --- main loop ---------------------------------------------------------
+    slides: list[dict] = []
     for section in sections:
-        bullets = [part for part in section.get("paragraphs", []) if part.strip()]
+        title = section.get("heading", "")
+        paragraphs: list[str] = [p for p in section.get("paragraphs", []) if p.strip()]
+        if not paragraphs:
+            continue
+
+        # 1. Markdown table
+        table_rows: Optional[list[list[str]]] = None
+        for para in paragraphs:
+            table_rows = _parse_table(para)
+            if table_rows:
+                break
+        if table_rows:
+            slides.append({"type": "table", "title": title, "table": table_rows})
+            continue
+
+        # 2. Numeric data → bar chart
+        pairs = _extract_numeric_pairs(paragraphs)
+        if len(pairs) >= 3:
+            categories = [p[0] for p in pairs[:12]]
+            values = [p[1] for p in pairs[:12]]
+            slides.append({
+                "type": "chart",
+                "title": title,
+                "chart": {
+                    "type": "bar",
+                    "title": title,
+                    "categories": categories,
+                    "series": [{"name": title, "values": values}],
+                    "show_values": True,
+                },
+            })
+            continue
+
+        # 3. Process / step sequence → diagram
+        steps = _extract_steps(paragraphs)
+        if len(steps) >= 2:
+            slides.append({
+                "type": "diagram",
+                "title": title,
+                "diagram": {
+                    "layout": "row" if len(steps) <= 4 else "column",
+                    "nodes": [{"label": s, "detail": ""} for s in steps],
+                },
+            })
+            continue
+
+        # 4. Long prose → content slide
+        total_words = sum(len(p.split()) for p in paragraphs)
+        if total_words > 120:
+            slides.append({"type": "content", "title": title, "content": "\n\n".join(paragraphs)})
+            continue
+
+        # 5. Two or more paragraph groups → two-column
+        if len(paragraphs) >= 2:
+            col_a = paragraphs[0]
+            col_b = "\n\n".join(paragraphs[1:])
+            slides.append({
+                "type": "two-column",
+                "title": title,
+                "columns": [col_a, col_b],
+            })
+            continue
+
+        # 6. Default: bullets
+        bullets = []
+        for para in paragraphs:
+            for line in para.splitlines():
+                line = line.strip().lstrip("•-* ")
+                if line:
+                    bullets.append(line)
         if bullets:
-            slides.append(
-                {"type": "bullets", "title": section.get("heading", ""), "bullets": bullets[:40]}
-            )
+            slides.append({"type": "bullets", "title": title, "bullets": bullets[:40]})
     return slides
 
 

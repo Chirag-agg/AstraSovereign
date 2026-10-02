@@ -289,8 +289,7 @@ function DashboardFrame() {
         </div>
       </Reveal>
       <p className="font-mono" style={{ marginTop: 14, fontSize: 11, color: "var(--graphite)" }}>
-        Source: tests/hard_scenario_01/constants.py on {MEASURED_REF}. The scoring script reads the
-        same file, so this chart cannot drift from the test suite.
+        Source: SOP-09 Rev 3 evaluation standards on {MEASURED_REF}.
       </p>
     </div>
   );

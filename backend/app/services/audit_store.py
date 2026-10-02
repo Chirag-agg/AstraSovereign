@@ -57,6 +57,7 @@ EVENT_TYPE_MAP = {
     "presentation_generation_started": "PRESENTATION_GENERATION_STARTED",
     "presentation_generation_completed": "PRESENTATION_GENERATION_COMPLETED",
     "presentation_generation_failed": "PRESENTATION_GENERATION_FAILED",
+    "recall_work": "RECALL_WORK",
     "resource_allocated": "RESOURCE_ALLOCATED",
     "resource_released": "RESOURCE_RELEASED",
 }
@@ -94,6 +95,8 @@ _SAFE_METADATA_KEYS = {
     "iteration",
     "tool_calls",
     "error",
+    "query",
+    "result_count",
 }
 
 # Standard logging.LogRecord attributes — never treated as audit metadata (they

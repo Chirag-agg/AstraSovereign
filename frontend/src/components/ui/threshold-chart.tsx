@@ -6,9 +6,7 @@ import { TANK_204_COURSES, T_MIN_MM, T_ALERT_MM, type CourseReading } from "@/li
 /**
  * Shell-thickness profile, Tank 204.
  *
- * Threshold chart on the project's own benchmark fixture. Every point comes from
- * tests/hard_scenario_01/constants.py, which is the scoring script's source of
- * truth — so the chart and the test suite can never disagree.
+ * Threshold chart on the project's benchmark fixture.
  *
  * The shaded band is the margin between the 2026 survey reading and the
  * minimum permissible thickness computed by the API 653 one-foot method as

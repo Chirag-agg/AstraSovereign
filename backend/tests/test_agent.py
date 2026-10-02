@@ -973,3 +973,28 @@ def test_repeated_overflow_fails_with_the_named_reason_after_the_bound(tmp_path)
     assert "test-model" in result.error
     failure = [t for t in final.execution_trace if t["type"] == "agent_failed"]
     assert failure and "Context window exceeded" in failure[-1]["error"]
+
+
+def test_compact_older_history_preserves_task_and_bounds_context():
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Analyze 20 files sequentially."},
+    ]
+    for i in range(1, 16):
+        messages.append({
+            "role": "assistant",
+            "content": f"Step {i}",
+            "tool_calls": [{"function": {"name": "read_file", "arguments": {"path": f"file_{i}.txt"}}}],
+        })
+        messages.append({
+            "role": "tool",
+            "content": f"Tool 'read_file' result: read 500 bytes from file_{i}.txt\nDetails of file {i} ...",
+        })
+
+    compacted = Agent._compact_older_history(messages, keep_recent=4)
+    assert len(compacted) < len(messages)
+    assert compacted[0]["role"] == "system"
+    assert compacted[1]["content"] == "Analyze 20 files sequentially."
+    assert any("[Context compacted for earlier iterations]" in m.get("content", "") for m in compacted)
+    assert compacted[-1]["role"] == "tool"
+

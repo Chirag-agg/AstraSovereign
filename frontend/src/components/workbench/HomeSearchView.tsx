@@ -27,6 +27,7 @@ import {
 import { submitChat, getJob } from "@/lib/api";
 import type { ArtifactSummary, DocumentMeta, JobSummary, Job } from "@/lib/types";
 import { FigurePanel, NumberedList } from "@/components/ui/instrument";
+import Markdown from "@/components/Markdown";
 import { ModeSwitch } from "@/components/workbench/ModeSwitch";
 
 interface HomeSearchViewProps {
@@ -118,7 +119,8 @@ export default function HomeSearchView({
   const [messages, setMessages] = useState<HomeChatMessage[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const prevMessageCountRef = useRef(0);
 
   const docCount = documents ? documents.length : 0;
   const recentTasks = jobs ? jobs.slice(0, 5) : [];
@@ -202,12 +204,22 @@ export default function HomeSearchView({
     };
   }, [activeJobId]);
 
-  // Scroll to bottom of chat when new messages appear
+  // Scroll inner container to bottom when new messages arrive or when near bottom
+  const lastMsgStatus = messages[messages.length - 1]?.status;
+  const lastMsgTextLength = messages[messages.length - 1]?.text?.length ?? 0;
+
   useEffect(() => {
-    if (messages.length > 0) {
-      chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    const isNewMessage = messages.length > prevMessageCountRef.current;
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+
+    if (isNewMessage || isNearBottom) {
+      container.scrollTop = container.scrollHeight;
     }
-  }, [messages]);
+    prevMessageCountRef.current = messages.length;
+  }, [messages.length, lastMsgStatus, lastMsgTextLength]);
 
   const handleAskAssistant = async (queryText: string) => {
     const trimmed = queryText.trim();
@@ -377,7 +389,7 @@ export default function HomeSearchView({
 
         {messages.length > 0 && (
           <FigurePanel figure="2" title="The conversation" caption={`${messages.length} message(s)`}>
-            <div style={{ maxHeight: 620, overflowY: "auto", display: "flex", flexDirection: "column", gap: 18 }}>
+            <div ref={chatContainerRef} style={{ maxHeight: 620, overflowY: "auto", display: "flex", flexDirection: "column", gap: 18 }}>
               {messages.map((msg) =>
                 msg.sender === "user" ? (
                   <div key={msg.id} style={{ borderLeft: "2px solid var(--signal)", paddingLeft: 14 }}>
@@ -431,9 +443,9 @@ export default function HomeSearchView({
                         {msg.text}
                       </div>
                     ) : (
-                      <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.7, color: "var(--stone)", whiteSpace: "pre-wrap" }}>
-                        {msg.text}
-                      </p>
+                      <div style={{ margin: 0, fontSize: 14.5, lineHeight: 1.7, color: "var(--stone)" }}>
+                        <Markdown text={msg.text} />
+                      </div>
                     )}
 
                     {msg.status === "completed" && msg.artifacts && msg.artifacts.length > 0 && (
@@ -471,7 +483,6 @@ export default function HomeSearchView({
                   </div>
                 ),
               )}
-              <div ref={chatBottomRef} />
             </div>
           </FigurePanel>
         )}

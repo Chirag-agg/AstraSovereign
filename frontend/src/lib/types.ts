@@ -125,6 +125,13 @@ export interface DocumentMeta {
   chunk_count: number;
   created_at: string;
   error?: string | null;
+  /** Cached one-shot VLM caption produced during ingestion. Reused every time
+   *  this document is referenced in chat — no repeated vision call needed. */
+  vlm_summary?: string | null;
+  /** True when this document was routed through the OCR pipeline. */
+  ocr_processed?: boolean;
+  /** Pages the OCR pipeline could not read (empty array when all pages are OK). */
+  unreadable_pages?: number[];
 }
 
 export interface Health {

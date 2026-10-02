@@ -1,41 +1,56 @@
 "use client";
 
-// Minimal, safe markdown renderer (no HTML passthrough). Supports paragraphs,
-// fenced code blocks, headings, bullet/numbered lists, inline code, bold and
-// *italic*. Italic needs the text to hug both asterisks, so arithmetic such as
-// `5 * 3 * 2` is never mistaken for emphasis.
-
 import type { ReactNode } from "react";
 
 function inline(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*(?=\S)[^*\n]*?\S\*|\*\S\*)/g);
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*(?=\S)[^*\n]*?\S\*|\*\S\*|\[[^\]]+\]\([^)]+\))/g);
   parts.forEach((part, i) => {
-    if (!part) {
-      return;
-    }
+    if (!part) return;
     if (part.startsWith("`") && part.endsWith("`")) {
       nodes.push(
-        <code
-          key={i}
-          className="px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-xs font-mono text-slate-800"
-        >
+        <code key={i} className="md-inline-code">
           {part.slice(1, -1)}
         </code>
       );
     } else if (part.startsWith("**") && part.endsWith("**")) {
       nodes.push(
-        <strong key={i} className="font-bold text-slate-900">
+        <strong key={i} className="md-strong">
           {part.slice(2, -2)}
         </strong>
       );
     } else if (/^\*\S(?:[^*\n]*\S)?\*$/.test(part)) {
       nodes.push(<em key={i}>{part.slice(1, -1)}</em>);
+    } else if (/^\[[^\]]+\]\([^)]+\)$/.test(part)) {
+      const m = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (m) {
+        nodes.push(
+          <a key={i} href={m[2]} target="_blank" rel="noopener noreferrer" className="md-link">
+            {m[1]}
+          </a>
+        );
+      } else {
+        nodes.push(part);
+      }
     } else {
       nodes.push(part);
     }
   });
   return nodes;
+}
+
+function isTableSeparator(line: string): boolean {
+  const t = line.trim();
+  if (!t.includes("-")) return false;
+  if (!/^[\s|:\-]+$/.test(t)) return false;
+  return t.includes("---");
+}
+
+function splitRow(line: string): string[] {
+  let s = line.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|")) s = s.slice(0, -1);
+  return s.split("|").map((c) => c.trim());
 }
 
 function parseBlocks(md: string): ReactNode[] {
@@ -55,16 +70,13 @@ function parseBlocks(md: string): ReactNode[] {
         buf.push(lines[i]);
         i += 1;
       }
-      i += 1; // closing fence
+      i += 1;
       out.push(
-        <div
-          key={key++}
-          className="my-3 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-2xs"
-        >
-          <div className="flex items-center justify-between px-3.5 py-1.5 border-b border-slate-100 bg-slate-50/80 text-[11px] font-mono font-semibold text-slate-500 uppercase tracking-wider">
+        <div key={key++} className="md-code-block">
+          <div className="md-code-head">
             <span>{lang}</span>
           </div>
-          <pre className="p-3.5 text-xs sm:text-[13px] font-mono leading-relaxed text-slate-900 bg-white overflow-x-auto whitespace-pre">
+          <pre className="md-code-pre">
             <code>{buf.join("\n")}</code>
           </pre>
         </div>
@@ -77,43 +89,87 @@ function parseBlocks(md: string): ReactNode[] {
       continue;
     }
 
-    // headings
+    if (/^(\*{3,}|-{3,}|_{3,})\s*$/.test(line.trim())) {
+      out.push(<hr key={key++} className="md-hr" />);
+      i += 1;
+      continue;
+    }
+
     const heading = line.match(/^(#{1,4})\s+(.*)$/);
     if (heading) {
+      const level = heading[1].length;
+      const Tag = `h${level}` as "h1" | "h2" | "h3" | "h4";
       out.push(
-        <h3
-          key={key++}
-          id={`h${key}`}
-          className="text-base font-bold text-slate-900 mt-4 mb-2 tracking-tight"
-        >
+        <Tag key={key++} className={`md-h md-h${level}`}>
           {inline(heading[2])}
-        </h3>
+        </Tag>
       );
       i += 1;
       continue;
     }
 
-    // lists
+    if (line.includes("|") && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+      const headers = splitRow(line);
+      const rows: string[][] = [];
+      i += 2;
+      while (i < lines.length && lines[i].trim() && lines[i].includes("|")) {
+        rows.push(splitRow(lines[i]));
+        i += 1;
+      }
+      out.push(
+        <div key={key++} className="md-table-wrap">
+          <table className="md-table">
+            <thead>
+              <tr>
+                {headers.map((h, j) => (
+                  <th key={j}>{inline(h)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, r) => (
+                <tr key={r}>
+                  {row.map((cell, c) => (
+                    <td key={c}>{inline(cell)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      continue;
+    }
+
+    if (line.trim().startsWith(">")) {
+      const buf: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith(">")) {
+        buf.push(lines[i].replace(/^\s*>\s?/, ""));
+        i += 1;
+      }
+      out.push(
+        <blockquote key={key++} className="md-quote">
+          {buf.map((b, j) => (
+            <p key={j}>{inline(b)}</p>
+          ))}
+        </blockquote>
+      );
+      continue;
+    }
+
     if (/^(\s*[-*]\s|\s*\d+\.\s)/.test(line)) {
       const ordered = /^\s*\d+\.\s/.test(line);
       const items: string[] = [];
       const marker = ordered ? /^\s*\d+\.\s+?(.*)$/ : /^\s*[-*]\s+?(.*)$/;
       while (i < lines.length) {
         const m = lines[i].match(marker);
-        if (!m) {
-          break;
-        }
+        if (!m) break;
         items.push(m[1]);
         i += 1;
       }
       const Tag = ordered ? "ol" : "ul";
       out.push(
-        <Tag
-          key={key++}
-          className={`my-2 pl-5 space-y-1 text-sm md:text-[14.5px] leading-relaxed text-slate-800 ${
-            ordered ? "list-decimal" : "list-disc"
-          }`}
-        >
+        <Tag key={key++} className={`md-list ${ordered ? "md-list-ordered" : "md-list-bullet"}`}>
           {items.map((item, j) => (
             <li key={j}>{inline(item)}</li>
           ))}
@@ -122,7 +178,6 @@ function parseBlocks(md: string): ReactNode[] {
       continue;
     }
 
-    // paragraph (consume consecutive non-list, non-fence, non-heading lines)
     const para: string[] = [line];
     i += 1;
     while (
@@ -130,13 +185,16 @@ function parseBlocks(md: string): ReactNode[] {
       lines[i].trim() &&
       !/^\s*[-*]\s/.test(lines[i]) &&
       !lines[i].trim().startsWith("```") &&
-      !/^#{1,4}\s/.test(lines[i])
+      !/^#{1,4}\s/.test(lines[i]) &&
+      !lines[i].trim().startsWith(">") &&
+      !/^(\*{3,}|-{3,}|_{3,})\s*$/.test(lines[i].trim()) &&
+      !(lines[i].includes("|") && i + 1 < lines.length && isTableSeparator(lines[i + 1]))
     ) {
       para.push(lines[i]);
       i += 1;
     }
     out.push(
-      <p key={key++} className="text-sm md:text-[14.5px] leading-relaxed text-slate-800 mb-3 font-sans">
+      <p key={key++} className="md-p">
         {para.map((p, j) => (
           <span key={j}>
             {inline(p)}

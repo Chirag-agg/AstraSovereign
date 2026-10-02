@@ -2,8 +2,7 @@
 
 ``test_table_reconstruction.py`` pins the geometry with hand-placed boxes;
 this file is the other half — the same reconstruction fed by real RapidOCR
-boxes over the scenario fixtures, scored against the values the fixtures were
-drawn from (``tests/hard_scenario_01/constants.py``). The unit file can prove a
+boxes over the survey fixtures, scored against the expected values. The unit file can prove a
 rule works on geometry it chose; only this one can show the rule survives the
 boxes an engine actually reports.
 
@@ -21,7 +20,6 @@ The three shapes that matter:
 
 import asyncio
 import shutil
-import sys
 from pathlib import Path
 
 import pytest
@@ -31,10 +29,25 @@ from app.services.ocr_provider import RapidOCREngine
 from tests.conftest import make_multimodal_stack
 
 ROOT = Path(__file__).resolve().parents[2]
-FIXTURES = ROOT / "tests" / "fixtures" / "hard_scenario_01"
-sys.path.insert(0, str(ROOT / "tests" / "hard_scenario_01"))
+FIXTURES = ROOT / "tests" / "fixtures" / "table_integration"
 
-import constants  # noqa: E402
+COURSES = ["1", "2", "3", "4", "5", "6"]
+INCH_TO_MM = 25.4
+READINGS_2026 = {
+    "1": {"printed_mm": 13.4},
+    "2": {"printed_mm": 10.9},
+    "3": {"printed_mm": 11.2},
+    "4": {"printed_mm": 12.8},
+    "5": {"struck_mm": 10.4, "handwritten_mm": 11.6},
+    "6": {"printed_in": 0.455},
+}
+READINGS_2021 = {
+    "1": 14.1,
+    "2": 11.9,
+    "3": 12.2,
+    "4": 13.6,
+    "6": 12.4,
+}
 
 REPORT_2021 = "inspection_report_2021.pdf"
 REPORT_2026 = "inspection_report_2026.pdf"
@@ -43,16 +56,11 @@ SCANS = (REPORT_2021, REPORT_2026, PID)
 
 EXPECTED_HEADER = ["Course", "Thickness (mm)", "Remarks"]
 
-# The scenario fixtures are *rendered*, not committed — ``tests/fixtures/`` is
-# gitignored and ``build_fixtures.py`` produces them from ``constants.py``. CI
-# has the sources but not the PDFs, so this file skips there rather than
-# failing on a missing file; the geometry it depends on is still pinned by
-# ``test_table_reconstruction.py``, which needs no fixtures.
 MISSING = [name for name in SCANS if not (FIXTURES / name).exists()]
 
 pytestmark = pytest.mark.skipif(
     bool(MISSING),
-    reason=f"scenario fixtures not built: {', '.join(MISSING)}",
+    reason=f"table integration fixtures not built: {', '.join(MISSING)}",
 )
 
 
@@ -111,17 +119,17 @@ def test_2026_sheet_becomes_one_table_with_a_row_per_course(extractions):
 
     assert table.source == "table_reconstruction"
     assert table.table.header == EXPECTED_HEADER
-    assert list(by_course(table)) == [f"C{course}" for course in constants.COURSES]
+    assert list(by_course(table)) == [f"C{course}" for course in COURSES]
 
 
 @pytest.mark.rapidocr
 def test_2026_thickness_column_holds_exactly_what_was_printed(extractions):
     rows = by_course(only_table(extractions[REPORT_2026]))
 
-    for course in constants.COURSES:
+    for course in COURSES:
         if course == "5":  # two values in one cell; asserted separately
             continue
-        raw = constants.READINGS_2026[course]
+        raw = READINGS_2026[course]
         expected = (
             f"{raw['printed_in']} in" if "printed_in" in raw else f"{raw['printed_mm']}"
         )
@@ -136,7 +144,7 @@ def test_2026_inch_reading_is_not_converted(extractions):
 
     assert reported.endswith(" in")
     # 0.455 in is 11.56 mm — the value must not have been silently converted.
-    converted = str(round(constants.READINGS_2026["6"]["printed_in"] * constants.INCH_TO_MM, 2))
+    converted = str(round(READINGS_2026["6"]["printed_in"] * INCH_TO_MM, 2))
     assert converted not in reported
 
 
@@ -146,8 +154,8 @@ def test_2026_corrected_course_keeps_both_readings_in_one_cell(extractions):
     rows = by_course(only_table(extractions[REPORT_2026]))
     cell = cell_in(rows["C5"], 1)
 
-    printed = str(constants.READINGS_2026["5"]["struck_mm"])
-    handwritten = str(constants.READINGS_2026["5"]["handwritten_mm"])
+    printed = str(READINGS_2026["5"]["struck_mm"])
+    handwritten = str(READINGS_2026["5"]["handwritten_mm"])
     assert [candidate.text for candidate in cell.candidates] == [printed, handwritten]
     # Each candidate keeps the region it was read from, so the choice between
     # them is one a reader can still check.
@@ -177,7 +185,7 @@ def test_2021_missing_course_gets_a_row_with_no_reading(extractions):
     rows = by_course(table)
 
     assert table.table.header == EXPECTED_HEADER
-    assert list(rows) == [f"C{course}" for course in constants.COURSES]
+    assert list(rows) == [f"C{course}" for course in COURSES]
     assert thickness_texts(rows["C5"]) == []
     assert [cell.col for cell in rows["C5"]] == [0, 2]
 
@@ -188,11 +196,11 @@ def test_2021_readings_match_the_previous_survey_exactly(extractions):
 
     read = {
         f"C{course}": thickness_texts(rows[f"C{course}"])
-        for course in constants.READINGS_2021
+        for course in READINGS_2021
     }
     assert read == {
         f"C{course}": [str(value)]
-        for course, value in constants.READINGS_2021.items()
+        for course, value in READINGS_2021.items()
     }
 
 

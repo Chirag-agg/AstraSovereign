@@ -706,3 +706,50 @@ def test_word_and_xlsx_reject_empty_table_row(tmp_path, doc_type, filename):
     }
     with pytest.raises(ToolError, match="must not contain empty rows"):
         run(tool.execute(tmp_path, args))
+
+
+def test_tool_supports_dict_table_and_non_string_cells(tmp_path):
+    tool, store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-dict-tbl")
+    args = {
+        "type": "excel",
+        "filename": "data.xlsx",
+        "title": "Data Sheet",
+        "sections": {
+            "heading": "Extracted Table",
+            "table": {
+                "headers": ["Item", "Amount", "Active"],
+                "rows": [
+                    ["Line 1", 725.50, True],
+                    ["Line 2", 1200, False],
+                ],
+            },
+        },
+    }
+    result = run(tool.execute(tmp_path, args))
+    assert result.ok
+    artifact_file = tmp_path / "artifacts" / "data.xlsx"
+    assert artifact_file.is_file()
+
+
+def test_tool_supports_list_of_dicts_table(tmp_path):
+    tool, store, _scheduler = make_tool(tmp_path)
+    set_job_context(user_id="user-001", job_id="job-dict-list")
+    args = {
+        "type": "excel",
+        "filename": "records.xlsx",
+        "title": "Records",
+        "sections": [
+            {
+                "heading": "Records List",
+                "table": [
+                    {"ID": "C8273", "Date": "2024-04-03", "Amount": "725.00"},
+                    {"ID": "C8274", "Date": "2024-04-04", "Amount": "499.00"},
+                ],
+            }
+        ],
+    }
+    result = run(tool.execute(tmp_path, args))
+    assert result.ok
+    assert (tmp_path / "artifacts" / "records.xlsx").is_file()
+

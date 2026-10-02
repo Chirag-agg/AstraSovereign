@@ -185,6 +185,27 @@ export async function deleteDocument(userId: string, documentId: string): Promis
   );
 }
 
+/**
+ * Fuzzy-search documents by filename. Used to resolve a document name typed in
+ * a chat message (e.g. "summarise report.pdf") to a document_id so the agent
+ * receives it as an explicit attachment.  Returns [] on error so callers don't
+ * have to guard.
+ */
+export async function searchDocumentsByName(
+  userId: string,
+  q: string,
+): Promise<DocumentMeta[]> {
+  try {
+    return await request<DocumentMeta[]>(
+      `/api/documents/search-by-name?q=${encodeURIComponent(q)}`,
+      {},
+      userId,
+    );
+  } catch {
+    return [];
+  }
+}
+
 // ------------------------------------------------------------- artifacts
 
 export interface DownloadResult {

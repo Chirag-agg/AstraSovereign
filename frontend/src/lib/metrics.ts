@@ -137,7 +137,7 @@ export const BENCHMARKS: Benchmark[] = [
     tone: "caution",
   },
   {
-    name: "Hard Scenario 01 (API 653)",
+    name: "Fitness-for-Service (API 653)",
     value: "1–6 / 20",
     detail:
       "Not finale-ready, and we publish it anyway. The extract node's model intermittently answers in prose instead of calling submit_findings, so the assessment it should ground never gets built. Terminal-tool narrowing landed 2026-09-20 as a mitigation; the real fixes are a stronger tool-calling extract model or fully deterministic extraction.",
@@ -146,10 +146,8 @@ export const BENCHMARKS: Benchmark[] = [
 ];
 
 /**
- * Tank 204 shell-thickness survey — the fixture behind Hard Scenario 01.
- * Values are computed in tests/hard_scenario_01/constants.py by the API 653
- * one-foot method as written in SOP-09 Rev 3; `expectedResults()` there is the
- * single source of truth and this array mirrors its output exactly.
+ * Tank 204 shell-thickness survey.
+ * Values are computed by the API 653 one-foot method as written in SOP-09 Rev 3.
  */
 export interface CourseReading {
   course: number;

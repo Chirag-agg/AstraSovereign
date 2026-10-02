@@ -8,6 +8,7 @@ import asyncio
 import base64
 import json
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Optional, Union
@@ -151,6 +152,103 @@ def normalize_tool_calls(raw: object) -> list[dict]:
                 {"name": name, "arguments": arguments, "id": item.get("id")}
             )
     return normalized
+
+
+def rescue_tool_call_from_raw_error(
+    error_body: str, tools: Optional[list[dict]] = None
+) -> list[dict]:
+    """Recover tool calls when Ollama's native parser returns HTTP 500 'error parsing tool call: raw=...'.
+
+    When local models generate large JSON payloads (such as extracted table rows)
+    or subtle schema variations, Ollama's Go parser may fail to unmarshal into its
+    internal struct and return HTTP 500 embedding the model's generation in `raw='...'`.
+    This helper recovers and normalises those tool calls.
+    """
+    if not isinstance(error_body, str) or "error parsing tool call" not in error_body:
+        return []
+
+    raw_str = ""
+    try:
+        data = json.loads(error_body)
+        if isinstance(data, dict):
+            err_msg = data.get("error", "")
+        else:
+            err_msg = error_body
+    except Exception:
+        err_msg = error_body
+
+    match = re.search(r"raw=(?:'|\")(.*)(?:'|\")\s*\}?$", err_msg, re.DOTALL)
+    if match:
+        raw_str = match.group(1).strip()
+    else:
+        start = err_msg.find("{")
+        end = err_msg.rfind("}")
+        if start != -1 and end > start:
+            raw_str = err_msg[start : end + 1]
+
+    if not raw_str:
+        return []
+
+    parsed = None
+    candidates = [
+        raw_str,
+        raw_str.encode("utf-8").decode("unicode_escape", errors="ignore"),
+        raw_str.replace('\\"', '"').replace("\\n", "\n"),
+    ]
+    for cand in candidates:
+        try:
+            parsed = json.loads(cand)
+            if parsed:
+                break
+        except Exception:
+            pass
+
+    if parsed is None:
+        start = raw_str.find("{")
+        end = raw_str.rfind("}")
+        if start != -1 and end > start:
+            try:
+                parsed = json.loads(raw_str[start : end + 1])
+            except Exception:
+                pass
+
+    if not parsed:
+        return []
+
+    items = parsed if isinstance(parsed, list) else [parsed]
+    raw_tool_calls: list[dict] = []
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        if isinstance(name, str) and name:
+            args = item.get("arguments")
+            if args is None:
+                args = item.get("parameters")
+            if not isinstance(args, dict):
+                args = {k: v for k, v in item.items() if k not in ("name", "id")}
+            raw_tool_calls.append({"name": name, "arguments": args, "id": item.get("id")})
+        else:
+            matched_tool = None
+            if tools:
+                for t in tools:
+                    fn = t.get("function") if isinstance(t.get("function"), dict) else t
+                    t_name = fn.get("name") if isinstance(fn, dict) else None
+                    props = fn.get("parameters", {}).get("properties", {}) if isinstance(fn, dict) else {}
+                    if t_name and len(set(props) & set(item)) >= 2:
+                        matched_tool = t_name
+                        break
+                if not matched_tool and len(tools) == 1:
+                    fn = tools[0].get("function") if isinstance(tools[0].get("function"), dict) else tools[0]
+                    matched_tool = fn.get("name") if isinstance(fn, dict) else None
+            if not matched_tool:
+                if "sections" in item or ("type" in item and "filename" in item):
+                    matched_tool = "document_generation"
+            if matched_tool:
+                raw_tool_calls.append({"name": matched_tool, "arguments": item, "id": None})
+
+    return normalize_tool_calls(raw_tool_calls)
 
 
 class OllamaService:
@@ -464,6 +562,19 @@ class OllamaService:
             raise OllamaUnavailableError(
                 f"Ollama is unreachable at {self.base_url}: {exc.__class__.__name__}"
             ) from exc
+
+        if response.status_code == 500 and "error parsing tool call" in response.text:
+            rescued_calls = rescue_tool_call_from_raw_error(response.text, tools)
+            if rescued_calls:
+                logger.warning(
+                    "ollama_tool_call_rescued_from_500",
+                    extra={
+                        "event": "ollama_tool_call_rescued_from_500",
+                        "model": model_name,
+                        "tool_calls_count": len(rescued_calls),
+                    },
+                )
+                return "", rescued_calls, model_name
 
         self._raise_for_status(response, model_name, payload)
 

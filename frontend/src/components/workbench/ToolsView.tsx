@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef, type FormEvent } from "react";
 import { RefreshCw, Play } from "lucide-react";
 import { FigurePanel, StatSlab } from "@/components/ui/instrument";
+import Markdown from "@/components/Markdown";
 import { getHealth, submitChat, getJob } from "@/lib/api";
 import type { Health, Job, TraceEntry, JobStatus } from "@/lib/types";
 import { isTerminalStatus } from "@/lib/types";
@@ -364,9 +365,9 @@ export default function ToolsView() {
               {job.response && (
                 <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--carbon)" }}>
                   <span className="mono-label">Result</span>
-                  <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.65, color: "var(--stone)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                    {job.response}
-                  </p>
+                  <div style={{ marginTop: 8 }}>
+                    <Markdown text={job.response} />
+                  </div>
                 </div>
               )}
             </div>

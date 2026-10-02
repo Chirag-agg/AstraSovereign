@@ -251,12 +251,18 @@ class MultimodalService:
             metadata: dict = {"page_count": len(rendered), "ocr": True}
             if unreadable_pages:
                 metadata["unreadable_pages"] = unreadable_pages
-            return await self._kb.ingest_pages(
+            doc = await self._kb.ingest_pages(
                 user_id, path, filename, pages,
                 metadata=metadata,
                 elements=elements,
                 unreadable_pages=unreadable_pages,
             )
+            # Run a one-shot VLM caption on the first page so the result is
+            # stored once and reused every time this document is mentioned in
+            # chat, without running the vision model again.
+            if rendered and doc.status in (DocumentStatus.READY, DocumentStatus.PARTIAL):
+                await self._caption_document(user_id, doc, rendered[0])
+            return doc
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
             _remove_empty_ancestors(tmp_dir.parent, self._tmp_root)
@@ -580,17 +586,72 @@ class MultimodalService:
                     unreadable_pages=unreadable_pages,
                     empty_text_error="Document requires OCR",
                 )
-            return await self._kb.ingest_pages(
+            doc = await self._kb.ingest_pages(
                 user_id, path, filename, pages,
                 metadata=metadata,
                 elements=elements,
                 unreadable_pages=unreadable_pages,
             )
+            # Caption the first OCR-rendered page and cache in metadata so
+            # chat references can reuse the description without re-running VLM.
+            if rendered and doc.status in (DocumentStatus.READY, DocumentStatus.PARTIAL):
+                await self._caption_document(user_id, doc, rendered[0])
+            return doc
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
             _remove_empty_ancestors(tmp_dir.parent, self._tmp_root)
 
     # ------------------------------------------------------------- internals
+
+    async def _caption_document(
+        self,
+        user_id: str,
+        doc: "DocumentRecord",
+        rp: "RenderedPage",
+    ) -> None:
+        """Run a one-shot VLM caption on a rendered page and cache it.
+
+        The caption is stored in ``doc.metadata["vlm_summary"]`` and persisted
+        to the vector store so every future reference to this document by name in
+        chat can attach the pre-computed description without repeating the vision
+        call. Best-effort: any error is logged and swallowed — never fails the
+        ingestion that triggered this.
+        """
+        if not self._vision_enabled or not self._vision_model:
+            return
+        try:
+            caption_result = await self._vision.analyze(
+                rp.image_path,
+                "Describe this document page concisely: what type of document is it, "
+                "what is its main subject, and what are the key data points or sections visible?",
+                "",
+                self._vision_model,
+            )
+            summary = (caption_result.text or "").strip()
+            if not summary and caption_result.observations:
+                summary = " ".join(caption_result.observations)
+            if summary:
+                doc.metadata = {**(doc.metadata or {}), "vlm_summary": summary[:1000]}
+                await self._kb._store.put_document(user_id, doc)
+                logger.info(
+                    "vlm_caption_stored",
+                    extra={
+                        "event": "vlm_caption_stored",
+                        "user_id": user_id,
+                        "document_id": doc.document_id,
+                        "chars": len(summary),
+                    },
+                )
+        except Exception:
+            logger.warning(
+                "vlm_caption_failed",
+                extra={
+                    "event": "vlm_caption_failed",
+                    "user_id": user_id,
+                    "document_id": doc.document_id,
+                },
+                exc_info=False,
+            )
 
     async def _recognize(self, rp: RenderedPage, user_id: str) -> list[OCRRegion]:
         """OCR one rendered page.

@@ -246,12 +246,15 @@ def test_scanned_document_still_gets_whole_page_vision(tmp_path):
     service, _scheduler, uploads, _tmp = make_multimodal_stack(tmp_path, ocr=ocr, vision=vision)
     doc = run(ingest_scan(service, uploads, "user-001", page_count=1))
     assert doc.metadata.get("ocr") is True
+    assert len(vision.calls) == 1
+    assert "Describe this document page concisely" in vision.calls[0]["question"]
     set_job_context(user_id="user-001", job_id="job-scanned")
 
     result = run(service.analyze("user-001", doc.document_id, [1], "q"))
 
     assert "whole page observation" in result.pages[0].observations
-    assert len(vision.calls) == 1
+    assert len(vision.calls) == 2
+    assert vision.calls[1]["question"] == "q"
 
 
 # ----------------------------------------------------- isolation & cleanup

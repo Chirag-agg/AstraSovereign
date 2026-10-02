@@ -1037,6 +1037,7 @@ def test_nodes_scope_tools_per_step():
     assert calls[3]["tool_names"] == {
         "document_generation",
         "presentation_generation",
+        "recall_work",
         "list_files",
         "read_file",
         "write_file",
@@ -1113,3 +1114,119 @@ def test_compute_completed_without_a_verified_sandbox_call_still_degrades():
     )
     by_course = {course.course: course for course in node_agent.last_assessment.courses}
     assert by_course["C2"].reason_code == "REFER_ASSESSMENT_INCOMPLETE"
+
+
+def test_generator_already_succeeded_nudge_prevents_duplicate_file_creation():
+    """Verify that when a generator tool succeeded but content is below target word count,
+    make_word_count_validator returns a nudge referencing the existing file and tool
+    rather than a generic 'expand' prompt that causes duplicate document generation."""
+    validator = make_word_count_validator(500)
+    trace_with_success = [
+        {
+            "type": "tool_call",
+            "tool": "document_generation",
+            "arguments": {"filename": "report.docx", "title": "Report", "sections": [{"heading": "A", "paragraphs": ["short text"]}]},
+        },
+        {
+            "type": "tool_result",
+            "tool": "document_generation",
+            "ok": True,
+        },
+    ]
+    nudge = validator("Here is your document.", trace_with_success)
+    assert nudge is not None
+    assert "document_generation" in nudge
+    assert "SAME filename" in nudge
+    assert "Do NOT create a second file" in nudge
+
+    # Without a succeeded generator call, standard generic nudge is returned
+    trace_without_success = [
+        {
+            "type": "tool_call",
+            "tool": "document_generation",
+            "arguments": {"filename": "report.docx", "title": "Report", "sections": [{"heading": "A", "paragraphs": ["short text"]}]},
+        },
+        {
+            "type": "tool_result",
+            "tool": "document_generation",
+            "ok": False,
+        },
+    ]
+    nudge_generic = validator("Here is your document.", trace_without_success)
+    assert nudge_generic is not None
+    assert "SAME filename" not in nudge_generic
+    assert "falls well short" in nudge_generic
+
+
+def test_content_slides_generates_varied_slide_types():
+    """Verify content_slides generates table, chart, diagram, content, two-column,
+    and bullets slides based on section content."""
+    sections = [
+        {
+            "heading": "Financial Performance",
+            "paragraphs": [
+                "| Quarter | Revenue | Profit |\n| --- | --- | --- |\n| Q1 | 100 | 20 |\n| Q2 | 150 | 35 |"
+            ],
+        },
+        {
+            "heading": "Key Metrics",
+            "paragraphs": [
+                "User Growth: 1500\nActive Subscriptions: 1200\nRetention Rate: 85%"
+            ],
+        },
+        {
+            "heading": "Deployment Pipeline",
+            "paragraphs": [
+                "Step 1: Code Commit\nStep 2: Automated Testing\nStep 3: Staging Deployment\nStep 4: Production Release"
+            ],
+        },
+        {
+            "heading": "Detailed Overview",
+            "paragraphs": [
+                " ".join(["word"] * 130)
+            ],
+        },
+        {
+            "heading": "Comparison",
+            "paragraphs": [
+                "Option A is fast and lightweight.",
+                "Option B is robust and enterprise-grade."
+            ],
+        },
+        {
+            "heading": "Summary Points",
+            "paragraphs": [
+                "• Point one\n• Point two"
+            ],
+        },
+    ]
+    slides = content_slides(sections)
+    assert len(slides) == 6
+
+    # 1. Table slide
+    assert slides[0]["type"] == "table"
+    assert slides[0]["table"] == [["Quarter", "Revenue", "Profit"], ["Q1", "100", "20"], ["Q2", "150", "35"]]
+
+    # 2. Chart slide
+    assert slides[1]["type"] == "chart"
+    assert slides[1]["chart"]["type"] == "bar"
+    assert len(slides[1]["chart"]["categories"]) == 3
+    assert slides[1]["chart"]["series"][0]["values"] == [1500.0, 1200.0, 85.0]
+
+    # 3. Diagram slide
+    assert slides[2]["type"] == "diagram"
+    assert slides[2]["diagram"]["layout"] == "row"
+    assert len(slides[2]["diagram"]["nodes"]) == 4
+
+    # 4. Content slide (long prose)
+    assert slides[3]["type"] == "content"
+    assert "content" in slides[3]
+
+    # 5. Two-column slide
+    assert slides[4]["type"] == "two-column"
+    assert len(slides[4]["columns"]) == 2
+
+    # 6. Bullets slide
+    assert slides[5]["type"] == "bullets"
+    assert len(slides[5]["bullets"]) == 2
+

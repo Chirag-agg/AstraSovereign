@@ -33,6 +33,7 @@ import {
   deleteDocument,
   DEMO_MODE,
   downloadArtifact,
+  searchDocumentsByName,
   submitChat,
   uploadDocument,
 } from "@/lib/api";
@@ -243,6 +244,37 @@ function WorkbenchWorkspace({ onSignOut }: { onSignOut: () => void }) {
         : chips
             .filter((chip) => chip.documentId && chip.state === "ready")
             .map((chip) => chip.documentId as string);
+
+      // ── Document-name mention resolution ──────────────────────────────────
+      // Scan the message for @doc-name patterns or bare words that contain a
+      // file-extension dot (e.g. "report.pdf", "@Q3_results.xlsx"). For each
+      // candidate we hit the search-by-name endpoint and auto-attach the first
+      // match. This is what makes "summarise report.pdf" actually work without
+      // the user clicking the attach button.
+      const mentionCandidates = new Set<string>();
+      // @mention pattern: @word (optionally with dots/underscores/hyphens)
+      const atPattern = /@([\w.\-]+)/g;
+      let m: RegExpExecArray | null;
+      while ((m = atPattern.exec(message)) !== null) {
+        mentionCandidates.add(m[1]);
+      }
+      // Bare filename pattern: any word containing a dot followed by 2-5 alpha chars
+      const bareFilePattern = /\b([\w.\-]+\.[a-zA-Z]{2,5})\b/g;
+      while ((m = bareFilePattern.exec(message)) !== null) {
+        mentionCandidates.add(m[1]);
+      }
+      if (mentionCandidates.size > 0) {
+        const resolved = await Promise.all(
+          [...mentionCandidates].map((q) => searchDocumentsByName(user, q)),
+        );
+        for (const matches of resolved) {
+          if (matches.length > 0 && matches[0].status === "ready") {
+            selected.push(matches[0].document_id);
+          }
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       const documentIds = Array.from(new Set(selected));
       try {
         const response = await submitChat(user, message, documentIds);

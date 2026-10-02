@@ -2,8 +2,7 @@
 
 Every element here is hand-placed, so a failure names the geometry that broke
 rather than an OCR engine's opinion of a fixture. The column x-intervals and
-the 70 px row pitch mirror the scenario reports (see
-``tests/hard_scenario_01/build_fixtures.py``); the fixtures themselves are
+the 70 px row pitch mirror the scenario reports; the fixtures themselves are
 exercised separately through the real engine.
 
 What this pins down:

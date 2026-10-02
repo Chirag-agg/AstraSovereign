@@ -53,6 +53,7 @@ from app.services.job_queue import JobQueue
 from app.services.job_store import SqliteJobStore
 from app.services.knowledge_base import KnowledgeBase
 from app.services.model_registry import ModelRegistry
+from app.services.memory_recall import MemoryRecall
 from app.schemas.job import JobStatus
 from app.services.capability_classifier import SemanticCapabilityClassifier
 from app.services.multimodal import MultimodalService
@@ -79,6 +80,7 @@ from app.services.tools import (
     ListFilesTool,
     PresentationGenerationTool,
     ReadFileTool,
+    RecallWorkTool,
     WriteFileTool,
 )
 from app.services.vector_store import JsonVectorStore
@@ -482,7 +484,13 @@ def create_app(
     if vision_config is not None:
         tools.append(DocumentVisionTool(multimodal=multimodal))
 
+    store = SqliteJobStore(settings.database_path)
     artifact_store = SqliteArtifactStore(settings.database_path)
+    tools.append(
+        RecallWorkTool(
+            MemoryRecall(store, artifact_store, document_store=knowledge_base)
+        )
+    )
     document_generators = {
         "word": WordDocumentGenerator(),
         "excel": XlsxDocumentGenerator(),
@@ -515,7 +523,6 @@ def create_app(
     validate_node_tools(NODE_TOOLS, NODE_INPUT_NODES, tool_registry)
     workspace_manager = WorkspaceManager(root=settings.workspaces_root)
 
-    store = SqliteJobStore(settings.database_path)
     job_manager = JobManager(store=store, default_model=settings.default_model)
     job_queue = JobQueue()
     agent = Agent(

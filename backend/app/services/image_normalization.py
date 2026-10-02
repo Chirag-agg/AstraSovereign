@@ -25,6 +25,16 @@ WEB_SAFE_SUFFIXES = {".png", ".jpg", ".jpeg"}
 # Modes Pillow can write to PNG without an explicit conversion.
 _PNG_MODES = ("1", "L", "LA", "P", "RGB", "RGBA", "I", "I;16")
 
+# Maximum pixels on the long edge before downscaling. A 4 MP scan at 1600px
+# long edge produces a ~600 KB PNG; without the cap the same source encoded
+# verbatim would embed as a 40 MB blob and bloat every deck that carries it.
+PPTX_LONG_EDGE_MAX = 1600
+
+# The only formats PptxGenJS will accept in the ``data:`` payload after we
+# re-encode. JPEG gives smaller files for photographic scans; PNG is lossless
+# and preferred for everything else (line art, tables, schematics).
+_PPTX_ACCEPTED_FORMATS = {"PNG", "JPEG"}
+
 ImageSource = Union[str, Path, bytes]
 
 
@@ -54,6 +64,81 @@ def is_web_safe(source: ImageSource) -> bool:
     if _is_bytes(source):
         return False
     return Path(source).suffix.lower() in WEB_SAFE_SUFFIXES
+
+
+def cap_long_edge(image: Image.Image, max_px: int = PPTX_LONG_EDGE_MAX) -> Image.Image:
+    """Return *image* downscaled so its longest side ≤ *max_px*, or the same
+    object when it already fits.  Aspect ratio is preserved; upscaling is
+    never done (an image smaller than the cap is returned unchanged).
+
+    The downscale uses ``LANCZOS`` (the highest-quality Pillow resampling
+    filter) so text in a P&ID crop or a scanned table remains legible.
+    """
+    w, h = image.size
+    long_side = max(w, h)
+    if long_side <= max_px:
+        return image
+    scale = max_px / long_side
+    new_w = max(1, round(w * scale))
+    new_h = max(1, round(h * scale))
+    return image.resize((new_w, new_h), Image.LANCZOS)
+
+
+def normalize_for_pptx(
+    source: ImageSource,
+    max_long_edge: int = PPTX_LONG_EDGE_MAX,
+) -> bytes:
+    """Read any Pillow-readable raster, cap it, and return PNG bytes.
+
+    The returned bytes are always PNG (never JPEG, BMP, TIFF, etc.) so the
+    caller can build a ``image/png;base64,…`` data URI with confidence.
+
+    Raises :class:`ImageNormalizationError` when:
+    - the source cannot be decoded by Pillow, or
+    - the re-encoded image is not PNG or JPEG (i.e. Pillow could not round-trip
+      through a web-safe format — an edge-case for exotic palette modes).
+    """
+    try:
+        with _open(source) as opened:
+            opened.load()
+            image = opened.copy()
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise ImageNormalizationError(
+            f"Cannot read image '{_name(source)}': {exc}"
+        ) from exc
+
+    # Downscale before re-encoding so the base64 blob stays manageable.
+    image = cap_long_edge(image, max_long_edge)
+
+    # Re-encode to PNG (lossless, always accepted by PptxGenJS).
+    if image.mode not in _PNG_MODES:
+        has_alpha = "A" in image.getbands()
+        image = image.convert("RGBA" if has_alpha else "RGB")
+
+    buffer = io.BytesIO()
+    try:
+        image.save(buffer, format="PNG")
+    except (OSError, ValueError) as exc:
+        raise ImageNormalizationError(
+            f"Cannot convert image '{_name(source)}' to PNG: {exc}"
+        ) from exc
+
+    # Verify the round-trip produced an accepted format.
+    buffer.seek(0)
+    try:
+        with Image.open(buffer) as check:
+            fmt = (check.format or "").upper()
+    except Exception as exc:  # pragma: no cover
+        raise ImageNormalizationError(
+            f"Re-encoded image '{_name(source)}' could not be verified: {exc}"
+        ) from exc
+    if fmt not in _PPTX_ACCEPTED_FORMATS:
+        raise ImageNormalizationError(
+            f"Re-encoded image '{_name(source)}' is '{fmt}'; "
+            f"only PNG or JPEG are accepted for embedding"
+        )
+    buffer.seek(0)
+    return buffer.read()
 
 
 def png_bytes(source: ImageSource) -> bytes:
@@ -104,4 +189,21 @@ def render_data_uri(source: ImageSource) -> Optional[str]:
     encoded = base64.b64encode(png_bytes(source)).decode("ascii")
     # PptxGenJS parses the media extension out of ``image/(\w+);`` and rejects a
     # bare base64 blob, so the MIME prefix is load-bearing.
+    return f"image/png;base64,{encoded}"
+
+
+def render_data_uri_normalized(
+    source: ImageSource,
+    max_long_edge: int = PPTX_LONG_EDGE_MAX,
+) -> str:
+    """Normalize *source* for PPTX embedding and return the ``data:`` URI.
+
+    Unlike :func:`render_data_uri` this always returns a string (never
+    ``None``) and always caps the long edge, making it the single call-site
+    for the presentation tool's image pipeline.  A web-safe path whose
+    dimensions already fit the cap is still re-encoded via
+    :func:`normalize_for_pptx` so the cap is enforced uniformly.
+    """
+    data = normalize_for_pptx(source, max_long_edge)
+    encoded = base64.b64encode(data).decode("ascii")
     return f"image/png;base64,{encoded}"
